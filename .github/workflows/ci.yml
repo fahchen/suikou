@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  MIX_ENV: test
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup environment
+        id: setup
+        uses: ./.github/workflows/actions/setup
+
+      - name: Restore PLT cache
+        id: plt-cache
+        uses: actions/cache@v5
+        with:
+          path: priv/plts
+          key: plt-${{ runner.os }}-${{ steps.setup.outputs.erlang-version }}-${{ steps.setup.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            plt-${{ runner.os }}-${{ steps.setup.outputs.erlang-version }}-${{ steps.setup.outputs.elixir-version }}-
+
+      - name: Create PLTs
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        run: mix dialyzer --plt
+
+      # Full backend gate: compile (warnings as errors) + musubi_ts codegen check
+      # + format + test + credo + dialyzer + ex_dna + reach. `mix compile` here
+      # regenerates assets/src/generated/musubi.d.ts that the frontend consumes.
+      - name: Run mix ci
+        run: mix ci
+
+      # Not --frozen-lockfile: the @musubi/* and phoenix file: deps are linked
+      # from mix-managed deps/, so bun re-resolves them each run and always
+      # reports drift. The lockfile still pins the published npm dependencies.
+      - name: Install frontend dependencies
+        working-directory: assets
+        run: bun install
+
+      - name: Typecheck frontend
+        working-directory: assets
+        run: bun run typecheck
+
+      - name: Build frontend
+        working-directory: assets
+        run: bun run build
