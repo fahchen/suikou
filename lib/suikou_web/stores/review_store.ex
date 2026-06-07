@@ -150,7 +150,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     artifact_id = socket.assigns.artifact_id
     artifact = Reads.get_artifact(artifact_id)
     rounds = Reads.list_rounds(artifact_id)
-    viewed = viewed_round(rounds, socket.assigns.round_number)
+    viewed = viewed_round(rounds, Map.get(socket.assigns, :round_number))
     latest_number = latest_round_number(rounds)
 
     %{
