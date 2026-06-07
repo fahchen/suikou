@@ -48,7 +48,7 @@ defmodule Suikou.Export do
   ## Examples
 
       Suikou.Export.export(artifact.id)
-      #=> {:ok, %{artifact_id: 1, round: 2, verdict: :request_changes, comments: []}}
+      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", round: 2, verdict: :request_changes, comments: []}}
 
       Suikou.Export.export("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
@@ -81,9 +81,13 @@ defmodule Suikou.Export do
     from(c in Comment, as: :comment)
     |> where([comment: c], c.round_id == ^round_id and c.status == :published)
     |> order_by([comment: c], asc: c.id)
-    |> preload(replies: ^from(r in Reply, as: :reply, order_by: r.id))
+    |> preload(replies: ^reply_thread())
     |> Repo.all()
     |> Enum.map(&comment_view/1)
+  end
+
+  defp reply_thread do
+    order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
   end
 
   defp comment_view(comment) do

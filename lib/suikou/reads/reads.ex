@@ -115,5 +115,7 @@ defmodule Suikou.Reads do
   """
   defdelegate round_diff(artifact_id, from_number, to_number), to: Diff
 
-  defp thread_order, do: from(r in Reply, as: :reply, order_by: r.id)
+  defp thread_order do
+    order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
+  end
 end
