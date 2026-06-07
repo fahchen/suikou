@@ -6,12 +6,6 @@ defmodule Suikou.Reviews.DiscussionTest do
   alias Suikou.Reviews
   alias Suikou.Reviews.Schemas.Reply
 
-  setup do
-    %{round: round} = artifact_fixture()
-    comment = published_comment(round.id)
-    %{comment: comment}
-  end
-
   test "the reviewer can reply to a thread", %{comment: comment} do
     comment_id = comment.id
 
@@ -49,5 +43,11 @@ defmodule Suikou.Reviews.DiscussionTest do
       |> Repo.all()
 
     assert authors == [:human, :agent]
+  end
+
+  setup do
+    %{round: round} = artifact_fixture()
+    comment = published_comment(round.id)
+    %{comment: comment}
   end
 end
