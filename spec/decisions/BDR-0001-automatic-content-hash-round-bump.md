@@ -6,7 +6,7 @@ date: 2026-06-06
 summary: Rounds advance automatically when submitted content's hash differs from the latest snapshot; no normalization, no agent declaration
 ---
 
-**Feature**: artifacts/features/submission.feature
+**Feature**: domains/artifacts/features/submission.feature
 **Rule**: Resubmitting changed content creates a new round
 
 ## Context

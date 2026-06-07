@@ -8,7 +8,7 @@ summary: Approval is a review submitted with verdict approve on the latest round
 
 ## Scope
 
-**Feature**: critique/features/review.feature
+**Feature**: domains/review/features/review.feature
 **Rule**: Resubmitting changed content after approval clears approval and opens a new round
 
 ## Context

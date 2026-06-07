@@ -1,4 +1,4 @@
-@rounds
+@critique
 Feature: Critique carry-forward across rounds
   As a human reviewer
   I want my open critique to follow the artifact into the next round

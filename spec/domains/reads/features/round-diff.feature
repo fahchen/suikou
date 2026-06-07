@@ -1,4 +1,4 @@
-@rounds
+@reads
 Feature: Round diff
   As a human reviewer
   I want to see what changed between two rounds

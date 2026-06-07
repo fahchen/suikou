@@ -1,4 +1,4 @@
-@critique
+@review
 Feature: Review verdict
   As a human reviewer
   I want each review I submit to carry an overall verdict
