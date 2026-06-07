@@ -8,7 +8,7 @@ summary: A carried-forward comment is a new row on the new round that links back
 
 ## Scope
 
-**Feature**: rounds/features/carry-forward.feature
+**Feature**: domains/critique/features/carry-forward.feature
 **Rule**: A carried comment is a new row linked to its origin
 
 ## Context
@@ -33,7 +33,7 @@ One comment record whose `round` field is updated each time it carries forward.
 Option A. Iteration is about seeing how review state evolved round to round. A new
 row per round preserves what the comment looked like at each round — where it was
 anchored, whether it was outdated, whether it was open — which is what round diff
-(rounds/features/round-diff.feature) and history rendering need. Resolution is recorded on
+(domains/reads/features/round-diff.feature) and history rendering need. Resolution is recorded on
 the instance that was resolved, with
 its `resolved_round`, while earlier rows stay as a faithful record that it was
 open then.

@@ -6,7 +6,7 @@ date: 2026-06-06
 summary: The local Suikou runtime owns review state; agents submit artifact content but never push comments or approval
 ---
 
-**Feature**: artifacts/features/submission.feature
+**Feature**: domains/artifacts/features/submission.feature
 **Rule**: A first submission creates a review at round 1
 
 ## Context

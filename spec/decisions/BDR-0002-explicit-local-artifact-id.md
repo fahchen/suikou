@@ -6,7 +6,7 @@ date: 2026-06-06
 summary: Artifacts are bound across rounds by a server-minted local id, not by a derived cwd path-hash
 ---
 
-**Feature**: artifacts/features/submission.feature
+**Feature**: domains/artifacts/features/submission.feature
 **Rule**: A first submission creates a review at round 1
 
 ## Context

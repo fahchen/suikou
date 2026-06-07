@@ -8,7 +8,7 @@ summary: Export returns the latest round's complete published critique plus its 
 
 ## Scope
 
-**Feature**: export/features/export.feature
+**Feature**: domains/export/features/export.feature
 **Rule**: Export returns the latest round's published critique
 
 ## Context

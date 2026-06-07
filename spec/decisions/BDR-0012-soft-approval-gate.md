@@ -8,7 +8,7 @@ summary: The reviewer may submit an approve verdict even with open comments (inc
 
 ## Scope
 
-**Feature**: critique/features/review.feature
+**Feature**: domains/review/features/review.feature
 **Rule**: An approve verdict is allowed with unresolved fix_required comments, with a warning
 
 ## Context

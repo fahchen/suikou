@@ -8,7 +8,7 @@ summary: The reviewer submits comments as a review batch that carries one verdic
 
 ## Scope
 
-**Feature**: critique/features/review.feature
+**Feature**: domains/review/features/review.feature
 **Rule**: An approve verdict accepts the artifact
 
 ## Context

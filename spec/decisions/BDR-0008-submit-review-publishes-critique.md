@@ -8,7 +8,7 @@ summary: Comments are pending (mutable, hidden) until the human submits a review
 
 ## Scope
 
-**Feature**: critique/features/lifecycle.feature
+**Feature**: domains/critique/features/lifecycle.feature
 **Rule**: Submitting a review publishes its pending comments
 
 ## Context

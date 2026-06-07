@@ -8,7 +8,7 @@ summary: The agent may reply to existing comment threads via a reply API distinc
 
 ## Scope
 
-**Feature**: critique/features/discussion.feature
+**Feature**: domains/critique/features/discussion.feature
 **Rule**: The agent replies through the dedicated reply API
 
 ## Context

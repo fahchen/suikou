@@ -8,7 +8,7 @@ summary: A comment carries one critique type from {fix_required, needs_answer, n
 
 ## Scope
 
-**Feature**: critique/features/authoring.feature
+**Feature**: domains/critique/features/authoring.feature
 **Rule**: A comment must declare a critique type
 
 ## Context

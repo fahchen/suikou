@@ -8,7 +8,7 @@ summary: A comment keeps its per-item critique type (fix_required/needs_answer/n
 
 ## Scope
 
-**Feature**: critique/features/review.feature
+**Feature**: domains/review/features/review.feature
 **Rule**: An approve verdict is allowed with unresolved fix_required comments, with a warning
 
 ## Context

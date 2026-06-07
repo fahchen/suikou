@@ -8,7 +8,7 @@ summary: A line-scoped comment relocates in the new snapshot only by an exact ma
 
 ## Scope
 
-**Feature**: rounds/features/carry-forward.feature
+**Feature**: domains/critique/features/carry-forward.feature
 **Rule**: A carried line-scoped comment re-anchors by exact quote match
 
 ## Context

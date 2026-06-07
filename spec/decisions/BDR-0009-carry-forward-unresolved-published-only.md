@@ -8,7 +8,7 @@ summary: When a round advances, unresolved published comments re-anchor onto the
 
 ## Scope
 
-**Feature**: rounds/features/carry-forward.feature
+**Feature**: domains/critique/features/carry-forward.feature
 **Rule**: Unresolved published comments carry forward to the new round
 
 ## Context
