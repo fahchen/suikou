@@ -13,8 +13,10 @@ defmodule Suikou.Reviews.VerdictsTest do
       %{artifact: artifact} = artifact_fixture()
       %{round: round2} = advance(artifact.id, "changed\n")
 
-      assert {:ok, %{review: review}} = Reviews.submit_review(round2.id, :comment)
-      assert review.round_id == round2.id
+      round2_id = round2.id
+
+      assert {:ok, %{review: %{round_id: ^round2_id}}} =
+               Reviews.submit_review(round2.id, :comment)
     end
 
     test "submitting a review on a superseded round is rejected" do
@@ -37,15 +39,14 @@ defmodule Suikou.Reviews.VerdictsTest do
       b = pending_comment(round.id)
 
       assert {:ok, _review} = Reviews.submit_review(round.id, :comment)
-      assert Repo.get!(Comment, a.id).status == :published
-      assert Repo.get!(Comment, b.id).status == :published
+      assert %{status: :published} = Repo.get!(Comment, a.id)
+      assert %{status: :published} = Repo.get!(Comment, b.id)
     end
 
     test "each review records its verdict" do
       for verdict <- [:approve, :request_changes, :comment] do
         %{round: round} = artifact_fixture()
-        assert {:ok, %{review: review}} = Reviews.submit_review(round.id, verdict)
-        assert review.verdict == verdict
+        assert {:ok, %{review: %{verdict: ^verdict}}} = Reviews.submit_review(round.id, verdict)
       end
     end
   end
@@ -56,19 +57,19 @@ defmodule Suikou.Reviews.VerdictsTest do
       %{round: round2} = advance(artifact.id, "changed\n")
 
       assert {:ok, _review} = Reviews.submit_review(round2.id, :approve)
-      assert Repo.get!(Artifact, artifact.id).approved_round == 2
+      assert %{approved_round: 2} = Repo.get!(Artifact, artifact.id)
     end
 
     test "request_changes does not approve" do
       %{round: round, artifact: artifact} = artifact_fixture()
       assert {:ok, _review} = Reviews.submit_review(round.id, :request_changes)
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
 
     test "comment verdict does not approve" do
       %{round: round, artifact: artifact} = artifact_fixture()
       assert {:ok, _review} = Reviews.submit_review(round.id, :comment)
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
   end
 
@@ -79,7 +80,8 @@ defmodule Suikou.Reviews.VerdictsTest do
 
       assert {:ok, %{warnings: warnings}} = Reviews.submit_review(round.id, :approve)
       assert :unresolved_fix_required in warnings
-      assert Repo.get!(Artifact, artifact.id).approved_round == round.number
+      round_number = round.number
+      assert %{approved_round: ^round_number} = Repo.get!(Artifact, artifact.id)
     end
 
     test "request_changes with an open fix_required keeps the artifact under review" do
@@ -87,7 +89,7 @@ defmodule Suikou.Reviews.VerdictsTest do
       pending_comment(round.id, %{critique_type: :fix_required})
 
       assert {:ok, _review} = Reviews.submit_review(round.id, :request_changes)
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
   end
 
@@ -95,10 +97,11 @@ defmodule Suikou.Reviews.VerdictsTest do
     test "request_changes is not terminal: a later approve still accepts the artifact" do
       %{artifact: artifact, round: round} = artifact_fixture()
       {:ok, _rc} = Reviews.submit_review(round.id, :request_changes)
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
 
       {:ok, _approve} = Reviews.submit_review(round.id, :approve)
-      assert Repo.get!(Artifact, artifact.id).approved_round == round.number
+      round_number = round.number
+      assert %{approved_round: ^round_number} = Repo.get!(Artifact, artifact.id)
     end
   end
 
@@ -108,18 +111,18 @@ defmodule Suikou.Reviews.VerdictsTest do
       {:ok, _review} = Reviews.submit_review(round.id, :approve)
 
       assert {:ok, _artifact} = Reviews.dismiss(artifact.id)
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
 
     test "resubmitting changed content after approval clears approval and bumps the round" do
       %{artifact: artifact} = artifact_fixture()
       %{round: round2} = advance(artifact.id, "v2\n")
       {:ok, _review} = Reviews.submit_review(round2.id, :approve)
-      assert Repo.get!(Artifact, artifact.id).approved_round == 2
+      assert %{approved_round: 2} = Repo.get!(Artifact, artifact.id)
 
       %{round: round3} = advance(artifact.id, "v3\n")
-      assert round3.number == 3
-      assert is_nil(Repo.get!(Artifact, artifact.id).approved_round)
+      assert %{number: 3} = round3
+      assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
 
     test "latest_verdict returns the most recent review's verdict" do
@@ -128,7 +131,7 @@ defmodule Suikou.Reviews.VerdictsTest do
       # second review on the same round (still latest) supersedes the verdict view
       {:ok, _second} = Repo.insert(Review.changeset(%{round_id: round.id, verdict: :comment}))
 
-      assert Suikou.Reviews.Verdicts.latest_verdict(round.id) == :comment
+      assert :comment = Suikou.Reviews.Verdicts.latest_verdict(round.id)
     end
   end
 

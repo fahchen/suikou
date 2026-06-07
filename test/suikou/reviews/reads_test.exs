@@ -22,7 +22,8 @@ defmodule Suikou.Reviews.ReadsTest do
   describe "get_artifact/1" do
     test "returns the artifact by id" do
       %{artifact: artifact} = artifact_fixture()
-      assert Reviews.get_artifact(artifact.id).id == artifact.id
+      artifact_id = artifact.id
+      assert %{id: ^artifact_id} = Reviews.get_artifact(artifact.id)
     end
 
     test "returns nil for an unknown id" do
@@ -72,8 +73,9 @@ defmodule Suikou.Reviews.ReadsTest do
       {:ok, _h} = Reviews.reply_as_human(comment.id, "human")
       {:ok, _a} = Reviews.reply_as_agent(comment.id, "agent")
 
+      comment_id = comment.id
       loaded = Reviews.get_comment(comment.id)
-      assert loaded.id == comment.id
+      assert %{id: ^comment_id} = loaded
       assert Enum.map(loaded.replies, & &1.author) == [:human, :agent]
     end
 

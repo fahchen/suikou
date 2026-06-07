@@ -21,9 +21,7 @@ defmodule Suikou.Reviews.CommentsTest do
                  body: "fix this"
                })
 
-      assert comment.start_line == 10
-      assert comment.end_line == 12
-      assert comment.quote == "line 10\nline 11\nline 12"
+      assert %{start_line: 10, end_line: 12, quote: "line 10\nline 11\nline 12"} = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
@@ -40,8 +38,7 @@ defmodule Suikou.Reviews.CommentsTest do
                  body: "x"
                })
 
-      assert comment.start_line == 7
-      assert comment.end_line == 7
+      assert %{start_line: 7, end_line: 7} = comment
     end
 
     test "a review-scoped comment carries no line anchor" do
@@ -55,9 +52,7 @@ defmodule Suikou.Reviews.CommentsTest do
                  body: "overall"
                })
 
-      assert comment.scope == :review
-      assert is_nil(comment.start_line)
-      assert is_nil(comment.end_line)
+      assert %{scope: :review, start_line: nil, end_line: nil} = comment
     end
   end
 
@@ -74,7 +69,7 @@ defmodule Suikou.Reviews.CommentsTest do
                    body: "x"
                  })
 
-        assert comment.critique_type == type
+        assert %{critique_type: ^type} = comment
       end
     end
 
@@ -118,7 +113,8 @@ defmodule Suikou.Reviews.CommentsTest do
                  body: "x"
                })
 
-      assert comment.round_id == round2.id
+      round2_id = round2.id
+      assert %{round_id: ^round2_id} = comment
     end
 
     test "commenting on a superseded round is rejected" do
@@ -143,7 +139,7 @@ defmodule Suikou.Reviews.CommentsTest do
       assert {:ok, edited} =
                Reviews.edit_comment(comment.id, %{body: "new", critique_type: :note})
 
-      assert edited.body == "new"
+      assert %{body: "new"} = edited
     end
 
     test "a pending comment type can be changed" do
@@ -153,7 +149,7 @@ defmodule Suikou.Reviews.CommentsTest do
       assert {:ok, edited} =
                Reviews.edit_comment(comment.id, %{body: "b", critique_type: :fix_required})
 
-      assert edited.critique_type == :fix_required
+      assert %{critique_type: :fix_required} = edited
     end
 
     test "a pending comment can be deleted" do
@@ -190,7 +186,7 @@ defmodule Suikou.Reviews.CommentsTest do
       advance(artifact.id, "changed\n")
 
       assert {:ok, resolved} = Reviews.resolve_comment(comment.id)
-      assert resolved.resolved_round == 2
+      assert %{resolved_round: 2} = resolved
     end
 
     test "resolving a pending comment is rejected" do

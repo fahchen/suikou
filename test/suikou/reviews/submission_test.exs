@@ -12,8 +12,7 @@ defmodule Suikou.Reviews.SubmissionTest do
                Reviews.submit(%{title: "Auth rollout plan", content: "hello\nworld\n"})
 
       assert is_integer(artifact.id)
-      assert round.number == 1
-      assert round.content == "hello\nworld\n"
+      assert %{number: 1, content: "hello\nworld\n"} = round
     end
 
     test "empty content is rejected and no review is created" do
@@ -29,7 +28,7 @@ defmodule Suikou.Reviews.SubmissionTest do
     test "malformed markdown is still accepted verbatim" do
       content = "# unclosed [link]( and ```no close"
       assert {:ok, %{round: round}} = Reviews.submit(%{title: "x", content: content})
-      assert round.content == content
+      assert %{content: ^content} = round
     end
 
     test "an unknown artifact id is treated as a new artifact" do
@@ -37,7 +36,7 @@ defmodule Suikou.Reviews.SubmissionTest do
                Reviews.submit(%{artifact_id: 999_999, title: "x", content: "body"})
 
       assert artifact.id != 999_999
-      assert round.number == 1
+      assert %{number: 1} = round
     end
   end
 
@@ -48,8 +47,7 @@ defmodule Suikou.Reviews.SubmissionTest do
       assert {:ok, %{round: round, bumped: true}} =
                Reviews.submit(%{artifact_id: artifact.id, content: "new content\n"})
 
-      assert round.number == 2
-      assert round.content == "new content\n"
+      assert %{number: 2, content: "new content\n"} = round
     end
 
     test "byte-identical content does not advance the round" do
@@ -68,11 +66,11 @@ defmodule Suikou.Reviews.SubmissionTest do
       %{round: round2} = advance(artifact.id, "changed\n")
 
       carried = Repo.get_by(Comment, round_id: round2.id, origin_id: origin.id)
-      assert carried
-      assert carried.status == :published
+      assert %{status: :published} = carried
       assert carried.id != origin.id
 
-      assert Repo.get!(Comment, origin.id).round_id == round.id
+      round_id = round.id
+      assert %{round_id: ^round_id} = Repo.get!(Comment, origin.id)
     end
 
     test "a resolved comment does not carry forward" do
@@ -94,7 +92,7 @@ defmodule Suikou.Reviews.SubmissionTest do
 
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       assert Repo.all(on_round2) == []
-      assert Repo.get!(Comment, comment.id).status == :pending
+      assert %{status: :pending} = Repo.get!(Comment, comment.id)
     end
 
     test "a pending comment stays editable after the artifact advances" do
@@ -106,7 +104,7 @@ defmodule Suikou.Reviews.SubmissionTest do
       assert {:ok, edited} =
                Reviews.edit_comment(comment.id, %{body: "new", critique_type: :note})
 
-      assert edited.body == "new"
+      assert %{body: "new"} = edited
     end
 
     test "a line-scoped comment re-anchors by exact quote when the line still exists" do
@@ -125,9 +123,7 @@ defmodule Suikou.Reviews.SubmissionTest do
 
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       carried = Repo.one(on_round2)
-      assert carried.start_line == 4
-      assert carried.end_line == 4
-      refute carried.outdated
+      assert %{start_line: 4, end_line: 4, outdated: false} = carried
     end
 
     test "a line-scoped comment is marked outdated when the quote is gone" do
@@ -145,9 +141,7 @@ defmodule Suikou.Reviews.SubmissionTest do
 
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       carried = Repo.one(on_round2)
-      assert carried.outdated
-      assert is_nil(carried.start_line)
-      assert is_nil(carried.end_line)
+      assert %{outdated: true, start_line: nil, end_line: nil} = carried
     end
 
     test "a carried comment's thread continues on the new round" do
@@ -158,10 +152,9 @@ defmodule Suikou.Reviews.SubmissionTest do
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       carried = Repo.one(on_round2)
 
-      assert {:ok, human} = Reviews.reply_as_human(carried.id, "still open?")
-      assert {:ok, agent} = Reviews.reply_as_agent(carried.id, "addressed")
-      assert human.comment_id == carried.id
-      assert agent.comment_id == carried.id
+      carried_id = carried.id
+      assert {:ok, %{comment_id: ^carried_id}} = Reviews.reply_as_human(carried.id, "still open?")
+      assert {:ok, %{comment_id: ^carried_id}} = Reviews.reply_as_agent(carried.id, "addressed")
     end
 
     test "an open comment carries across multiple rounds, chaining origins each hop" do
@@ -170,14 +163,15 @@ defmodule Suikou.Reviews.SubmissionTest do
 
       %{round: round2} = advance(artifact.id, "v2\n")
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
+      origin_id = origin.id
       carried2 = Repo.one(on_round2)
-      assert carried2.origin_id == origin.id
+      assert %{origin_id: ^origin_id} = carried2
 
       %{round: round3} = advance(artifact.id, "v3\n")
       on_round3 = from(c in Comment, where: c.round_id == ^round3.id)
+      carried2_id = carried2.id
       carried3 = Repo.one(on_round3)
-      assert carried3.origin_id == carried2.id
-      assert carried3.status == :published
+      assert %{origin_id: ^carried2_id, status: :published} = carried3
     end
   end
 end

@@ -23,8 +23,7 @@ defmodule Suikou.Reviews.ExportTest do
     %{artifact: artifact, round: round} = artifact_fixture()
     pending_comment(round.id)
 
-    assert {:ok, export} = Reviews.export(artifact.id)
-    assert export.comments == []
+    assert {:ok, %{comments: []}} = Reviews.export(artifact.id)
   end
 
   test "only the latest round's critique is exported" do
@@ -36,14 +35,13 @@ defmodule Suikou.Reviews.ExportTest do
     published_comment(round2.id, %{body: "round 2 critique"})
 
     assert {:ok, export} = Reviews.export(artifact.id)
-    assert export.round == 2
+    assert %{round: 2} = export
     assert Enum.all?(export.comments, &(&1.body == "round 2 critique"))
   end
 
   test "the latest snapshot content travels with the critique" do
     %{artifact: artifact} = artifact_fixture(content: "snapshot body\n")
-    assert {:ok, export} = Reviews.export(artifact.id)
-    assert export.content == "snapshot body\n"
+    assert {:ok, %{content: "snapshot body\n"}} = Reviews.export(artifact.id)
   end
 
   test "an approved artifact reports its approval and verdict" do
@@ -51,19 +49,15 @@ defmodule Suikou.Reviews.ExportTest do
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _review} = Reviews.submit_review(round2.id, :approve)
 
-    assert {:ok, export} = Reviews.export(artifact.id)
-    assert export.verdict == :approve
-    assert export.approved
-    assert export.approved_round == 2
+    assert {:ok, %{verdict: :approve, approved: true, approved_round: 2}} =
+             Reviews.export(artifact.id)
   end
 
   test "a request_changes verdict reports not approved" do
     %{artifact: artifact, round: round} = artifact_fixture()
     {:ok, _review} = Reviews.submit_review(round.id, :request_changes)
 
-    assert {:ok, export} = Reviews.export(artifact.id)
-    assert export.verdict == :request_changes
-    refute export.approved
+    assert {:ok, %{verdict: :request_changes, approved: false}} = Reviews.export(artifact.id)
   end
 
   test "a comment's replies travel with it" do
@@ -107,10 +101,7 @@ defmodule Suikou.Reviews.ExportTest do
 
   test "an artifact with no reviews exports a nil verdict and not approved" do
     %{artifact: artifact} = artifact_fixture()
-    assert {:ok, export} = Reviews.export(artifact.id)
-    assert is_nil(export.verdict)
-    refute export.approved
-    assert export.comments == []
+    assert {:ok, %{verdict: nil, approved: false, comments: []}} = Reviews.export(artifact.id)
   end
 
   test "an unknown artifact id returns an error" do

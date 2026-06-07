@@ -38,9 +38,8 @@ defmodule Suikou.Reviews.DiffTest do
     %{round: round2} = advance(artifact.id, "changed\n")
     {:ok, _r2} = Reviews.submit_review(round2.id, :approve)
 
-    assert {:ok, diff} = Reviews.round_diff(artifact.id, 1, 2)
-    assert diff.verdict_from == :request_changes
-    assert diff.verdict_to == :approve
+    assert {:ok, %{verdict_from: :request_changes, verdict_to: :approve}} =
+             Reviews.round_diff(artifact.id, 1, 2)
   end
 
   test "identical content between rounds yields no insert or delete segments" do
@@ -57,10 +56,8 @@ defmodule Suikou.Reviews.DiffTest do
     %{artifact: artifact} = artifact_fixture(content: "a\n")
     advance(artifact.id, "b\n")
 
-    assert {:ok, diff} = Reviews.round_diff(artifact.id, 1, 2)
-    assert diff.resolved == []
-    assert diff.added == []
-    assert diff.carried_forward == []
+    assert {:ok, %{resolved: [], added: [], carried_forward: []}} =
+             Reviews.round_diff(artifact.id, 1, 2)
   end
 
   test "an unchanged verdict reports the same value on both sides" do
@@ -69,9 +66,8 @@ defmodule Suikou.Reviews.DiffTest do
     %{round: round2} = advance(artifact.id, "changed\n")
     {:ok, _r2} = Reviews.submit_review(round2.id, :comment)
 
-    assert {:ok, diff} = Reviews.round_diff(artifact.id, 1, 2)
-    assert diff.verdict_from == :comment
-    assert diff.verdict_to == :comment
+    assert {:ok, %{verdict_from: :comment, verdict_to: :comment}} =
+             Reviews.round_diff(artifact.id, 1, 2)
   end
 
   test "an unknown round returns an error" do
