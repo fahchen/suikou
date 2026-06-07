@@ -36,3 +36,7 @@ suikou-*.tar
 /assets/node_modules/
 /assets/dist/
 /priv/static/assets/
+
+# Local design assets (not tracked)
+/mockups/
+/screenshots/
