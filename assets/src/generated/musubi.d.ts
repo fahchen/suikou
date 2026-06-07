@@ -90,6 +90,14 @@ declare namespace Musubi {
   }
 
   interface Stores {
+    "SuikouWeb.Stores.ArtifactsInboxStore": StoreDef<
+      "SuikouWeb.Stores.ArtifactsInboxStore",
+      {
+        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
+      },
+      {}
+    >
+
     "SuikouWeb.Stores.CounterStore": StoreDef<
       "SuikouWeb.Stores.CounterStore",
       {
