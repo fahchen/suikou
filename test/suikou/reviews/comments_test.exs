@@ -201,7 +201,7 @@ defmodule Suikou.Reviews.CommentsTest do
     test "adding a comment to a non-existent round is rejected" do
       assert {:error, :round_not_found} =
                Reviews.add_comment(%{
-                 round_id: 999_999,
+                 round_id: "00000000-0000-7000-8000-000000000000",
                  scope: :review,
                  critique_type: :note,
                  body: "x"
@@ -210,15 +210,20 @@ defmodule Suikou.Reviews.CommentsTest do
 
     test "editing a non-existent comment is rejected" do
       assert {:error, :comment_not_found} =
-               Reviews.edit_comment(999_999, %{body: "x", critique_type: :note})
+               Reviews.edit_comment("00000000-0000-7000-8000-000000000000", %{
+                 body: "x",
+                 critique_type: :note
+               })
     end
 
     test "deleting a non-existent comment is rejected" do
-      assert {:error, :comment_not_found} = Reviews.delete_comment(999_999)
+      assert {:error, :comment_not_found} =
+               Reviews.delete_comment("00000000-0000-7000-8000-000000000000")
     end
 
     test "resolving a non-existent comment is rejected" do
-      assert {:error, :comment_not_found} = Reviews.resolve_comment(999_999)
+      assert {:error, :comment_not_found} =
+               Reviews.resolve_comment("00000000-0000-7000-8000-000000000000")
     end
   end
 end

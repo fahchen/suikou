@@ -8,7 +8,7 @@ defmodule Suikou.Reviews.Schemas.Comment do
   longer exists in the new snapshot.
   """
 
-  use EctoTypedSchema
+  use Suikou.Schema
 
   import Ecto.Changeset
 
@@ -71,10 +71,10 @@ defmodule Suikou.Reviews.Schemas.Comment do
 
   ## Examples
 
-      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: 1, scope: :review, critique_type: :note, body: "ok"}).valid?
+      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok"}).valid?
       true
 
-      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: 1, scope: :review, critique_type: :note, body: " "}).valid?
+      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " "}).valid?
       false
 
   """

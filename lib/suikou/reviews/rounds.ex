@@ -18,11 +18,11 @@ defmodule Suikou.Reviews.Rounds do
       Suikou.Reviews.Rounds.get(round.id)
       #=> %Suikou.Reviews.Schemas.Round{number: 1}
 
-      Suikou.Reviews.Rounds.get(999_999)
+      Suikou.Reviews.Rounds.get("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> nil
 
   """
-  @spec get(integer()) :: Round.t() | nil
+  @spec get(Ecto.UUID.t()) :: Round.t() | nil
   def get(round_id), do: Repo.get(Round, round_id)
 
   @doc """
@@ -34,7 +34,7 @@ defmodule Suikou.Reviews.Rounds do
       #=> %Suikou.Reviews.Schemas.Round{number: 2}
 
   """
-  @spec get_by_number(integer(), integer()) :: Round.t() | nil
+  @spec get_by_number(Ecto.UUID.t(), integer()) :: Round.t() | nil
   def get_by_number(artifact_id, number) do
     Repo.get_by(Round, artifact_id: artifact_id, number: number)
   end
@@ -48,7 +48,7 @@ defmodule Suikou.Reviews.Rounds do
       #=> %Suikou.Reviews.Schemas.Round{number: 3}
 
   """
-  @spec latest(integer()) :: Round.t() | nil
+  @spec latest(Ecto.UUID.t()) :: Round.t() | nil
   def latest(artifact_id) do
     from(r in Round, as: :round)
     |> where([round: r], r.artifact_id == ^artifact_id)
@@ -66,7 +66,7 @@ defmodule Suikou.Reviews.Rounds do
       #=> 3
 
   """
-  @spec latest_number(integer()) :: integer() | nil
+  @spec latest_number(Ecto.UUID.t()) :: integer() | nil
   def latest_number(artifact_id) do
     from(r in Round, as: :round)
     |> where([round: r], r.artifact_id == ^artifact_id)

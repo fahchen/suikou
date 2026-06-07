@@ -20,7 +20,7 @@ defmodule Suikou.Reviews.Comments do
       Suikou.Reviews.Comments.add(%{round_id: round.id, scope: :review, critique_type: :note, body: "looks good"})
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
 
-      Suikou.Reviews.Comments.add(%{round_id: 999_999, scope: :review, critique_type: :note, body: "x"})
+      Suikou.Reviews.Comments.add(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "x"})
       #=> {:error, :round_not_found}
 
   """
@@ -49,7 +49,7 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :published_immutable}
 
   """
-  @spec edit(integer(), map()) ::
+  @spec edit(Ecto.UUID.t(), map()) ::
           {:ok, Comment.t()}
           | {:error, Ecto.Changeset.t() | :comment_not_found | :published_immutable}
   def edit(comment_id, params) do
@@ -70,7 +70,7 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :published_immutable}
 
   """
-  @spec delete(integer()) ::
+  @spec delete(Ecto.UUID.t()) ::
           {:ok, Comment.t()} | {:error, :comment_not_found | :published_immutable}
   def delete(comment_id) do
     with {:ok, comment} <- fetch_pending(comment_id) do
@@ -91,7 +91,7 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :not_published}
 
   """
-  @spec resolve(integer()) ::
+  @spec resolve(Ecto.UUID.t()) ::
           {:ok, Comment.t()} | {:error, :comment_not_found | :not_published}
   def resolve(comment_id) do
     case Repo.get(Comment, comment_id) do

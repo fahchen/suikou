@@ -9,7 +9,11 @@ import Config
 
 config :suikou,
   ecto_repos: [Suikou.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime, binary_id: true]
+
+config :suikou, Suikou.Repo,
+  migration_primary_key: [type: :binary_id],
+  migration_foreign_key: [type: :binary_id]
 
 # Configure the endpoint
 config :suikou, SuikouWeb.Endpoint,

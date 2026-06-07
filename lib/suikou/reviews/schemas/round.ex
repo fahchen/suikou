@@ -4,7 +4,7 @@ defmodule Suikou.Reviews.Schemas.Round do
   number. `content_hash` is the byte-level hash used to decide round bumps.
   """
 
-  use EctoTypedSchema
+  use Suikou.Schema
 
   import Ecto.Changeset
 
@@ -30,7 +30,7 @@ defmodule Suikou.Reviews.Schemas.Round do
 
   ## Examples
 
-      iex> Suikou.Reviews.Schemas.Round.changeset(%{artifact_id: 1, number: 1, content: "x", content_hash: "ABC"}).valid?
+      iex> Suikou.Reviews.Schemas.Round.changeset(%{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", number: 1, content: "x", content_hash: "ABC"}).valid?
       true
 
       iex> Suikou.Reviews.Schemas.Round.changeset(%{number: 1}).valid?

@@ -6,7 +6,7 @@ defmodule Suikou.Reviews.Schemas.Artifact do
   `nil` when the artifact is not approved.
   """
 
-  use EctoTypedSchema
+  use Suikou.Schema
 
   import Ecto.Changeset
 

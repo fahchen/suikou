@@ -105,7 +105,7 @@ defmodule Suikou.Reviews.ExportTest do
   end
 
   test "an unknown artifact id returns an error" do
-    assert {:error, :artifact_not_found} = Reviews.export(999_999)
+    assert {:error, :artifact_not_found} = Reviews.export("00000000-0000-7000-8000-000000000000")
   end
 
   defp latest_comment_ids(artifact_id) do

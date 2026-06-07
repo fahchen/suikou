@@ -4,7 +4,7 @@ defmodule Suikou.Reviews.Schemas.Review do
   publishes the round's pending comments and records the round's disposition.
   """
 
-  use EctoTypedSchema
+  use Suikou.Schema
 
   import Ecto.Changeset
 
@@ -38,10 +38,10 @@ defmodule Suikou.Reviews.Schemas.Review do
 
   ## Examples
 
-      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: 1, verdict: :approve}).valid?
+      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", verdict: :approve}).valid?
       true
 
-      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: 1}).valid?
+      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"}).valid?
       false
 
   """

@@ -21,8 +21,12 @@ defmodule Suikou.Reviews.DiscussionTest do
   end
 
   test "a reply requires an existing comment so neither party can mint a top-level comment" do
-    assert {:error, :comment_not_found} = Reviews.reply_as_agent(999_999, "x")
-    assert {:error, :comment_not_found} = Reviews.reply_as_human(999_999, "x")
+    assert {:error, :comment_not_found} =
+             Reviews.reply_as_agent("00000000-0000-7000-8000-000000000000", "x")
+
+    assert {:error, :comment_not_found} =
+             Reviews.reply_as_human("00000000-0000-7000-8000-000000000000", "x")
+
     assert Repo.aggregate(Reply, :count) == 0
   end
 

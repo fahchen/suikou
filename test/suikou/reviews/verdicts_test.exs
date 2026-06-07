@@ -137,11 +137,13 @@ defmodule Suikou.Reviews.VerdictsTest do
 
   describe "missing targets" do
     test "submitting a review on a non-existent round is rejected" do
-      assert {:error, :round_not_found} = Reviews.submit_review(999_999, :comment)
+      assert {:error, :round_not_found} =
+               Reviews.submit_review("00000000-0000-7000-8000-000000000000", :comment)
     end
 
     test "dismissing a non-existent artifact is rejected" do
-      assert {:error, :artifact_not_found} = Reviews.dismiss(999_999)
+      assert {:error, :artifact_not_found} =
+               Reviews.dismiss("00000000-0000-7000-8000-000000000000")
     end
 
     test "latest_verdict is nil when no review exists on the round" do

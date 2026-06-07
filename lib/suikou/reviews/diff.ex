@@ -36,7 +36,8 @@ defmodule Suikou.Reviews.Diff do
       #=> {:error, :round_not_found}
 
   """
-  @spec round_diff(integer(), integer(), integer()) :: {:ok, t()} | {:error, :round_not_found}
+  @spec round_diff(Ecto.UUID.t(), integer(), integer()) ::
+          {:ok, t()} | {:error, :round_not_found}
   def round_diff(artifact_id, from_number, to_number) do
     from_round = Rounds.get_by_number(artifact_id, from_number)
     to_round = Rounds.get_by_number(artifact_id, to_number)

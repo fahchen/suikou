@@ -17,7 +17,7 @@ defmodule Suikou.Reviews.Export do
   alias Suikou.Reviews.Verdicts
 
   @type comment_view :: %{
-          id: integer(),
+          id: Ecto.UUID.t(),
           scope: Comment.scope(),
           critique_type: Comment.critique_type(),
           body: String.t(),
@@ -32,7 +32,7 @@ defmodule Suikou.Reviews.Export do
         }
 
   @type t :: %{
-          artifact_id: integer(),
+          artifact_id: Ecto.UUID.t(),
           title: String.t(),
           round: integer(),
           content: String.t(),
@@ -51,11 +51,11 @@ defmodule Suikou.Reviews.Export do
       Suikou.Reviews.Export.export(artifact.id)
       #=> {:ok, %{artifact_id: 1, round: 2, verdict: :request_changes, comments: []}}
 
-      Suikou.Reviews.Export.export(999_999)
+      Suikou.Reviews.Export.export("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
 
   """
-  @spec export(integer()) :: {:ok, t()} | {:error, :artifact_not_found}
+  @spec export(Ecto.UUID.t()) :: {:ok, t()} | {:error, :artifact_not_found}
   def export(artifact_id) do
     case Repo.get(Artifact, artifact_id) do
       nil -> {:error, :artifact_not_found}

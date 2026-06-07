@@ -18,11 +18,11 @@ defmodule Suikou.Reviews.Discussion do
       Suikou.Reviews.Discussion.reply_as_human(comment.id, "noted")
       #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :human, body: "noted"}}
 
-      Suikou.Reviews.Discussion.reply_as_human(999_999, "noted")
+      Suikou.Reviews.Discussion.reply_as_human("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "noted")
       #=> {:error, :comment_not_found}
 
   """
-  @spec reply_as_human(integer(), String.t()) ::
+  @spec reply_as_human(Ecto.UUID.t(), String.t()) ::
           {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found}
   def reply_as_human(comment_id, body), do: reply(comment_id, :human, body)
 
@@ -35,11 +35,11 @@ defmodule Suikou.Reviews.Discussion do
       Suikou.Reviews.Discussion.reply_as_agent(comment.id, "fixed")
       #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent, body: "fixed"}}
 
-      Suikou.Reviews.Discussion.reply_as_agent(999_999, "fixed")
+      Suikou.Reviews.Discussion.reply_as_agent("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "fixed")
       #=> {:error, :comment_not_found}
 
   """
-  @spec reply_as_agent(integer(), String.t()) ::
+  @spec reply_as_agent(Ecto.UUID.t(), String.t()) ::
           {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found}
   def reply_as_agent(comment_id, body), do: reply(comment_id, :agent, body)
 

@@ -27,7 +27,7 @@ defmodule Suikou.Reviews.ReadsTest do
     end
 
     test "returns nil for an unknown id" do
-      assert is_nil(Reviews.get_artifact(999_999))
+      assert is_nil(Reviews.get_artifact("00000000-0000-7000-8000-000000000000"))
     end
   end
 
@@ -80,7 +80,7 @@ defmodule Suikou.Reviews.ReadsTest do
     end
 
     test "returns nil for an unknown id" do
-      assert is_nil(Reviews.get_comment(999_999))
+      assert is_nil(Reviews.get_comment("00000000-0000-7000-8000-000000000000"))
     end
   end
 end

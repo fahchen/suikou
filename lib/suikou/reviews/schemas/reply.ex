@@ -4,7 +4,7 @@ defmodule Suikou.Reviews.Schemas.Reply do
   replies; the agent may only reply, via a dedicated reply path.
   """
 
-  use EctoTypedSchema
+  use Suikou.Schema
 
   import Ecto.Changeset
 
@@ -27,10 +27,10 @@ defmodule Suikou.Reviews.Schemas.Reply do
 
   ## Examples
 
-      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: 1, author: :human, body: "noted"}).valid?
+      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", author: :human, body: "noted"}).valid?
       true
 
-      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: 1, author: :human, body: " "}).valid?
+      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", author: :human, body: " "}).valid?
       false
 
   """

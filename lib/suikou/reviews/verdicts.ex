@@ -27,11 +27,11 @@ defmodule Suikou.Reviews.Verdicts do
       Suikou.Reviews.Verdicts.submit_review(round.id, :approve)
       #=> {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
 
-      Suikou.Reviews.Verdicts.submit_review(999_999, :approve)
+      Suikou.Reviews.Verdicts.submit_review("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
       #=> {:error, :round_not_found}
 
   """
-  @spec submit_review(integer(), Review.verdict() | String.t()) ::
+  @spec submit_review(Ecto.UUID.t(), Review.verdict() | String.t()) ::
           {:ok, submit_result()}
           | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
   def submit_review(round_id, verdict) do
@@ -58,7 +58,7 @@ defmodule Suikou.Reviews.Verdicts do
       #=> nil
 
   """
-  @spec latest_verdict(integer()) :: Review.verdict() | nil
+  @spec latest_verdict(Ecto.UUID.t()) :: Review.verdict() | nil
   def latest_verdict(round_id) do
     from(r in Review, as: :review)
     |> where([review: r], r.round_id == ^round_id)
@@ -76,11 +76,11 @@ defmodule Suikou.Reviews.Verdicts do
       Suikou.Reviews.Verdicts.dismiss(artifact.id)
       #=> {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
 
-      Suikou.Reviews.Verdicts.dismiss(999_999)
+      Suikou.Reviews.Verdicts.dismiss("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
 
   """
-  @spec dismiss(integer()) :: {:ok, Artifact.t()} | {:error, :artifact_not_found}
+  @spec dismiss(Ecto.UUID.t()) :: {:ok, Artifact.t()} | {:error, :artifact_not_found}
   def dismiss(artifact_id) do
     case Repo.get(Artifact, artifact_id) do
       nil ->

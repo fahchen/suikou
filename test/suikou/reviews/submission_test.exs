@@ -11,7 +11,7 @@ defmodule Suikou.Reviews.SubmissionTest do
       assert {:ok, %{artifact: artifact, round: round, bumped: true}} =
                Reviews.submit(%{title: "Auth rollout plan", content: "hello\nworld\n"})
 
-      assert is_integer(artifact.id)
+      assert {:ok, _uuid} = Ecto.UUID.cast(artifact.id)
       assert %{number: 1, content: "hello\nworld\n"} = round
     end
 
@@ -33,9 +33,13 @@ defmodule Suikou.Reviews.SubmissionTest do
 
     test "an unknown artifact id is treated as a new artifact" do
       assert {:ok, %{artifact: artifact, round: round}} =
-               Reviews.submit(%{artifact_id: 999_999, title: "x", content: "body"})
+               Reviews.submit(%{
+                 artifact_id: "00000000-0000-7000-8000-000000000000",
+                 title: "x",
+                 content: "body"
+               })
 
-      assert artifact.id != 999_999
+      assert artifact.id != "00000000-0000-7000-8000-000000000000"
       assert %{number: 1} = round
     end
   end

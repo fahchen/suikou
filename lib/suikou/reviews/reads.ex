@@ -38,11 +38,11 @@ defmodule Suikou.Reviews.Reads do
       Suikou.Reviews.Reads.get_artifact(artifact.id)
       #=> %Suikou.Reviews.Schemas.Artifact{}
 
-      Suikou.Reviews.Reads.get_artifact(999_999)
+      Suikou.Reviews.Reads.get_artifact("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> nil
 
   """
-  @spec get_artifact(integer()) :: Artifact.t() | nil
+  @spec get_artifact(Ecto.UUID.t()) :: Artifact.t() | nil
   def get_artifact(artifact_id), do: Repo.get(Artifact, artifact_id)
 
   @doc """
@@ -54,7 +54,7 @@ defmodule Suikou.Reviews.Reads do
       #=> [%Suikou.Reviews.Schemas.Round{number: 1}, %Suikou.Reviews.Schemas.Round{number: 2}]
 
   """
-  @spec list_rounds(integer()) :: [Round.t()]
+  @spec list_rounds(Ecto.UUID.t()) :: [Round.t()]
   def list_rounds(artifact_id) do
     from(r in Round, as: :round)
     |> where([round: r], r.artifact_id == ^artifact_id)
@@ -72,7 +72,7 @@ defmodule Suikou.Reviews.Reads do
       #=> [%Suikou.Reviews.Schemas.Comment{status: :published}, %Suikou.Reviews.Schemas.Comment{status: :pending}]
 
   """
-  @spec list_comments(integer()) :: [Comment.t()]
+  @spec list_comments(Ecto.UUID.t()) :: [Comment.t()]
   def list_comments(round_id) do
     from(c in Comment, as: :comment)
     |> where([comment: c], c.round_id == ^round_id)
@@ -90,11 +90,11 @@ defmodule Suikou.Reviews.Reads do
       Suikou.Reviews.Reads.get_comment(comment.id)
       #=> %Suikou.Reviews.Schemas.Comment{}
 
-      Suikou.Reviews.Reads.get_comment(999_999)
+      Suikou.Reviews.Reads.get_comment("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> nil
 
   """
-  @spec get_comment(integer()) :: Comment.t() | nil
+  @spec get_comment(Ecto.UUID.t()) :: Comment.t() | nil
   def get_comment(comment_id) do
     Comment
     |> preload(replies: ^thread_order())
