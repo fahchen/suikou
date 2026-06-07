@@ -1,50 +1,43 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
-import { useMusubiRoot } from "../musubi"
+import { useMusubiConnectionStatus, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { ArtifactNavProvider, ReviewStoreProvider } from "./store-context"
 import { ReviewSurface } from "./ReviewSurface"
 
-interface ArtifactRef {
-  id: string
-  title: string
+interface InboxSnapshot {
+  artifacts: { id: string; title: string }[]
 }
 
-type Bootstrap =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "empty" }
-  | { status: "ready"; artifactId: string }
-
-/** Discovers a starting artifact id over REST, then mounts the ReviewStore. */
+/** Waits for the socket, then discovers a starting artifact over the live inbox store. */
 export function ReviewApp() {
-  const [boot, setBoot] = useState<Bootstrap>({ status: "loading" })
+  const connection = useMusubiConnectionStatus()
 
-  useEffect(() => {
-    let cancelled = false
+  if (connection.state === "connecting") return <Centered>Connecting…</Centered>
+  if (connection.state === "error") return <Centered tone="error">{connection.error.message}</Centered>
 
-    fetch("/api/artifacts")
-      .then((res) => res.json() as Promise<{ artifacts: ArtifactRef[] }>)
-      .then(({ artifacts }) => {
-        if (cancelled) return
-        const first = artifacts[0]
-        setBoot(first ? { status: "ready", artifactId: first.id } : { status: "empty" })
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setBoot({ status: "error", message: error instanceof Error ? error.message : String(error) })
-        }
-      })
+  return <InboxRoot />
+}
 
-    return () => {
-      cancelled = true
-    }
-  }, [])
+function InboxRoot() {
+  const inbox = useMusubiRoot({
+    module: "SuikouWeb.Stores.ArtifactsInboxStore",
+    id: "inbox",
+    params: {}
+  })
 
-  if (boot.status === "loading") return <Centered>Loading review…</Centered>
-  if (boot.status === "error") return <Centered tone="error">{boot.message}</Centered>
-  if (boot.status === "empty") return <Centered>No artifacts to review. Run the seed task.</Centered>
+  if (inbox.status === "loading") return <Centered>Loading review…</Centered>
+  if (inbox.status === "error") return <Centered tone="error">{inbox.error.message}</Centered>
 
-  return <ReviewRoot initialArtifactId={boot.artifactId} />
+  return <Inbox store={inbox.store} />
+}
+
+function Inbox({ store }: { store: Parameters<typeof useMusubiSnapshot>[0] }) {
+  const snapshot = useMusubiSnapshot(store) as unknown as InboxSnapshot
+  const first = snapshot.artifacts[0]
+
+  if (!first) return <Centered>No artifacts to review. Run the seed task.</Centered>
+
+  return <ReviewRoot initialArtifactId={first.id} />
 }
 
 function ReviewRoot({ initialArtifactId }: { initialArtifactId: string }) {
