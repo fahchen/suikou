@@ -25,6 +25,8 @@ import {
   Trash2,
   CircleCheck,
   SquarePlus,
+  LocateFixed,
+  Link2,
 } from "lucide-react";
 import type { CritiqueType } from "../stores/ui-store";
 
@@ -41,6 +43,9 @@ export function CommentCard(props: { comment: Comment }) {
   const [editBody, setEditBody] = useState(comment.body);
   const [editType, setEditType] = useState<CritiqueType>(comment.critique_type);
   const [replyBody, setReplyBody] = useState("");
+  const [relocating, setRelocating] = useState(false);
+  const [relocateStart, setRelocateStart] = useState("");
+  const [relocateEnd, setRelocateEnd] = useState("");
 
   const meta = CRITIQUE_META[comment.critique_type];
   const anchorLabel = comment.anchor
@@ -63,6 +68,25 @@ export function CommentCard(props: { comment: Comment }) {
     if (!replyBody.trim()) return;
     void commands.reply.dispatch({ comment_id: comment.id, body: replyBody.trim() });
     setReplyBody("");
+  }
+
+  function submitRelocate() {
+    const start = Number(relocateStart);
+    const end = Number(relocateEnd || relocateStart);
+    if (!Number.isInteger(start) || start < 1 || end < start) return;
+    void commands.relocateComment.dispatch({
+      comment_id: comment.id,
+      start_line: start,
+      end_line: end,
+    });
+    setRelocating(false);
+    setRelocateStart("");
+    setRelocateEnd("");
+  }
+
+  function copyLink() {
+    const anchor = comment.anchor ? `line-${comment.anchor.start_line}` : `comment-${comment.id}`;
+    void navigator.clipboard?.writeText(`${window.location.origin}${window.location.pathname}#${anchor}`);
   }
 
   return (
@@ -115,7 +139,25 @@ export function CommentCard(props: { comment: Comment }) {
                 </Button>
               }
             />
-            <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuContent align="end" className="w-40">
+              {comment.outdated && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setRelocating(true);
+                    setRelocateStart("");
+                    setRelocateEnd("");
+                  }}
+                >
+                  <LocateFixed size={14} />
+                  Relocate
+                </DropdownMenuItem>
+              )}
+              {comment.outdated && (
+                <DropdownMenuItem onClick={copyLink}>
+                  <Link2 size={14} />
+                  Copy link
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => {
                   setEditing(true);
@@ -143,6 +185,44 @@ export function CommentCard(props: { comment: Comment }) {
           <p className="text-[12px] text-amber">
             Lost its anchor — the quoted line changed. Re-anchor or delete.
           </p>
+        )}
+
+        {relocating && (
+          <div className="flex items-center gap-2 rounded-md border border-line-soft bg-panel p-2">
+            <span className="text-[12px] text-muted-foreground">Re-anchor to line</span>
+            <input
+              type="number"
+              min={1}
+              value={relocateStart}
+              onChange={(e) => setRelocateStart(e.target.value)}
+              placeholder="start"
+              className="w-16 rounded border border-line bg-control px-2 py-1 text-[12px]"
+            />
+            <span className="text-faint">–</span>
+            <input
+              type="number"
+              min={1}
+              value={relocateEnd}
+              onChange={(e) => setRelocateEnd(e.target.value)}
+              placeholder="end"
+              className="w-16 rounded border border-line bg-control px-2 py-1 text-[12px]"
+            />
+            <button
+              type="button"
+              className="ml-auto rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+              onClick={() => setRelocating(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
+              disabled={commands.relocateComment.isPending || !relocateStart.trim()}
+              onClick={submitRelocate}
+            >
+              Re-anchor
+            </button>
+          </div>
         )}
 
         {editing ? (
