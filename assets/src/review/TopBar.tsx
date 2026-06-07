@@ -262,7 +262,18 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
         <Popover>
           <PopoverTrigger
             render={
-              <Button variant="outline" size="sm" title="File review verdict">
+              <Button
+                variant="outline"
+                size="sm"
+                title="File review verdict"
+                className={
+                  verdict === "request_changes"
+                    ? "border-red/40 bg-red-soft hover:bg-red-soft"
+                    : verdict === "approve"
+                      ? "border-green/40 bg-green/15 hover:bg-green/20"
+                      : undefined
+                }
+              >
                 <VerdictIcon verdict={verdict} />
                 <ChevronDown size={13} className="text-faint" />
               </Button>
