@@ -6,13 +6,10 @@ defmodule Suikou.Reviews.Submission do
   advance carries unresolved published critique forward and clears approval.
   """
 
-  import Ecto.Query
-
   alias Suikou.Repo
-  alias Suikou.Reviews.Anchor
   alias Suikou.Reviews.Rounds
+  alias Suikou.Reviews.Rounds.CarryForward
   alias Suikou.Reviews.Schemas.Artifact
-  alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Round
 
   @type result :: %{artifact: Artifact.t(), round: Round.t(), bumped: boolean()}
@@ -78,7 +75,7 @@ defmodule Suikou.Reviews.Submission do
 
   defp advance(artifact, latest, content) do
     new_round = insert_round!(artifact.id, latest.number + 1, content)
-    carry_forward(latest, new_round)
+    CarryForward.carry(latest, new_round)
     artifact = artifact |> Artifact.clear_approval_changeset() |> Repo.update!()
     result(artifact, new_round, true)
   end
@@ -90,42 +87,6 @@ defmodule Suikou.Reviews.Submission do
     |> Round.changeset()
     |> Repo.insert!()
   end
-
-  defp carry_forward(prev_round, new_round) do
-    from(c in Comment, as: :comment)
-    |> where(
-      [comment: c],
-      c.round_id == ^prev_round.id and c.status == :published and is_nil(c.resolved_round)
-    )
-    |> Repo.all()
-    |> Enum.each(&carry_one(&1, new_round))
-  end
-
-  defp carry_one(comment, new_round) do
-    {start_line, end_line, outdated} = relocate(comment, new_round.content)
-
-    Repo.insert!(%Comment{
-      round_id: new_round.id,
-      origin_id: comment.id,
-      scope: comment.scope,
-      start_line: start_line,
-      end_line: end_line,
-      quote: comment.quote,
-      critique_type: comment.critique_type,
-      body: comment.body,
-      status: :published,
-      outdated: outdated
-    })
-  end
-
-  defp relocate(%Comment{scope: :line, quote: quote}, content) when is_binary(quote) do
-    case Anchor.reanchor(content, quote) do
-      {start_line, end_line} -> {start_line, end_line, false}
-      nil -> {nil, nil, true}
-    end
-  end
-
-  defp relocate(_comment, _content), do: {nil, nil, false}
 
   defp hash(content), do: Base.encode16(:crypto.hash(:sha256, content))
 
