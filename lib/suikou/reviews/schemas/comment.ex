@@ -10,8 +10,6 @@ defmodule Suikou.Reviews.Schemas.Comment do
 
   use Suikou.Schema
 
-  import Ecto.Changeset
-
   alias Suikou.Reviews.Schemas.Reply
   alias Suikou.Reviews.Schemas.Round
 

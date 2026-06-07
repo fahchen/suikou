@@ -8,8 +8,6 @@ defmodule Suikou.Reviews.Schemas.Artifact do
 
   use Suikou.Schema
 
-  import Ecto.Changeset
-
   alias Suikou.Reviews.Schemas.Round
 
   typed_schema "artifacts" do

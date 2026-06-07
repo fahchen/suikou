@@ -6,8 +6,6 @@ defmodule Suikou.Reviews.Schemas.Reply do
 
   use Suikou.Schema
 
-  import Ecto.Changeset
-
   alias Suikou.Reviews.Schemas.Comment
 
   @authors [:human, :agent]

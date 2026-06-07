@@ -6,8 +6,6 @@ defmodule Suikou.Reviews.Schemas.Review do
 
   use Suikou.Schema
 
-  import Ecto.Changeset
-
   alias Suikou.Reviews.Schemas.Round
 
   @verdicts [:approve, :request_changes, :comment]
