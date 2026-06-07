@@ -13,7 +13,7 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Server-authoritative | The local Suikou runtime owns review state; clients (agent CLI, browser) do not push authoritative state. |
 | Review | A batch of the reviewer's pending comments on a round, submitted together with one verdict. Submitting a review publishes its comments and records its verdict. A round may receive more than one review. |
 | Verdict | A review's overall disposition: `approve` (the artifact is accepted), `request_changes` (the reviewer wants revisions), or `comment` (neutral feedback, no acceptance). Orthogonal to a comment's critique type — verdict is the per-review disposition, critique type is the per-comment expected action. |
-| Comment | A unit of structured human critique within a review, carrying a scope, a critique type, a body, and the round it attaches to. Pending until its review is submitted, then published. |
+| Comment | A unit of structured human critique on a round, carrying a scope, a critique type, a body, and the round it attaches to. Authored as `pending`; becomes `published` when the review batching it is submitted. |
 | Scope | The granularity a comment attaches to: `line` (a line range, with the quoted source captured), `file` (a whole file), or `review` (the whole review). |
 | Critique type | The action a comment expects from the agent: `fix_required` (must change), `needs_answer` (must respond), or `note` (informational). Per-comment; distinct from a review's verdict. |
 | Quote | The source text of the lines a line-scoped comment anchors to, captured at comment creation to support cross-round re-anchoring. |
@@ -25,6 +25,6 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Outdated | A carried comment whose quote no longer exists in the new snapshot: retained but without a valid line anchor, awaiting the reviewer to relocate it. |
 | Lineage | The origin link connecting a comment's per-round rows across the rounds it survives; each round keeps its own immutable row. |
 | Round diff | The rendered difference between two rounds: the snapshot text diff plus the critique state changes (resolved, added, carried-forward) and any verdict change. |
-| Approval | The artifact's accepted state, expressed as a review submitted with verdict `approve` on the latest round; records the approved round. Reversible — dismissed by the reviewer or superseded by an agent resubmission. The only terminal state. |
+| Approval | The artifact's accepted state, expressed as a review submitted with verdict `approve` on the latest round; records the approved round. Reversible — dismissed by the reviewer or superseded by an agent resubmission. Among verdicts, `approve` is the only one that can end the review loop (see BDR-0013). |
 | Approved round | The round at which an `approve` verdict was granted. |
 | Export | A read-only, self-contained, structured (JSON) rendering of an artifact's latest round for agent consumption: the round's published critique (with replies and per-comment critique types), its snapshot content, and the latest verdict. Reading it never mutates state. |
