@@ -94,10 +94,14 @@ export function CommentCard(props: { comment: Comment }) {
         </span>
 
         {comment.status === "pending" && (
-          <span className="rounded bg-yellow px-1.5 py-0.5 text-[11px] text-ink">Pending</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-active-line-border bg-blue-soft px-2 py-0.5 text-[11px] text-blue">
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            Pending
+          </span>
         )}
         {comment.resolved && (
-          <span className="rounded bg-soft px-1.5 py-0.5 text-[11px] text-green-text">
+          <span className="inline-flex items-center gap-1 rounded-full border border-line bg-soft px-2 py-0.5 text-[11px] text-green-text">
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
             Resolved
           </span>
         )}
@@ -220,7 +224,7 @@ export function CommentCard(props: { comment: Comment }) {
               {!comment.resolved && (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 rounded border border-line px-2 py-1 text-[12px] text-text hover:bg-hover disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded border border-green/50 bg-green/15 px-2 py-1 text-[12px] text-green-text hover:bg-green/25 disabled:opacity-50"
                   disabled={commands.resolveComment.isPending}
                   onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
                 >
