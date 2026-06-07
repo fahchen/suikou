@@ -7,7 +7,7 @@ defmodule Suikou.Schema do
   keeps `order_by: :id` equal to insertion order even for sub-millisecond
   inserts, which the reply/comment threads rely on.
 
-      defmodule Suikou.Reviews.Schemas.Artifact do
+      defmodule Suikou.Schemas.Artifact do
         use Suikou.Schema
 
         typed_schema "artifacts" do

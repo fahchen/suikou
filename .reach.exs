@@ -16,13 +16,28 @@
     ]
   ],
   boundaries: [
-    # The Reviews context's top-level module is its public API; its internal
-    # subdirectories (schemas/, plus the per-concern command/query modules) are
-    # reachable only from within the context.
-    public: ["Suikou.Reviews"],
-    internal: ["Suikou.Reviews.*"],
+    # The domain is cut into four business contexts (Artifacts, Critique,
+    # Review, Export) plus a human read surface (Reads). Each context's
+    # top-level module is its public API; its internal submodules are reachable
+    # only from within that context. The shared kernel (`Suikou.Schemas.*` and
+    # `Suikou.Rounds`) is intentionally unlisted, leaving it open to every
+    # context as cross-domain read infrastructure.
+    public: [
+      "Suikou.Artifacts",
+      "Suikou.Critique",
+      "Suikou.Review",
+      "Suikou.Export",
+      "Suikou.Reads"
+    ],
+    internal: [
+      "Suikou.Artifacts.*",
+      "Suikou.Critique.*",
+      "Suikou.Reads.*"
+    ],
     internal_callers: [
-      {"Suikou.Reviews.*", ["Suikou.Reviews", "Suikou.Reviews.*"]}
+      {"Suikou.Artifacts.*", ["Suikou.Artifacts", "Suikou.Artifacts.*"]},
+      {"Suikou.Critique.*", ["Suikou.Critique", "Suikou.Critique.*"]},
+      {"Suikou.Reads.*", ["Suikou.Reads", "Suikou.Reads.*"]}
     ]
   ]
 ]
