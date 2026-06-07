@@ -90,6 +90,30 @@ defmodule Suikou.Schemas.Comment do
     ])
     |> validate_required([:round_id, :scope, :critique_type, :body])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
+    |> validate_line_anchor()
+  end
+
+  defp validate_line_anchor(changeset) do
+    case get_field(changeset, :scope) do
+      :line ->
+        changeset
+        |> validate_required([:start_line, :end_line])
+        |> validate_line_order()
+
+      _other ->
+        changeset
+    end
+  end
+
+  defp validate_line_order(changeset) do
+    start_line = get_field(changeset, :start_line)
+    end_line = get_field(changeset, :end_line)
+
+    if is_integer(start_line) and is_integer(end_line) and start_line > end_line do
+      add_error(changeset, :end_line, "must be greater than or equal to start line")
+    else
+      changeset
+    end
   end
 
   @doc """
