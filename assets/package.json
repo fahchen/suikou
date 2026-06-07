@@ -16,15 +16,20 @@
     "@musubi/client": "file:../deps/musubi/packages/client",
     "@musubi/react": "file:../deps/musubi/packages/react",
     "@tanstack/react-router": "~1.170.0",
+    "markdown-it": "^14.2.0",
+    "mermaid": "^11.15.0",
     "mobx": "~6.16.0",
     "mobx-react-lite": "~4.1.0",
+    "motion": "^12.40.0",
     "phoenix": "file:../deps/phoenix",
     "react": "~19.2.0",
-    "react-dom": "~19.2.0"
+    "react-dom": "~19.2.0",
+    "shiki": "^4.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "~4.3.0",
     "@tanstack/router-plugin": "~1.168.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/phoenix": "^1.6.7",
     "@types/react": "~19.2.0",
     "@types/react-dom": "~19.2.0",
