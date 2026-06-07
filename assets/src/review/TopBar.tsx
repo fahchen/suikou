@@ -1,55 +1,62 @@
-import { useState } from "react"
-import { observer } from "mobx-react-lite"
+import { useState } from "react";
+import { observer } from "mobx-react-lite";
 
-import { uiStore } from "../stores/ui-store"
-import { THEMES, THEME_LABELS } from "../themes"
-import { useReviewCommands } from "./commands"
-import { useSelectArtifact, pendingCount, hasUnresolvedBlocker } from "./store-context"
-import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types"
-import type { CritiqueType, StatusFilter } from "../stores/ui-store"
+import { uiStore } from "../stores/ui-store";
+import { THEMES, THEME_LABELS } from "../themes";
+import { useReviewCommands } from "./commands";
+import { useSelectArtifact, pendingCount, hasUnresolvedBlocker } from "./store-context";
+import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
+import type { CritiqueType, StatusFilter } from "../stores/ui-store";
 import {
-  TocIcon,
-  FileIcon,
-  FolderIcon,
-  CaretIcon,
-  RoundsIcon,
-  DisplayIcon,
-  EyeIcon,
-  CheckIcon,
-  RequestIcon,
-  CommentIcon,
-  ApproveIcon
-} from "./icons"
+  List,
+  FileText,
+  Folder,
+  ChevronDown,
+  GitCompare,
+  SlidersHorizontal,
+  Eye,
+  Check,
+  PencilLine,
+  MessageSquare,
+} from "lucide-react";
 
-const VERDICTS: Verdict[] = ["comment", "request_changes", "approve"]
+const VERDICTS: Verdict[] = ["comment", "request_changes", "approve"];
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unresolved", label: "Open" },
-  { value: "resolved", label: "Resolved" }
-]
-const TYPE_OPTIONS: CritiqueType[] = ["fix_required", "needs_answer", "note"]
+  { value: "resolved", label: "Resolved" },
+];
+const TYPE_OPTIONS: CritiqueType[] = ["fix_required", "needs_answer", "note"];
 
 function VerdictIcon(props: { verdict: Verdict; size?: number }) {
-  if (props.verdict === "approve") return <ApproveIcon size={props.size ?? 15} className="text-green-text" />
-  if (props.verdict === "request_changes") return <RequestIcon size={props.size ?? 15} className="text-red" />
-  return <CommentIcon size={props.size ?? 15} className="text-muted" />
+  if (props.verdict === "approve")
+    return <Check size={props.size ?? 15} className="text-green-text" />;
+  if (props.verdict === "request_changes")
+    return <PencilLine size={props.size ?? 15} className="text-red" />;
+  return <MessageSquare size={props.size ?? 15} className="text-muted" />;
 }
 
 export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot }) {
-  const { snapshot } = props
-  const ui = uiStore
-  const commands = useReviewCommands()
-  const selectArtifact = useSelectArtifact()
-  const [verdict, setVerdict] = useState<Verdict>(snapshot.latest_verdict ?? "request_changes")
+  const { snapshot } = props;
+  const ui = uiStore;
+  const commands = useReviewCommands();
+  const selectArtifact = useSelectArtifact();
+  const [verdict, setVerdict] = useState<Verdict>(snapshot.latest_verdict ?? "request_changes");
 
-  const toc = tableOfContents(snapshot.current_round.content)
-  const pending = pendingCount(snapshot.comments)
-  const blocker = hasUnresolvedBlocker(snapshot.comments)
+  const toc = tableOfContents(snapshot.current_round.content);
+  const pending = pendingCount(snapshot.comments);
+  const blocker = hasUnresolvedBlocker(snapshot.comments);
 
   return (
     <header className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Menu summary={<IconButton title="Table of contents"><TocIcon size={16} /></IconButton>}>
+        <Menu
+          summary={
+            <IconButton title="Table of contents">
+              <List size={16} />
+            </IconButton>
+          }
+        >
           <div className="flex w-64 flex-col gap-0.5">
             {toc.map((item) => (
               <a
@@ -67,18 +74,21 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
 
         <Menu
           summary={
-            <button className="flex min-w-0 items-center gap-1 rounded px-2 py-1 hover:bg-hover" type="button">
+            <button
+              className="flex min-w-0 items-center gap-1 rounded px-2 py-1 hover:bg-hover"
+              type="button"
+            >
               <span className="truncate font-medium text-heading">{snapshot.artifact.title}</span>
-              <CaretIcon size={14} className="shrink-0 text-faint" />
+              <ChevronDown size={14} className="shrink-0 text-faint" />
             </button>
           }
         >
           <div className="flex w-72 flex-col gap-0.5">
             <div className="flex items-center gap-1.5 px-2 py-1 text-[12px] text-muted">
-              <FolderIcon size={13} /> artifacts
+              <Folder size={13} /> artifacts
             </div>
             {snapshot.artifacts.map((artifact) => {
-              const active = artifact.id === snapshot.artifact.id
+              const active = artifact.id === snapshot.artifact.id;
               return (
                 <button
                   key={artifact.id}
@@ -88,14 +98,14 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                   }`}
                   onClick={() => selectArtifact(artifact.id)}
                 >
-                  <FileIcon size={14} className="shrink-0 text-muted" />
+                  <FileText size={14} className="shrink-0 text-muted" />
                   <span className="min-w-0 flex-1 truncate">{artifact.title}</span>
                   <span className="text-[11px] text-faint">
                     {artifact.latest_round ? `R${artifact.latest_round}` : "—"}
                     {artifact.approved ? " · ready" : ""}
                   </span>
                 </button>
-              )
+              );
             })}
           </div>
         </Menu>
@@ -109,16 +119,19 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
       <div className="ml-auto flex items-center gap-2">
         <Menu
           summary={
-            <button type="button" className="flex items-center gap-1 rounded border border-line px-2 py-1 hover:bg-hover">
-              <RoundsIcon size={15} className="text-muted" />
+            <button
+              type="button"
+              className="flex items-center gap-1 rounded border border-line px-2 py-1 hover:bg-hover"
+            >
+              <GitCompare size={15} className="text-muted" />
               <span className="text-[12px] font-medium">R{snapshot.current_round.number}</span>
-              <CaretIcon size={13} className="text-faint" />
+              <ChevronDown size={13} className="text-faint" />
             </button>
           }
         >
           <div className="flex w-60 flex-col gap-0.5">
             {[...snapshot.rounds].reverse().map((round) => {
-              const current = round.number === snapshot.current_round.number
+              const current = round.number === snapshot.current_round.number;
               return (
                 <button
                   key={round.number}
@@ -136,18 +149,24 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                   </span>
                   <span className="text-[11px] text-muted">{round.comment_count} comments</span>
                 </button>
-              )
+              );
             })}
           </div>
         </Menu>
 
-        <Menu summary={<IconButton title="Display settings"><DisplayIcon size={16} /></IconButton>}>
+        <Menu
+          summary={
+            <IconButton title="Display settings">
+              <SlidersHorizontal size={16} />
+            </IconButton>
+          }
+        >
           <div className="flex w-64 flex-col gap-3">
             <Row label="Comments">
               <Segmented
                 options={[
                   { value: "inline", label: "Inline" },
-                  { value: "side", label: "Side" }
+                  { value: "side", label: "Side" },
                 ]}
                 value={ui.commentMode}
                 onChange={(v) => ui.setCommentMode(v as "inline" | "side")}
@@ -158,11 +177,13 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
               <button
                 type="button"
                 className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[12px] ${
-                  ui.view === "rendered" ? "border-blue bg-tint text-heading" : "border-line text-muted"
+                  ui.view === "rendered"
+                    ? "border-blue bg-tint text-heading"
+                    : "border-line text-muted"
                 }`}
                 onClick={() => ui.setView(ui.view === "rendered" ? "raw" : "rendered")}
               >
-                <EyeIcon size={13} /> Preview
+                <Eye size={13} /> Preview
               </button>
             </Row>
 
@@ -199,7 +220,9 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                     key={type}
                     type="button"
                     className={`rounded px-1.5 py-0.5 text-[11px] ${
-                      ui.typeFilters[type] ? "bg-tint text-heading" : "bg-soft text-faint line-through"
+                      ui.typeFilters[type]
+                        ? "bg-tint text-heading"
+                        : "bg-soft text-faint line-through"
                     }`}
                     onClick={() => ui.toggleType(type)}
                   >
@@ -213,9 +236,13 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
 
         <Menu
           summary={
-            <button type="button" className="flex items-center gap-1 rounded border border-line px-2 py-1 hover:bg-hover" title="File review verdict">
+            <button
+              type="button"
+              className="flex items-center gap-1 rounded border border-line px-2 py-1 hover:bg-hover"
+              title="File review verdict"
+            >
               <VerdictIcon verdict={verdict} />
-              <CaretIcon size={13} className="text-faint" />
+              <ChevronDown size={13} className="text-faint" />
             </button>
           }
         >
@@ -234,7 +261,9 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                 </span>
                 <span className="flex flex-col">
                   <strong className="text-[13px] text-heading">{VERDICT_META[option].label}</strong>
-                  <small className="text-[11px] text-muted">{VERDICT_META[option].description}</small>
+                  <small className="text-[11px] text-muted">
+                    {VERDICT_META[option].description}
+                  </small>
                 </span>
               </button>
             ))}
@@ -253,41 +282,44 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           disabled={commands.submitReview.isPending}
           onClick={() => void commands.submitReview.dispatch({ verdict })}
         >
-          <CheckIcon size={14} /> Submit
+          <Check size={14} /> Submit
           {pending > 0 && (
             <span className="rounded bg-blue-strong px-1.5 text-[11px]">{pending}</span>
           )}
         </button>
       </div>
     </header>
-  )
-})
+  );
+});
 
 function tableOfContents(content: string): { level: number; text: string; line: number }[] {
-  const items: { level: number; text: string; line: number }[] = []
-  let inFence = false
+  const items: { level: number; text: string; line: number }[] = [];
+  let inFence = false;
 
   content.split("\n").forEach((line, index) => {
-    if (/^```/.test(line)) {
-      inFence = !inFence
-      return
+    if (line.startsWith("```")) {
+      inFence = !inFence;
+      return;
     }
-    if (inFence) return
-    const match = /^(#{1,4})\s+(.*)/.exec(line)
+    if (inFence) return;
+    const match = /^(#{1,4})\s+(.*)/.exec(line);
     if (match) {
-      items.push({ level: match[1].length, text: match[2].trim(), line: index + 1 })
+      items.push({ level: match[1].length, text: match[2].trim(), line: index + 1 });
     }
-  })
+  });
 
-  return items
+  return items;
 }
 
 function IconButton(props: { title: string; children: React.ReactNode }) {
   return (
-    <span className="grid size-8 place-items-center rounded text-muted hover:bg-hover" title={props.title}>
+    <span
+      className="grid size-8 place-items-center rounded text-muted hover:bg-hover"
+      title={props.title}
+    >
       {props.children}
     </span>
-  )
+  );
 }
 
 function Menu(props: { summary: React.ReactNode; children: React.ReactNode }) {
@@ -298,7 +330,7 @@ function Menu(props: { summary: React.ReactNode; children: React.ReactNode }) {
         {props.children}
       </div>
     </details>
-  )
+  );
 }
 
 function Row(props: { label: string; children: React.ReactNode }) {
@@ -307,13 +339,13 @@ function Row(props: { label: string; children: React.ReactNode }) {
       <span className="text-[12px] text-muted">{props.label}</span>
       {props.children}
     </div>
-  )
+  );
 }
 
 function Segmented<T extends string>(props: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (value: T) => void
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
 }) {
   return (
     <div className="inline-flex rounded border border-line bg-control p-0.5">
@@ -330,5 +362,5 @@ function Segmented<T extends string>(props: {
         </button>
       ))}
     </div>
-  )
+  );
 }

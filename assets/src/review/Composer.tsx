@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
-import { SuggestIcon } from "./icons";
+import { SquarePlus } from "lucide-react";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
@@ -76,7 +76,7 @@ export const Composer = observer(function Composer(props: { startLine: number; e
             )
           }
         >
-          <SuggestIcon size={13} />
+          <SquarePlus size={13} />
           Suggest
         </button>
         <span className="text-[11px] text-faint">

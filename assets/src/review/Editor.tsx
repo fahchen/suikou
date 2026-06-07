@@ -6,7 +6,7 @@ import type { RenderedBlock } from "../markdown/render";
 import type { Comment } from "./types";
 import { Composer } from "./Composer";
 import { CommentCard } from "./CommentCard";
-import { PlusIcon } from "./icons";
+import { Plus } from "lucide-react";
 
 interface EditorProps {
   content: string;
@@ -74,7 +74,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
                   aria-label="Add a comment"
                   onClick={() => ui.openComposer(block.startLine, "line")}
                 >
-                  <PlusIcon size={13} />
+                  <Plus size={13} />
                 </button>
               </span>
               <div

@@ -4,14 +4,14 @@ import { motion } from "motion/react";
 import { CRITIQUE_META, type Comment } from "./types";
 import { useReviewCommands } from "./commands";
 import {
-  AnchorIcon,
-  CarryIcon,
-  MoreIcon,
-  EditIcon,
-  TrashIcon,
-  ResolveIcon,
-  SuggestIcon,
-} from "./icons";
+  Crosshair,
+  RefreshCw,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  CircleCheck,
+  SquarePlus,
+} from "lucide-react";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TONE_CLASS: Record<string, string> = {
@@ -62,7 +62,7 @@ export function CommentCard(props: { comment: Comment }) {
     >
       <header className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
         <span className="inline-flex items-center gap-1 text-muted">
-          {comment.anchor && <AnchorIcon size={13} />}
+          {comment.anchor && <Crosshair size={13} />}
           {anchorLabel}
         </span>
 
@@ -71,7 +71,7 @@ export function CommentCard(props: { comment: Comment }) {
             className="inline-flex items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted"
             title={`Carried from round ${comment.original_round}`}
           >
-            <CarryIcon size={11} />R{comment.original_round}
+            <RefreshCw size={11} />R{comment.original_round}
           </span>
         )}
 
@@ -91,7 +91,7 @@ export function CommentCard(props: { comment: Comment }) {
         <div className="ml-auto">
           <details className="relative">
             <summary className="grid size-6 place-items-center rounded text-muted hover:bg-hover">
-              <MoreIcon size={15} />
+              <MoreHorizontal size={15} />
             </summary>
             <div className="absolute right-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-line bg-pop p-1 shadow-[var(--surface-shadow)]">
               <button
@@ -103,7 +103,7 @@ export function CommentCard(props: { comment: Comment }) {
                   setEditType(comment.critique_type);
                 }}
               >
-                <EditIcon size={14} />
+                <Pencil size={14} />
                 Edit
               </button>
               <button
@@ -111,7 +111,7 @@ export function CommentCard(props: { comment: Comment }) {
                 className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-red hover:bg-hover"
                 onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
               >
-                <TrashIcon size={14} />
+                <Trash2 size={14} />
                 Delete
               </button>
             </div>
@@ -189,7 +189,7 @@ export function CommentCard(props: { comment: Comment }) {
                   setReplyBody((b) => `${b}${b ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``)
                 }
               >
-                <SuggestIcon size={13} />
+                <SquarePlus size={13} />
                 Suggest
               </button>
             </div>
@@ -208,7 +208,7 @@ export function CommentCard(props: { comment: Comment }) {
                   disabled={commands.resolveComment.isPending}
                   onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
                 >
-                  <ResolveIcon size={14} />
+                  <CircleCheck size={14} />
                   Resolve
                 </button>
               )}
