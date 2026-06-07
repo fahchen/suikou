@@ -7,5 +7,7 @@ defmodule SuikouWeb.Router do
 
   scope "/api", SuikouWeb do
     pipe_through :api
+
+    get "/artifacts", ArtifactController, :index
   end
 end
