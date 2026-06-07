@@ -36,16 +36,16 @@ defmodule Suikou.Reviews.Submission do
 
   """
   @spec submit(map()) :: {:ok, result()} | {:error, Ecto.Changeset.t() | :empty_content}
-  def submit(attrs) do
-    case attrs[:artifact_id] && Repo.get(Artifact, attrs[:artifact_id]) do
-      nil -> create_new(attrs)
-      %Artifact{} = artifact -> resubmit(artifact, attrs)
+  def submit(params) do
+    case params[:artifact_id] && Repo.get(Artifact, params[:artifact_id]) do
+      nil -> create_new(params)
+      %Artifact{} = artifact -> resubmit(artifact, params)
     end
   end
 
-  defp create_new(attrs) do
-    content = attrs[:content]
-    changeset = Artifact.create_changeset(attrs)
+  defp create_new(params) do
+    content = params[:content]
+    changeset = Artifact.create_changeset(params)
 
     cond do
       blank?(content) -> {:error, :empty_content}
@@ -60,8 +60,8 @@ defmodule Suikou.Reviews.Submission do
     result(artifact, round, true)
   end
 
-  defp resubmit(artifact, attrs) do
-    content = attrs[:content]
+  defp resubmit(artifact, params) do
+    content = params[:content]
     latest = Rounds.latest(artifact.id)
 
     cond do

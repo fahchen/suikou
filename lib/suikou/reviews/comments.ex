@@ -27,13 +27,13 @@ defmodule Suikou.Reviews.Comments do
   @spec add(map()) ::
           {:ok, Comment.t()}
           | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
-  def add(attrs) do
-    round = Rounds.get(attrs[:round_id])
+  def add(params) do
+    round = Rounds.get(params[:round_id])
 
     cond do
       is_nil(round) -> {:error, :round_not_found}
       not Rounds.latest?(round) -> {:error, :not_latest_round}
-      true -> attrs |> capture_quote(round) |> Comment.author_changeset() |> Repo.insert()
+      true -> params |> capture_quote(round) |> Comment.author_changeset() |> Repo.insert()
     end
   end
 
@@ -52,9 +52,9 @@ defmodule Suikou.Reviews.Comments do
   @spec edit(integer(), map()) ::
           {:ok, Comment.t()}
           | {:error, Ecto.Changeset.t() | :comment_not_found | :published_immutable}
-  def edit(comment_id, attrs) do
+  def edit(comment_id, params) do
     with {:ok, comment} <- fetch_pending(comment_id) do
-      comment |> Comment.edit_changeset(attrs) |> Repo.update()
+      comment |> Comment.edit_changeset(params) |> Repo.update()
     end
   end
 
@@ -118,14 +118,14 @@ defmodule Suikou.Reviews.Comments do
     end
   end
 
-  defp capture_quote(attrs, round) do
-    start_line = attrs[:start_line]
-    end_line = attrs[:end_line]
+  defp capture_quote(params, round) do
+    start_line = params[:start_line]
+    end_line = params[:end_line]
 
-    if line_scope?(attrs[:scope]) and is_integer(start_line) and is_integer(end_line) do
-      Map.put(attrs, :quote, Anchor.capture_quote(round.content, start_line, end_line))
+    if line_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
+      Map.put(params, :quote, Anchor.capture_quote(round.content, start_line, end_line))
     else
-      attrs
+      params
     end
   end
 

@@ -38,9 +38,9 @@ defmodule Suikou.Reviews.Schemas.Round do
 
   """
   @spec changeset(map()) :: Ecto.Changeset.t()
-  def changeset(attrs) do
+  def changeset(params) do
     %__MODULE__{}
-    |> cast(attrs, [:artifact_id, :number, :content, :content_hash])
+    |> cast(params, [:artifact_id, :number, :content, :content_hash])
     |> validate_required([:artifact_id, :number, :content, :content_hash])
     |> unique_constraint([:artifact_id, :number])
   end

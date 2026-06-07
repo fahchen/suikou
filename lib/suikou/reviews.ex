@@ -27,7 +27,7 @@ defmodule Suikou.Reviews do
       #=> {:ok, %{round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
 
   """
-  defdelegate submit(attrs), to: Submission
+  defdelegate submit(params), to: Submission
 
   @doc """
   Adds a pending critique to the latest round. See
@@ -39,7 +39,7 @@ defmodule Suikou.Reviews do
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
 
   """
-  defdelegate add_comment(attrs), to: Comments, as: :add
+  defdelegate add_comment(params), to: Comments, as: :add
 
   @doc """
   Edits a pending comment's body. See `Suikou.Reviews.Comments.edit/2`.
@@ -50,7 +50,7 @@ defmodule Suikou.Reviews do
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
 
   """
-  defdelegate edit_comment(comment_id, attrs), to: Comments, as: :edit
+  defdelegate edit_comment(comment_id, params), to: Comments, as: :edit
 
   @doc """
   Deletes a pending comment. See `Suikou.Reviews.Comments.delete/1`.

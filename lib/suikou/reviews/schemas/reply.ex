@@ -35,9 +35,9 @@ defmodule Suikou.Reviews.Schemas.Reply do
 
   """
   @spec changeset(map()) :: Ecto.Changeset.t()
-  def changeset(attrs) do
+  def changeset(params) do
     %__MODULE__{}
-    |> cast(attrs, [:comment_id, :author, :body])
+    |> cast(params, [:comment_id, :author, :body])
     |> validate_required([:comment_id, :author, :body])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
   end

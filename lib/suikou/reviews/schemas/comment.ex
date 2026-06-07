@@ -79,9 +79,9 @@ defmodule Suikou.Reviews.Schemas.Comment do
 
   """
   @spec author_changeset(map()) :: Ecto.Changeset.t()
-  def author_changeset(attrs) do
+  def author_changeset(params) do
     %__MODULE__{}
-    |> cast(attrs, [
+    |> cast(params, [
       :round_id,
       :scope,
       :start_line,
@@ -104,9 +104,9 @@ defmodule Suikou.Reviews.Schemas.Comment do
 
   """
   @spec edit_changeset(t(), map()) :: Ecto.Changeset.t()
-  def edit_changeset(comment, attrs) do
+  def edit_changeset(comment, params) do
     comment
-    |> cast(attrs, [:body, :critique_type])
+    |> cast(params, [:body, :critique_type])
     |> validate_required([:body, :critique_type])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
   end

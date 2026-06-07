@@ -34,9 +34,9 @@ defmodule Suikou.Reviews.Schemas.Artifact do
 
   """
   @spec create_changeset(map()) :: Ecto.Changeset.t()
-  def create_changeset(attrs) do
+  def create_changeset(params) do
     %__MODULE__{}
-    |> cast(attrs, [:title])
+    |> cast(params, [:title])
     |> validate_required([:title])
     |> validate_format(:title, ~r/\S/, message: "can't be blank")
   end

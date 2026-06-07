@@ -46,9 +46,9 @@ defmodule Suikou.Reviews.Schemas.Review do
 
   """
   @spec changeset(map()) :: Ecto.Changeset.t()
-  def changeset(attrs) do
+  def changeset(params) do
     %__MODULE__{}
-    |> cast(attrs, [:round_id, :verdict])
+    |> cast(params, [:round_id, :verdict])
     |> validate_required([:round_id, :verdict])
   end
 end
