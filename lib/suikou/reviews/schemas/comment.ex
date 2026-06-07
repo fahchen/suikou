@@ -19,6 +19,10 @@ defmodule Suikou.Reviews.Schemas.Comment do
   @critique_types [:fix_required, :needs_answer, :note]
   @statuses [:pending, :published]
 
+  @type scope() :: :line | :file | :review
+  @type critique_type() :: :fix_required | :needs_answer | :note
+  @type status() :: :pending | :published
+
   typed_schema "comments" do
     field :scope, Ecto.Enum, values: @scopes, typed: [null: false]
     field :start_line, :integer
@@ -46,7 +50,7 @@ defmodule Suikou.Reviews.Schemas.Comment do
       [:line, :file, :review]
 
   """
-  @spec scopes() :: [atom()]
+  @spec scopes() :: [scope()]
   def scopes, do: @scopes
 
   @doc """
@@ -58,7 +62,7 @@ defmodule Suikou.Reviews.Schemas.Comment do
       [:fix_required, :needs_answer, :note]
 
   """
-  @spec critique_types() :: [atom()]
+  @spec critique_types() :: [critique_type()]
   def critique_types, do: @critique_types
 
   @doc """

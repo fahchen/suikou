@@ -35,7 +35,7 @@ defmodule Suikou.Reviews.Submission do
       #=> {:error, :empty_content}
 
   """
-  @spec submit(map()) :: {:ok, result()} | {:error, Ecto.Changeset.t() | atom()}
+  @spec submit(map()) :: {:ok, result()} | {:error, Ecto.Changeset.t() | :empty_content}
   def submit(attrs) do
     case attrs[:artifact_id] && Repo.get(Artifact, attrs[:artifact_id]) do
       nil -> create_new(attrs)

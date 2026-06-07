@@ -10,6 +10,7 @@ defmodule Suikou.Reviews.Diff do
   alias Suikou.Repo
   alias Suikou.Reviews.Rounds
   alias Suikou.Reviews.Schemas.Comment
+  alias Suikou.Reviews.Schemas.Review
   alias Suikou.Reviews.Verdicts
 
   @type t :: %{
@@ -17,8 +18,8 @@ defmodule Suikou.Reviews.Diff do
           resolved: [Comment.t()],
           added: [Comment.t()],
           carried_forward: [Comment.t()],
-          verdict_from: atom() | nil,
-          verdict_to: atom() | nil
+          verdict_from: Review.verdict() | nil,
+          verdict_to: Review.verdict() | nil
         }
 
   @doc """
@@ -35,7 +36,7 @@ defmodule Suikou.Reviews.Diff do
       #=> {:error, :round_not_found}
 
   """
-  @spec round_diff(integer(), integer(), integer()) :: {:ok, t()} | {:error, atom()}
+  @spec round_diff(integer(), integer(), integer()) :: {:ok, t()} | {:error, :round_not_found}
   def round_diff(artifact_id, from_number, to_number) do
     from_round = Rounds.get_by_number(artifact_id, from_number)
     to_round = Rounds.get_by_number(artifact_id, to_number)

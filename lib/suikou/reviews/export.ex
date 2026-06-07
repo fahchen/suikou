@@ -13,12 +13,13 @@ defmodule Suikou.Reviews.Export do
   alias Suikou.Reviews.Schemas.Artifact
   alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Reply
+  alias Suikou.Reviews.Schemas.Review
   alias Suikou.Reviews.Verdicts
 
   @type comment_view :: %{
           id: integer(),
-          scope: atom(),
-          critique_type: atom(),
+          scope: Comment.scope(),
+          critique_type: Comment.critique_type(),
           body: String.t(),
           start_line: integer() | nil,
           end_line: integer() | nil,
@@ -27,7 +28,7 @@ defmodule Suikou.Reviews.Export do
           resolved: boolean(),
           outdated: boolean(),
           line_anchor: boolean(),
-          replies: [%{author: atom(), body: String.t()}]
+          replies: [%{author: Reply.author(), body: String.t()}]
         }
 
   @type t :: %{
@@ -35,7 +36,7 @@ defmodule Suikou.Reviews.Export do
           title: String.t(),
           round: integer(),
           content: String.t(),
-          verdict: atom() | nil,
+          verdict: Review.verdict() | nil,
           approved: boolean(),
           approved_round: integer() | nil,
           comments: [comment_view()]
@@ -54,7 +55,7 @@ defmodule Suikou.Reviews.Export do
       #=> {:error, :artifact_not_found}
 
   """
-  @spec export(integer()) :: {:ok, t()} | {:error, atom()}
+  @spec export(integer()) :: {:ok, t()} | {:error, :artifact_not_found}
   def export(artifact_id) do
     case Repo.get(Artifact, artifact_id) do
       nil -> {:error, :artifact_not_found}

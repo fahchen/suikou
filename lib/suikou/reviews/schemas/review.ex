@@ -11,6 +11,7 @@ defmodule Suikou.Reviews.Schemas.Review do
   alias Suikou.Reviews.Schemas.Round
 
   @verdicts [:approve, :request_changes, :comment]
+  @type verdict() :: :approve | :request_changes | :comment
 
   typed_schema "reviews" do
     field :verdict, Ecto.Enum, values: @verdicts, typed: [null: false]
@@ -29,7 +30,7 @@ defmodule Suikou.Reviews.Schemas.Review do
       [:approve, :request_changes, :comment]
 
   """
-  @spec verdicts() :: [atom()]
+  @spec verdicts() :: [verdict()]
   def verdicts, do: @verdicts
 
   @doc """

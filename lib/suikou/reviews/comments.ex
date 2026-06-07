@@ -24,7 +24,9 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :round_not_found}
 
   """
-  @spec add(map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
+  @spec add(map()) ::
+          {:ok, Comment.t()}
+          | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
   def add(attrs) do
     round = Rounds.get(attrs[:round_id])
 
@@ -47,7 +49,9 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :published_immutable}
 
   """
-  @spec edit(integer(), map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
+  @spec edit(integer(), map()) ::
+          {:ok, Comment.t()}
+          | {:error, Ecto.Changeset.t() | :comment_not_found | :published_immutable}
   def edit(comment_id, attrs) do
     with {:ok, comment} <- fetch_pending(comment_id) do
       comment |> Comment.edit_changeset(attrs) |> Repo.update()
@@ -66,7 +70,8 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :published_immutable}
 
   """
-  @spec delete(integer()) :: {:ok, Comment.t()} | {:error, atom()}
+  @spec delete(integer()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :published_immutable}
   def delete(comment_id) do
     with {:ok, comment} <- fetch_pending(comment_id) do
       Repo.delete(comment)
@@ -86,7 +91,8 @@ defmodule Suikou.Reviews.Comments do
       #=> {:error, :not_published}
 
   """
-  @spec resolve(integer()) :: {:ok, Comment.t()} | {:error, atom()}
+  @spec resolve(integer()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_published}
   def resolve(comment_id) do
     case Repo.get(Comment, comment_id) do
       nil -> {:error, :comment_not_found}

@@ -15,7 +15,7 @@ defmodule Suikou.Reviews.Verdicts do
   alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Review
 
-  @type submit_result :: %{review: Review.t(), warnings: [atom()]}
+  @type submit_result :: %{review: Review.t(), warnings: [:unresolved_fix_required]}
 
   @doc """
   Records a verdict on the latest round and publishes its pending comments. An
@@ -31,8 +31,9 @@ defmodule Suikou.Reviews.Verdicts do
       #=> {:error, :round_not_found}
 
   """
-  @spec submit_review(integer(), atom() | String.t()) ::
-          {:ok, submit_result()} | {:error, Ecto.Changeset.t() | atom()}
+  @spec submit_review(integer(), Review.verdict() | String.t()) ::
+          {:ok, submit_result()}
+          | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
   def submit_review(round_id, verdict) do
     round = Rounds.get(round_id)
     changeset = Review.changeset(%{round_id: round_id, verdict: verdict})
@@ -57,7 +58,7 @@ defmodule Suikou.Reviews.Verdicts do
       #=> nil
 
   """
-  @spec latest_verdict(integer()) :: atom() | nil
+  @spec latest_verdict(integer()) :: Review.verdict() | nil
   def latest_verdict(round_id) do
     Review
     |> where([r], r.round_id == ^round_id)
@@ -79,7 +80,7 @@ defmodule Suikou.Reviews.Verdicts do
       #=> {:error, :artifact_not_found}
 
   """
-  @spec dismiss(integer()) :: {:ok, Artifact.t()} | {:error, atom()}
+  @spec dismiss(integer()) :: {:ok, Artifact.t()} | {:error, :artifact_not_found}
   def dismiss(artifact_id) do
     case Repo.get(Artifact, artifact_id) do
       nil ->

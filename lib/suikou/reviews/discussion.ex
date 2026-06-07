@@ -23,7 +23,7 @@ defmodule Suikou.Reviews.Discussion do
 
   """
   @spec reply_as_human(integer(), String.t()) ::
-          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | atom()}
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found}
   def reply_as_human(comment_id, body), do: reply(comment_id, :human, body)
 
   @doc """
@@ -40,7 +40,7 @@ defmodule Suikou.Reviews.Discussion do
 
   """
   @spec reply_as_agent(integer(), String.t()) ::
-          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | atom()}
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found}
   def reply_as_agent(comment_id, body), do: reply(comment_id, :agent, body)
 
   defp reply(comment_id, author, body) do

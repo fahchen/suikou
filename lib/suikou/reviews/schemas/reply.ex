@@ -11,6 +11,7 @@ defmodule Suikou.Reviews.Schemas.Reply do
   alias Suikou.Reviews.Schemas.Comment
 
   @authors [:human, :agent]
+  @type author() :: :human | :agent
 
   typed_schema "replies" do
     field :author, Ecto.Enum, values: @authors, typed: [null: false]
