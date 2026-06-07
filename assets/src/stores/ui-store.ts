@@ -1,19 +1,91 @@
 import { makeAutoObservable } from "mobx"
 
+import { THEMES, type ThemeName } from "../themes"
+
+export type DocView = "rendered" | "raw"
+export type CommentMode = "inline" | "side"
+export type StatusFilter = "all" | "unresolved" | "resolved"
+export type CritiqueType = "fix_required" | "needs_answer" | "note"
+export type CommentScope = "line" | "file" | "review"
+
+const THEME_KEY = "suikou-theme"
+
 /**
- * Ephemeral, client-only UI state. Server-owned data lives in Musubi stores;
- * MobX is reserved for transient interaction state (open panels, draft input,
- * optimistic toggles) that never needs to round-trip to the server.
+ * Ephemeral, client-only UI state for the review surface. Server-owned data
+ * (artifacts, rounds, comments) lives in the Musubi ReviewStore; MobX holds only
+ * transient interaction state — active theme, render/raw view, comment layout,
+ * filters, and the in-progress comment composer draft.
  */
 export class UiStore {
-  pendingAmount = 1
+  theme: ThemeName = "github"
+  view: DocView = "rendered"
+  commentMode: CommentMode = "side"
+  statusFilter: StatusFilter = "all"
+  typeFilters: Record<CritiqueType, boolean> = {
+    fix_required: true,
+    needs_answer: true,
+    note: true
+  }
+
+  composerLine: number | null = null
+  composerScope: CommentScope = "line"
+  composerType: CritiqueType = "note"
+  composerBody = ""
 
   constructor() {
     makeAutoObservable(this)
+
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved && (THEMES as readonly string[]).includes(saved)) {
+      this.theme = saved as ThemeName
+    }
+    this.applyTheme()
   }
 
-  setPendingAmount(amount: number): void {
-    this.pendingAmount = Number.isFinite(amount) ? amount : 0
+  setTheme(theme: ThemeName): void {
+    this.theme = theme
+    localStorage.setItem(THEME_KEY, theme)
+    this.applyTheme()
+  }
+
+  setView(view: DocView): void {
+    this.view = view
+  }
+
+  setCommentMode(mode: CommentMode): void {
+    this.commentMode = mode
+  }
+
+  setStatusFilter(filter: StatusFilter): void {
+    this.statusFilter = filter
+  }
+
+  toggleType(type: CritiqueType): void {
+    this.typeFilters[type] = !this.typeFilters[type]
+  }
+
+  openComposer(line: number | null, scope: CommentScope): void {
+    this.composerLine = line
+    this.composerScope = scope
+    this.composerType = "note"
+    this.composerBody = ""
+  }
+
+  closeComposer(): void {
+    this.composerLine = null
+    this.composerBody = ""
+  }
+
+  setComposerType(type: CritiqueType): void {
+    this.composerType = type
+  }
+
+  setComposerBody(body: string): void {
+    this.composerBody = body
+  }
+
+  private applyTheme(): void {
+    document.documentElement.dataset.theme = this.theme
   }
 }
 
