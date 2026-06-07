@@ -16,16 +16,13 @@
     ]
   ],
   boundaries: [
-    # Each context's top-level module is its public API; its internal
-    # subdirectories (schemas/, queries/, ...) are reachable only from within
-    # the context. Populate as contexts land, e.g.:
-    #
-    #   public: ["Suikou.Artifacts"],
-    #   internal: ["Suikou.Artifacts.Schemas.*", "Suikou.Artifacts.Queries.*"],
-    #   internal_callers: [
-    #     {"Suikou.Artifacts.Schemas.*", ["Suikou.Artifacts", "Suikou.Artifacts.*"]}
-    #   ]
-    public: [],
-    internal: []
+    # The Reviews context's top-level module is its public API; its internal
+    # subdirectories (schemas/, plus the per-concern command/query modules) are
+    # reachable only from within the context.
+    public: ["Suikou.Reviews"],
+    internal: ["Suikou.Reviews.*"],
+    internal_callers: [
+      {"Suikou.Reviews.*", ["Suikou.Reviews", "Suikou.Reviews.*"]}
+    ]
   ]
 ]
