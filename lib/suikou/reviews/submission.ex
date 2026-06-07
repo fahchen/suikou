@@ -25,14 +25,14 @@ defmodule Suikou.Reviews.Submission do
 
   ## Examples
 
-      iex> Suikou.Reviews.Submission.submit(%{title: "Draft", content: "hello\\n"})
-      {:ok, %{artifact: %Suikou.Reviews.Schemas.Artifact{}, round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
+      Suikou.Reviews.Submission.submit(%{title: "Draft", content: "hello\\n"})
+      #=> {:ok, %{artifact: %Suikou.Reviews.Schemas.Artifact{}, round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
 
-      iex> Suikou.Reviews.Submission.submit(%{artifact_id: artifact.id, content: "hello\\n"})
-      {:ok, %{bumped: false}}
+      Suikou.Reviews.Submission.submit(%{artifact_id: artifact.id, content: "hello\\n"})
+      #=> {:ok, %{bumped: false}}
 
-      iex> Suikou.Reviews.Submission.submit(%{title: "Draft", content: "   "})
-      {:error, :empty_content}
+      Suikou.Reviews.Submission.submit(%{title: "Draft", content: "   "})
+      #=> {:error, :empty_content}
 
   """
   @spec submit(map()) :: {:ok, result()} | {:error, Ecto.Changeset.t() | atom()}

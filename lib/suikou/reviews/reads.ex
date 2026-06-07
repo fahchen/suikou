@@ -19,8 +19,8 @@ defmodule Suikou.Reviews.Reads do
 
   ## Examples
 
-      iex> Suikou.Reviews.Reads.list_artifacts()
-      [%Suikou.Reviews.Schemas.Artifact{}]
+      Suikou.Reviews.Reads.list_artifacts()
+      #=> [%Suikou.Reviews.Schemas.Artifact{}]
 
   """
   @spec list_artifacts() :: [Artifact.t()]
@@ -35,11 +35,11 @@ defmodule Suikou.Reviews.Reads do
 
   ## Examples
 
-      iex> Suikou.Reviews.Reads.get_artifact(artifact.id)
-      %Suikou.Reviews.Schemas.Artifact{}
+      Suikou.Reviews.Reads.get_artifact(artifact.id)
+      #=> %Suikou.Reviews.Schemas.Artifact{}
 
-      iex> Suikou.Reviews.Reads.get_artifact(999_999)
-      nil
+      Suikou.Reviews.Reads.get_artifact(999_999)
+      #=> nil
 
   """
   @spec get_artifact(integer()) :: Artifact.t() | nil
@@ -50,8 +50,8 @@ defmodule Suikou.Reviews.Reads do
 
   ## Examples
 
-      iex> Suikou.Reviews.Reads.list_rounds(artifact.id)
-      [%Suikou.Reviews.Schemas.Round{number: 1}, %Suikou.Reviews.Schemas.Round{number: 2}]
+      Suikou.Reviews.Reads.list_rounds(artifact.id)
+      #=> [%Suikou.Reviews.Schemas.Round{number: 1}, %Suikou.Reviews.Schemas.Round{number: 2}]
 
   """
   @spec list_rounds(integer()) :: [Round.t()]
@@ -68,8 +68,8 @@ defmodule Suikou.Reviews.Reads do
 
   ## Examples
 
-      iex> Suikou.Reviews.Reads.list_comments(round.id)
-      [%Suikou.Reviews.Schemas.Comment{status: :published}, %Suikou.Reviews.Schemas.Comment{status: :pending}]
+      Suikou.Reviews.Reads.list_comments(round.id)
+      #=> [%Suikou.Reviews.Schemas.Comment{status: :published}, %Suikou.Reviews.Schemas.Comment{status: :pending}]
 
   """
   @spec list_comments(integer()) :: [Comment.t()]
@@ -87,11 +87,11 @@ defmodule Suikou.Reviews.Reads do
 
   ## Examples
 
-      iex> Suikou.Reviews.Reads.get_comment(comment.id)
-      %Suikou.Reviews.Schemas.Comment{}
+      Suikou.Reviews.Reads.get_comment(comment.id)
+      #=> %Suikou.Reviews.Schemas.Comment{}
 
-      iex> Suikou.Reviews.Reads.get_comment(999_999)
-      nil
+      Suikou.Reviews.Reads.get_comment(999_999)
+      #=> nil
 
   """
   @spec get_comment(integer()) :: Comment.t() | nil

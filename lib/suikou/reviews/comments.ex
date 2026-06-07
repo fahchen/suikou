@@ -17,11 +17,11 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      iex> Suikou.Reviews.Comments.add(%{round_id: round.id, scope: :general, critique_type: :note, body: "looks good"})
-      {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
+      Suikou.Reviews.Comments.add(%{round_id: round.id, scope: :review, critique_type: :note, body: "looks good"})
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
 
-      iex> Suikou.Reviews.Comments.add(%{round_id: 999_999, scope: :general, critique_type: :note, body: "x"})
-      {:error, :round_not_found}
+      Suikou.Reviews.Comments.add(%{round_id: 999_999, scope: :review, critique_type: :note, body: "x"})
+      #=> {:error, :round_not_found}
 
   """
   @spec add(map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
@@ -40,11 +40,11 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      iex> Suikou.Reviews.Comments.edit(comment.id, %{body: "revised"})
-      {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
+      Suikou.Reviews.Comments.edit(comment.id, %{body: "revised", critique_type: :note})
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
 
-      iex> Suikou.Reviews.Comments.edit(published_comment.id, %{body: "nope"})
-      {:error, :published_immutable}
+      Suikou.Reviews.Comments.edit(published_comment.id, %{body: "nope", critique_type: :note})
+      #=> {:error, :published_immutable}
 
   """
   @spec edit(integer(), map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
@@ -59,11 +59,11 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      iex> Suikou.Reviews.Comments.delete(comment.id)
-      {:ok, %Suikou.Reviews.Schemas.Comment{}}
+      Suikou.Reviews.Comments.delete(comment.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{}}
 
-      iex> Suikou.Reviews.Comments.delete(published_comment.id)
-      {:error, :published_immutable}
+      Suikou.Reviews.Comments.delete(published_comment.id)
+      #=> {:error, :published_immutable}
 
   """
   @spec delete(integer()) :: {:ok, Comment.t()} | {:error, atom()}
@@ -79,11 +79,11 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      iex> Suikou.Reviews.Comments.resolve(published_comment.id)
-      {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
+      Suikou.Reviews.Comments.resolve(published_comment.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
 
-      iex> Suikou.Reviews.Comments.resolve(pending_comment.id)
-      {:error, :not_published}
+      Suikou.Reviews.Comments.resolve(pending_comment.id)
+      #=> {:error, :not_published}
 
   """
   @spec resolve(integer()) :: {:ok, Comment.t()} | {:error, atom()}

@@ -24,11 +24,11 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      iex> Suikou.Reviews.Verdicts.submit_review(round.id, :approve)
-      {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
+      Suikou.Reviews.Verdicts.submit_review(round.id, :approve)
+      #=> {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
 
-      iex> Suikou.Reviews.Verdicts.submit_review(999_999, :approve)
-      {:error, :round_not_found}
+      Suikou.Reviews.Verdicts.submit_review(999_999, :approve)
+      #=> {:error, :round_not_found}
 
   """
   @spec submit_review(integer(), atom() | String.t()) ::
@@ -50,11 +50,11 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      iex> Suikou.Reviews.Verdicts.latest_verdict(round.id)
-      :approve
+      Suikou.Reviews.Verdicts.latest_verdict(round.id)
+      #=> :approve
 
-      iex> Suikou.Reviews.Verdicts.latest_verdict(round_without_review.id)
-      nil
+      Suikou.Reviews.Verdicts.latest_verdict(round_without_review.id)
+      #=> nil
 
   """
   @spec latest_verdict(integer()) :: atom() | nil
@@ -72,11 +72,11 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      iex> Suikou.Reviews.Verdicts.dismiss(artifact.id)
-      {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
+      Suikou.Reviews.Verdicts.dismiss(artifact.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
 
-      iex> Suikou.Reviews.Verdicts.dismiss(999_999)
-      {:error, :artifact_not_found}
+      Suikou.Reviews.Verdicts.dismiss(999_999)
+      #=> {:error, :artifact_not_found}
 
   """
   @spec dismiss(integer()) :: {:ok, Artifact.t()} | {:error, atom()}

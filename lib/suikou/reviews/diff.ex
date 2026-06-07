@@ -28,11 +28,11 @@ defmodule Suikou.Reviews.Diff do
 
   ## Examples
 
-      iex> Suikou.Reviews.Diff.round_diff(artifact.id, 1, 2)
-      {:ok, %{text: [eq: "a\\n"], resolved: [], added: [], carried_forward: [], verdict_from: nil, verdict_to: nil}}
+      Suikou.Reviews.Diff.round_diff(artifact.id, 1, 2)
+      #=> {:ok, %{text: [eq: "a\\n"], resolved: [], added: [], carried_forward: [], verdict_from: nil, verdict_to: nil}}
 
-      iex> Suikou.Reviews.Diff.round_diff(artifact.id, 1, 9)
-      {:error, :round_not_found}
+      Suikou.Reviews.Diff.round_diff(artifact.id, 1, 9)
+      #=> {:error, :round_not_found}
 
   """
   @spec round_diff(integer(), integer(), integer()) :: {:ok, t()} | {:error, atom()}

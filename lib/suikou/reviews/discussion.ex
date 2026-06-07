@@ -15,11 +15,11 @@ defmodule Suikou.Reviews.Discussion do
 
   ## Examples
 
-      iex> Suikou.Reviews.Discussion.reply_as_human(comment.id, "noted")
-      {:ok, %Suikou.Reviews.Schemas.Reply{author: :human, body: "noted"}}
+      Suikou.Reviews.Discussion.reply_as_human(comment.id, "noted")
+      #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :human, body: "noted"}}
 
-      iex> Suikou.Reviews.Discussion.reply_as_human(999_999, "noted")
-      {:error, :comment_not_found}
+      Suikou.Reviews.Discussion.reply_as_human(999_999, "noted")
+      #=> {:error, :comment_not_found}
 
   """
   @spec reply_as_human(integer(), String.t()) ::
@@ -32,11 +32,11 @@ defmodule Suikou.Reviews.Discussion do
 
   ## Examples
 
-      iex> Suikou.Reviews.Discussion.reply_as_agent(comment.id, "fixed")
-      {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent, body: "fixed"}}
+      Suikou.Reviews.Discussion.reply_as_agent(comment.id, "fixed")
+      #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent, body: "fixed"}}
 
-      iex> Suikou.Reviews.Discussion.reply_as_agent(999_999, "fixed")
-      {:error, :comment_not_found}
+      Suikou.Reviews.Discussion.reply_as_agent(999_999, "fixed")
+      #=> {:error, :comment_not_found}
 
   """
   @spec reply_as_agent(integer(), String.t()) ::

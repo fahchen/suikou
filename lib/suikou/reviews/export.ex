@@ -47,11 +47,11 @@ defmodule Suikou.Reviews.Export do
 
   ## Examples
 
-      iex> Suikou.Reviews.Export.export(artifact.id)
-      {:ok, %{artifact_id: 1, round: 2, verdict: :request_changes, comments: []}}
+      Suikou.Reviews.Export.export(artifact.id)
+      #=> {:ok, %{artifact_id: 1, round: 2, verdict: :request_changes, comments: []}}
 
-      iex> Suikou.Reviews.Export.export(999_999)
-      {:error, :artifact_not_found}
+      Suikou.Reviews.Export.export(999_999)
+      #=> {:error, :artifact_not_found}
 
   """
   @spec export(integer()) :: {:ok, t()} | {:error, atom()}

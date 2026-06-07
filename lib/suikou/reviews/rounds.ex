@@ -15,11 +15,11 @@ defmodule Suikou.Reviews.Rounds do
 
   ## Examples
 
-      iex> Suikou.Reviews.Rounds.get(round.id)
-      %Suikou.Reviews.Schemas.Round{number: 1}
+      Suikou.Reviews.Rounds.get(round.id)
+      #=> %Suikou.Reviews.Schemas.Round{number: 1}
 
-      iex> Suikou.Reviews.Rounds.get(999_999)
-      nil
+      Suikou.Reviews.Rounds.get(999_999)
+      #=> nil
 
   """
   @spec get(integer()) :: Round.t() | nil
@@ -30,8 +30,8 @@ defmodule Suikou.Reviews.Rounds do
 
   ## Examples
 
-      iex> Suikou.Reviews.Rounds.get_by_number(artifact.id, 2)
-      %Suikou.Reviews.Schemas.Round{number: 2}
+      Suikou.Reviews.Rounds.get_by_number(artifact.id, 2)
+      #=> %Suikou.Reviews.Schemas.Round{number: 2}
 
   """
   @spec get_by_number(integer(), integer()) :: Round.t() | nil
@@ -44,8 +44,8 @@ defmodule Suikou.Reviews.Rounds do
 
   ## Examples
 
-      iex> Suikou.Reviews.Rounds.latest(artifact.id)
-      %Suikou.Reviews.Schemas.Round{number: 3}
+      Suikou.Reviews.Rounds.latest(artifact.id)
+      #=> %Suikou.Reviews.Schemas.Round{number: 3}
 
   """
   @spec latest(integer()) :: Round.t() | nil
@@ -62,8 +62,8 @@ defmodule Suikou.Reviews.Rounds do
 
   ## Examples
 
-      iex> Suikou.Reviews.Rounds.latest_number(artifact.id)
-      3
+      Suikou.Reviews.Rounds.latest_number(artifact.id)
+      #=> 3
 
   """
   @spec latest_number(integer()) :: integer() | nil
@@ -79,8 +79,8 @@ defmodule Suikou.Reviews.Rounds do
 
   ## Examples
 
-      iex> Suikou.Reviews.Rounds.latest?(round)
-      true
+      Suikou.Reviews.Rounds.latest?(round)
+      #=> true
 
   """
   @spec latest?(Round.t()) :: boolean()

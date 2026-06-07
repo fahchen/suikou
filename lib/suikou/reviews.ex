@@ -23,8 +23,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.submit(%{title: "Draft", content: "hello\\n"})
-      {:ok, %{round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
+      Suikou.Reviews.submit(%{title: "Draft", content: "hello\\n"})
+      #=> {:ok, %{round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
 
   """
   defdelegate submit(attrs), to: Submission
@@ -35,8 +35,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.add_comment(%{round_id: round.id, scope: :general, critique_type: :note, body: "ok"})
-      {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
+      Suikou.Reviews.add_comment(%{round_id: round.id, scope: :review, critique_type: :note, body: "ok"})
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
 
   """
   defdelegate add_comment(attrs), to: Comments, as: :add
@@ -46,8 +46,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.edit_comment(comment.id, %{body: "revised"})
-      {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
+      Suikou.Reviews.edit_comment(comment.id, %{body: "revised", critique_type: :note})
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
 
   """
   defdelegate edit_comment(comment_id, attrs), to: Comments, as: :edit
@@ -57,8 +57,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.delete_comment(comment.id)
-      {:ok, %Suikou.Reviews.Schemas.Comment{}}
+      Suikou.Reviews.delete_comment(comment.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{}}
 
   """
   defdelegate delete_comment(comment_id), to: Comments, as: :delete
@@ -68,8 +68,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.resolve_comment(comment.id)
-      {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
+      Suikou.Reviews.resolve_comment(comment.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
 
   """
   defdelegate resolve_comment(comment_id), to: Comments, as: :resolve
@@ -80,8 +80,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.submit_review(round.id, :approve)
-      {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
+      Suikou.Reviews.submit_review(round.id, :approve)
+      #=> {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
 
   """
   defdelegate submit_review(round_id, verdict), to: Verdicts
@@ -91,8 +91,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.dismiss(artifact.id)
-      {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
+      Suikou.Reviews.dismiss(artifact.id)
+      #=> {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
 
   """
   defdelegate dismiss(artifact_id), to: Verdicts
@@ -103,8 +103,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.reply_as_human(comment.id, "noted")
-      {:ok, %Suikou.Reviews.Schemas.Reply{author: :human}}
+      Suikou.Reviews.reply_as_human(comment.id, "noted")
+      #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :human}}
 
   """
   defdelegate reply_as_human(comment_id, body), to: Discussion
@@ -115,8 +115,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.reply_as_agent(comment.id, "fixed")
-      {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent}}
+      Suikou.Reviews.reply_as_agent(comment.id, "fixed")
+      #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent}}
 
   """
   defdelegate reply_as_agent(comment_id, body), to: Discussion
@@ -127,8 +127,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.export(artifact.id)
-      {:ok, %{artifact_id: 1, round: 2, comments: []}}
+      Suikou.Reviews.export(artifact.id)
+      #=> {:ok, %{artifact_id: 1, round: 2, comments: []}}
 
   """
   defdelegate export(artifact_id), to: Export
@@ -138,8 +138,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.round_diff(artifact.id, 1, 2)
-      {:ok, %{resolved: [], added: [], carried_forward: []}}
+      Suikou.Reviews.round_diff(artifact.id, 1, 2)
+      #=> {:ok, %{resolved: [], added: [], carried_forward: []}}
 
   """
   defdelegate round_diff(artifact_id, from_number, to_number), to: Diff
@@ -149,8 +149,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.list_artifacts()
-      [%Suikou.Reviews.Schemas.Artifact{}]
+      Suikou.Reviews.list_artifacts()
+      #=> [%Suikou.Reviews.Schemas.Artifact{}]
 
   """
   defdelegate list_artifacts(), to: Reads
@@ -160,8 +160,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.get_artifact(artifact.id)
-      %Suikou.Reviews.Schemas.Artifact{}
+      Suikou.Reviews.get_artifact(artifact.id)
+      #=> %Suikou.Reviews.Schemas.Artifact{}
 
   """
   defdelegate get_artifact(artifact_id), to: Reads
@@ -172,8 +172,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.list_rounds(artifact.id)
-      [%Suikou.Reviews.Schemas.Round{number: 1}]
+      Suikou.Reviews.list_rounds(artifact.id)
+      #=> [%Suikou.Reviews.Schemas.Round{number: 1}]
 
   """
   defdelegate list_rounds(artifact_id), to: Reads
@@ -184,8 +184,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.list_comments(round.id)
-      [%Suikou.Reviews.Schemas.Comment{}]
+      Suikou.Reviews.list_comments(round.id)
+      #=> [%Suikou.Reviews.Schemas.Comment{}]
 
   """
   defdelegate list_comments(round_id), to: Reads
@@ -195,8 +195,8 @@ defmodule Suikou.Reviews do
 
   ## Examples
 
-      iex> Suikou.Reviews.get_comment(comment.id)
-      %Suikou.Reviews.Schemas.Comment{}
+      Suikou.Reviews.get_comment(comment.id)
+      #=> %Suikou.Reviews.Schemas.Comment{}
 
   """
   defdelegate get_comment(comment_id), to: Reads
