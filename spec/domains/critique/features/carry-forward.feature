@@ -33,23 +33,42 @@ Feature: Critique carry-forward across rounds
       Then the comment remains pending on round 1
       And the comment is not carried forward onto round 2
 
-  # Re-anchor by exact match of the captured quote; no fuzzy matching, and a lost
-  # quote marks the comment outdated rather than relocating it (see BDR-0010).
-  Rule: A carried line-scoped comment re-anchors by exact quote match
+  # Re-anchor by mapping the line range through the round-to-round line diff: an
+  # unchanged line moves to its new position, an edited or deleted line marks the
+  # comment outdated rather than relocating it (see BDR-0017).
+  Rule: A carried line-scoped comment re-anchors by diff mapping
 
-    Scenario: The quoted text still exists and the comment re-anchors
-      Given an unresolved published line-scoped comment on round 1 quoting "rate limit is 100 rps"
-      And round 2 still contains the line "rate limit is 100 rps" at a new position
+    Scenario: An unchanged commented line moves to its new position
+      Given an unresolved published line-scoped comment on round 1 anchored to the line "rate limit is 100 rps"
+      And round 2 inserts new lines above that line but leaves it unchanged
       When the comment is carried forward onto round 2
-      Then the comment's line range is updated to the new position
+      Then the comment's line-range anchor is mapped to the line's new position
 
-    Scenario: The quoted text is gone and the comment is marked outdated
-      Given an unresolved published line-scoped comment on round 1 quoting "rate limit is 100 rps"
-      And round 2 no longer contains the line "rate limit is 100 rps"
+    Scenario: An edited commented line marks the comment outdated
+      Given an unresolved published line-scoped comment on round 1 anchored to the line "rate limit is 100 rps"
+      And round 2 changes that line to "rate limit is 200 rps"
       When the comment is carried forward onto round 2
       Then the comment is marked outdated
-      And the comment has no valid line anchor on round 2
+      And the comment has no valid anchor on round 2
       And the comment is retained for the reviewer to relocate
+
+    Scenario: A deleted commented line marks the comment outdated
+      Given an unresolved published line-scoped comment on round 1 anchored to the line "rate limit is 100 rps"
+      And round 2 no longer contains that line
+      When the comment is carried forward onto round 2
+      Then the comment is marked outdated
+      And the comment has no valid anchor on round 2
+
+  # The original anchor is frozen lineage: it is copied unchanged onto every
+  # carried row so an outdated comment still reports where it began (see BDR-0017).
+  Rule: A carried comment keeps its original anchor unchanged
+
+    Scenario: Carrying forward preserves the original anchor through an outdated relocation
+      Given an unresolved published line-scoped comment authored on round 1 from line 10 to line 12
+      And round 2 changes those lines so the comment goes outdated
+      When the comment is carried forward onto round 2
+      Then the carried comment's original anchor is still a line range from line 10 to line 12
+      And the carried comment's original round is still 1
 
   # Each round keeps its own immutable comment row; the carried row links back to
   # its origin (see BDR-0011).

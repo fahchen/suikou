@@ -10,6 +10,9 @@ defmodule Suikou.Schemas.Comment do
 
   use Suikou.Schema
 
+  import PolymorphicEmbed
+
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
 
@@ -17,15 +20,28 @@ defmodule Suikou.Schemas.Comment do
   @critique_types [:fix_required, :needs_answer, :note]
   @statuses [:pending, :published]
 
+  @anchor_types [line_range: LineRange]
+
   @type scope() :: :line | :file | :review
   @type critique_type() :: :fix_required | :needs_answer | :note
   @type status() :: :pending | :published
 
   typed_schema "comments" do
     field :scope, Ecto.Enum, values: @scopes, typed: [null: false]
-    field :start_line, :integer
-    field :end_line, :integer
-    field :quote, :string
+
+    polymorphic_embeds_one(:anchor,
+      types: @anchor_types,
+      on_type_not_found: :raise,
+      on_replace: :update
+    )
+
+    polymorphic_embeds_one(:original_anchor,
+      types: @anchor_types,
+      on_type_not_found: :raise,
+      on_replace: :update
+    )
+
+    field :original_round, :integer
     field :critique_type, Ecto.Enum, values: @critique_types, typed: [null: false]
     field :body, :string, typed: [null: false]
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
@@ -65,7 +81,9 @@ defmodule Suikou.Schemas.Comment do
 
   @doc """
   Builds a changeset for authoring a critique, requiring round, scope, critique
-  type, and a non-blank body.
+  type, and a non-blank body. A `line`-scoped comment also requires an `anchor`
+  and a frozen `original_anchor` (set to the same selector at creation) plus the
+  `original_round` it was authored at; `file` and `review` comments carry none.
 
   ## Examples
 
@@ -79,40 +97,23 @@ defmodule Suikou.Schemas.Comment do
   @spec author_changeset(map()) :: Ecto.Changeset.t()
   def author_changeset(params) do
     %__MODULE__{}
-    |> cast(params, [
-      :round_id,
-      :scope,
-      :start_line,
-      :end_line,
-      :quote,
-      :critique_type,
-      :body
-    ])
+    |> cast(params, [:round_id, :scope, :critique_type, :body])
     |> validate_required([:round_id, :scope, :critique_type, :body])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
-    |> validate_line_anchor()
+    |> cast_anchor(params)
   end
 
-  defp validate_line_anchor(changeset) do
+  defp cast_anchor(changeset, params) do
     case get_field(changeset, :scope) do
       :line ->
         changeset
-        |> validate_required([:start_line, :end_line])
-        |> validate_line_order()
+        |> put_change(:original_round, params[:original_round])
+        |> validate_required([:original_round])
+        |> cast_polymorphic_embed(:anchor, required: true)
+        |> cast_polymorphic_embed(:original_anchor, required: true)
 
       _other ->
         changeset
-    end
-  end
-
-  defp validate_line_order(changeset) do
-    start_line = get_field(changeset, :start_line)
-    end_line = get_field(changeset, :end_line)
-
-    if is_integer(start_line) and is_integer(end_line) and start_line > end_line do
-      add_error(changeset, :end_line, "must be greater than or equal to start line")
-    else
-      changeset
     end
   end
 

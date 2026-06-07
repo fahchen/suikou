@@ -1,10 +1,18 @@
 ---
 id: BDR-0010
 title: Re-anchor carried comments by exact quote match, mark outdated on failure
-status: accepted
+status: superseded
+superseded_by: BDR-0017
 date: 2026-06-06
 summary: A line-scoped comment relocates in the new snapshot only by an exact match of its captured quote; if the quote is gone the comment is kept and marked outdated rather than fuzzily relocated
 ---
+
+> **Superseded by [BDR-0017](BDR-0017-polymorphic-selector-anchor.md).** The
+> location is now a polymorphic selector and a carried `line_range` re-anchors by
+> mapping its range through the round-to-round line diff, not by an exact
+> whole-line quote search. The "retain and mark outdated on failure" decision
+> below still holds; only the relocation mechanism changed.
+
 
 ## Scope
 

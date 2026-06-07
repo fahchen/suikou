@@ -1,62 +1,109 @@
 defmodule Suikou.Critique.Anchor do
   @moduledoc """
-  Line-anchor helpers. A line-scoped comment captures the quoted source text at
-  creation so it can be relocated on a later round by an exact match of that
-  quote (no fuzzy matching, see BDR-0010).
+  Line-range anchor helpers. A line-scoped comment captures the quoted source of
+  its lines at creation, then re-anchors on a later round by mapping its line
+  range through the round-to-round line diff: an unchanged line moves to its new
+  position, an edited or deleted line marks the comment outdated (see BDR-0017).
   """
 
+  alias Suikou.Schemas.Anchor.LineRange
+
   @doc """
-  Captures the source text of lines `start_line..end_line` (1-based, inclusive).
+  Builds the `line_range` anchor params for lines `start_line..end_line` (1-based,
+  inclusive) of `content`, capturing their quoted source. The result is a params
+  map carrying the polymorphic `__type__`, ready for `cast_polymorphic_embed/3`.
 
   ## Examples
 
-      iex> Suikou.Critique.Anchor.capture_quote("line one\\nline two\\nline three", 2, 3)
-      "line two\\nline three"
+      iex> Suikou.Critique.Anchor.capture("line one\\nline two\\nline three", 2, 3)
+      %{__type__: "line_range", start_line: 2, end_line: 3, quote: "line two\\nline three"}
 
   """
-  @spec capture_quote(String.t(), pos_integer(), pos_integer()) :: String.t()
-  def capture_quote(content, start_line, end_line) do
+  @spec capture(String.t(), pos_integer(), pos_integer()) :: %{
+          __type__: String.t(),
+          start_line: pos_integer(),
+          end_line: pos_integer(),
+          quote: String.t()
+        }
+  def capture(content, start_line, end_line) do
+    %{
+      __type__: "line_range",
+      start_line: start_line,
+      end_line: end_line,
+      quote: quote_lines(content, start_line, end_line)
+    }
+  end
+
+  @doc """
+  Re-anchors a `line_range` from `prev_content` into `new_content` by mapping its
+  range through the line diff. Returns `{:ok, line_range}` with the mapped range
+  and re-captured quote when every anchored line is unchanged and contiguous, or
+  `:outdated` when any anchored line was edited or deleted.
+
+  ## Examples
+
+      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "x\\na\\nb\\nc", %Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 3, quote: "b\\nc"})
+      {:ok, %Suikou.Schemas.Anchor.LineRange{start_line: 3, end_line: 4, quote: "b\\nc"}}
+
+      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "a\\nB\\nc", %Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"})
+      :outdated
+
+  """
+  @spec reanchor(String.t(), String.t(), LineRange.t()) :: {:ok, LineRange.t()} | :outdated
+  def reanchor(prev_content, new_content, %LineRange{start_line: start_line, end_line: end_line}) do
+    prev_lines = String.split(prev_content, "\n")
+    new_lines = String.split(new_content, "\n")
+
+    case map_range(prev_lines, new_lines, start_line, end_line) do
+      {new_start, new_end} ->
+        quote = Enum.join(Enum.slice(new_lines, (new_start - 1)..(new_end - 1)//1), "\n")
+        {:ok, %LineRange{start_line: new_start, end_line: new_end, quote: quote}}
+
+      nil ->
+        :outdated
+    end
+  end
+
+  defp map_range(prev_lines, new_lines, start_line, end_line) do
+    line_map = line_map(prev_lines, new_lines)
+    mapped = Enum.map(start_line..end_line//1, &Map.get(line_map, &1))
+
+    if Enum.all?(mapped, &is_integer/1) and consecutive?(mapped) do
+      {hd(mapped), List.last(mapped)}
+    end
+  end
+
+  defp line_map(prev_lines, new_lines) do
+    prev_lines
+    |> List.myers_difference(new_lines)
+    |> Enum.reduce({1, 1, %{}}, fn
+      {:eq, lines}, {old_no, new_no, acc} ->
+        acc =
+          Enum.reduce(0..(length(lines) - 1)//1, acc, fn offset, acc ->
+            Map.put(acc, old_no + offset, new_no + offset)
+          end)
+
+        {old_no + length(lines), new_no + length(lines), acc}
+
+      {:del, lines}, {old_no, new_no, acc} ->
+        {old_no + length(lines), new_no, acc}
+
+      {:ins, lines}, {old_no, new_no, acc} ->
+        {old_no, new_no + length(lines), acc}
+    end)
+    |> elem(2)
+  end
+
+  defp consecutive?(line_numbers) do
+    line_numbers
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.all?(fn [a, b] -> b - a == 1 end)
+  end
+
+  defp quote_lines(content, start_line, end_line) do
     content
     |> String.split("\n")
     |> Enum.slice((start_line - 1)..(end_line - 1)//1)
     |> Enum.join("\n")
-  end
-
-  @doc """
-  Finds the quote's new line range in `content` by exact match. Returns
-  `{start_line, end_line}` (1-based, inclusive) or `nil` when the quote is gone.
-
-  ## Examples
-
-      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "b\\nc")
-      {2, 3}
-
-      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "x")
-      nil
-
-  """
-  @spec reanchor(String.t(), String.t()) :: {pos_integer(), pos_integer()} | nil
-  def reanchor(content, quote) do
-    content_lines = String.split(content, "\n")
-    quote_lines = String.split(quote, "\n")
-
-    case index_of_sublist(content_lines, quote_lines) do
-      nil -> nil
-      i -> {i + 1, i + length(quote_lines)}
-    end
-  end
-
-  @spec index_of_sublist([String.t()], [String.t()]) :: non_neg_integer() | nil
-  defp index_of_sublist(lines, sublist) do
-    window = length(sublist)
-    last = length(lines) - window
-
-    if last < 0 do
-      nil
-    else
-      Enum.find(0..last//1, fn i ->
-        Enum.slice(lines, i, window) == sublist
-      end)
-    end
   end
 end

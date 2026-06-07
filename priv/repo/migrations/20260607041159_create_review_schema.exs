@@ -24,9 +24,9 @@ defmodule Suikou.Repo.Migrations.CreateReviewSchema do
       add :round_id, references(:rounds, on_delete: :delete_all), null: false
       add :origin_id, references(:comments, on_delete: :nilify_all)
       add :scope, :string, null: false
-      add :start_line, :integer
-      add :end_line, :integer
-      add :quote, :text
+      add :anchor, :map
+      add :original_anchor, :map
+      add :original_round, :integer
       add :critique_type, :string, null: false
       add :body, :text, null: false
       add :status, :string, null: false, default: "pending"

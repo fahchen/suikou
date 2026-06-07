@@ -1,15 +1,16 @@
 defmodule Suikou.Critique.CommentsTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
 
   describe "authoring scope" do
     test "a line-scoped comment anchors to a range and captures the quoted source" do
       content = Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n"
-      %{round: round} = artifact_fixture(content: content)
+      round = insert(:round, content: content)
 
       assert {:ok, comment} =
                Critique.add_comment(%{
@@ -21,12 +22,43 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "fix this"
                })
 
-      assert %{start_line: 10, end_line: 12, quote: "line 10\nline 11\nline 12"} = comment
+      assert %{
+               anchor: %LineRange{
+                 start_line: 10,
+                 end_line: 12,
+                 quote: "line 10\nline 11\nline 12"
+               }
+             } =
+               comment
+    end
+
+    test "a line-scoped comment freezes its original anchor and authoring round" do
+      content = Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n"
+      round = insert(:round, content: content)
+
+      assert {:ok, comment} =
+               Critique.add_comment(%{
+                 round_id: round.id,
+                 scope: :line,
+                 start_line: 10,
+                 end_line: 12,
+                 critique_type: :note,
+                 body: "fix this"
+               })
+
+      assert %{
+               original_round: 1,
+               original_anchor: %LineRange{
+                 start_line: 10,
+                 end_line: 12,
+                 quote: "line 10\nline 11\nline 12"
+               }
+             } = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
       content = Enum.map_join(1..8, "\n", &"line #{&1}") <> "\n"
-      %{round: round} = artifact_fixture(content: content)
+      round = insert(:round, content: content)
 
       assert {:ok, comment} =
                Critique.add_comment(%{
@@ -38,11 +70,11 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "x"
                })
 
-      assert %{start_line: 7, end_line: 7} = comment
+      assert %{anchor: %LineRange{start_line: 7, end_line: 7}} = comment
     end
 
     test "a review-scoped comment carries no line anchor" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
 
       assert {:ok, comment} =
                Critique.add_comment(%{
@@ -52,13 +84,13 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "overall"
                })
 
-      assert %{scope: :review, start_line: nil, end_line: nil} = comment
+      assert %{scope: :review, anchor: nil, original_anchor: nil} = comment
     end
   end
 
   describe "authoring validation" do
     test "each critique type is stored verbatim" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
 
       for type <- [:fix_required, :needs_answer, :note] do
         assert {:ok, comment} =
@@ -74,7 +106,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "an unrecognised critique type is rejected" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
 
       assert {:error, %Ecto.Changeset{}} =
                Critique.add_comment(%{
@@ -86,7 +118,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "an empty body is rejected and no comment is stored" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
 
       assert {:error, %Ecto.Changeset{}} =
                Critique.add_comment(%{
@@ -102,7 +134,7 @@ defmodule Suikou.Critique.CommentsTest do
 
   describe "latest-round attachment" do
     test "a new comment attaches to the current round" do
-      %{artifact: artifact} = artifact_fixture()
+      artifact = insert(:round).artifact
       %{round: round2} = advance(artifact.id, "changed\n")
 
       assert {:ok, comment} =
@@ -118,7 +150,8 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "commenting on a superseded round is rejected" do
-      %{artifact: artifact, round: round1} = artifact_fixture()
+      round1 = insert(:round)
+      artifact = round1.artifact
       advance(artifact.id, "changed\n")
 
       assert {:error, :not_latest_round} =
@@ -133,7 +166,7 @@ defmodule Suikou.Critique.CommentsTest do
 
   describe "pending lifecycle" do
     test "a pending comment body can be edited" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = pending_comment(round.id, %{body: "old"})
 
       assert {:ok, edited} =
@@ -143,7 +176,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "a pending comment type can be changed" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = pending_comment(round.id, %{critique_type: :note})
 
       assert {:ok, edited} =
@@ -153,7 +186,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "a pending comment can be deleted" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = pending_comment(round.id)
 
       assert {:ok, _deleted} = Critique.delete_comment(comment.id)
@@ -163,7 +196,7 @@ defmodule Suikou.Critique.CommentsTest do
 
   describe "published immutability" do
     test "editing a published comment is rejected" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = published_comment(round.id)
 
       assert {:error, :published_immutable} =
@@ -171,7 +204,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "deleting a published comment is rejected and it still exists" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = published_comment(round.id)
 
       assert {:error, :published_immutable} = Critique.delete_comment(comment.id)
@@ -181,7 +214,8 @@ defmodule Suikou.Critique.CommentsTest do
 
   describe "resolution" do
     test "resolving a published comment records the current round" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       comment = published_comment(round.id)
       advance(artifact.id, "changed\n")
 
@@ -190,7 +224,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "resolving a pending comment is rejected" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = pending_comment(round.id)
 
       assert {:error, :not_published} = Critique.resolve_comment(comment.id)

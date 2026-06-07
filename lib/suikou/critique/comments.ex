@@ -33,7 +33,7 @@ defmodule Suikou.Critique.Comments do
     cond do
       is_nil(round) -> {:error, :round_not_found}
       not Rounds.latest?(round) -> {:error, :not_latest_round}
-      true -> params |> capture_quote(round) |> Comment.author_changeset() |> Repo.insert()
+      true -> params |> put_anchor(round) |> Comment.author_changeset() |> Repo.insert()
     end
   end
 
@@ -118,12 +118,17 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp capture_quote(params, round) do
+  defp put_anchor(params, round) do
     start_line = params[:start_line]
     end_line = params[:end_line]
 
     if line_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
-      Map.put(params, :quote, Anchor.capture_quote(round.content, start_line, end_line))
+      anchor = Anchor.capture(round.content, start_line, end_line)
+
+      params
+      |> Map.put(:anchor, anchor)
+      |> Map.put(:original_anchor, anchor)
+      |> Map.put(:original_round, round.number)
     else
       params
     end

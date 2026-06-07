@@ -1,7 +1,7 @@
 defmodule Suikou.Critique.DiscussionTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
   alias Suikou.Schemas.Reply
@@ -50,7 +50,7 @@ defmodule Suikou.Critique.DiscussionTest do
   end
 
   setup do
-    %{round: round} = artifact_fixture()
+    round = insert(:round)
     comment = published_comment(round.id)
     %{comment: comment}
   end

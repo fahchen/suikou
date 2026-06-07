@@ -1,15 +1,15 @@
 defmodule Suikou.ReadsTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
   alias Suikou.Reads
 
   describe "list_artifacts/0" do
     test "returns every artifact, newest first" do
-      %{artifact: a} = artifact_fixture(title: "first")
-      %{artifact: b} = artifact_fixture(title: "second")
+      a = insert(:artifact, title: "first")
+      b = insert(:artifact, title: "second")
 
       ids = Enum.map(Reads.list_artifacts(), & &1.id)
       assert ids == [b.id, a.id]
@@ -22,7 +22,7 @@ defmodule Suikou.ReadsTest do
 
   describe "get_artifact/1" do
     test "returns the artifact by id" do
-      %{artifact: artifact} = artifact_fixture()
+      artifact = insert(:round).artifact
       artifact_id = artifact.id
       assert %{id: ^artifact_id} = Reads.get_artifact(artifact.id)
     end
@@ -34,7 +34,7 @@ defmodule Suikou.ReadsTest do
 
   describe "list_rounds/1" do
     test "returns rounds in ascending number order" do
-      %{artifact: artifact} = artifact_fixture()
+      artifact = insert(:round).artifact
       advance(artifact.id, "v2\n")
       advance(artifact.id, "v3\n")
 
@@ -45,7 +45,7 @@ defmodule Suikou.ReadsTest do
 
   describe "list_comments/1" do
     test "returns pending and published comments with replies, oldest first" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       published = published_comment(round.id, %{body: "published"})
       pending = pending_comment(round.id, %{body: "pending"})
       {:ok, _reply} = Critique.reply_as_human(published.id, "noted")
@@ -62,14 +62,14 @@ defmodule Suikou.ReadsTest do
     end
 
     test "returns an empty list for a round with no comments" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       assert Reads.list_comments(round.id) == []
     end
   end
 
   describe "get_comment/1" do
     test "returns a comment with its thread replies in order" do
-      %{round: round} = artifact_fixture()
+      round = insert(:round)
       comment = published_comment(round.id)
       {:ok, _h} = Critique.reply_as_human(comment.id, "human")
       {:ok, _a} = Critique.reply_as_agent(comment.id, "agent")

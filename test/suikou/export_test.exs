@@ -1,14 +1,15 @@
 defmodule Suikou.ExportTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
   alias Suikou.Export
   alias Suikou.Review
 
   test "published comments on the latest round are exported, resolved and open alike" do
-    %{artifact: artifact, round: round} = artifact_fixture()
+    round = insert(:round)
+    artifact = round.artifact
     open = published_comment(round.id, %{body: "open one"})
     resolved = published_comment(round.id, %{body: "resolved one"})
     {:ok, _resolved} = Critique.resolve_comment(resolved.id)
@@ -22,14 +23,16 @@ defmodule Suikou.ExportTest do
   end
 
   test "pending comments are never exported" do
-    %{artifact: artifact, round: round} = artifact_fixture()
+    round = insert(:round)
+    artifact = round.artifact
     pending_comment(round.id)
 
     assert {:ok, %{comments: []}} = Export.export(artifact.id)
   end
 
   test "only the latest round's critique is exported" do
-    %{artifact: artifact, round: round1} = artifact_fixture()
+    round1 = insert(:round)
+    artifact = round1.artifact
     published_comment(round1.id, %{body: "round 1 critique"})
     round1_comment_id = artifact.id |> latest_comment_ids() |> hd()
     {:ok, _resolved} = Critique.resolve_comment(round1_comment_id)
@@ -42,12 +45,12 @@ defmodule Suikou.ExportTest do
   end
 
   test "the latest snapshot content travels with the critique" do
-    %{artifact: artifact} = artifact_fixture(content: "snapshot body\n")
+    artifact = insert(:round, content: "snapshot body\n").artifact
     assert {:ok, %{content: "snapshot body\n"}} = Export.export(artifact.id)
   end
 
   test "an approved artifact reports its approval and verdict" do
-    %{artifact: artifact} = artifact_fixture()
+    artifact = insert(:round).artifact
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _review} = Review.submit_review(round2.id, :approve)
 
@@ -56,14 +59,16 @@ defmodule Suikou.ExportTest do
   end
 
   test "a request_changes verdict reports not approved" do
-    %{artifact: artifact, round: round} = artifact_fixture()
+    round = insert(:round)
+    artifact = round.artifact
     {:ok, _review} = Review.submit_review(round.id, :request_changes)
 
     assert {:ok, %{verdict: :request_changes, approved: false}} = Export.export(artifact.id)
   end
 
   test "a comment's replies travel with it" do
-    %{artifact: artifact, round: round} = artifact_fixture()
+    round = insert(:round)
+    artifact = round.artifact
     comment = published_comment(round.id)
     {:ok, _human} = Critique.reply_as_human(comment.id, "human reply")
     {:ok, _agent} = Critique.reply_as_agent(comment.id, "agent reply")
@@ -74,8 +79,8 @@ defmodule Suikou.ExportTest do
   end
 
   test "a carried-forward outdated comment exports flagged with no valid anchor" do
-    %{artifact: artifact, round: round} =
-      artifact_fixture(content: "intro\nrate limit is 100 rps\n")
+    round = insert(:round, content: "intro\nrate limit is 100 rps\n")
+    artifact = round.artifact
 
     published_comment(round.id, %{
       scope: :line,
@@ -93,7 +98,8 @@ defmodule Suikou.ExportTest do
   end
 
   test "exporting twice changes no state and is stable" do
-    %{artifact: artifact, round: round} = artifact_fixture()
+    round = insert(:round)
+    artifact = round.artifact
     published_comment(round.id)
 
     assert {:ok, first} = Export.export(artifact.id)
@@ -102,7 +108,7 @@ defmodule Suikou.ExportTest do
   end
 
   test "an artifact with no reviews exports a nil verdict and not approved" do
-    %{artifact: artifact} = artifact_fixture()
+    artifact = insert(:round).artifact
     assert {:ok, %{verdict: nil, approved: false, comments: []}} = Export.export(artifact.id)
   end
 

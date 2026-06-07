@@ -10,19 +10,26 @@ defmodule Suikou.Export do
 
   alias Suikou.Repo
   alias Suikou.Rounds
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
+
+  @type anchor_view :: %{
+          start_line: pos_integer(),
+          end_line: pos_integer(),
+          quote: String.t()
+        }
 
   @type comment_view :: %{
           id: Ecto.UUID.t(),
           scope: Comment.scope(),
           critique_type: Comment.critique_type(),
           body: String.t(),
-          start_line: integer() | nil,
-          end_line: integer() | nil,
-          quote: String.t() | nil,
+          anchor: anchor_view() | nil,
+          original_anchor: anchor_view() | nil,
+          original_round: integer() | nil,
           resolved_round: integer() | nil,
           resolved: boolean(),
           outdated: boolean(),
@@ -96,9 +103,9 @@ defmodule Suikou.Export do
       scope: comment.scope,
       critique_type: comment.critique_type,
       body: comment.body,
-      start_line: comment.start_line,
-      end_line: comment.end_line,
-      quote: comment.quote,
+      anchor: anchor_view(comment.anchor),
+      original_anchor: anchor_view(comment.original_anchor),
+      original_round: comment.original_round,
       resolved_round: comment.resolved_round,
       resolved: not is_nil(comment.resolved_round),
       outdated: comment.outdated,
@@ -107,9 +114,12 @@ defmodule Suikou.Export do
     }
   end
 
-  defp line_anchor?(%Comment{scope: :line, outdated: false, start_line: s, end_line: e})
-       when is_integer(s) and is_integer(e),
-       do: true
+  defp anchor_view(%LineRange{} = anchor) do
+    %{start_line: anchor.start_line, end_line: anchor.end_line, quote: anchor.quote}
+  end
 
+  defp anchor_view(nil), do: nil
+
+  defp line_anchor?(%Comment{scope: :line, outdated: false, anchor: %LineRange{}}), do: true
   defp line_anchor?(_comment), do: false
 end
