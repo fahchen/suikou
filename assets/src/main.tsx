@@ -1,4 +1,3 @@
-import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { RouterProvider } from "@tanstack/react-router"
 
@@ -11,10 +10,12 @@ if (!rootElement) {
   throw new Error("Root element #root not found")
 }
 
+// No <StrictMode>: Musubi's SocketProvider shares one connection per socket
+// topic without refcounting, so StrictMode's double-invoked mount effect lets
+// the first run's deferred cleanup disconnect the connection the second run
+// adopted, cancelling the in-flight root mount with "Disconnected".
 createRoot(rootElement).render(
-  <StrictMode>
-    <MusubiProvider socket={socket}>
-      <RouterProvider router={router} />
-    </MusubiProvider>
-  </StrictMode>
+  <MusubiProvider socket={socket}>
+    <RouterProvider router={router} />
+  </MusubiProvider>
 )

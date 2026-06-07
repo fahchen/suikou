@@ -13,6 +13,12 @@ export default defineConfig({
   // via `file:` deps and symlinked into node_modules. Without this, Rollup
   // resolves their realpath under ../deps/musubi and can't find react/etc.
   resolve: { preserveSymlinks: true },
+  // @musubi/react is consumed as TS source, so its CJS dependency
+  // `use-sync-external-store/shim/with-selector` isn't pre-bundled by default
+  // and Vite serves it without named-export interop. Force-include it.
+  optimizeDeps: {
+    include: ["use-sync-external-store/shim/with-selector", "use-sync-external-store/shim"]
+  },
   build: {
     outDir: "../priv/static/assets",
     emptyOutDir: true,
@@ -23,6 +29,9 @@ export default defineConfig({
       "/socket": {
         target: "ws://localhost:4000",
         ws: true
+      },
+      "/api": {
+        target: "http://localhost:4000"
       }
     }
   }
