@@ -99,7 +99,11 @@ const RenderView = observer(function RenderView(props: EditorProps) {
 
             <AnimatePresence>
               {composerOpen && selStart != null && selEnd != null && (
-                <Composer startLine={selStart} endLine={selEnd} />
+                <Composer
+                  startLine={selStart}
+                  endLine={selEnd}
+                  selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
+                />
               )}
             </AnimatePresence>
 

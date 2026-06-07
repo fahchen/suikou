@@ -20,17 +20,25 @@ beforeEach(() => {
 
 describe("Composer", () => {
   it("renders the target line range", () => {
-    render(<Composer startLine={3} endLine={5} />);
+    render(<Composer startLine={3} endLine={5} selectedText="" />);
     expect(screen.getByText(/lines 3-5/)).toBeInTheDocument();
   });
 
   it("disables Add comment while the draft is empty", () => {
-    render(<Composer startLine={3} endLine={3} />);
+    render(<Composer startLine={3} endLine={3} selectedText="" />);
     expect(screen.getByRole("button", { name: "Add comment" })).toBeDisabled();
   });
 
+  it("prefills a suggestion fence with the selected lines' text", () => {
+    render(<Composer startLine={3} endLine={4} selectedText={"first line\nsecond line"} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Suggest" }));
+
+    expect(uiStore.composerBody).toBe("```suggestion\nfirst line\nsecond line\n```");
+  });
+
   it("dispatches add_comment with the draft and anchor, then closes", () => {
-    render(<Composer startLine={3} endLine={5} />);
+    render(<Composer startLine={3} endLine={5} selectedText="" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
       target: { value: "needs a fix" },

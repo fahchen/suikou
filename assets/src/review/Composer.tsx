@@ -9,9 +9,20 @@ import type { CritiqueType } from "../stores/ui-store";
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
 
 /** Inline "new comment" composer anchored to a line range. */
-export const Composer = observer(function Composer(props: { startLine: number; endLine: number }) {
+export const Composer = observer(function Composer(props: {
+  startLine: number;
+  endLine: number;
+  selectedText: string;
+}) {
   const ui = uiStore;
   const commands = useReviewCommands();
+
+  // Seed a GitHub-style suggestion fence with the anchored lines' current text so
+  // the reviewer edits from the existing source instead of an empty block.
+  function suggest() {
+    const fence = `\`\`\`suggestion\n${props.selectedText}\n\`\`\``;
+    ui.setComposerBody(`${ui.composerBody}${ui.composerBody ? "\n" : ""}${fence}`);
+  }
 
   function add() {
     if (!ui.composerBody.trim()) return;
@@ -70,11 +81,7 @@ export const Composer = observer(function Composer(props: { startLine: number; e
         <button
           type="button"
           className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
-          onClick={() =>
-            ui.setComposerBody(
-              `${ui.composerBody}${ui.composerBody ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``,
-            )
-          }
+          onClick={suggest}
         >
           <SquarePlus size={13} />
           Suggest
