@@ -164,6 +164,28 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                   </button>
                 );
               })}
+              {snapshot.rounds.length >= 2 &&
+                (() => {
+                  const prev = snapshot.rounds[snapshot.rounds.length - 2].number;
+                  const last = snapshot.rounds[snapshot.rounds.length - 1].number;
+                  return (
+                    <>
+                      <div className="my-1 border-t border-line-soft" />
+                      <button
+                        type="button"
+                        className="flex flex-col rounded px-2 py-1.5 text-left hover:bg-hover"
+                        onClick={() => void commands.diffRound.dispatch({ from: prev, to: last })}
+                      >
+                        <span className="text-[13px] font-medium text-heading">
+                          Diff R{prev} → R{last}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Compare changes across rounds.
+                        </span>
+                      </button>
+                    </>
+                  );
+                })()}
             </div>
           </PopoverContent>
         </Popover>

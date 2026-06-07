@@ -6,6 +6,7 @@ import { useMarkdown } from "../markdown/use-markdown"
 import { useReviewStore, visibleComments } from "./store-context"
 import { TopBar } from "./TopBar"
 import { Editor } from "./Editor"
+import { DiffView } from "./DiffView"
 import { CommentRail } from "./CommentRail"
 import type { ReviewSnapshot } from "./types"
 
@@ -27,14 +28,18 @@ export const ReviewSurface = observer(function ReviewSurface() {
           className="mx-auto grid w-full max-w-[1400px] gap-6 px-6 py-8"
           style={{ gridTemplateColumns: sideMode ? "minmax(0,1fr) 340px" : "minmax(0,1fr)" }}
         >
-          <Editor
-            content={snapshot.current_round.content}
-            blocks={blocks.blocks}
-            loading={blocks.loading}
-            comments={comments}
-            inline={!sideMode}
-          />
-          {sideMode && <CommentRail comments={comments} />}
+          {snapshot.diff ? (
+            <DiffView diff={snapshot.diff} />
+          ) : (
+            <Editor
+              content={snapshot.current_round.content}
+              blocks={blocks.blocks}
+              loading={blocks.loading}
+              comments={comments}
+              inline={!sideMode}
+            />
+          )}
+          {sideMode && !snapshot.diff && <CommentRail comments={comments} />}
         </div>
       </div>
     </main>

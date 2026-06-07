@@ -12,6 +12,9 @@ export function useReviewCommands() {
     reply: useMusubiCommand(store, "reply"),
     submitReview: useMusubiCommand(store, "submit_review"),
     selectRound: useMusubiCommand(store, "select_round"),
+    relocateComment: useMusubiCommand(store, "relocate_comment"),
+    diffRound: useMusubiCommand(store, "diff_round"),
+    closeDiff: useMusubiCommand(store, "close_diff"),
     dismiss: useMusubiCommand(store, "dismiss")
   }
 }
