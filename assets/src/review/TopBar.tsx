@@ -33,7 +33,7 @@ function VerdictIcon(props: { verdict: Verdict; size?: number }) {
     return <Check size={props.size ?? 15} className="text-green-text" />;
   if (props.verdict === "request_changes")
     return <PencilLine size={props.size ?? 15} className="text-red" />;
-  return <MessageSquare size={props.size ?? 15} className="text-muted" />;
+  return <MessageSquare size={props.size ?? 15} className="text-muted-foreground" />;
 }
 
 export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot }) {
@@ -84,7 +84,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           }
         >
           <div className="flex w-72 flex-col gap-0.5">
-            <div className="flex items-center gap-1.5 px-2 py-1 text-[12px] text-muted">
+            <div className="flex items-center gap-1.5 px-2 py-1 text-[12px] text-muted-foreground">
               <Folder size={13} /> artifacts
             </div>
             {snapshot.artifacts.map((artifact) => {
@@ -98,7 +98,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                   }`}
                   onClick={() => selectArtifact(artifact.id)}
                 >
-                  <FileText size={14} className="shrink-0 text-muted" />
+                  <FileText size={14} className="shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{artifact.title}</span>
                   <span className="text-[11px] text-faint">
                     {artifact.latest_round ? `R${artifact.latest_round}` : "—"}
@@ -110,7 +110,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           </div>
         </Menu>
 
-        <div className="hidden flex-col text-[11px] leading-tight text-muted sm:flex">
+        <div className="hidden flex-col text-[11px] leading-tight text-muted-foreground sm:flex">
           <span>round {snapshot.current_round.number}</span>
           <span>{snapshot.current_round.is_latest ? "latest round" : "superseded"}</span>
         </div>
@@ -123,7 +123,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
               type="button"
               className="flex items-center gap-1 rounded border border-line px-2 py-1 hover:bg-hover"
             >
-              <GitCompare size={15} className="text-muted" />
+              <GitCompare size={15} className="text-muted-foreground" />
               <span className="text-[12px] font-medium">R{snapshot.current_round.number}</span>
               <ChevronDown size={13} className="text-faint" />
             </button>
@@ -147,7 +147,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                       <span className="text-[11px] font-normal text-faint">superseded</span>
                     )}
                   </span>
-                  <span className="text-[11px] text-muted">{round.comment_count} comments</span>
+                  <span className="text-[11px] text-muted-foreground">{round.comment_count} comments</span>
                 </button>
               );
             })}
@@ -179,7 +179,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                 className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 text-[12px] ${
                   ui.view === "rendered"
                     ? "border-blue bg-tint text-heading"
-                    : "border-line text-muted"
+                    : "border-line text-muted-foreground"
                 }`}
                 onClick={() => ui.setView(ui.view === "rendered" ? "raw" : "rendered")}
               >
@@ -261,7 +261,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                 </span>
                 <span className="flex flex-col">
                   <strong className="text-[13px] text-heading">{VERDICT_META[option].label}</strong>
-                  <small className="text-[11px] text-muted">
+                  <small className="text-[11px] text-muted-foreground">
                     {VERDICT_META[option].description}
                   </small>
                 </span>
@@ -314,7 +314,7 @@ function tableOfContents(content: string): { level: number; text: string; line: 
 function IconButton(props: { title: string; children: React.ReactNode }) {
   return (
     <span
-      className="grid size-8 place-items-center rounded text-muted hover:bg-hover"
+      className="grid size-8 place-items-center rounded text-muted-foreground hover:bg-hover"
       title={props.title}
     >
       {props.children}
@@ -336,7 +336,7 @@ function Menu(props: { summary: React.ReactNode; children: React.ReactNode }) {
 function Row(props: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-[12px] text-muted">{props.label}</span>
+      <span className="text-[12px] text-muted-foreground">{props.label}</span>
       {props.children}
     </div>
   );
@@ -354,7 +354,7 @@ function Segmented<T extends string>(props: {
           key={option.value}
           type="button"
           className={`rounded px-2 py-0.5 text-[12px] ${
-            props.value === option.value ? "bg-blue text-on-accent" : "text-muted hover:bg-hover"
+            props.value === option.value ? "bg-blue text-on-accent" : "text-muted-foreground hover:bg-hover"
           }`}
           onClick={() => props.onChange(option.value)}
         >

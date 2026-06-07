@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url"
+
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
@@ -12,7 +14,12 @@ export default defineConfig({
   // Musubi's @musubi/client / @musubi/react are consumed as TypeScript source
   // via `file:` deps and symlinked into node_modules. Without this, Rollup
   // resolves their realpath under ../deps/musubi and can't find react/etc.
-  resolve: { preserveSymlinks: true },
+  resolve: {
+    preserveSymlinks: true,
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url))
+    }
+  },
   // @musubi/react is consumed as TS source, so its CJS dependency
   // `use-sync-external-store/shim/with-selector` isn't pre-bundled by default
   // and Vite serves it without named-export interop. Force-include it.

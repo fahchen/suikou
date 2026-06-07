@@ -77,7 +77,7 @@ function MountedReview({ artifactId }: { artifactId: string }) {
 function Centered(props: { children: React.ReactNode; tone?: "error" }) {
   return (
     <div className="flex h-screen items-center justify-center text-sm" data-tone={props.tone}>
-      <span className={props.tone === "error" ? "text-red" : "text-muted"}>{props.children}</span>
+      <span className={props.tone === "error" ? "text-red" : "text-muted-foreground"}>{props.children}</span>
     </div>
   )
 }

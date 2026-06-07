@@ -17,7 +17,7 @@ import type { CritiqueType } from "../stores/ui-store";
 const TONE_CLASS: Record<string, string> = {
   red: "bg-red-soft text-red",
   amber: "bg-amber-soft text-amber",
-  muted: "bg-soft text-muted",
+  muted: "bg-soft text-muted-foreground",
 };
 
 export function CommentCard(props: { comment: Comment }) {
@@ -61,14 +61,14 @@ export function CommentCard(props: { comment: Comment }) {
       className="rounded-lg border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
     >
       <header className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
-        <span className="inline-flex items-center gap-1 text-muted">
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
           {comment.anchor && <Crosshair size={13} />}
           {anchorLabel}
         </span>
 
         {comment.carried && comment.original_round != null && (
           <span
-            className="inline-flex items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted"
+            className="inline-flex items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted-foreground"
             title={`Carried from round ${comment.original_round}`}
           >
             <RefreshCw size={11} />R{comment.original_round}
@@ -90,7 +90,7 @@ export function CommentCard(props: { comment: Comment }) {
 
         <div className="ml-auto">
           <details className="relative">
-            <summary className="grid size-6 place-items-center rounded text-muted hover:bg-hover">
+            <summary className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-hover">
               <MoreHorizontal size={15} />
             </summary>
             <div className="absolute right-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-line bg-pop p-1 shadow-[var(--surface-shadow)]">
@@ -145,7 +145,7 @@ export function CommentCard(props: { comment: Comment }) {
               </select>
               <button
                 type="button"
-                className="ml-auto rounded px-2 py-1 text-[12px] text-muted hover:bg-hover"
+                className="ml-auto rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
                 onClick={() => setEditing(false)}
               >
                 Cancel
@@ -183,7 +183,7 @@ export function CommentCard(props: { comment: Comment }) {
             <div className="flex items-center">
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted hover:bg-hover"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
                 title="Insert suggestion block"
                 onClick={() =>
                   setReplyBody((b) => `${b}${b ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``)

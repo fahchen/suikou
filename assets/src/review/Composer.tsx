@@ -48,7 +48,7 @@ export const Composer = observer(function Composer(props: { startLine: number; e
               className={`rounded px-2 py-1 text-[11px] ${
                 ui.composerType === type
                   ? "bg-blue text-on-accent"
-                  : "bg-soft text-muted hover:bg-hover"
+                  : "bg-soft text-muted-foreground hover:bg-hover"
               }`}
               onClick={() => ui.setComposerType(type)}
             >
@@ -69,7 +69,7 @@ export const Composer = observer(function Composer(props: { startLine: number; e
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted hover:bg-hover"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
           onClick={() =>
             ui.setComposerBody(
               `${ui.composerBody}${ui.composerBody ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``,
@@ -85,7 +85,7 @@ export const Composer = observer(function Composer(props: { startLine: number; e
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[12px] text-muted hover:bg-hover"
+            className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
             onClick={() => ui.closeComposer()}
           >
             Cancel

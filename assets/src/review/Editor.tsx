@@ -50,7 +50,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
           </div>
         ))}
 
-      {props.loading && <p className="px-6 py-8 text-sm text-muted">Rendering…</p>}
+      {props.loading && <p className="px-6 py-8 text-sm text-muted-foreground">Rendering…</p>}
 
       {props.blocks.map((block) => {
         const label =
