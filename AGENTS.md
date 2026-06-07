@@ -49,6 +49,7 @@ server-authoritative Musubi runtime and a separate React frontend under `assets/
 - Predicate function names should not start with `is_` and should end in a question mark. Names like `is_thing` should be reserved for guards
 - Elixir's builtin OTP primitives like `DynamicSupervisor` and `Registry`, require names in the child spec, such as `{DynamicSupervisor, name: MyApp.MyDynamicSup}`, then you can use `DynamicSupervisor.start_child(MyApp.MyDynamicSup, child_spec)`
 - Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. The majority of times you will want to pass `timeout: :infinity` as option
+- **Every public function must carry a `@doc`** describing what it does, and the `@doc` must include at least one `## Examples` block showing a runnable call and its result, written in doctest form (`iex>` prompts) so it can be exercised by `doctest`. Private functions (`defp`) do not need docs.
 
 ## Mix guidelines
 
