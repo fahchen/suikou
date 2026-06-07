@@ -130,7 +130,9 @@ end
 {:ok, _} = Review.submit_review(r1.id, :request_changes)
 
 # A thread on the overview blocker, then resolve the dead-letter note.
-{:ok, _} = Critique.reply_as_agent(overview.id, "Accepted = passed validation and enqueued durably.")
+{:ok, _} =
+  Critique.reply_as_agent(overview.id, "Accepted = passed validation and enqueued durably.")
+
 {:ok, _} = Critique.reply_as_human(overview.id, "Good — state that explicitly in the Overview.")
 {:ok, _} = Critique.resolve_comment(uuid.id)
 
