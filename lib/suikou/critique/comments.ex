@@ -110,6 +110,41 @@ defmodule Suikou.Critique.Comments do
     |> Repo.update()
   end
 
+  @doc """
+  Relocates a line-scoped comment to lines `start_line..end_line` of its round,
+  re-capturing the quoted source and clearing the `outdated` flag. Rejects a
+  comment that carries no line anchor.
+
+  ## Examples
+
+      Suikou.Critique.Comments.relocate(comment.id, 4, 5)
+      #=> {:ok, %Suikou.Schemas.Comment{outdated: false}}
+
+      Suikou.Critique.Comments.relocate(review_comment.id, 4, 5)
+      #=> {:error, :not_line_scoped}
+
+  """
+  @spec relocate(Ecto.UUID.t(), pos_integer(), pos_integer()) ::
+          {:ok, Comment.t()}
+          | {:error, Ecto.Changeset.t() | :comment_not_found | :not_line_scoped}
+  def relocate(comment_id, start_line, end_line) do
+    case Repo.get(Comment, comment_id) do
+      nil ->
+        {:error, :comment_not_found}
+
+      %Comment{scope: :line} = comment ->
+        round = Rounds.get(comment.round_id)
+        anchor = Anchor.capture(round.content, start_line, end_line)
+
+        comment
+        |> Comment.relocate_changeset(%{anchor: anchor})
+        |> Repo.update()
+
+      %Comment{} ->
+        {:error, :not_line_scoped}
+    end
+  end
+
   defp fetch_pending(comment_id) do
     case Repo.get(Comment, comment_id) do
       nil -> {:error, :comment_not_found}

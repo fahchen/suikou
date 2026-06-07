@@ -147,4 +147,24 @@ defmodule Suikou.Schemas.Comment do
   def resolve_changeset(comment, resolved_round) do
     change(comment, resolved_round: resolved_round)
   end
+
+  @doc """
+  Builds a changeset relocating a line-scoped comment to a fresh `anchor`,
+  clearing the `outdated` flag. Used when a human manually re-anchors a comment
+  that lost its mapping across rounds (see BDR-0017).
+
+  ## Examples
+
+      iex> anchor = %{__type__: "line_range", start_line: 3, end_line: 3, quote: "c"}
+      iex> Suikou.Schemas.Comment.relocate_changeset(%Suikou.Schemas.Comment{outdated: true}, %{anchor: anchor}).valid?
+      true
+
+  """
+  @spec relocate_changeset(t(), %{anchor: map()}) :: Ecto.Changeset.t()
+  def relocate_changeset(comment, params) do
+    comment
+    |> cast(params, [])
+    |> put_change(:outdated, false)
+    |> cast_polymorphic_embed(:anchor, required: true)
+  end
 end

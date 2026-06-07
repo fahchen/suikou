@@ -58,6 +58,18 @@ defmodule Suikou.Critique do
   defdelegate resolve_comment(comment_id), to: Comments, as: :resolve
 
   @doc """
+  Relocates a line-scoped comment to a fresh line range, re-capturing its quote
+  and clearing the outdated flag. See `Suikou.Critique.Comments.relocate/3`.
+
+  ## Examples
+
+      Suikou.Critique.relocate_comment(comment.id, 4, 5)
+      #=> {:ok, %Suikou.Schemas.Comment{outdated: false}}
+
+  """
+  defdelegate relocate_comment(comment_id, start_line, end_line), to: Comments, as: :relocate
+
+  @doc """
   Appends a human reply to a comment thread. See
   `Suikou.Critique.Discussion.reply_as_human/2`.
 
