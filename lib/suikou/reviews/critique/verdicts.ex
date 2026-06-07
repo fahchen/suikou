@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.Verdicts do
+defmodule Suikou.Reviews.Critique.Verdicts do
   @moduledoc """
   Review submission and approval. Submitting a review on the latest round
   publishes its pending comments and records one verdict; an `approve` verdict
@@ -24,10 +24,10 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      Suikou.Reviews.Verdicts.submit_review(round.id, :approve)
+      Suikou.Reviews.Critique.Verdicts.submit_review(round.id, :approve)
       #=> {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
 
-      Suikou.Reviews.Verdicts.submit_review("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
+      Suikou.Reviews.Critique.Verdicts.submit_review("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
       #=> {:error, :round_not_found}
 
   """
@@ -51,10 +51,10 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      Suikou.Reviews.Verdicts.latest_verdict(round.id)
+      Suikou.Reviews.Critique.Verdicts.latest_verdict(round.id)
       #=> :approve
 
-      Suikou.Reviews.Verdicts.latest_verdict(round_without_review.id)
+      Suikou.Reviews.Critique.Verdicts.latest_verdict(round_without_review.id)
       #=> nil
 
   """
@@ -73,10 +73,10 @@ defmodule Suikou.Reviews.Verdicts do
 
   ## Examples
 
-      Suikou.Reviews.Verdicts.dismiss(artifact.id)
+      Suikou.Reviews.Critique.Verdicts.dismiss(artifact.id)
       #=> {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
 
-      Suikou.Reviews.Verdicts.dismiss("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      Suikou.Reviews.Critique.Verdicts.dismiss("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
 
   """

@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.Submission do
+defmodule Suikou.Reviews.Artifacts.Submission do
   @moduledoc """
   Agent submission and automatic round bumping. A first submission mints an
   artifact and its round 1 snapshot. A resubmission under the same artifact id
@@ -22,13 +22,13 @@ defmodule Suikou.Reviews.Submission do
 
   ## Examples
 
-      Suikou.Reviews.Submission.submit(%{title: "Draft", content: "hello\\n"})
+      Suikou.Reviews.Artifacts.Submission.submit(%{title: "Draft", content: "hello\\n"})
       #=> {:ok, %{artifact: %Suikou.Reviews.Schemas.Artifact{}, round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
 
-      Suikou.Reviews.Submission.submit(%{artifact_id: artifact.id, content: "hello\\n"})
+      Suikou.Reviews.Artifacts.Submission.submit(%{artifact_id: artifact.id, content: "hello\\n"})
       #=> {:ok, %{bumped: false}}
 
-      Suikou.Reviews.Submission.submit(%{title: "Draft", content: "   "})
+      Suikou.Reviews.Artifacts.Submission.submit(%{title: "Draft", content: "   "})
       #=> {:error, :empty_content}
 
   """

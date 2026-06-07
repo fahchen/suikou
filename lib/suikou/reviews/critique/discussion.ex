@@ -1,7 +1,7 @@
-defmodule Suikou.Reviews.Discussion do
+defmodule Suikou.Reviews.Critique.Discussion do
   @moduledoc """
   Threaded replies on a comment. The human reviewer authors top-level critique
-  (see `Suikou.Reviews.Comments`); the agent has no authoring path and reaches a
+  (see `Suikou.Reviews.Critique.Comments`); the agent has no authoring path and reaches a
   thread only through `reply_as_agent/2` (see BDR-0007). Both reply paths require
   an existing comment, so neither can mint a top-level comment.
   """
@@ -15,10 +15,10 @@ defmodule Suikou.Reviews.Discussion do
 
   ## Examples
 
-      Suikou.Reviews.Discussion.reply_as_human(comment.id, "noted")
+      Suikou.Reviews.Critique.Discussion.reply_as_human(comment.id, "noted")
       #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :human, body: "noted"}}
 
-      Suikou.Reviews.Discussion.reply_as_human("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "noted")
+      Suikou.Reviews.Critique.Discussion.reply_as_human("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "noted")
       #=> {:error, :comment_not_found}
 
   """
@@ -32,10 +32,10 @@ defmodule Suikou.Reviews.Discussion do
 
   ## Examples
 
-      Suikou.Reviews.Discussion.reply_as_agent(comment.id, "fixed")
+      Suikou.Reviews.Critique.Discussion.reply_as_agent(comment.id, "fixed")
       #=> {:ok, %Suikou.Reviews.Schemas.Reply{author: :agent, body: "fixed"}}
 
-      Suikou.Reviews.Discussion.reply_as_agent("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "fixed")
+      Suikou.Reviews.Critique.Discussion.reply_as_agent("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "fixed")
       #=> {:error, :comment_not_found}
 
   """

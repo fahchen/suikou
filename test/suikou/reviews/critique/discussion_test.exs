@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.DiscussionTest do
+defmodule Suikou.Reviews.Critique.DiscussionTest do
   use Suikou.DataCase
 
   import Suikou.ReviewsFixtures

@@ -1,9 +1,10 @@
-defmodule Suikou.Reviews.VerdictsTest do
+defmodule Suikou.Reviews.Critique.VerdictsTest do
   use Suikou.DataCase
 
   import Suikou.ReviewsFixtures
 
   alias Suikou.Reviews
+  alias Suikou.Reviews.Critique.Verdicts
   alias Suikou.Reviews.Schemas.Artifact
   alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Review
@@ -131,7 +132,7 @@ defmodule Suikou.Reviews.VerdictsTest do
       # second review on the same round (still latest) supersedes the verdict view
       {:ok, _second} = Repo.insert(Review.changeset(%{round_id: round.id, verdict: :comment}))
 
-      assert :comment = Suikou.Reviews.Verdicts.latest_verdict(round.id)
+      assert :comment = Verdicts.latest_verdict(round.id)
     end
   end
 
@@ -148,7 +149,7 @@ defmodule Suikou.Reviews.VerdictsTest do
 
     test "latest_verdict is nil when no review exists on the round" do
       %{round: round} = artifact_fixture()
-      assert is_nil(Suikou.Reviews.Verdicts.latest_verdict(round.id))
+      assert is_nil(Verdicts.latest_verdict(round.id))
     end
   end
 end

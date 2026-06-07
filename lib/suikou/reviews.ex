@@ -9,17 +9,17 @@ defmodule Suikou.Reviews do
   from within this context.
   """
 
-  alias Suikou.Reviews.Comments
-  alias Suikou.Reviews.Diff
-  alias Suikou.Reviews.Discussion
+  alias Suikou.Reviews.Artifacts.Submission
+  alias Suikou.Reviews.Critique.Comments
+  alias Suikou.Reviews.Critique.Discussion
+  alias Suikou.Reviews.Critique.Verdicts
   alias Suikou.Reviews.Export
   alias Suikou.Reviews.Reads
-  alias Suikou.Reviews.Submission
-  alias Suikou.Reviews.Verdicts
+  alias Suikou.Reviews.Rounds.Diff
 
   @doc """
   Submits artifact content, minting or advancing a round. See
-  `Suikou.Reviews.Submission.submit/1`.
+  `Suikou.Reviews.Artifacts.Submission.submit/1`.
 
   ## Examples
 
@@ -31,7 +31,7 @@ defmodule Suikou.Reviews do
 
   @doc """
   Adds a pending critique to the latest round. See
-  `Suikou.Reviews.Comments.add/1`.
+  `Suikou.Reviews.Critique.Comments.add/1`.
 
   ## Examples
 
@@ -42,7 +42,7 @@ defmodule Suikou.Reviews do
   defdelegate add_comment(params), to: Comments, as: :add
 
   @doc """
-  Edits a pending comment's body. See `Suikou.Reviews.Comments.edit/2`.
+  Edits a pending comment's body. See `Suikou.Reviews.Critique.Comments.edit/2`.
 
   ## Examples
 
@@ -53,7 +53,7 @@ defmodule Suikou.Reviews do
   defdelegate edit_comment(comment_id, params), to: Comments, as: :edit
 
   @doc """
-  Deletes a pending comment. See `Suikou.Reviews.Comments.delete/1`.
+  Deletes a pending comment. See `Suikou.Reviews.Critique.Comments.delete/1`.
 
   ## Examples
 
@@ -64,7 +64,7 @@ defmodule Suikou.Reviews do
   defdelegate delete_comment(comment_id), to: Comments, as: :delete
 
   @doc """
-  Marks a published comment resolved. See `Suikou.Reviews.Comments.resolve/1`.
+  Marks a published comment resolved. See `Suikou.Reviews.Critique.Comments.resolve/1`.
 
   ## Examples
 
@@ -76,7 +76,7 @@ defmodule Suikou.Reviews do
 
   @doc """
   Records a verdict on the latest round. See
-  `Suikou.Reviews.Verdicts.submit_review/2`.
+  `Suikou.Reviews.Critique.Verdicts.submit_review/2`.
 
   ## Examples
 
@@ -87,7 +87,7 @@ defmodule Suikou.Reviews do
   defdelegate submit_review(round_id, verdict), to: Verdicts
 
   @doc """
-  Reverses approval for an artifact. See `Suikou.Reviews.Verdicts.dismiss/1`.
+  Reverses approval for an artifact. See `Suikou.Reviews.Critique.Verdicts.dismiss/1`.
 
   ## Examples
 
@@ -99,7 +99,7 @@ defmodule Suikou.Reviews do
 
   @doc """
   Appends a human reply to a comment thread. See
-  `Suikou.Reviews.Discussion.reply_as_human/2`.
+  `Suikou.Reviews.Critique.Discussion.reply_as_human/2`.
 
   ## Examples
 
@@ -111,7 +111,7 @@ defmodule Suikou.Reviews do
 
   @doc """
   Appends an agent reply to a comment thread. See
-  `Suikou.Reviews.Discussion.reply_as_agent/2`.
+  `Suikou.Reviews.Critique.Discussion.reply_as_agent/2`.
 
   ## Examples
 
@@ -134,7 +134,7 @@ defmodule Suikou.Reviews do
   defdelegate export(artifact_id), to: Export
 
   @doc """
-  Diffs two rounds of an artifact. See `Suikou.Reviews.Diff.round_diff/3`.
+  Diffs two rounds of an artifact. See `Suikou.Reviews.Rounds.Diff.round_diff/3`.
 
   ## Examples
 

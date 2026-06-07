@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.SubmissionTest do
+defmodule Suikou.Reviews.Artifacts.SubmissionTest do
   use Suikou.DataCase
 
   import Suikou.ReviewsFixtures

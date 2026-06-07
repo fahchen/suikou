@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.Diff do
+defmodule Suikou.Reviews.Rounds.Diff do
   @moduledoc """
   Round-to-round diff for the reviewer: the snapshot text difference, the
   critique state transitions (resolved on the old round, newly added and
@@ -8,10 +8,10 @@ defmodule Suikou.Reviews.Diff do
   import Ecto.Query
 
   alias Suikou.Repo
+  alias Suikou.Reviews.Critique.Verdicts
   alias Suikou.Reviews.Rounds
   alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Review
-  alias Suikou.Reviews.Verdicts
 
   @type t :: %{
           text: [{:eq | :ins | :del, String.t()}],
@@ -29,10 +29,10 @@ defmodule Suikou.Reviews.Diff do
 
   ## Examples
 
-      Suikou.Reviews.Diff.round_diff(artifact.id, 1, 2)
+      Suikou.Reviews.Rounds.Diff.round_diff(artifact.id, 1, 2)
       #=> {:ok, %{text: [eq: "a\\n"], resolved: [], added: [], carried_forward: [], verdict_from: nil, verdict_to: nil}}
 
-      Suikou.Reviews.Diff.round_diff(artifact.id, 1, 9)
+      Suikou.Reviews.Rounds.Diff.round_diff(artifact.id, 1, 9)
       #=> {:error, :round_not_found}
 
   """

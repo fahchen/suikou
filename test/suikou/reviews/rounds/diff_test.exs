@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.DiffTest do
+defmodule Suikou.Reviews.Rounds.DiffTest do
   use Suikou.DataCase
 
   import Suikou.ReviewsFixtures

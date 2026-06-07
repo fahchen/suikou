@@ -1,4 +1,4 @@
-defmodule Suikou.Reviews.Comments do
+defmodule Suikou.Reviews.Critique.Comments do
   @moduledoc """
   Authoring and lifecycle of human critique. New comments attach to the latest
   round only; a line-scoped comment captures its quoted source on creation.
@@ -17,10 +17,10 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      Suikou.Reviews.Comments.add(%{round_id: round.id, scope: :review, critique_type: :note, body: "looks good"})
+      Suikou.Reviews.Critique.Comments.add(%{round_id: round.id, scope: :review, critique_type: :note, body: "looks good"})
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
 
-      Suikou.Reviews.Comments.add(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "x"})
+      Suikou.Reviews.Critique.Comments.add(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "x"})
       #=> {:error, :round_not_found}
 
   """
@@ -42,10 +42,10 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      Suikou.Reviews.Comments.edit(comment.id, %{body: "revised", critique_type: :note})
+      Suikou.Reviews.Critique.Comments.edit(comment.id, %{body: "revised", critique_type: :note})
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
 
-      Suikou.Reviews.Comments.edit(published_comment.id, %{body: "nope", critique_type: :note})
+      Suikou.Reviews.Critique.Comments.edit(published_comment.id, %{body: "nope", critique_type: :note})
       #=> {:error, :published_immutable}
 
   """
@@ -63,10 +63,10 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      Suikou.Reviews.Comments.delete(comment.id)
+      Suikou.Reviews.Critique.Comments.delete(comment.id)
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{}}
 
-      Suikou.Reviews.Comments.delete(published_comment.id)
+      Suikou.Reviews.Critique.Comments.delete(published_comment.id)
       #=> {:error, :published_immutable}
 
   """
@@ -84,10 +84,10 @@ defmodule Suikou.Reviews.Comments do
 
   ## Examples
 
-      Suikou.Reviews.Comments.resolve(published_comment.id)
+      Suikou.Reviews.Critique.Comments.resolve(published_comment.id)
       #=> {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
 
-      Suikou.Reviews.Comments.resolve(pending_comment.id)
+      Suikou.Reviews.Critique.Comments.resolve(pending_comment.id)
       #=> {:error, :not_published}
 
   """

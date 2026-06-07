@@ -9,12 +9,12 @@ defmodule Suikou.Reviews.Export do
   import Ecto.Query
 
   alias Suikou.Repo
+  alias Suikou.Reviews.Critique.Verdicts
   alias Suikou.Reviews.Rounds
   alias Suikou.Reviews.Schemas.Artifact
   alias Suikou.Reviews.Schemas.Comment
   alias Suikou.Reviews.Schemas.Reply
   alias Suikou.Reviews.Schemas.Review
-  alias Suikou.Reviews.Verdicts
 
   @type comment_view :: %{
           id: Ecto.UUID.t(),
