@@ -122,6 +122,7 @@ declare namespace Musubi {
         current_round: { number: number; content: string; is_latest: boolean }
         comments: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string }> }>
         latest_verdict: "approve" | "request_changes" | "comment" | null
+        diff: { from: number; to: number; text: Array<{ op: "eq" | "ins" | "del"; value: string }>; resolved: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; added: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; carried_forward: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; verdict_from: "approve" | "request_changes" | "comment" | null; verdict_to: "approve" | "request_changes" | "comment" | null } | null
       },
       {
         add_comment: {
@@ -173,6 +174,25 @@ declare namespace Musubi {
           payload: {
             number: number
           }
+          reply: never
+        }
+        relocate_comment: {
+          payload: {
+            comment_id: string
+            start_line: number
+            end_line: number
+          }
+          reply: never
+        }
+        diff_round: {
+          payload: {
+            from: number
+            to: number
+          }
+          reply: never
+        }
+        close_diff: {
+          payload: {}
           reply: never
         }
         dismiss: {

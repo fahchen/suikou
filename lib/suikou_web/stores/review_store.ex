@@ -75,6 +75,36 @@ defmodule SuikouWeb.Stores.ReviewStore do
     )
 
     field(:latest_verdict, :approve | :request_changes | :comment | nil)
+
+    field(
+      :diff,
+      %{
+        from: integer(),
+        to: integer(),
+        text: list(%{op: :eq | :ins | :del, value: String.t()}),
+        resolved:
+          list(%{
+            id: String.t(),
+            critique_type: :fix_required | :needs_answer | :note,
+            body: String.t()
+          }),
+        added:
+          list(%{
+            id: String.t(),
+            critique_type: :fix_required | :needs_answer | :note,
+            body: String.t()
+          }),
+        carried_forward:
+          list(%{
+            id: String.t(),
+            critique_type: :fix_required | :needs_answer | :note,
+            body: String.t()
+          }),
+        verdict_from: :approve | :request_changes | :comment | nil,
+        verdict_to: :approve | :request_changes | :comment | nil
+      }
+      | nil
+    )
   end
 
   command :add_comment do
@@ -130,6 +160,24 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
+  command :relocate_comment do
+    payload do
+      field(:comment_id, String.t())
+      field(:start_line, integer())
+      field(:end_line, integer())
+    end
+  end
+
+  command :diff_round do
+    payload do
+      field(:from, integer())
+      field(:to, integer())
+    end
+  end
+
+  command :close_diff do
+  end
+
   command :dismiss do
   end
 
@@ -159,7 +207,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
       rounds: Enum.map(rounds, &render_round_summary/1),
       current_round: render_current_round(viewed, latest_number),
       comments: render_comments(viewed),
-      latest_verdict: viewed && Review.latest_verdict(viewed.id)
+      latest_verdict: viewed && Review.latest_verdict(viewed.id),
+      diff: render_diff(artifact_id, Map.get(socket.assigns, :diff_range))
     }
   end
 
@@ -229,6 +278,19 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   def handle_command(:select_round, payload, socket) do
     {:noreply, Socket.assign(socket, :round_number, payload["number"])}
+  end
+
+  def handle_command(:relocate_comment, payload, socket) do
+    Critique.relocate_comment(payload["comment_id"], payload["start_line"], payload["end_line"])
+    {:noreply, socket}
+  end
+
+  def handle_command(:diff_round, payload, socket) do
+    {:noreply, Socket.assign(socket, :diff_range, {payload["from"], payload["to"]})}
+  end
+
+  def handle_command(:close_diff, _payload, socket) do
+    {:noreply, Socket.assign(socket, :diff_range, nil)}
   end
 
   def handle_command(:dismiss, _payload, socket) do
@@ -315,5 +377,32 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   defp render_reply(%Reply{} = reply) do
     %{id: reply.id, author: reply.author, body: reply.body}
+  end
+
+  defp render_diff(_artifact_id, nil), do: nil
+
+  defp render_diff(artifact_id, {from, to}) do
+    case Reads.round_diff(artifact_id, from, to) do
+      {:ok, diff} ->
+        %{
+          from: from,
+          to: to,
+          text: Enum.map(diff.text, &render_diff_segment/1),
+          resolved: Enum.map(diff.resolved, &render_diff_comment/1),
+          added: Enum.map(diff.added, &render_diff_comment/1),
+          carried_forward: Enum.map(diff.carried_forward, &render_diff_comment/1),
+          verdict_from: diff.verdict_from,
+          verdict_to: diff.verdict_to
+        }
+
+      {:error, _reason} ->
+        nil
+    end
+  end
+
+  defp render_diff_segment({op, value}), do: %{op: op, value: value}
+
+  defp render_diff_comment(%Comment{} = comment) do
+    %{id: comment.id, critique_type: comment.critique_type, body: comment.body}
   end
 end
