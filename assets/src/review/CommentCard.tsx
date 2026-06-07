@@ -3,6 +3,20 @@ import { motion } from "motion/react";
 
 import { CRITIQUE_META, type Comment } from "./types";
 import { useReviewCommands } from "./commands";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Crosshair,
   RefreshCw,
@@ -89,14 +103,16 @@ export function CommentCard(props: { comment: Comment }) {
         )}
 
         <div className="ml-auto">
-          <details className="relative">
-            <summary className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-hover">
-              <MoreHorizontal size={15} />
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 flex w-36 flex-col rounded-md border border-line bg-pop p-1 shadow-[var(--surface-shadow)]">
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-hover"
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-xs" title="Comment actions">
+                  <MoreHorizontal size={15} />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem
                 onClick={() => {
                   setEditing(true);
                   setEditBody(comment.body);
@@ -105,17 +121,16 @@ export function CommentCard(props: { comment: Comment }) {
               >
                 <Pencil size={14} />
                 Edit
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-red hover:bg-hover"
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
                 onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
               >
                 <Trash2 size={14} />
                 Delete
-              </button>
-            </div>
-          </details>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -134,15 +149,16 @@ export function CommentCard(props: { comment: Comment }) {
               onChange={(e) => setEditBody(e.target.value)}
             />
             <div className="flex items-center gap-2">
-              <select
-                className="rounded border border-line bg-control px-2 py-1 text-[12px]"
-                value={editType}
-                onChange={(e) => setEditType(e.target.value as CritiqueType)}
-              >
-                <option value="fix_required">fix_required</option>
-                <option value="needs_answer">needs_answer</option>
-                <option value="note">note</option>
-              </select>
+              <Select value={editType} onValueChange={(v) => setEditType(v as CritiqueType)}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fix_required">fix_required</SelectItem>
+                  <SelectItem value="needs_answer">needs_answer</SelectItem>
+                  <SelectItem value="note">note</SelectItem>
+                </SelectContent>
+              </Select>
               <button
                 type="button"
                 className="ml-auto rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
