@@ -60,11 +60,11 @@ defmodule Suikou.Reviews.Verdicts do
   """
   @spec latest_verdict(integer()) :: Review.verdict() | nil
   def latest_verdict(round_id) do
-    Review
-    |> where([r], r.round_id == ^round_id)
-    |> order_by([r], desc: r.id)
+    from(r in Review, as: :review)
+    |> where([review: r], r.round_id == ^round_id)
+    |> order_by([review: r], desc: r.id)
     |> limit(1)
-    |> select([r], r.verdict)
+    |> select([review: r], r.verdict)
     |> Repo.one()
   end
 
@@ -99,8 +99,8 @@ defmodule Suikou.Reviews.Verdicts do
   end
 
   defp publish_pending(round) do
-    Comment
-    |> where([c], c.round_id == ^round.id and c.status == :pending)
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round.id and c.status == :pending)
     |> Repo.update_all(set: [status: :published])
   end
 
@@ -118,9 +118,9 @@ defmodule Suikou.Reviews.Verdicts do
   defp warnings(_round, _verdict), do: []
 
   defp open_fix_required?(round) do
-    Comment
+    from(c in Comment, as: :comment)
     |> where(
-      [c],
+      [comment: c],
       c.round_id == ^round.id and c.status == :published and
         c.critique_type == :fix_required and is_nil(c.resolved_round)
     )

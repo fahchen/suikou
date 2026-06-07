@@ -92,9 +92,9 @@ defmodule Suikou.Reviews.Submission do
   end
 
   defp carry_forward(prev_round, new_round) do
-    Comment
+    from(c in Comment, as: :comment)
     |> where(
-      [c],
+      [comment: c],
       c.round_id == ^prev_round.id and c.status == :published and is_nil(c.resolved_round)
     )
     |> Repo.all()

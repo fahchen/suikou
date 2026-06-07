@@ -60,23 +60,23 @@ defmodule Suikou.Reviews.Diff do
   end
 
   defp resolved_at(round_id, to_number) do
-    Comment
-    |> where([c], c.round_id == ^round_id and c.resolved_round == ^to_number)
-    |> order_by([c], asc: c.id)
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id and c.resolved_round == ^to_number)
+    |> order_by([comment: c], asc: c.id)
     |> Repo.all()
   end
 
   defp added_on(round_id) do
-    Comment
-    |> where([c], c.round_id == ^round_id and is_nil(c.origin_id))
-    |> order_by([c], asc: c.id)
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id and is_nil(c.origin_id))
+    |> order_by([comment: c], asc: c.id)
     |> Repo.all()
   end
 
   defp carried_onto(round_id) do
-    Comment
-    |> where([c], c.round_id == ^round_id and not is_nil(c.origin_id))
-    |> order_by([c], asc: c.id)
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id and not is_nil(c.origin_id))
+    |> order_by([comment: c], asc: c.id)
     |> Repo.all()
   end
 end

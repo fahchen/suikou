@@ -25,8 +25,8 @@ defmodule Suikou.Reviews.Reads do
   """
   @spec list_artifacts() :: [Artifact.t()]
   def list_artifacts do
-    Artifact
-    |> order_by([a], desc: a.id)
+    from(a in Artifact, as: :artifact)
+    |> order_by([artifact: a], desc: a.id)
     |> Repo.all()
   end
 
@@ -56,9 +56,9 @@ defmodule Suikou.Reviews.Reads do
   """
   @spec list_rounds(integer()) :: [Round.t()]
   def list_rounds(artifact_id) do
-    Round
-    |> where([r], r.artifact_id == ^artifact_id)
-    |> order_by([r], asc: r.number)
+    from(r in Round, as: :round)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> order_by([round: r], asc: r.number)
     |> Repo.all()
   end
 
@@ -74,9 +74,9 @@ defmodule Suikou.Reviews.Reads do
   """
   @spec list_comments(integer()) :: [Comment.t()]
   def list_comments(round_id) do
-    Comment
-    |> where([c], c.round_id == ^round_id)
-    |> order_by([c], asc: c.id)
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id)
+    |> order_by([comment: c], asc: c.id)
     |> preload(replies: ^thread_order())
     |> Repo.all()
   end
@@ -101,5 +101,5 @@ defmodule Suikou.Reviews.Reads do
     |> Repo.get(comment_id)
   end
 
-  defp thread_order, do: from(r in Reply, order_by: r.id)
+  defp thread_order, do: from(r in Reply, as: :reply, order_by: r.id)
 end

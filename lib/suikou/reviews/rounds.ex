@@ -50,9 +50,9 @@ defmodule Suikou.Reviews.Rounds do
   """
   @spec latest(integer()) :: Round.t() | nil
   def latest(artifact_id) do
-    Round
-    |> where([r], r.artifact_id == ^artifact_id)
-    |> order_by([r], desc: r.number)
+    from(r in Round, as: :round)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> order_by([round: r], desc: r.number)
     |> limit(1)
     |> Repo.one()
   end
@@ -68,9 +68,9 @@ defmodule Suikou.Reviews.Rounds do
   """
   @spec latest_number(integer()) :: integer() | nil
   def latest_number(artifact_id) do
-    Round
-    |> where([r], r.artifact_id == ^artifact_id)
-    |> select([r], max(r.number))
+    from(r in Round, as: :round)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> select([round: r], max(r.number))
     |> Repo.one()
   end
 

@@ -79,10 +79,10 @@ defmodule Suikou.Reviews.Export do
   end
 
   defp published_comments(round_id) do
-    Comment
-    |> where([c], c.round_id == ^round_id and c.status == :published)
-    |> order_by([c], asc: c.id)
-    |> preload(replies: ^from(r in Reply, order_by: r.id))
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id and c.status == :published)
+    |> order_by([comment: c], asc: c.id)
+    |> preload(replies: ^from(r in Reply, as: :reply, order_by: r.id))
     |> Repo.all()
     |> Enum.map(&comment_view/1)
   end
