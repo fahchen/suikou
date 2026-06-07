@@ -15,7 +15,7 @@ import { Composer } from "./Composer";
 
 beforeEach(() => {
   dispatch.mockReset();
-  uiStore.openComposer(3, "line");
+  uiStore.openComposer(3, 5, "line");
 });
 
 describe("Composer", () => {
@@ -45,6 +45,6 @@ describe("Composer", () => {
       start_line: 3,
       end_line: 5,
     });
-    expect(uiStore.composerLine).toBeNull();
+    expect(uiStore.selStart).toBeNull();
   });
 });

@@ -64,8 +64,9 @@ describe("composer draft lifecycle", () => {
   it("opens with a fresh draft", () => {
     const ui = new UiStore()
     ui.setComposerBody("stale")
-    ui.openComposer(12, "file")
-    expect(ui.composerLine).toBe(12)
+    ui.openComposer(12, 12, "file")
+    expect(ui.selStart).toBe(12)
+    expect(ui.selEnd).toBe(12)
     expect(ui.composerScope).toBe("file")
     expect(ui.composerType).toBe("note")
     expect(ui.composerBody).toBe("")
@@ -73,19 +74,47 @@ describe("composer draft lifecycle", () => {
 
   it("edits the draft body and type", () => {
     const ui = new UiStore()
-    ui.openComposer(1, "line")
+    ui.openComposer(1, 1, "line")
     ui.setComposerBody("hello")
     ui.setComposerType("fix_required")
     expect(ui.composerBody).toBe("hello")
     expect(ui.composerType).toBe("fix_required")
   })
 
-  it("closes by clearing the line and body", () => {
+  it("closes by clearing the selection and body", () => {
     const ui = new UiStore()
-    ui.openComposer(5, "line")
+    ui.openComposer(5, 5, "line")
     ui.setComposerBody("draft")
     ui.closeComposer()
-    expect(ui.composerLine).toBeNull()
+    expect(ui.selStart).toBeNull()
+    expect(ui.selEnd).toBeNull()
     expect(ui.composerBody).toBe("")
+  })
+})
+
+describe("multi-line selection", () => {
+  it("opens a multi-line range", () => {
+    const ui = new UiStore()
+    ui.openComposer(7, 9, "line")
+    expect(ui.selStart).toBe(7)
+    expect(ui.selEnd).toBe(9)
+  })
+
+  it("extends the range downward and upward keeping the outer bounds", () => {
+    const ui = new UiStore()
+    ui.openComposer(5, 5, "line")
+    ui.extendSelection(8, 9)
+    expect(ui.selStart).toBe(5)
+    expect(ui.selEnd).toBe(9)
+    ui.extendSelection(2, 2)
+    expect(ui.selStart).toBe(2)
+    expect(ui.selEnd).toBe(9)
+  })
+
+  it("seeds the range when extending with no active selection", () => {
+    const ui = new UiStore()
+    ui.extendSelection(3, 4)
+    expect(ui.selStart).toBe(3)
+    expect(ui.selEnd).toBe(4)
   })
 })

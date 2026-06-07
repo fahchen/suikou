@@ -57,22 +57,36 @@ const RenderView = observer(function RenderView(props: EditorProps) {
           block.startLine === block.endLine
             ? `${block.startLine}`
             : `${block.startLine}-${block.endLine}`;
-        const composerOpen = ui.composerLine != null && ui.composerLine === block.startLine;
+        const selStart = ui.selStart;
+        const selEnd = ui.selEnd;
+        const selected =
+          selStart != null && selEnd != null && block.startLine <= selEnd && block.endLine >= selStart;
+        const composerOpen = selStart != null && selEnd != null && block.endLine === selEnd;
 
         return (
           <div key={`${block.startLine}-${block.kind}`}>
             <div
-              className="group flex items-start gap-3 px-4 hover:bg-hover"
+              className={`group flex items-start gap-3 px-4 ${selected ? "bg-active-line" : "hover:bg-hover"}`}
               id={`line-${block.startLine}`}
+              aria-selected={selected}
             >
               <span className="relative w-10 shrink-0 select-none py-1.5 text-right font-mono text-[12px] text-faint">
+                {selected && (
+                  <span className="absolute -left-1 top-0 h-full w-0.5 bg-blue" aria-hidden />
+                )}
                 {label}
                 <button
                   type="button"
                   className="absolute -left-1 top-1 hidden size-5 place-items-center rounded bg-blue text-on-accent group-hover:grid"
-                  title={`Add a comment on line ${block.startLine}`}
+                  title={`Add a comment on line ${block.startLine} (Shift-click to extend)`}
                   aria-label="Add a comment"
-                  onClick={() => ui.openComposer(block.startLine, "line")}
+                  onClick={(e) => {
+                    if (e.shiftKey && ui.selStart != null) {
+                      ui.extendSelection(block.startLine, block.endLine);
+                    } else {
+                      ui.openComposer(block.startLine, block.endLine, "line");
+                    }
+                  }}
                 >
                   <Plus size={13} />
                 </button>
@@ -84,7 +98,9 @@ const RenderView = observer(function RenderView(props: EditorProps) {
             </div>
 
             <AnimatePresence>
-              {composerOpen && <Composer startLine={block.startLine} endLine={block.endLine} />}
+              {composerOpen && selStart != null && selEnd != null && (
+                <Composer startLine={selStart} endLine={selEnd} />
+              )}
             </AnimatePresence>
 
             <AnimatePresence initial={false}>

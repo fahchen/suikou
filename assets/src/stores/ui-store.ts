@@ -27,7 +27,8 @@ export class UiStore {
     note: true
   }
 
-  composerLine: number | null = null
+  selStart: number | null = null
+  selEnd: number | null = null
   composerScope: CommentScope = "line"
   composerType: CritiqueType = "note"
   composerBody = ""
@@ -64,15 +65,29 @@ export class UiStore {
     this.typeFilters[type] = !this.typeFilters[type]
   }
 
-  openComposer(line: number | null, scope: CommentScope): void {
-    this.composerLine = line
+  openComposer(start: number | null, end: number | null, scope: CommentScope): void {
+    this.selStart = start
+    this.selEnd = end
     this.composerScope = scope
     this.composerType = "note"
     this.composerBody = ""
   }
 
+  // Grow the active selection to cover [start, end], keeping the lowest start and
+  // highest end so shift-clicking any line above or below extends the range.
+  extendSelection(start: number, end: number): void {
+    if (this.selStart === null || this.selEnd === null) {
+      this.selStart = start
+      this.selEnd = end
+      return
+    }
+    this.selStart = Math.min(this.selStart, start)
+    this.selEnd = Math.max(this.selEnd, end)
+  }
+
   closeComposer(): void {
-    this.composerLine = null
+    this.selStart = null
+    this.selEnd = null
     this.composerBody = ""
   }
 
