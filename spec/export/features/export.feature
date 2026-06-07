@@ -70,5 +70,5 @@ Feature: Critique export
     Scenario: Exporting does not change any state
       Given the latest round has published comments
       When the agent exports the artifact twice
-      Then nothing is marked delivered
+      Then no comment changes state
       And the critique is unchanged between the two exports

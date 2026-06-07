@@ -45,8 +45,8 @@ to keep in sync. The verdict lives on the review, so a round's disposition is
 always tied to the comments that justified it.
 
 A round may receive more than one review over time; the latest review's verdict
-is the round's current disposition. Approval is reversible and is dismissed by an
-agent resubmission — those mechanics are detailed in
+is the round's current disposition. Approval is reversible — the reviewer can
+dismiss it, and an agent resubmission clears it — those mechanics are detailed in
 [[BDR-0013-approval-model]], which this decision restructures around the verdict.
 
 ## Rejected Alternatives
