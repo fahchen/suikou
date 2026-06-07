@@ -5,7 +5,8 @@ defmodule SuikouWeb.UserSocket do
   this list.
   """
 
-  use Musubi.Socket, roots: [SuikouWeb.Stores.CounterStore]
+  use Musubi.Socket,
+    roots: [SuikouWeb.Stores.CounterStore, SuikouWeb.Stores.ReviewStore]
 
   alias Musubi.Socket
 

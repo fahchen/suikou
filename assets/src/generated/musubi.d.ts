@@ -104,5 +104,74 @@ declare namespace Musubi {
         }
       }
     >
+
+    "SuikouWeb.Stores.ReviewStore": StoreDef<
+      "SuikouWeb.Stores.ReviewStore",
+      {
+        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
+        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
+        current_round: { number: number; content: string; is_latest: boolean }
+        comments: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string }> }>
+        latest_verdict: "approve" | "request_changes" | "comment" | null
+      },
+      {
+        add_comment: {
+          payload: {
+            scope: "line" | "file" | "review"
+            critique_type: "fix_required" | "needs_answer" | "note"
+            body: string
+            start_line: number | null
+            end_line: number | null
+          }
+          reply: never
+        }
+        edit_comment: {
+          payload: {
+            comment_id: string
+            body: string
+            critique_type: "fix_required" | "needs_answer" | "note"
+          }
+          reply: never
+        }
+        delete_comment: {
+          payload: {
+            comment_id: string
+          }
+          reply: never
+        }
+        resolve_comment: {
+          payload: {
+            comment_id: string
+          }
+          reply: never
+        }
+        reply: {
+          payload: {
+            comment_id: string
+            body: string
+          }
+          reply: never
+        }
+        submit_review: {
+          payload: {
+            verdict: "approve" | "request_changes" | "comment"
+          }
+          reply: {
+            warnings: string[]
+          }
+        }
+        select_round: {
+          payload: {
+            number: number
+          }
+          reply: never
+        }
+        dismiss: {
+          payload: {}
+          reply: never
+        }
+      }
+    >
   }
 }
