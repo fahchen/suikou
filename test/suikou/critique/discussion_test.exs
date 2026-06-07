@@ -1,7 +1,7 @@
 defmodule Suikou.Critique.DiscussionTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
   alias Suikou.Schemas.Reply

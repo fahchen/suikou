@@ -9,24 +9,36 @@ Feature: Authoring structured critique
     And a markdown artifact under review at round 1
 
   # Scope is one of line / file / review. file and review render the same while
-  # an artifact holds a single file.
+  # an artifact holds a single file. A line-scoped comment carries a polymorphic
+  # selector; for text/markdown/code that selector is a line range (see BDR-0017).
   Rule: A comment must declare a scope
 
-    Scenario: A line-scoped comment anchors to a line range and captures the quoted source
+    Scenario: A line-scoped comment anchors to a line-range selector and captures the quoted source
       Given the reviewer selects lines 10 through 12 of the artifact
       When the reviewer adds a comment scoped to those lines
-      Then the comment is stored with start line 10 and end line 12
-      And the quoted text of lines 10 through 12 is captured on the comment
+      Then the comment is stored with a line-range anchor from line 10 to line 12
+      And the quoted text of lines 10 through 12 is captured on the anchor
 
     Scenario: A single-line comment stores an equal start and end line
       Given the reviewer selects line 7 of the artifact
       When the reviewer adds a comment scoped to that line
-      Then the comment is stored with start line 7 and end line 7
+      Then the comment is stored with a line-range anchor from line 7 to line 7
 
-    Scenario: A review-scoped comment carries no line anchor
+    Scenario: A review-scoped comment carries no anchor
       When the reviewer adds a comment scoped to the whole review
       Then the comment is stored with review scope
-      And the comment has no line anchor
+      And the comment has no anchor
+
+  # The location captured at authoring is frozen as the comment's original anchor
+  # so an outdated comment can always report where it began (see BDR-0017).
+  Rule: A line-scoped comment records its original anchor
+
+    Scenario: Authoring captures the original anchor at the current round
+      Given the artifact is at round 1
+      And the reviewer selects lines 10 through 12 of the artifact
+      When the reviewer adds a comment scoped to those lines
+      Then the comment's original anchor is a line range from line 10 to line 12
+      And the comment's original round is 1
 
   # A single dimension, not type + severity. Three agent-readable values so an
   # agent knows the expected action at a glance (see BDR-0005).

@@ -1,9 +1,10 @@
 defmodule Suikou.Critique.CommentsTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Critique
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
 
   describe "authoring scope" do
@@ -21,7 +22,38 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "fix this"
                })
 
-      assert %{start_line: 10, end_line: 12, quote: "line 10\nline 11\nline 12"} = comment
+      assert %{
+               anchor: %LineRange{
+                 start_line: 10,
+                 end_line: 12,
+                 quote: "line 10\nline 11\nline 12"
+               }
+             } =
+               comment
+    end
+
+    test "a line-scoped comment freezes its original anchor and authoring round" do
+      content = Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n"
+      %{round: round} = artifact_fixture(content: content)
+
+      assert {:ok, comment} =
+               Critique.add_comment(%{
+                 round_id: round.id,
+                 scope: :line,
+                 start_line: 10,
+                 end_line: 12,
+                 critique_type: :note,
+                 body: "fix this"
+               })
+
+      assert %{
+               original_round: 1,
+               original_anchor: %LineRange{
+                 start_line: 10,
+                 end_line: 12,
+                 quote: "line 10\nline 11\nline 12"
+               }
+             } = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
@@ -38,7 +70,7 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "x"
                })
 
-      assert %{start_line: 7, end_line: 7} = comment
+      assert %{anchor: %LineRange{start_line: 7, end_line: 7}} = comment
     end
 
     test "a review-scoped comment carries no line anchor" do
@@ -52,7 +84,7 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "overall"
                })
 
-      assert %{scope: :review, start_line: nil, end_line: nil} = comment
+      assert %{scope: :review, anchor: nil, original_anchor: nil} = comment
     end
   end
 

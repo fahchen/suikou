@@ -1,10 +1,11 @@
 defmodule Suikou.Artifacts.SubmissionTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Artifacts
   alias Suikou.Critique
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
 
   describe "first submission" do
@@ -112,7 +113,7 @@ defmodule Suikou.Artifacts.SubmissionTest do
       assert %{body: "new"} = edited
     end
 
-    test "a line-scoped comment re-anchors by exact quote when the line still exists" do
+    test "a line-scoped comment re-anchors by diff mapping when the line still exists" do
       r1 = "intro\nrate limit is 100 rps\noutro\n"
       %{artifact: artifact, round: round} = artifact_fixture(content: r1)
 
@@ -128,10 +129,14 @@ defmodule Suikou.Artifacts.SubmissionTest do
 
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       carried = Repo.one(on_round2)
-      assert %{start_line: 4, end_line: 4, outdated: false} = carried
+
+      assert %{
+               outdated: false,
+               anchor: %LineRange{start_line: 4, end_line: 4, quote: "rate limit is 100 rps"}
+             } = carried
     end
 
-    test "a line-scoped comment is marked outdated when the quote is gone" do
+    test "a line-scoped comment is marked outdated when its line is gone, keeping its stale anchor" do
       r1 = "intro\nrate limit is 100 rps\noutro\n"
       %{artifact: artifact, round: round} = artifact_fixture(content: r1)
 
@@ -146,7 +151,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
 
       on_round2 = from(c in Comment, where: c.round_id == ^round2.id)
       carried = Repo.one(on_round2)
-      assert %{outdated: true, start_line: nil, end_line: nil} = carried
+
+      assert %{outdated: true, anchor: %LineRange{start_line: 2, end_line: 2}} = carried
     end
 
     test "a carried comment's thread continues on the new round" do

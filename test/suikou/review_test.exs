@@ -1,7 +1,7 @@
 defmodule Suikou.ReviewTest do
   use Suikou.DataCase
 
-  import Suikou.ReviewFixtures
+  import Suikou.Factory
 
   alias Suikou.Review
   alias Suikou.Schemas.Artifact

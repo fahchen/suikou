@@ -46,6 +46,7 @@ defmodule Suikou.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:ex_machina, "~> 2.8", only: :test},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
       {:reach, "~> 2.0", only: [:dev, :test], runtime: false},
       {:ex_dna, "~> 1.0", only: [:dev, :test], runtime: false},
@@ -62,7 +63,8 @@ defmodule Suikou.MixProject do
       {:bandit, "~> 1.5"},
       {:musubi, "~> 0.7.2"},
       {:ecto_typed_schema, "~> 0.2.0"},
-      {:typed_structor, "~> 0.6.1"}
+      {:typed_structor, "~> 0.6.1"},
+      {:polymorphic_embed, "~> 5.0"}
     ]
   end
 
