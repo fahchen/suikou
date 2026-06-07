@@ -48,7 +48,7 @@ defmodule Suikou.Artifacts.SubmissionTest do
 
   describe "resubmission" do
     test "changed content advances the round" do
-      %{artifact: artifact} = artifact_fixture()
+      artifact = insert(:round).artifact
 
       assert {:ok, %{round: round, bumped: true}} =
                Artifacts.submit(%{artifact_id: artifact.id, content: "new content\n"})
@@ -57,16 +57,18 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "byte-identical content does not advance the round" do
-      %{artifact: artifact, round: round} = artifact_fixture(content: "same\n")
+      round = insert(:round, content: "same\n")
+      round_id = round.id
 
-      assert {:ok, %{round: ^round, bumped: false}} =
-               Artifacts.submit(%{artifact_id: artifact.id, content: "same\n"})
+      assert {:ok, %{round: %{id: ^round_id}, bumped: false}} =
+               Artifacts.submit(%{artifact_id: round.artifact.id, content: "same\n"})
     end
   end
 
   describe "carry-forward" do
     test "an unresolved published comment carries onto the new round as a linked row" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       origin = published_comment(round.id, %{scope: :review})
 
       %{round: round2} = advance(artifact.id, "changed\n")
@@ -80,7 +82,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "a resolved comment does not carry forward" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       comment = published_comment(round.id)
       {:ok, _resolved} = Critique.resolve_comment(comment.id)
 
@@ -91,7 +94,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "a pending comment does not carry forward and stays pending" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       comment = pending_comment(round.id)
 
       %{round: round2} = advance(artifact.id, "changed\n")
@@ -102,7 +106,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "a pending comment stays editable after the artifact advances" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       comment = pending_comment(round.id, %{body: "old"})
 
       advance(artifact.id, "changed\n")
@@ -115,7 +120,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
 
     test "a line-scoped comment re-anchors by diff mapping when the line still exists" do
       r1 = "intro\nrate limit is 100 rps\noutro\n"
-      %{artifact: artifact, round: round} = artifact_fixture(content: r1)
+      round = insert(:round, content: r1)
+      artifact = round.artifact
 
       published_comment(round.id, %{
         scope: :line,
@@ -138,7 +144,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
 
     test "a line-scoped comment is marked outdated when its line is gone, keeping its stale anchor" do
       r1 = "intro\nrate limit is 100 rps\noutro\n"
-      %{artifact: artifact, round: round} = artifact_fixture(content: r1)
+      round = insert(:round, content: r1)
+      artifact = round.artifact
 
       published_comment(round.id, %{
         scope: :line,
@@ -156,7 +163,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "a carried comment's thread continues on the new round" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       published_comment(round.id, %{scope: :review})
 
       %{round: round2} = advance(artifact.id, "changed\n")
@@ -172,7 +180,8 @@ defmodule Suikou.Artifacts.SubmissionTest do
     end
 
     test "an open comment carries across multiple rounds, chaining origins each hop" do
-      %{artifact: artifact, round: round} = artifact_fixture()
+      round = insert(:round)
+      artifact = round.artifact
       origin = published_comment(round.id, %{scope: :review})
 
       %{round: round2} = advance(artifact.id, "v2\n")

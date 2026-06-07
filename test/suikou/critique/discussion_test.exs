@@ -50,7 +50,7 @@ defmodule Suikou.Critique.DiscussionTest do
   end
 
   setup do
-    %{round: round} = artifact_fixture()
+    round = insert(:round)
     comment = published_comment(round.id)
     %{comment: comment}
   end

@@ -7,18 +7,25 @@ defmodule Suikou.Factories.ReviewFactory do
       alias Suikou.Critique
       alias Suikou.Repo
       alias Suikou.Review
+      alias Suikou.Schemas.Artifact
       alias Suikou.Schemas.Comment
+      alias Suikou.Schemas.Round
+
+      def artifact_factory do
+        %Artifact{title: sequence(:title, &"Artifact #{&1}")}
+      end
+
+      def round_factory do
+        %Round{
+          number: 1,
+          content: "line 1\nline 2\nline 3\n",
+          content_hash: fn round -> Base.encode16(:crypto.hash(:sha256, round.content)) end,
+          artifact: build(:artifact)
+        }
+      end
 
       def comment_factory do
         %{scope: :review, critique_type: :note, body: "please clarify"}
-      end
-
-      def artifact_fixture(params \\ %{}) do
-        params =
-          Enum.into(params, %{title: "Auth rollout plan", content: "line 1\nline 2\nline 3\n"})
-
-        {:ok, result} = Artifacts.submit(params)
-        result
       end
 
       def advance(artifact_id, content) do

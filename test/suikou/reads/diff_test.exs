@@ -8,7 +8,7 @@ defmodule Suikou.Reads.DiffTest do
   alias Suikou.Review
 
   test "content changes between rounds render as a text diff" do
-    %{artifact: artifact} = artifact_fixture(content: "alpha\nbeta\n")
+    artifact = insert(:round, content: "alpha\nbeta\n").artifact
     advance(artifact.id, "alpha\nxyzzy\n")
 
     assert {:ok, diff} = Reads.round_diff(artifact.id, 1, 2)
@@ -20,7 +20,8 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "critique transitions render alongside the text diff" do
-    %{artifact: artifact, round: round1} = artifact_fixture(content: "line a\nline b\n")
+    round1 = insert(:round, content: "line a\nline b\n")
+    artifact = round1.artifact
     resolved = published_comment(round1.id, %{body: "to resolve"})
     carried = published_comment(round1.id, %{body: "stays open"})
 
@@ -35,7 +36,8 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "a change in latest verdict between rounds is rendered" do
-    %{artifact: artifact, round: round1} = artifact_fixture()
+    round1 = insert(:round)
+    artifact = round1.artifact
     {:ok, _r1} = Review.submit_review(round1.id, :request_changes)
     %{round: round2} = advance(artifact.id, "changed\n")
     {:ok, _r2} = Review.submit_review(round2.id, :approve)
@@ -45,7 +47,8 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "identical content between rounds yields no insert or delete segments" do
-    %{artifact: artifact, round: round1} = artifact_fixture(content: "same body\n")
+    round1 = insert(:round, content: "same body\n")
+    artifact = round1.artifact
     # force a round bump with different content, then restore identical text on r3
     advance(artifact.id, "interim\n")
     %{round: round3} = advance(artifact.id, "same body\n")
@@ -55,7 +58,7 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "a diff with no critique changes reports empty transition lists" do
-    %{artifact: artifact} = artifact_fixture(content: "a\n")
+    artifact = insert(:round, content: "a\n").artifact
     advance(artifact.id, "b\n")
 
     assert {:ok, %{resolved: [], added: [], carried_forward: []}} =
@@ -63,7 +66,8 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "an unchanged verdict reports the same value on both sides" do
-    %{artifact: artifact, round: round1} = artifact_fixture()
+    round1 = insert(:round)
+    artifact = round1.artifact
     {:ok, _r1} = Review.submit_review(round1.id, :comment)
     %{round: round2} = advance(artifact.id, "changed\n")
     {:ok, _r2} = Review.submit_review(round2.id, :comment)
@@ -73,7 +77,7 @@ defmodule Suikou.Reads.DiffTest do
   end
 
   test "an unknown round returns an error" do
-    %{artifact: artifact} = artifact_fixture()
+    artifact = insert(:round).artifact
     assert {:error, :round_not_found} = Reads.round_diff(artifact.id, 1, 9)
   end
 end
