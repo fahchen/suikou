@@ -32,11 +32,15 @@
     internal: [
       "Suikou.Artifacts.*",
       "Suikou.Critique.*",
+      "Suikou.Review.*",
+      "Suikou.Export.*",
       "Suikou.Reads.*"
     ],
     internal_callers: [
       {"Suikou.Artifacts.*", ["Suikou.Artifacts", "Suikou.Artifacts.*"]},
       {"Suikou.Critique.*", ["Suikou.Critique", "Suikou.Critique.*"]},
+      {"Suikou.Review.*", ["Suikou.Review", "Suikou.Review.*"]},
+      {"Suikou.Export.*", ["Suikou.Export", "Suikou.Export.*"]},
       {"Suikou.Reads.*", ["Suikou.Reads", "Suikou.Reads.*"]}
     ]
   ]
