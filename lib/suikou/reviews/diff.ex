@@ -21,6 +21,20 @@ defmodule Suikou.Reviews.Diff do
           verdict_to: atom() | nil
         }
 
+  @doc """
+  Diffs two rounds of an artifact: the snapshot text difference, critique state
+  transitions (resolved, added, carried-forward), and the verdict change.
+  Rejects an unknown round on either side.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Diff.round_diff(artifact.id, 1, 2)
+      {:ok, %{text: [eq: "a\\n"], resolved: [], added: [], carried_forward: [], verdict_from: nil, verdict_to: nil}}
+
+      iex> Suikou.Reviews.Diff.round_diff(artifact.id, 1, 9)
+      {:error, :round_not_found}
+
+  """
   @spec round_diff(integer(), integer(), integer()) :: {:ok, t()} | {:error, atom()}
   def round_diff(artifact_id, from_number, to_number) do
     from_round = Rounds.get_by_number(artifact_id, from_number)

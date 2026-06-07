@@ -21,6 +21,18 @@ defmodule Suikou.Reviews.Schemas.Artifact do
     timestamps()
   end
 
+  @doc """
+  Builds a changeset for a new artifact, requiring a non-blank title.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Artifact.create_changeset(%{title: "Draft"}).valid?
+      true
+
+      iex> Suikou.Reviews.Schemas.Artifact.create_changeset(%{title: "  "}).valid?
+      false
+
+  """
   @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(attrs) do
     %__MODULE__{}

@@ -20,9 +20,30 @@ defmodule Suikou.Reviews.Schemas.Review do
     timestamps()
   end
 
+  @doc """
+  Returns the allowed verdicts.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Review.verdicts()
+      [:approve, :request_changes, :comment]
+
+  """
   @spec verdicts() :: [atom()]
   def verdicts, do: @verdicts
 
+  @doc """
+  Builds a changeset for a review, requiring a round and verdict.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: 1, verdict: :approve}).valid?
+      true
+
+      iex> Suikou.Reviews.Schemas.Review.changeset(%{round_id: 1}).valid?
+      false
+
+  """
   @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs) do
     %__MODULE__{}

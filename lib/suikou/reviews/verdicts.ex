@@ -17,6 +17,20 @@ defmodule Suikou.Reviews.Verdicts do
 
   @type submit_result :: %{review: Review.t(), warnings: [atom()]}
 
+  @doc """
+  Records a verdict on the latest round and publishes its pending comments. An
+  `approve` verdict records the approved round and warns (without blocking) when
+  open `fix_required` critique remains.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Verdicts.submit_review(round.id, :approve)
+      {:ok, %{review: %Suikou.Reviews.Schemas.Review{verdict: :approve}, warnings: []}}
+
+      iex> Suikou.Reviews.Verdicts.submit_review(999_999, :approve)
+      {:error, :round_not_found}
+
+  """
   @spec submit_review(integer(), atom() | String.t()) ::
           {:ok, submit_result()} | {:error, Ecto.Changeset.t() | atom()}
   def submit_review(round_id, verdict) do
@@ -31,6 +45,18 @@ defmodule Suikou.Reviews.Verdicts do
     end
   end
 
+  @doc """
+  Returns the most recent verdict recorded on a round, or `nil` when none.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Verdicts.latest_verdict(round.id)
+      :approve
+
+      iex> Suikou.Reviews.Verdicts.latest_verdict(round_without_review.id)
+      nil
+
+  """
   @spec latest_verdict(integer()) :: atom() | nil
   def latest_verdict(round_id) do
     Review
@@ -41,6 +67,18 @@ defmodule Suikou.Reviews.Verdicts do
     |> Repo.one()
   end
 
+  @doc """
+  Reverses approval by clearing an artifact's approved round.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Verdicts.dismiss(artifact.id)
+      {:ok, %Suikou.Reviews.Schemas.Artifact{approved_round: nil}}
+
+      iex> Suikou.Reviews.Verdicts.dismiss(999_999)
+      {:error, :artifact_not_found}
+
+  """
   @spec dismiss(integer()) :: {:ok, Artifact.t()} | {:error, atom()}
   def dismiss(artifact_id) do
     case Repo.get(Artifact, artifact_id) do

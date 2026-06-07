@@ -41,6 +41,19 @@ defmodule Suikou.Reviews.Export do
           comments: [comment_view()]
         }
 
+  @doc """
+  Exports the agent-facing view of an artifact: the latest round's content, its
+  published critique with replies, and the latest verdict. Changes no state.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Export.export(artifact.id)
+      {:ok, %{artifact_id: 1, round: 2, verdict: :request_changes, comments: []}}
+
+      iex> Suikou.Reviews.Export.export(999_999)
+      {:error, :artifact_not_found}
+
+  """
   @spec export(integer()) :: {:ok, t()} | {:error, atom()}
   def export(artifact_id) do
     case Repo.get(Artifact, artifact_id) do

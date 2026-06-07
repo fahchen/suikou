@@ -17,6 +17,24 @@ defmodule Suikou.Reviews.Submission do
 
   @type result :: %{artifact: Artifact.t(), round: Round.t(), bumped: boolean()}
 
+  @doc """
+  Submits artifact content. Without an `:artifact_id` it mints a new artifact at
+  round 1. With one it advances the round only when the content hash differs,
+  carrying unresolved published critique forward and clearing approval; identical
+  content is idempotent (`bumped: false`).
+
+  ## Examples
+
+      iex> Suikou.Reviews.Submission.submit(%{title: "Draft", content: "hello\\n"})
+      {:ok, %{artifact: %Suikou.Reviews.Schemas.Artifact{}, round: %Suikou.Reviews.Schemas.Round{number: 1}, bumped: true}}
+
+      iex> Suikou.Reviews.Submission.submit(%{artifact_id: artifact.id, content: "hello\\n"})
+      {:ok, %{bumped: false}}
+
+      iex> Suikou.Reviews.Submission.submit(%{title: "Draft", content: "   "})
+      {:error, :empty_content}
+
+  """
   @spec submit(map()) :: {:ok, result()} | {:error, Ecto.Changeset.t() | atom()}
   def submit(attrs) do
     case attrs[:artifact_id] && Repo.get(Artifact, attrs[:artifact_id]) do

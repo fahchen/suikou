@@ -11,6 +11,19 @@ defmodule Suikou.Reviews.Comments do
   alias Suikou.Reviews.Rounds
   alias Suikou.Reviews.Schemas.Comment
 
+  @doc """
+  Adds a pending critique to the latest round. A line-scoped comment captures
+  its quoted source. Rejects an unknown or non-latest round.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Comments.add(%{round_id: round.id, scope: :general, critique_type: :note, body: "looks good"})
+      {:ok, %Suikou.Reviews.Schemas.Comment{status: :pending}}
+
+      iex> Suikou.Reviews.Comments.add(%{round_id: 999_999, scope: :general, critique_type: :note, body: "x"})
+      {:error, :round_not_found}
+
+  """
   @spec add(map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
   def add(attrs) do
     round = Rounds.get(attrs[:round_id])
@@ -22,6 +35,18 @@ defmodule Suikou.Reviews.Comments do
     end
   end
 
+  @doc """
+  Edits a pending comment's body. A published comment is immutable.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Comments.edit(comment.id, %{body: "revised"})
+      {:ok, %Suikou.Reviews.Schemas.Comment{body: "revised"}}
+
+      iex> Suikou.Reviews.Comments.edit(published_comment.id, %{body: "nope"})
+      {:error, :published_immutable}
+
+  """
   @spec edit(integer(), map()) :: {:ok, Comment.t()} | {:error, Ecto.Changeset.t() | atom()}
   def edit(comment_id, attrs) do
     with {:ok, comment} <- fetch_pending(comment_id) do
@@ -29,6 +54,18 @@ defmodule Suikou.Reviews.Comments do
     end
   end
 
+  @doc """
+  Deletes a pending comment. A published comment cannot be deleted.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Comments.delete(comment.id)
+      {:ok, %Suikou.Reviews.Schemas.Comment{}}
+
+      iex> Suikou.Reviews.Comments.delete(published_comment.id)
+      {:error, :published_immutable}
+
+  """
   @spec delete(integer()) :: {:ok, Comment.t()} | {:error, atom()}
   def delete(comment_id) do
     with {:ok, comment} <- fetch_pending(comment_id) do
@@ -36,6 +73,19 @@ defmodule Suikou.Reviews.Comments do
     end
   end
 
+  @doc """
+  Marks a published comment resolved at the latest round. A pending comment
+  cannot be resolved.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Comments.resolve(published_comment.id)
+      {:ok, %Suikou.Reviews.Schemas.Comment{resolved_round: 1}}
+
+      iex> Suikou.Reviews.Comments.resolve(pending_comment.id)
+      {:error, :not_published}
+
+  """
   @spec resolve(integer()) :: {:ok, Comment.t()} | {:error, atom()}
   def resolve(comment_id) do
     case Repo.get(Comment, comment_id) do

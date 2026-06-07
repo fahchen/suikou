@@ -21,6 +21,18 @@ defmodule Suikou.Reviews.Schemas.Reply do
     timestamps()
   end
 
+  @doc """
+  Builds a changeset for a reply, requiring comment, author, and a non-blank body.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: 1, author: :human, body: "noted"}).valid?
+      true
+
+      iex> Suikou.Reviews.Schemas.Reply.changeset(%{comment_id: 1, author: :human, body: " "}).valid?
+      false
+
+  """
   @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs) do
     %__MODULE__{}

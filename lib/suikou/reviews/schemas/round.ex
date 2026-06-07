@@ -24,6 +24,19 @@ defmodule Suikou.Reviews.Schemas.Round do
     timestamps()
   end
 
+  @doc """
+  Builds a changeset for a round snapshot, requiring artifact, number, content,
+  and content hash.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Round.changeset(%{artifact_id: 1, number: 1, content: "x", content_hash: "ABC"}).valid?
+      true
+
+      iex> Suikou.Reviews.Schemas.Round.changeset(%{number: 1}).valid?
+      false
+
+  """
   @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs) do
     %__MODULE__{}

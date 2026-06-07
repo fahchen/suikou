@@ -37,12 +37,43 @@ defmodule Suikou.Reviews.Schemas.Comment do
     timestamps()
   end
 
+  @doc """
+  Returns the allowed comment scopes.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Comment.scopes()
+      [:line, :file, :review]
+
+  """
   @spec scopes() :: [atom()]
   def scopes, do: @scopes
 
+  @doc """
+  Returns the allowed critique types.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Comment.critique_types()
+      [:fix_required, :needs_answer, :note]
+
+  """
   @spec critique_types() :: [atom()]
   def critique_types, do: @critique_types
 
+  @doc """
+  Builds a changeset for authoring a critique, requiring round, scope, critique
+  type, and a non-blank body.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: 1, scope: :review, critique_type: :note, body: "ok"}).valid?
+      true
+
+      iex> Suikou.Reviews.Schemas.Comment.author_changeset(%{round_id: 1, scope: :review, critique_type: :note, body: " "}).valid?
+      false
+
+  """
   @spec author_changeset(map()) :: Ecto.Changeset.t()
   def author_changeset(attrs) do
     %__MODULE__{}
@@ -59,6 +90,15 @@ defmodule Suikou.Reviews.Schemas.Comment do
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
   end
 
+  @doc """
+  Builds a changeset for editing a comment's body and critique type.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Comment.edit_changeset(%Suikou.Reviews.Schemas.Comment{}, %{body: "revised", critique_type: :note}).valid?
+      true
+
+  """
   @spec edit_changeset(t(), map()) :: Ecto.Changeset.t()
   def edit_changeset(comment, attrs) do
     comment

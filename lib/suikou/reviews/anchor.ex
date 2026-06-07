@@ -7,6 +7,12 @@ defmodule Suikou.Reviews.Anchor do
 
   @doc """
   Captures the source text of lines `start_line..end_line` (1-based, inclusive).
+
+  ## Examples
+
+      iex> Suikou.Reviews.Anchor.capture_quote("line one\\nline two\\nline three", 2, 3)
+      "line two\\nline three"
+
   """
   @spec capture_quote(String.t(), pos_integer(), pos_integer()) :: String.t()
   def capture_quote(content, start_line, end_line) do
@@ -19,6 +25,15 @@ defmodule Suikou.Reviews.Anchor do
   @doc """
   Finds the quote's new line range in `content` by exact match. Returns
   `{start_line, end_line}` (1-based, inclusive) or `nil` when the quote is gone.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Anchor.reanchor("a\\nb\\nc", "b\\nc")
+      {2, 3}
+
+      iex> Suikou.Reviews.Anchor.reanchor("a\\nb\\nc", "x")
+      nil
+
   """
   @spec reanchor(String.t(), String.t()) :: {pos_integer(), pos_integer()} | nil
   def reanchor(content, quote) do
