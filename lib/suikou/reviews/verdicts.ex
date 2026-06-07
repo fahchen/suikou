@@ -87,7 +87,7 @@ defmodule Suikou.Reviews.Verdicts do
         {:error, :artifact_not_found}
 
       %Artifact{} = artifact ->
-        artifact |> Ecto.Changeset.change(approved_round: nil) |> Repo.update()
+        artifact |> Artifact.clear_approval_changeset() |> Repo.update()
     end
   end
 
@@ -107,7 +107,7 @@ defmodule Suikou.Reviews.Verdicts do
   defp record_approval(round) do
     Artifact
     |> Repo.get!(round.artifact_id)
-    |> Ecto.Changeset.change(approved_round: round.number)
+    |> Artifact.approve_changeset(round.number)
     |> Repo.update!()
   end
 

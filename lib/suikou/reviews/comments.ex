@@ -106,7 +106,7 @@ defmodule Suikou.Reviews.Comments do
     resolved_round = Rounds.latest_number(round.artifact_id)
 
     comment
-    |> Ecto.Changeset.change(resolved_round: resolved_round)
+    |> Comment.resolve_changeset(resolved_round)
     |> Repo.update()
   end
 

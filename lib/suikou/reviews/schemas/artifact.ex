@@ -40,4 +40,32 @@ defmodule Suikou.Reviews.Schemas.Artifact do
     |> validate_required([:title])
     |> validate_format(:title, ~r/\S/, message: "can't be blank")
   end
+
+  @doc """
+  Builds a changeset recording the round number an `approve` verdict accepted.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Artifact.approve_changeset(%Suikou.Reviews.Schemas.Artifact{}, 2).changes
+      %{approved_round: 2}
+
+  """
+  @spec approve_changeset(t(), integer()) :: Ecto.Changeset.t()
+  def approve_changeset(artifact, round_number) do
+    change(artifact, approved_round: round_number)
+  end
+
+  @doc """
+  Builds a changeset clearing approval, used on dismissal and on round advance.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Artifact.clear_approval_changeset(%Suikou.Reviews.Schemas.Artifact{approved_round: 2}).changes
+      %{approved_round: nil}
+
+  """
+  @spec clear_approval_changeset(t()) :: Ecto.Changeset.t()
+  def clear_approval_changeset(artifact) do
+    change(artifact, approved_round: nil)
+  end
 end

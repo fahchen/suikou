@@ -79,7 +79,7 @@ defmodule Suikou.Reviews.Submission do
   defp advance(artifact, latest, content) do
     new_round = insert_round!(artifact.id, latest.number + 1, content)
     carry_forward(latest, new_round)
-    artifact = artifact |> Ecto.Changeset.change(approved_round: nil) |> Repo.update!()
+    artifact = artifact |> Artifact.clear_approval_changeset() |> Repo.update!()
     result(artifact, new_round, true)
   end
 

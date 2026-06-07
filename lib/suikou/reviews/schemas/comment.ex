@@ -110,4 +110,18 @@ defmodule Suikou.Reviews.Schemas.Comment do
     |> validate_required([:body, :critique_type])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
   end
+
+  @doc """
+  Builds a changeset marking a comment resolved at the given round number.
+
+  ## Examples
+
+      iex> Suikou.Reviews.Schemas.Comment.resolve_changeset(%Suikou.Reviews.Schemas.Comment{}, 2).changes
+      %{resolved_round: 2}
+
+  """
+  @spec resolve_changeset(t(), integer()) :: Ecto.Changeset.t()
+  def resolve_changeset(comment, resolved_round) do
+    change(comment, resolved_round: resolved_round)
+  end
 end
