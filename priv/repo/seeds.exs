@@ -80,7 +80,7 @@ File.write!(Path.join(seed_dir, file_path), round_one)
 {:ok, project} = Projects.register_project(%{name: "Data Platform", path: seed_dir})
 {:ok, %{artifact: artifact, round: r1}} = Artifacts.create_from_file(project, file_path)
 
-# Round 0 critique — pending until the review is submitted.
+# Round 0 critique: pending until the review is submitted.
 {:ok, overview} =
   Critique.add_comment(%{
     round_id: r1.id,
@@ -108,7 +108,7 @@ File.write!(Path.join(seed_dir, file_path), round_one)
     start_line: 25,
     end_line: 25,
     critique_type: :fix_required,
-    body: "UUIDv7 isn't supported by our id library yet — pin v4 or add the dep."
+    body: "UUIDv7 isn't supported by our id library yet; pin v4 or add the dep."
   })
 
 {:ok, _writer} =
@@ -119,6 +119,19 @@ File.write!(Path.join(seed_dir, file_path), round_one)
     end_line: 39,
     critique_type: :needs_answer,
     body: "What happens when `insert_all` partially fails mid-batch?"
+  })
+
+# Anchored to the exact "commits every 200ms" line. The round-1 edit rewrites
+# that line, so its quote is lost on re-snapshot and it carries forward
+# detached (outdated); the un-anchored card state.
+{:ok, commit_interval} =
+  Critique.add_comment(%{
+    round_id: r1.id,
+    scope: :line,
+    start_line: 31,
+    end_line: 31,
+    critique_type: :needs_answer,
+    body: "Why 200ms? Document the latency-versus-throughput tradeoff for this interval."
   })
 
 {:ok, _backpressure} =
@@ -146,8 +159,16 @@ File.write!(Path.join(seed_dir, file_path), round_one)
 {:ok, _} =
   Critique.reply_as_agent(overview.id, "Accepted = passed validation and enqueued durably.")
 
-{:ok, _} = Critique.reply_as_human(overview.id, "Good — state that explicitly in the Overview.")
+{:ok, _} = Critique.reply_as_human(overview.id, "Good, state that explicitly in the Overview.")
 {:ok, _} = Critique.resolve_comment(uuid.id)
+
+# The agent answers the commit-interval question; this thread carries into the
+# next round on a comment that loses its anchor, exercising the detached card.
+{:ok, _} =
+  Critique.reply_as_agent(
+    commit_interval.id,
+    "200ms bounds the write-amplification window; I will note the p99 latency we measured."
+  )
 
 # Round 1: the agent edits the file (commit interval changes, shifting later
 # lines) and the reviewer re-snapshots, pulling the edit into the draft round and
@@ -166,6 +187,21 @@ File.write!(Path.join(seed_dir, file_path), round_two)
     critique_type: :needs_answer,
     body: "Does the validator run before or after the queue durably persists?"
   })
+
+# Resolve a carried note on the latest round, so the rail shows the folded
+# resolved card. Carried comments are published, so they can be resolved.
+carried_note =
+  Repo.one!(
+    from(c in Comment,
+      where:
+        c.round_id == ^r2.id and c.status == :published and c.critique_type == :note and
+          c.scope == :line,
+      order_by: c.inserted_at,
+      limit: 1
+    )
+  )
+
+{:ok, _} = Critique.resolve_comment(carried_note.id)
 
 latest = Rounds.latest(artifact.id)
 comment_count = Repo.aggregate(from(c in Comment), :count)
