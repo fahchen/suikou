@@ -78,7 +78,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   }
 
   return (
-    <header className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
+    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-canvas px-3 py-2 sm:gap-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-2">
         <Popover>
           <PopoverTrigger
@@ -214,8 +214,8 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
         <Popover>
           <PopoverTrigger
             render={
-              <Button variant="ghost" size="icon" title="Display settings">
-                <SlidersHorizontal size={16} />
+              <Button variant="outline" size="icon-sm" title="Display settings">
+                <SlidersHorizontal size={15} className="text-muted-foreground" />
               </Button>
             }
           />
