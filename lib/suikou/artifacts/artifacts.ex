@@ -9,6 +9,7 @@ defmodule Suikou.Artifacts do
   submodules are reachable only from within the domain.
   """
 
+  alias Suikou.Artifacts.FileSource
   alias Suikou.Artifacts.Submission
 
   @doc """
@@ -22,4 +23,16 @@ defmodule Suikou.Artifacts do
 
   """
   defdelegate submit(params), to: Submission
+
+  @doc """
+  Creates an artifact at round 0 from a file selected under a project. See
+  `Suikou.Artifacts.FileSource.create/2`.
+
+  ## Examples
+
+      Suikou.Artifacts.create_from_file(project, "docs/plan.md")
+      #=> {:ok, %{artifact: %Suikou.Schemas.Artifact{}, round: %Suikou.Schemas.Round{number: 0}}}
+
+  """
+  defdelegate create_from_file(project, file_path), to: FileSource, as: :create
 end
