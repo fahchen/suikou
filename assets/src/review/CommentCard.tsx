@@ -5,6 +5,11 @@ import { CRITIQUE_META, type Comment } from "./types";
 import { useReviewCommands } from "./commands";
 import { Button } from "@/components/ui/button";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -27,6 +32,7 @@ import {
   SquarePlus,
   LocateFixed,
   Link2,
+  ChevronDown,
 } from "lucide-react";
 import type { CritiqueType } from "../stores/ui-store";
 
@@ -39,6 +45,7 @@ const TONE_CLASS: Record<string, string> = {
 export function CommentCard(props: { comment: Comment }) {
   const { comment } = props;
   const commands = useReviewCommands();
+  const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(comment.body);
   const [editType, setEditType] = useState<CritiqueType>(comment.critique_type);
@@ -98,7 +105,20 @@ export function CommentCard(props: { comment: Comment }) {
       transition={{ duration: 0.18, ease: "easeOut" }}
       className="rounded-lg border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
     >
-      <header className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
+      <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger
+        nativeButton={false}
+        render={
+          <header
+            className={`flex cursor-pointer items-center gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
+          />
+        }
+      >
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-faint transition-transform ${open ? "" : "-rotate-90"}`}
+          aria-hidden
+        />
         <span className="inline-flex items-center gap-1 text-muted-foreground">
           {comment.anchor && <Crosshair size={13} />}
           {anchorLabel}
@@ -130,7 +150,7 @@ export function CommentCard(props: { comment: Comment }) {
           </span>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -178,8 +198,9 @@ export function CommentCard(props: { comment: Comment }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </header>
+      </CollapsibleTrigger>
 
+      <CollapsibleContent>
       <div className="flex flex-col gap-2 px-3 py-2.5">
         {comment.outdated && (
           <p className="text-[12px] text-amber">
@@ -324,6 +345,8 @@ export function CommentCard(props: { comment: Comment }) {
           </div>
         )}
       </div>
+      </CollapsibleContent>
+      </Collapsible>
     </motion.article>
   );
 }
