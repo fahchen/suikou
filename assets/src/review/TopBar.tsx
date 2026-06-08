@@ -149,12 +149,6 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
             </div>
           </PopoverContent>
         </Popover>
-
-        <div className="hidden items-center gap-2 font-mono text-[11px] text-faint sm:flex">
-          <span>round {snapshot.current_round.number}</span>
-          <span aria-hidden>·</span>
-          <span>{snapshot.current_round.is_latest ? "latest round" : "superseded"}</span>
-        </div>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
