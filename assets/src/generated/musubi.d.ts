@@ -113,6 +113,25 @@ declare namespace Musubi {
       }
     >
 
+    "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
+      "SuikouWeb.Stores.ProjectBoardStore",
+      {
+        projects: Array<{ id: string; name: string; files: Array<{ path: string; artifact_id: string | null }> }>
+      },
+      {
+        create_artifact: {
+          payload: {
+            project_id: string
+            file_path: string
+          }
+          reply: {
+            artifact_id: string | null
+            error: string | null
+          }
+        }
+      }
+    >
+
     "SuikouWeb.Stores.ReviewStore": StoreDef<
       "SuikouWeb.Stores.ReviewStore",
       {

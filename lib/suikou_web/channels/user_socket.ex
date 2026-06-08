@@ -8,6 +8,7 @@ defmodule SuikouWeb.UserSocket do
   use Musubi.Socket,
     roots: [
       SuikouWeb.Stores.CounterStore,
+      SuikouWeb.Stores.ProjectBoardStore,
       SuikouWeb.Stores.ArtifactsInboxStore,
       SuikouWeb.Stores.ReviewStore
     ]
