@@ -67,8 +67,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
         nil -> %{artifact_id: nil, error: "project_not_found"}
       end
 
-    {:reply, reply, socket}
+    {:reply, reply, touch(socket)}
   end
+
+  # The render derives entirely from the database; `create_artifact` mutates it
+  # without touching assigns, so the resolver would reuse the cached render and
+  # push no patch (see docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant
+  # assign so another client viewing the board sees the file flip to "started".
+  defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp create(project, file_path) do
     case Artifacts.create_from_file(project, file_path) do

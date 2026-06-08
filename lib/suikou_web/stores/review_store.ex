@@ -233,7 +233,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
         :noop
     end
 
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:edit_comment, payload, socket) do
@@ -242,22 +242,22 @@ defmodule SuikouWeb.Stores.ReviewStore do
       critique_type: payload["critique_type"]
     })
 
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:delete_comment, payload, socket) do
     Critique.delete_comment(payload["comment_id"])
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:resolve_comment, payload, socket) do
     Critique.resolve_comment(payload["comment_id"])
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:reply, payload, socket) do
     Critique.reply_as_human(payload["comment_id"], payload["body"])
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:submit_review, payload, socket) do
@@ -273,7 +273,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
           []
       end
 
-    {:reply, %{warnings: warnings}, socket}
+    {:reply, %{warnings: warnings}, touch(socket)}
   end
 
   def handle_command(:select_round, payload, socket) do
@@ -282,7 +282,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   def handle_command(:relocate_comment, payload, socket) do
     Critique.relocate_comment(payload["comment_id"], payload["start_line"], payload["end_line"])
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
 
   def handle_command(:diff_round, payload, socket) do
@@ -295,8 +295,14 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   def handle_command(:dismiss, _payload, socket) do
     Review.dismiss(socket.assigns.artifact_id)
-    {:noreply, socket}
+    {:noreply, touch(socket)}
   end
+
+  # The root store's render derives entirely from `Suikou.Reads`; commands that
+  # only mutate the database leave assigns untouched, so the resolver reuses the
+  # cached render and pushes no patch (see docs/musubi-issues.md ISSUE-1). Bump a
+  # render-irrelevant assign to mark the socket changed and force a re-render.
+  defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp latest_round(artifact_id), do: Rounds.latest(artifact_id)
 
