@@ -53,10 +53,27 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   const commands = useReviewCommands();
   const selectArtifact = useSelectArtifact();
   const [verdict, setVerdict] = useState<Verdict>(snapshot.latest_verdict ?? "request_changes");
+  const [reviewBody, setReviewBody] = useState("");
+  const [reviewType, setReviewType] = useState<CritiqueType>("note");
 
   const toc = tableOfContents(snapshot.current_round.content);
   const pending = pendingCount(snapshot.comments);
   const blocker = hasUnresolvedBlocker(snapshot.comments);
+
+  // A review-scoped comment carries no anchor and is authored as a pending draft;
+  // Submit publishes it alongside the line comments (see authoring.feature).
+  function addReviewComment() {
+    const body = reviewBody.trim();
+    if (!body) return;
+    void commands.addComment.dispatch({
+      scope: "review",
+      critique_type: reviewType,
+      body,
+      start_line: null,
+      end_line: null,
+    });
+    setReviewBody("");
+  }
 
   return (
     <header className="flex items-center gap-3 border-b border-line bg-surface px-4 py-2">
@@ -301,7 +318,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
               </Button>
             }
           />
-          <PopoverContent align="end" className="w-64 p-2">
+          <PopoverContent align="end" className="w-72 p-2">
             <div className="flex flex-col gap-0.5">
               {VERDICTS.map((option) => (
                 <button
@@ -328,6 +345,45 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                   Unresolved <b>fix_required</b> — approve anyway?
                 </p>
               )}
+
+              <div className="mt-1 border-t border-line-soft pt-2">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-wide text-faint">
+                    Review comment
+                  </span>
+                  <div className="flex gap-1">
+                    {TYPE_OPTIONS.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          reviewType === type
+                            ? "bg-blue text-on-accent"
+                            : "bg-soft text-faint hover:bg-hover"
+                        }`}
+                        onClick={() => setReviewType(type)}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  className="min-h-16 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[12px]"
+                  placeholder="Comment on the whole review. Published on submit."
+                  value={reviewBody}
+                  onChange={(e) => setReviewBody(e.target.value)}
+                />
+                <div className="mt-1.5 flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={commands.addComment.isPending || !reviewBody.trim()}
+                    onClick={addReviewComment}
+                  >
+                    Add comment
+                  </Button>
+                </div>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
