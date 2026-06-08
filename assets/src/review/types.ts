@@ -75,7 +75,7 @@ export interface ReviewSnapshot {
   artifacts: ArtifactSummary[]
   rounds: RoundSummary[]
   current_round: { number: number; content: string; is_latest: boolean }
-  comments: Comment[]
+  comments: { items: Comment[] }
   latest_verdict: Verdict | null
   diff: RoundDiff | null
 }

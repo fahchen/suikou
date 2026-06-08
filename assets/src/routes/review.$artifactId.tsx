@@ -44,7 +44,7 @@ const ReviewShell = observer(function ReviewShell() {
   const ui = uiStore
 
   const blocks = useMarkdown(snapshot.current_round.content, ui.theme)
-  const comments = visibleComments(snapshot.comments, ui.statusFilter, ui.typeFilters)
+  const comments = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters)
   const sideMode = ui.commentMode === "side" && !snapshot.diff
 
   return (

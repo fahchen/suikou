@@ -59,8 +59,8 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   const [reviewType, setReviewType] = useState<CritiqueType>("note");
 
   const toc = tableOfContents(snapshot.current_round.content);
-  const pending = pendingCount(snapshot.comments);
-  const blocker = hasUnresolvedBlocker(snapshot.comments);
+  const pending = pendingCount(snapshot.comments.items);
+  const blocker = hasUnresolvedBlocker(snapshot.comments.items);
 
   // A review-scoped comment carries no anchor and is authored as a pending draft;
   // Submit publishes it alongside the line comments (see authoring.feature).
