@@ -10,33 +10,69 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReviewArtifactIdRouteImport } from './routes/review.$artifactId'
+import { Route as ReviewArtifactIdIndexRouteImport } from './routes/review.$artifactId.index'
+import { Route as ReviewArtifactIdRawRouteImport } from './routes/review.$artifactId.raw'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewArtifactIdRoute = ReviewArtifactIdRouteImport.update({
+  id: '/review/$artifactId',
+  path: '/review/$artifactId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewArtifactIdIndexRoute = ReviewArtifactIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ReviewArtifactIdRoute,
+} as any)
+const ReviewArtifactIdRawRoute = ReviewArtifactIdRawRouteImport.update({
+  id: '/raw',
+  path: '/raw',
+  getParentRoute: () => ReviewArtifactIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/review/$artifactId': typeof ReviewArtifactIdRouteWithChildren
+  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
+  '/review/$artifactId/': typeof ReviewArtifactIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
+  '/review/$artifactId': typeof ReviewArtifactIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/review/$artifactId': typeof ReviewArtifactIdRouteWithChildren
+  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
+  '/review/$artifactId/': typeof ReviewArtifactIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/review/$artifactId'
+    | '/review/$artifactId/raw'
+    | '/review/$artifactId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/review/$artifactId/raw' | '/review/$artifactId'
+  id:
+    | '__root__'
+    | '/'
+    | '/review/$artifactId'
+    | '/review/$artifactId/raw'
+    | '/review/$artifactId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ReviewArtifactIdRoute: typeof ReviewArtifactIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +84,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/review/$artifactId': {
+      id: '/review/$artifactId'
+      path: '/review/$artifactId'
+      fullPath: '/review/$artifactId'
+      preLoaderRoute: typeof ReviewArtifactIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review/$artifactId/': {
+      id: '/review/$artifactId/'
+      path: '/'
+      fullPath: '/review/$artifactId/'
+      preLoaderRoute: typeof ReviewArtifactIdIndexRouteImport
+      parentRoute: typeof ReviewArtifactIdRoute
+    }
+    '/review/$artifactId/raw': {
+      id: '/review/$artifactId/raw'
+      path: '/raw'
+      fullPath: '/review/$artifactId/raw'
+      preLoaderRoute: typeof ReviewArtifactIdRawRouteImport
+      parentRoute: typeof ReviewArtifactIdRoute
+    }
   }
 }
 
+interface ReviewArtifactIdRouteChildren {
+  ReviewArtifactIdRawRoute: typeof ReviewArtifactIdRawRoute
+  ReviewArtifactIdIndexRoute: typeof ReviewArtifactIdIndexRoute
+}
+
+const ReviewArtifactIdRouteChildren: ReviewArtifactIdRouteChildren = {
+  ReviewArtifactIdRawRoute: ReviewArtifactIdRawRoute,
+  ReviewArtifactIdIndexRoute: ReviewArtifactIdIndexRoute,
+}
+
+const ReviewArtifactIdRouteWithChildren =
+  ReviewArtifactIdRoute._addFileChildren(ReviewArtifactIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ReviewArtifactIdRoute: ReviewArtifactIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
+import { useNavigate, useLocation } from "@tanstack/react-router";
 
 import { uiStore } from "../stores/ui-store";
 import { THEMES, THEME_LABELS } from "../themes";
 import { useReviewCommands } from "./commands";
-import { useSelectArtifact, pendingCount, hasUnresolvedBlocker } from "./store-context";
+import { pendingCount, hasUnresolvedBlocker } from "./store-context";
 import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
 import type { CritiqueType, StatusFilter } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,6 @@ import {
   ChevronDown,
   GitCompare,
   SlidersHorizontal,
-  Eye,
   Check,
   PencilLine,
   MessageSquare,
@@ -51,7 +51,9 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   const { snapshot } = props;
   const ui = uiStore;
   const commands = useReviewCommands();
-  const selectArtifact = useSelectArtifact();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const rawView = location.pathname.endsWith("/raw");
   const [verdict, setVerdict] = useState<Verdict>(snapshot.latest_verdict ?? "request_changes");
   const [reviewBody, setReviewBody] = useState("");
   const [reviewType, setReviewType] = useState<CritiqueType>("note");
@@ -128,7 +130,12 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                     className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] ${
                       active ? "bg-tint text-heading" : "hover:bg-hover"
                     }`}
-                    onClick={() => selectArtifact(artifact.id)}
+                    onClick={() =>
+                      void navigate({
+                        to: rawView ? "/review/$artifactId/raw" : "/review/$artifactId",
+                        params: { artifactId: artifact.id },
+                      })
+                    }
                   >
                     <FileText size={14} className="shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{artifact.title}</span>
@@ -233,13 +240,21 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
               </Row>
 
               <Row label="Markdown">
-                <Button
-                  variant={ui.view === "rendered" ? "secondary" : "outline"}
+                <ToggleGroup
                   size="sm"
-                  onClick={() => ui.setView(ui.view === "rendered" ? "raw" : "rendered")}
+                  variant="outline"
+                  value={[rawView ? "raw" : "rendered"]}
+                  onValueChange={(v) =>
+                    v[0] &&
+                    void navigate({
+                      to: v[0] === "raw" ? "/review/$artifactId/raw" : "/review/$artifactId",
+                      params: { artifactId: snapshot.artifact.id },
+                    })
+                  }
                 >
-                  <Eye size={13} /> Preview
-                </Button>
+                  <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>
+                  <ToggleGroupItem value="raw">Raw</ToggleGroupItem>
+                </ToggleGroup>
               </Row>
 
               <Row label="Theme">

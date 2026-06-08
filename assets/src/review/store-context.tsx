@@ -1,6 +1,7 @@
 import { createContext, useContext, type ReactNode } from "react"
 
-import type { Comment, ReviewStore } from "./types"
+import type { Comment, ReviewSnapshot, ReviewStore } from "./types"
+import type { RenderedBlock } from "../markdown/render"
 import type { StatusFilter, CritiqueType } from "../stores/ui-store"
 
 const StoreContext = createContext<ReviewStore | null>(null)
@@ -17,15 +18,29 @@ export function useReviewStore(): ReviewStore {
   return store
 }
 
-const ArtifactNavContext = createContext<(id: string) => void>(() => {})
-
-export function ArtifactNavProvider(props: { select: (id: string) => void; children: ReactNode }) {
-  return <ArtifactNavContext.Provider value={props.select}>{props.children}</ArtifactNavContext.Provider>
+/**
+ * Per-round view data computed once by the review layout route and shared with
+ * the rendered/raw child routes, so switching views never re-renders markdown.
+ */
+export interface ReviewView {
+  snapshot: ReviewSnapshot
+  blocks: RenderedBlock[]
+  loading: boolean
+  comments: Comment[]
 }
 
-/** Switches which artifact the ReviewStore is mounted against. */
-export function useSelectArtifact(): (id: string) => void {
-  return useContext(ArtifactNavContext)
+const ReviewViewContext = createContext<ReviewView | null>(null)
+
+export function ReviewViewProvider(props: { value: ReviewView; children: ReactNode }) {
+  return <ReviewViewContext.Provider value={props.value}>{props.children}</ReviewViewContext.Provider>
+}
+
+export function useReviewView(): ReviewView {
+  const view = useContext(ReviewViewContext)
+  if (!view) {
+    throw new Error("useReviewView must be used within a ReviewViewProvider")
+  }
+  return view
 }
 
 /** Applies the status + critique-type filters to a comment list. */

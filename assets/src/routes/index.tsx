@@ -1,7 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 
-import { ReviewApp } from "../review/ReviewApp"
+import { ProjectBoard } from "../review/ProjectBoard"
 
 export const Route = createFileRoute("/")({
-  component: ReviewApp
+  component: BoardRoute
 })
+
+function BoardRoute() {
+  const navigate = useNavigate()
+  return (
+    <ProjectBoard
+      onOpen={(artifactId) =>
+        void navigate({ to: "/review/$artifactId", params: { artifactId } })
+      }
+    />
+  )
+}
