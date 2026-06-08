@@ -11,6 +11,7 @@ defmodule Suikou.Critique do
   alias Suikou.Critique.CarryForward
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
+  alias Suikou.Critique.Reanchor
 
   @doc """
   Adds a pending critique to the latest round. See
@@ -105,4 +106,17 @@ defmodule Suikou.Critique do
 
   """
   defdelegate carry_forward(prev_round, new_round), to: CarryForward, as: :carry
+
+  @doc """
+  Re-anchors a draft round's line-scoped comments after its content is refreshed
+  from disk. The artifacts domain invokes this when a round is re-snapshotted.
+  See `Suikou.Critique.Reanchor.reanchor_round/3`.
+
+  ## Examples
+
+      Suikou.Critique.reanchor_round(round.id, prev_content, new_content)
+      #=> :ok
+
+  """
+  defdelegate reanchor_round(round_id, prev_content, new_content), to: Reanchor
 end

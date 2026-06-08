@@ -40,7 +40,7 @@ defmodule Suikou.ExportTest do
     published_comment(round2.id, %{body: "round 2 critique"})
 
     assert {:ok, export} = Export.export(artifact.id)
-    assert %{round: 2} = export
+    assert %{round: 1} = export
     assert Enum.all?(export.comments, &(&1.body == "round 2 critique"))
   end
 
@@ -54,7 +54,7 @@ defmodule Suikou.ExportTest do
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _review} = Review.submit_review(round2.id, :approve)
 
-    assert {:ok, %{verdict: :approve, approved: true, approved_round: 2}} =
+    assert {:ok, %{verdict: :approve, approved: true, approved_round: 1}} =
              Export.export(artifact.id)
   end
 

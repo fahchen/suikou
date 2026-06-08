@@ -1,28 +1,16 @@
 defmodule Suikou.Artifacts do
   @moduledoc """
-  Public API for the artifacts domain: agent submission and automatic round
-  bumping. A first submission mints an artifact and its round 1 snapshot; a
-  resubmission advances the round only when content changes, carrying unresolved
-  published critique forward and clearing approval.
+  Public API for the artifacts domain: a reviewer mints an artifact by selecting
+  a file under a project (round 0, draft) and refreshes a draft round's snapshot
+  by re-reading the file from disk after the agent edits it. Rounds advance only
+  when the reviewer submits a review (see `Suikou.Review`); the agent never
+  submits content (BDR-0018).
 
-  This facade is the only module other layers may call; its internal
-  submodules are reachable only from within the domain.
+  This facade is the only module other layers may call; its internal submodules
+  are reachable only from within the domain.
   """
 
   alias Suikou.Artifacts.FileSource
-  alias Suikou.Artifacts.Submission
-
-  @doc """
-  Submits artifact content, minting or advancing a round. See
-  `Suikou.Artifacts.Submission.submit/1`.
-
-  ## Examples
-
-      Suikou.Artifacts.submit(%{title: "Draft", content: "hello\\n"})
-      #=> {:ok, %{round: %Suikou.Schemas.Round{number: 1}, bumped: true}}
-
-  """
-  defdelegate submit(params), to: Submission
 
   @doc """
   Creates an artifact at round 0 from a file selected under a project. See
@@ -35,4 +23,16 @@ defmodule Suikou.Artifacts do
 
   """
   defdelegate create_from_file(project, file_path), to: FileSource, as: :create
+
+  @doc """
+  Refreshes a draft round's snapshot from disk and re-anchors its line-scoped
+  comments. See `Suikou.Artifacts.FileSource.resnapshot/1`.
+
+  ## Examples
+
+      Suikou.Artifacts.resnapshot(round.id)
+      #=> {:ok, %Suikou.Schemas.Round{number: 1}}
+
+  """
+  defdelegate resnapshot(round_id), to: FileSource
 end

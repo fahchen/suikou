@@ -57,7 +57,7 @@ defmodule Suikou.ReviewTest do
       %{round: round2} = advance(artifact.id, "changed\n")
 
       assert {:ok, _review} = Review.submit_review(round2.id, :approve)
-      assert %{approved_round: 2} = Repo.get!(Artifact, artifact.id)
+      assert %{approved_round: 1} = Repo.get!(Artifact, artifact.id)
     end
 
     test "request_changes does not approve" do
@@ -101,12 +101,12 @@ defmodule Suikou.ReviewTest do
     test "request_changes is not terminal: a later approve still accepts the artifact" do
       round = insert(:round)
       artifact = round.artifact
-      {:ok, _rc} = Review.submit_review(round.id, :request_changes)
+      {:ok, %{next_round: next}} = Review.submit_review(round.id, :request_changes)
       assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
 
-      {:ok, _approve} = Review.submit_review(round.id, :approve)
-      round_number = round.number
-      assert %{approved_round: ^round_number} = Repo.get!(Artifact, artifact.id)
+      {:ok, _approve} = Review.submit_review(next.id, :approve)
+      next_number = next.number
+      assert %{approved_round: ^next_number} = Repo.get!(Artifact, artifact.id)
     end
   end
 
@@ -120,14 +120,14 @@ defmodule Suikou.ReviewTest do
       assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
 
-    test "resubmitting changed content after approval clears approval and bumps the round" do
+    test "a non-approve submit after approval clears the standing approval" do
       artifact = insert(:round).artifact
       %{round: round2} = advance(artifact.id, "v2\n")
-      {:ok, _review} = Review.submit_review(round2.id, :approve)
-      assert %{approved_round: 2} = Repo.get!(Artifact, artifact.id)
+      {:ok, %{next_round: round3}} = Review.submit_review(round2.id, :approve)
+      assert %{approved_round: 1} = Repo.get!(Artifact, artifact.id)
 
-      %{round: round3} = advance(artifact.id, "v3\n")
-      assert %{number: 3} = round3
+      {:ok, _review} = Review.submit_review(round3.id, :request_changes)
+      assert %{number: 2} = round3
       assert %{approved_round: nil} = Repo.get!(Artifact, artifact.id)
     end
 

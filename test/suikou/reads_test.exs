@@ -39,7 +39,7 @@ defmodule Suikou.ReadsTest do
       advance(artifact.id, "v3\n")
 
       numbers = artifact.id |> Reads.list_rounds() |> Enum.map(& &1.number)
-      assert numbers == [1, 2, 3]
+      assert numbers == [0, 1, 2]
     end
   end
 

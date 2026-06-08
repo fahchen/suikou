@@ -11,7 +11,7 @@ defmodule Suikou.Reads.DiffTest do
     artifact = insert(:round, content: "alpha\nbeta\n").artifact
     advance(artifact.id, "alpha\nxyzzy\n")
 
-    assert {:ok, diff} = Reads.round_diff(artifact.id, 1, 2)
+    assert {:ok, diff} = Reads.round_diff(artifact.id, 0, 1)
     deleted = for {:del, seg} <- diff.text, into: "", do: seg
     inserted = for {:ins, seg} <- diff.text, into: "", do: seg
     assert deleted =~ "beta"
@@ -29,7 +29,7 @@ defmodule Suikou.Reads.DiffTest do
     {:ok, _resolved} = Critique.resolve_comment(resolved.id)
     added = published_comment(round2.id, %{body: "new on r2"})
 
-    assert {:ok, diff} = Reads.round_diff(artifact.id, 1, 2)
+    assert {:ok, diff} = Reads.round_diff(artifact.id, 0, 1)
     assert resolved.id in Enum.map(diff.resolved, & &1.id)
     assert added.id in Enum.map(diff.added, & &1.id)
     assert carried.id in Enum.map(diff.carried_forward, & &1.origin_id)
@@ -38,12 +38,11 @@ defmodule Suikou.Reads.DiffTest do
   test "a change in latest verdict between rounds is rendered" do
     round1 = insert(:round)
     artifact = round1.artifact
-    {:ok, _r1} = Review.submit_review(round1.id, :request_changes)
-    %{round: round2} = advance(artifact.id, "changed\n")
+    {:ok, %{next_round: round2}} = Review.submit_review(round1.id, :request_changes)
     {:ok, _r2} = Review.submit_review(round2.id, :approve)
 
     assert {:ok, %{verdict_from: :request_changes, verdict_to: :approve}} =
-             Reads.round_diff(artifact.id, 1, 2)
+             Reads.round_diff(artifact.id, 0, 1)
   end
 
   test "identical content between rounds yields no insert or delete segments" do
@@ -62,7 +61,7 @@ defmodule Suikou.Reads.DiffTest do
     advance(artifact.id, "b\n")
 
     assert {:ok, %{resolved: [], added: [], carried_forward: []}} =
-             Reads.round_diff(artifact.id, 1, 2)
+             Reads.round_diff(artifact.id, 0, 1)
   end
 
   test "an unchanged verdict reports the same value on both sides" do

@@ -42,4 +42,21 @@ defmodule Suikou.Schemas.Round do
     |> validate_required([:artifact_id, :number, :content, :content_hash])
     |> unique_constraint([:artifact_id, :number])
   end
+
+  @doc """
+  Builds a changeset refreshing a draft round's content snapshot and hash from a
+  re-read of its file on disk (see BDR-0018).
+
+  ## Examples
+
+      iex> Suikou.Schemas.Round.resnapshot_changeset(%Suikou.Schemas.Round{}, %{content: "x", content_hash: "ABC"}).valid?
+      true
+
+  """
+  @spec resnapshot_changeset(t(), map()) :: Ecto.Changeset.t()
+  def resnapshot_changeset(round, params) do
+    round
+    |> cast(params, [:content, :content_hash])
+    |> validate_required([:content, :content_hash])
+  end
 end

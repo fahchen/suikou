@@ -1,31 +1,41 @@
 defmodule Suikou.Review do
   @moduledoc """
-  Review submission and approval. Submitting a review on the latest round
-  publishes its pending comments and records one verdict; an `approve` verdict
-  records the approved round. Approval is a soft gate — it is allowed with
-  open `fix_required` comments but returns a warning (see BDR-0012). Approval
-  is reversible via `dismiss/1` and cleared by an agent resubmission.
+  Review submission and approval. Submitting is what advances a round (see
+  BDR-0018): it publishes the submitted round's pending comments, records one
+  verdict, and opens the next draft round by copying the snapshot forward and
+  carrying unresolved published critique. An `approve` verdict records the
+  approved round; any other verdict clears a standing approval. Approval is a
+  soft gate — it is allowed with open `fix_required` comments but returns a
+  warning (see BDR-0012), and is reversible via `dismiss/1`.
   """
 
   import Ecto.Query
 
+  alias Suikou.Critique
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Review
+  alias Suikou.Schemas.Round
 
-  @type submit_result :: %{review: Review.t(), warnings: [:unresolved_fix_required]}
+  @type submit_result :: %{
+          review: Review.t(),
+          next_round: Round.t(),
+          warnings: [:unresolved_fix_required]
+        }
 
   @doc """
-  Records a verdict on the latest round and publishes its pending comments. An
-  `approve` verdict records the approved round and warns (without blocking) when
+  Submits a review of the latest round, advancing the artifact. Publishes the
+  round's pending comments, records the verdict, opens the next draft round
+  (copying content forward and carrying unresolved published critique), and
+  sets or clears approval. An `approve` verdict warns (without blocking) when
   open `fix_required` critique remains.
 
   ## Examples
 
       Suikou.Review.submit_review(round.id, :approve)
-      #=> {:ok, %{review: %Suikou.Schemas.Review{verdict: :approve}, warnings: []}}
+      #=> {:ok, %{review: %Suikou.Schemas.Review{verdict: :approve}, next_round: %Suikou.Schemas.Round{}, warnings: []}}
 
       Suikou.Review.submit_review("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
       #=> {:error, :round_not_found}
@@ -69,6 +79,32 @@ defmodule Suikou.Review do
   end
 
   @doc """
+  Returns the most recent verdict across all of an artifact's rounds, or `nil`
+  when no review exists. Because submitting always opens a fresh draft round,
+  the artifact's standing verdict lives on the latest submitted round, never on
+  the current draft.
+
+  ## Examples
+
+      Suikou.Review.latest_verdict_for_artifact(artifact.id)
+      #=> :request_changes
+
+      Suikou.Review.latest_verdict_for_artifact(unreviewed_artifact.id)
+      #=> nil
+
+  """
+  @spec latest_verdict_for_artifact(Ecto.UUID.t()) :: Review.verdict() | nil
+  def latest_verdict_for_artifact(artifact_id) do
+    from(r in Review, as: :review)
+    |> join(:inner, [review: r], rd in Round, as: :round, on: r.round_id == rd.id)
+    |> where([round: rd], rd.artifact_id == ^artifact_id)
+    |> order_by([round: rd, review: r], desc: rd.number, desc: r.id)
+    |> limit(1)
+    |> select([review: r], r.verdict)
+    |> Repo.one()
+  end
+
+  @doc """
   Reverses approval by clearing an artifact's approved round.
 
   ## Examples
@@ -94,8 +130,9 @@ defmodule Suikou.Review do
   defp apply_review(round, changeset) do
     review = Repo.insert!(changeset)
     publish_pending(round)
-    if review.verdict == :approve, do: record_approval(round)
-    %{review: review, warnings: warnings(round, review.verdict)}
+    update_approval(round, review.verdict)
+    next_round = open_next_round(round)
+    %{review: review, next_round: next_round, warnings: warnings(round, review.verdict)}
   end
 
   defp publish_pending(round) do
@@ -104,11 +141,36 @@ defmodule Suikou.Review do
     |> Repo.update_all(set: [status: :published])
   end
 
+  defp update_approval(round, :approve), do: record_approval(round)
+  defp update_approval(round, _verdict), do: clear_approval(round)
+
   defp record_approval(round) do
     Artifact
     |> Repo.get!(round.artifact_id)
     |> Artifact.approve_changeset(round.number)
     |> Repo.update!()
+  end
+
+  defp clear_approval(round) do
+    Artifact
+    |> Repo.get!(round.artifact_id)
+    |> Artifact.clear_approval_changeset()
+    |> Repo.update!()
+  end
+
+  defp open_next_round(round) do
+    next_round =
+      %{
+        artifact_id: round.artifact_id,
+        number: round.number + 1,
+        content: round.content,
+        content_hash: round.content_hash
+      }
+      |> Round.changeset()
+      |> Repo.insert!()
+
+    Critique.carry_forward(round, next_round)
+    next_round
   end
 
   defp warnings(round, :approve) do

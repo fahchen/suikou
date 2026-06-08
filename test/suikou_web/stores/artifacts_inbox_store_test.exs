@@ -29,7 +29,7 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStoreTest do
 
       page = Testing.mount(ArtifactsInboxStore)
 
-      assert %{artifacts: [%{latest_round: 2}]} = Testing.render(page)
+      assert %{artifacts: [%{latest_round: 1}]} = Testing.render(page)
     end
 
     test "marks an artifact approved once a round is approved" do

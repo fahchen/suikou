@@ -11,12 +11,11 @@ defmodule Suikou.Repo.Migrations.AddProjects do
 
     create unique_index(:projects, [:path])
 
-    # project_id/file_path are nullable during the H→I transition: the legacy
-    # agent-submission path still mints project-less artifacts. Phase I removes
-    # that path and tightens project_id to NOT NULL (see BDR-0018, task_plan.md).
+    # Every artifact is born from a file selected under a project (BDR-0018), so
+    # both columns are mandatory.
     alter table(:artifacts) do
-      add :project_id, references(:projects, on_delete: :delete_all)
-      add :file_path, :string
+      add :project_id, references(:projects, on_delete: :delete_all), null: false
+      add :file_path, :string, null: false
     end
 
     create index(:artifacts, [:project_id])

@@ -2,8 +2,9 @@ defmodule Suikou.Export do
   @moduledoc """
   Read-only export of an artifact for the agent. Reflects only the latest round:
   its snapshot content, its published critique (with thread replies), and the
-  latest verdict (see BDR-0014). Pending comments and earlier rounds are never
-  included. Exporting changes no state.
+  artifact's standing verdict — the latest submitted round's verdict, since the
+  current round is always an unsubmitted draft (see BDR-0014). Pending comments
+  and earlier rounds are never included. Exporting changes no state.
   """
 
   import Ecto.Query
@@ -77,8 +78,8 @@ defmodule Suikou.Export do
       title: artifact.title,
       round: round.number,
       content: round.content,
-      verdict: Suikou.Review.latest_verdict(round.id),
-      approved: artifact.approved_round == round.number,
+      verdict: Suikou.Review.latest_verdict_for_artifact(artifact.id),
+      approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
       comments: published_comments(round.id)
     }

@@ -47,7 +47,7 @@ defmodule Suikou.Critique.CommentsTest do
                })
 
       assert %{
-               original_round: 1,
+               original_round: 0,
                original_anchor: %LineRange{
                  start_line: 10,
                  end_line: 12,
@@ -220,7 +220,7 @@ defmodule Suikou.Critique.CommentsTest do
       advance(artifact.id, "changed\n")
 
       assert {:ok, resolved} = Critique.resolve_comment(comment.id)
-      assert %{resolved_round: 2} = resolved
+      assert %{resolved_round: 1} = resolved
     end
 
     test "resolving a pending comment is rejected" do

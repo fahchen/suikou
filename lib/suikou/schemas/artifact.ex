@@ -14,32 +14,12 @@ defmodule Suikou.Schemas.Artifact do
   typed_schema "artifacts" do
     field :title, :string, typed: [null: false]
     field :approved_round, :integer
-    field :file_path, :string
+    field :file_path, :string, typed: [null: false]
 
     belongs_to :project, Project
     has_many :rounds, Round
 
     timestamps()
-  end
-
-  @doc """
-  Builds a changeset for a new artifact, requiring a non-blank title.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Artifact.create_changeset(%{title: "Draft"}).valid?
-      true
-
-      iex> Suikou.Schemas.Artifact.create_changeset(%{title: "  "}).valid?
-      false
-
-  """
-  @spec create_changeset(map()) :: Ecto.Changeset.t()
-  def create_changeset(params) do
-    %__MODULE__{}
-    |> cast(params, [:title])
-    |> validate_required([:title])
-    |> validate_format(:title, ~r/\S/, message: "can't be blank")
   end
 
   @doc """
