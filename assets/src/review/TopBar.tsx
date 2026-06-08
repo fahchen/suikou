@@ -294,10 +294,10 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                     <button
                       key={type}
                       type="button"
-                      className={`rounded px-1.5 py-0.5 text-[11px] ${
+                      className={`rounded-lg border px-2 py-0.5 text-[11px] transition-colors ${
                         ui.typeFilters[type]
-                          ? "bg-tint text-heading"
-                          : "bg-soft text-faint line-through"
+                          ? "border-transparent bg-tint text-heading"
+                          : "border-line bg-transparent text-faint hover:bg-hover"
                       }`}
                       onClick={() => ui.toggleType(type)}
                     >
@@ -368,10 +368,10 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
                       <button
                         key={type}
                         type="button"
-                        className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        className={`rounded-lg border px-2 py-0.5 text-[10px] transition-colors ${
                           reviewType === type
-                            ? "bg-blue text-on-accent"
-                            : "bg-soft text-faint hover:bg-hover"
+                            ? "border-transparent bg-blue text-on-accent"
+                            : "border-line bg-transparent text-faint hover:bg-hover"
                         }`}
                         onClick={() => setReviewType(type)}
                       >
