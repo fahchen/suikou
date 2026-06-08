@@ -28,7 +28,7 @@ const md = new MarkdownIt({ html: false, linkify: true, typographer: true })
 export async function renderMarkdown(content: string, theme: ThemeName): Promise<RenderedBlock[]> {
   const tokens = md.parse(content, {})
   const groups = groupTopLevel(tokens)
-  const { shiki, mermaid } = THEME_CODE[theme]
+  const { shiki } = THEME_CODE[theme]
   const highlighter = await getHighlighter()
 
   return Promise.all(
@@ -37,7 +37,7 @@ export async function renderMarkdown(content: string, theme: ThemeName): Promise
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
       if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return { startLine, endLine, kind: "mermaid", lang: "mermaid", html: await renderMermaid(fence.content, mermaid) }
+        return { startLine, endLine, kind: "mermaid", lang: "mermaid", html: await renderMermaid(fence.content, theme) }
       }
 
       if (fence) {
