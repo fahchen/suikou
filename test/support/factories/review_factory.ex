@@ -9,10 +9,18 @@ defmodule Suikou.Factories.ReviewFactory do
       alias Suikou.Review
       alias Suikou.Schemas.Artifact
       alias Suikou.Schemas.Comment
+      alias Suikou.Schemas.Project
       alias Suikou.Schemas.Round
 
       def artifact_factory do
         %Artifact{title: sequence(:title, &"Artifact #{&1}")}
+      end
+
+      def project_factory do
+        %Project{
+          name: sequence(:name, &"Project #{&1}"),
+          path: sequence(:path, &"/tmp/suikou-project-#{&1}")
+        }
       end
 
       def round_factory do
