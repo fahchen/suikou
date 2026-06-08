@@ -53,7 +53,7 @@ const ReviewShell = observer(function ReviewShell() {
 
       <div className="flex-1 overflow-auto">
         <div
-          className={`mx-auto grid w-full max-w-[1400px] gap-4 px-3 py-5 sm:gap-6 sm:px-6 sm:py-8 ${
+          className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-10 ${
             sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
           }`}
         >

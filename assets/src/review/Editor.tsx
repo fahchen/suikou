@@ -34,7 +34,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
 
   return (
-    <article className="overflow-hidden rounded-xl border border-line bg-editor">
+    <article className="overflow-hidden rounded-2xl border border-line bg-editor">
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
@@ -68,7 +68,7 @@ const RawView = observer(function RawView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
 
   return (
-    <article className="overflow-hidden rounded-xl border border-line bg-editor font-mono text-[13px]">
+    <article className="overflow-hidden rounded-2xl border border-line bg-editor font-mono text-[13px]">
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
