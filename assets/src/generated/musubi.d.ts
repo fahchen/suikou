@@ -98,50 +98,10 @@ declare namespace Musubi {
       {}
     >
 
-    "SuikouWeb.Stores.CounterStore": StoreDef<
-      "SuikouWeb.Stores.CounterStore",
+    "SuikouWeb.Stores.CommentsStore": StoreDef<
+      "SuikouWeb.Stores.CommentsStore",
       {
-        count: number
-      },
-      {
-        increment: {
-          payload: {
-            amount: number
-          }
-          reply: never
-        }
-      }
-    >
-
-    "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
-      "SuikouWeb.Stores.ProjectBoardStore",
-      {
-        projects: Array<{ id: string; name: string; files: Array<{ path: string; artifact_id: string | null }> }>
-      },
-      {
-        create_artifact: {
-          payload: {
-            project_id: string
-            file_path: string
-          }
-          reply: {
-            artifact_id: string | null
-            error: string | null
-          }
-        }
-      }
-    >
-
-    "SuikouWeb.Stores.ReviewStore": StoreDef<
-      "SuikouWeb.Stores.ReviewStore",
-      {
-        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
-        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
-        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
-        current_round: { number: number; content: string; is_latest: boolean }
-        comments: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string }> }>
-        latest_verdict: "approve" | "request_changes" | "comment" | null
-        diff: { from: number; to: number; text: Array<{ op: "eq" | "ins" | "del"; value: string }>; resolved: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; added: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; carried_forward: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>; verdict_from: "approve" | "request_changes" | "comment" | null; verdict_to: "approve" | "request_changes" | "comment" | null } | null
+        items: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string }> }>
       },
       {
         add_comment: {
@@ -181,6 +141,78 @@ declare namespace Musubi {
           }
           reply: never
         }
+        relocate_comment: {
+          payload: {
+            comment_id: string
+            start_line: number
+            end_line: number
+          }
+          reply: never
+        }
+      }
+    >
+
+    "SuikouWeb.Stores.CounterStore": StoreDef<
+      "SuikouWeb.Stores.CounterStore",
+      {
+        count: number
+      },
+      {
+        increment: {
+          payload: {
+            amount: number
+          }
+          reply: never
+        }
+      }
+    >
+
+    "SuikouWeb.Stores.DiffStore": StoreDef<
+      "SuikouWeb.Stores.DiffStore",
+      {
+        from: number
+        to: number
+        text: Array<{ op: "eq" | "ins" | "del"; value: string }>
+        resolved: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
+        added: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
+        carried_forward: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
+        verdict_from: "approve" | "request_changes" | "comment" | null
+        verdict_to: "approve" | "request_changes" | "comment" | null
+      },
+      {}
+    >
+
+    "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
+      "SuikouWeb.Stores.ProjectBoardStore",
+      {
+        projects: Array<{ id: string; name: string; files: Array<{ path: string; artifact_id: string | null }> }>
+      },
+      {
+        create_artifact: {
+          payload: {
+            project_id: string
+            file_path: string
+          }
+          reply: {
+            artifact_id: string | null
+            error: string | null
+          }
+        }
+      }
+    >
+
+    "SuikouWeb.Stores.ReviewStore": StoreDef<
+      "SuikouWeb.Stores.ReviewStore",
+      {
+        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
+        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
+        current_round: { number: number; content: string; is_latest: boolean }
+        comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
+        latest_verdict: "approve" | "request_changes" | "comment" | null
+        diff: Musubi.StoreField<"SuikouWeb.Stores.DiffStore"> | null
+      },
+      {
         submit_review: {
           payload: {
             verdict: "approve" | "request_changes" | "comment"
@@ -195,14 +227,6 @@ declare namespace Musubi {
           }
           reply: never
         }
-        relocate_comment: {
-          payload: {
-            comment_id: string
-            start_line: number
-            end_line: number
-          }
-          reply: never
-        }
         diff_round: {
           payload: {
             from: number
@@ -211,10 +235,6 @@ declare namespace Musubi {
           reply: never
         }
         close_diff: {
-          payload: {}
-          reply: never
-        }
-        dismiss: {
           payload: {}
           reply: never
         }

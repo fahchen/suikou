@@ -8,8 +8,8 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Review
   alias SuikouWeb.Stores.ReviewStore
 
-  describe "diff_round / close_diff" do
-    test "renders no diff until a round pair is selected" do
+  describe "diff child" do
+    test "renders no diff child until a round pair is selected" do
       artifact = insert(:round).artifact
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
 
@@ -27,14 +27,12 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       {:ok, _reply} = Testing.dispatch_command(page, :diff_round, %{from: 0, to: 1})
 
       assert %{
-               diff: %{
-                 from: 0,
-                 to: 1,
-                 text: text,
-                 verdict_from: :request_changes,
-                 verdict_to: :approve
-               }
-             } = Testing.render(page)
+               from: 0,
+               to: 1,
+               text: text,
+               verdict_from: :request_changes,
+               verdict_to: :approve
+             } = Testing.render(page, ["diff"])
 
       deleted = for %{op: :del, value: value} <- text, into: "", do: value
       inserted = for %{op: :ins, value: value} <- text, into: "", do: value
@@ -42,21 +40,93 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert inserted =~ "mma"
     end
 
-    test "close_diff clears the rendered diff" do
+    test "close_diff unmounts the diff child" do
       artifact = insert(:round).artifact
       advance(artifact.id, "changed\n")
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
 
       {:ok, _reply} = Testing.dispatch_command(page, :diff_round, %{from: 0, to: 1})
-      assert %{diff: %{from: 0}} = Testing.render(page)
+      assert %{from: 0} = Testing.render(page, ["diff"])
 
       {:ok, _reply} = Testing.dispatch_command(page, :close_diff, %{})
       assert %{diff: nil} = Testing.render(page)
     end
   end
 
-  describe "relocate_comment" do
-    test "re-anchors an outdated carried comment and clears the flag" do
+  describe "comments child" do
+    test "add_comment renders a pending draft comment in the child" do
+      artifact = insert(:round).artifact
+      page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(
+          page,
+          :add_comment,
+          %{
+            scope: :line,
+            critique_type: :fix_required,
+            body: "tighten this",
+            start_line: 1,
+            end_line: 1
+          },
+          ["comments"]
+        )
+
+      assert %{items: [%{body: "tighten this", status: :pending, scope: :line}]} =
+               Testing.render(page, ["comments"])
+    end
+
+    test "resolve_comment marks a published comment resolved" do
+      round = insert(:round)
+
+      published_comment(round.id, %{
+        scope: :line,
+        critique_type: :fix_required,
+        body: "x",
+        start_line: 1,
+        end_line: 1
+      })
+
+      [comment] = Reads.list_comments(round.id)
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :resolve_comment, %{comment_id: comment.id}, ["comments"])
+
+      assert %{items: [%{resolved: true}]} = Testing.render(page, ["comments"])
+    end
+
+    test "reply appends a human reply to the thread" do
+      round = insert(:round)
+      published_comment(round.id, %{scope: :review, critique_type: :note, body: "q"})
+      [comment] = Reads.list_comments(round.id)
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(
+          page,
+          :reply,
+          %{comment_id: comment.id, body: "answer"},
+          ["comments"]
+        )
+
+      assert %{items: [%{replies: [%{author: :human, body: "answer"}]}]} =
+               Testing.render(page, ["comments"])
+    end
+
+    test "delete_comment removes it from the child render" do
+      round = insert(:round)
+      pending_comment(round.id, %{scope: :review, critique_type: :note, body: "drop me"})
+      [comment] = Reads.list_comments(round.id)
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :delete_comment, %{comment_id: comment.id}, ["comments"])
+
+      assert %{items: []} = Testing.render(page, ["comments"])
+    end
+
+    test "relocate_comment re-anchors an outdated carried comment and clears the flag" do
       round1 = insert(:round, content: "alpha\nbeta\ngamma\n")
       artifact = round1.artifact
 
@@ -75,14 +145,15 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
 
       {:ok, _reply} =
-        Testing.dispatch_command(page, :relocate_comment, %{
-          comment_id: carried.id,
-          start_line: 4,
-          end_line: 4
-        })
+        Testing.dispatch_command(
+          page,
+          :relocate_comment,
+          %{comment_id: carried.id, start_line: 4, end_line: 4},
+          ["comments"]
+        )
 
-      assert %{comments: [%{outdated: false, anchor: %{start_line: 4, end_line: 4}}]} =
-               Testing.render(page)
+      assert %{items: [%{outdated: false, anchor: %{start_line: 4, end_line: 4}}]} =
+               Testing.render(page, ["comments"])
     end
   end
 end
