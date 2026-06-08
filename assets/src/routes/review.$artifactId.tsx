@@ -53,8 +53,9 @@ const ReviewShell = observer(function ReviewShell() {
 
       <div className="flex-1 overflow-auto">
         <div
-          className="mx-auto grid w-full max-w-[1400px] gap-6 px-6 py-8"
-          style={{ gridTemplateColumns: sideMode ? "minmax(0,1fr) 340px" : "minmax(0,1fr)" }}
+          className={`mx-auto grid w-full max-w-[1400px] gap-4 px-3 py-5 sm:gap-6 sm:px-6 sm:py-8 ${
+            sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
+          }`}
         >
           {snapshot.diff ? (
             <DiffView diff={snapshot.diff} />

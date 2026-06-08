@@ -65,7 +65,7 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10">
       <h1 className="mb-6 text-lg font-semibold">Select a file to review</h1>
       {error && <p className="mb-4 text-sm text-red">{error}</p>}
       <div className="space-y-6">
@@ -82,10 +82,10 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
                       type="button"
                       disabled={busy}
                       onClick={() => void select(project, file)}
-                      className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60"
                     >
-                      <span className="font-mono">{file.path}</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="min-w-0 truncate font-mono">{file.path}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
                         {busy ? "Opening…" : file.artifact_id ? "In review" : "Start review"}
                       </span>
                     </button>

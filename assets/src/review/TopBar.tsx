@@ -78,7 +78,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   }
 
   return (
-    <header className="flex items-center gap-3 px-4 py-2">
+    <header className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-2">
         <Popover>
           <PopoverTrigger
@@ -163,7 +163,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
             render={
               <Button variant="outline" size="sm">
                 <GitCompare size={15} className="text-muted-foreground" />
-                <span className="text-[12px] font-medium">R{snapshot.current_round.number}</span>
+                <span className="hidden text-[12px] font-medium sm:inline">R{snapshot.current_round.number}</span>
                 <ChevronDown size={13} className="text-faint" />
               </Button>
             }
@@ -411,7 +411,7 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           disabled={commands.submitReview.isPending}
           onClick={() => void commands.submitReview.dispatch({ verdict })}
         >
-          <Check size={14} /> Submit
+          <Check size={14} /> <span className="hidden sm:inline">Submit</span>
           {pending > 0 && (
             <Badge className="bg-blue-strong text-on-accent">{pending}</Badge>
           )}

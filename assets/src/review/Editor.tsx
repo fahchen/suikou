@@ -127,7 +127,7 @@ const LineRow = observer(function LineRow(props: {
   return (
     <div>
       <div
-        className={`group flex items-start gap-3 px-4 ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
@@ -165,7 +165,7 @@ const LineRow = observer(function LineRow(props: {
 
       <AnimatePresence initial={false}>
         {inlineComments.map((comment) => (
-          <div key={comment.id} className="px-4 pb-2 pl-14">
+          <div key={comment.id} className="px-2 pb-2 pl-10 sm:px-4 sm:pl-14">
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}
