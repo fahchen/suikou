@@ -42,8 +42,15 @@ const TONE_CLASS: Record<string, string> = {
   muted: "bg-soft text-muted-foreground",
 };
 
-export function CommentCard(props: { comment: Comment }) {
-  const { comment } = props;
+/**
+ * `context` tailors the affordances to where the card lives. An "inline" card
+ * sits next to its own line in the editor, so the anchor label and the locate
+ * cluster (relocate, copy-link) are redundant and hidden; the "rail" card in
+ * the side list keeps them, since position there is not self-evident.
+ */
+export function CommentCard(props: { comment: Comment; context?: "inline" | "rail" }) {
+  const { comment, context = "rail" } = props;
+  const inline = context === "inline";
   const commands = useReviewCommands();
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -98,7 +105,6 @@ export function CommentCard(props: { comment: Comment }) {
 
   return (
     <motion.article
-      layout
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
@@ -106,23 +112,31 @@ export function CommentCard(props: { comment: Comment }) {
       className="rounded-lg border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
     >
       <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger
-        nativeButton={false}
-        render={
-          <header
-            className={`flex cursor-pointer items-center gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
-          />
-        }
+      <header
+        className={`flex items-center gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
       >
-        <ChevronDown
-          size={14}
-          className={`shrink-0 text-faint transition-transform ${open ? "" : "-rotate-90"}`}
-          aria-hidden
-        />
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
-          {comment.anchor && <Crosshair size={13} />}
-          {anchorLabel}
-        </span>
+        <CollapsibleTrigger
+          render={
+            <button
+              type="button"
+              aria-label={open ? "Collapse comment" : "Expand comment"}
+              className="-m-1 inline-flex shrink-0 items-center rounded p-1 text-faint hover:bg-hover hover:text-muted-foreground"
+            />
+          }
+        >
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${open ? "" : "-rotate-90"}`}
+            aria-hidden
+          />
+        </CollapsibleTrigger>
+
+        {!inline && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            {comment.anchor && <Crosshair size={13} />}
+            {anchorLabel}
+          </span>
+        )}
 
         {comment.carried && comment.original_round != null && (
           <span
@@ -150,7 +164,7 @@ export function CommentCard(props: { comment: Comment }) {
           </span>
         )}
 
-        <div className="ml-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -160,7 +174,7 @@ export function CommentCard(props: { comment: Comment }) {
               }
             />
             <DropdownMenuContent align="end" className="w-40">
-              {comment.outdated && (
+              {comment.outdated && !inline && (
                 <DropdownMenuItem
                   onClick={() => {
                     setRelocating(true);
@@ -172,7 +186,7 @@ export function CommentCard(props: { comment: Comment }) {
                   Relocate
                 </DropdownMenuItem>
               )}
-              {comment.outdated && (
+              {comment.outdated && !inline && (
                 <DropdownMenuItem onClick={copyLink}>
                   <Link2 size={14} />
                   Copy link
@@ -198,17 +212,19 @@ export function CommentCard(props: { comment: Comment }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </CollapsibleTrigger>
+      </header>
 
       <CollapsibleContent>
       <div className="flex flex-col gap-2 px-3 py-2.5">
         {comment.outdated && (
           <p className="text-[12px] text-amber">
-            Lost its anchor — the quoted line changed. Re-anchor or delete.
+            {inline
+              ? "Lost its anchor — the quoted line changed. Re-anchor from the side rail, or delete."
+              : "Lost its anchor — the quoted line changed. Re-anchor or delete."}
           </p>
         )}
 
-        {relocating && (
+        {relocating && !inline && (
           <div className="flex items-center gap-2 rounded-md border border-line-soft bg-panel p-2">
             <span className="text-[12px] text-muted-foreground">Re-anchor to line</span>
             <input

@@ -38,7 +38,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
-            <CommentCard comment={comment} />
+            <CommentCard comment={comment} context="inline" />
           </div>
         ))}
 
@@ -72,7 +72,7 @@ const RawView = observer(function RawView(props: EditorProps) {
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
-            <CommentCard comment={comment} />
+            <CommentCard comment={comment} context="inline" />
           </div>
         ))}
 
@@ -166,7 +166,7 @@ const LineRow = observer(function LineRow(props: {
       <AnimatePresence initial={false}>
         {inlineComments.map((comment) => (
           <div key={comment.id} className="px-4 pb-2 pl-14">
-            <CommentCard comment={comment} />
+            <CommentCard comment={comment} context="inline" />
           </div>
         ))}
       </AnimatePresence>

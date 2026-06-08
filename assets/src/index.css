@@ -508,6 +508,25 @@
     border-radius: 8px;
     white-space: pre-wrap;
   }
+
+  /* Collapsible fold: the panel clips its own height below the card header, so
+     the motion never overlaps the header (the header is a sibling above it). */
+  [data-slot="collapsible-content"] {
+    height: var(--collapsible-panel-height);
+    overflow: hidden;
+    transition: height 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-slot="collapsible-content"][data-starting-style],
+  [data-slot="collapsible-content"][data-ending-style] {
+    height: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="collapsible-content"] {
+      transition: none;
+    }
+  }
 }
 
 /* shadcn / Base UI token bridge — maps the registry's component tokens onto the
