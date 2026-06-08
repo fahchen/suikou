@@ -17,6 +17,7 @@ export interface Reply {
   id: string
   author: "human" | "agent"
   body: string
+  inserted_at: string
 }
 
 export interface Comment {
@@ -30,6 +31,7 @@ export interface Comment {
   outdated: boolean
   original_round: number | null
   carried: boolean
+  inserted_at: string
   anchor: Anchor | null
   replies: Reply[]
 }

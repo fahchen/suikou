@@ -34,8 +34,15 @@ defmodule SuikouWeb.Stores.CommentsStore do
         outdated: boolean(),
         original_round: integer() | nil,
         carried: boolean(),
+        inserted_at: String.t(),
         anchor: %{start_line: integer(), end_line: integer(), quote: String.t()} | nil,
-        replies: list(%{id: String.t(), author: :human | :agent, body: String.t()})
+        replies:
+          list(%{
+            id: String.t(),
+            author: :human | :agent,
+            body: String.t(),
+            inserted_at: String.t()
+          })
       })
     )
   end
@@ -173,6 +180,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       outdated: comment.outdated,
       original_round: comment.original_round,
       carried: not is_nil(comment.origin_id),
+      inserted_at: iso8601(comment.inserted_at),
       anchor: render_anchor(comment.anchor),
       replies: Enum.map(comment.replies, &render_reply/1)
     }
@@ -185,6 +193,11 @@ defmodule SuikouWeb.Stores.CommentsStore do
   end
 
   defp render_reply(%Reply{} = reply) do
-    %{id: reply.id, author: reply.author, body: reply.body}
+    %{id: reply.id, author: reply.author, body: reply.body, inserted_at: iso8601(reply.inserted_at)}
   end
+
+  defp iso8601(%NaiveDateTime{} = naive),
+    do: naive |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
+  defp iso8601(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
 end

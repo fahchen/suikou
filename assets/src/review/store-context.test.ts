@@ -16,6 +16,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     outdated: false,
     original_round: null,
     carried: false,
+    inserted_at: "2026-01-01T00:00:00Z",
     anchor: null,
     replies: [],
     ...overrides

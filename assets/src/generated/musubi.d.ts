@@ -101,7 +101,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.CommentsStore": StoreDef<
       "SuikouWeb.Stores.CommentsStore",
       {
-        items: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string }> }>
+        items: Array<{ id: string; scope: "line" | "file" | "review"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; inserted_at: string; anchor: { start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string; inserted_at: string }> }>
       },
       {
         add_comment: {
