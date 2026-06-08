@@ -107,7 +107,9 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           <PopoverTrigger
             render={
               <Button variant="ghost" className="min-w-0 px-2">
-                <span className="truncate font-medium text-heading">{snapshot.artifact.title}</span>
+                <span className="truncate font-semibold tracking-[-0.006em] text-heading">
+                  {snapshot.artifact.title}
+                </span>
                 <ChevronDown size={14} className="shrink-0 text-faint" />
               </Button>
             }
@@ -141,8 +143,9 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
           </PopoverContent>
         </Popover>
 
-        <div className="hidden flex-col text-[11px] leading-tight text-muted-foreground sm:flex">
+        <div className="hidden items-center gap-2 font-mono text-[11px] text-faint sm:flex">
           <span>round {snapshot.current_round.number}</span>
+          <span aria-hidden>·</span>
           <span>{snapshot.current_round.is_latest ? "latest round" : "superseded"}</span>
         </div>
       </div>

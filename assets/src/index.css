@@ -353,7 +353,9 @@
 @layer components {
   .md-content {
     color: var(--text);
-    line-height: 1.7;
+    font-size: 15.5px;
+    line-height: 1.62;
+    letter-spacing: -0.006em;
   }
 
   .md-content h1,
@@ -361,22 +363,45 @@
   .md-content h3,
   .md-content h4 {
     color: var(--heading);
-    font-weight: 650;
-    line-height: 1.3;
     margin: 0;
   }
 
+  /* The live document title is an h1 (`#`); section headings are h2 (`##`).
+     The mockup's title is 23px/760 and its sections are 16px/680, so the live
+     heading scale is shifted one level to land on those exact values. */
+  .md-content h1 {
+    font-size: 23px;
+    font-weight: 760;
+    line-height: 1.22;
+    letter-spacing: -0.022em;
+  }
+
   .md-content h2 {
-    font-size: 1.4rem;
-    letter-spacing: -0.01em;
+    font-size: 16px;
+    font-weight: 680;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
   }
 
   .md-content h3 {
-    font-size: 1.12rem;
+    font-size: 14px;
+    font-weight: 660;
+    line-height: 1.3;
+    letter-spacing: -0.008em;
   }
 
   .md-content h4 {
-    font-size: 1rem;
+    font-size: 13px;
+    font-weight: 640;
+    line-height: 1.3;
+  }
+
+  .md-content p,
+  .md-content li,
+  .md-content blockquote {
+    font-size: 15.5px;
+    line-height: 1.68;
+    letter-spacing: -0.003em;
   }
 
   .md-content p {
@@ -386,7 +411,7 @@
   .md-content ul,
   .md-content ol {
     margin: 0;
-    padding-left: 1.4em;
+    padding-left: 19px;
   }
 
   .md-content li {
@@ -409,19 +434,19 @@
 
   .md-content code {
     font-family: var(--mono);
-    font-size: 0.86em;
+    font-size: 0.9em;
     background: var(--code-bg);
-    padding: 0.12em 0.38em;
-    border-radius: 5px;
+    padding: 1px 4px;
+    border-radius: 4px;
   }
 
   .md-content blockquote {
     margin: 0;
-    padding: 0.4em 0.9em;
-    border-left: 3px solid var(--line-strong);
+    padding: 11px 13px;
+    border: 1px solid var(--line-soft);
     background: var(--quote-bg);
-    border-radius: 0 6px 6px 0;
-    color: var(--text2);
+    border-radius: 6px;
+    color: var(--muted);
   }
 
   .md-content hr {
