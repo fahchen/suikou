@@ -1,9 +1,10 @@
 ---
 id: BDR-0002
 title: Explicit local artifact id for cross-round identity
-status: accepted
+status: superseded
+superseded_by: BDR-0018
 date: 2026-06-06
-summary: Artifacts are bound across rounds by a server-minted local id, not by a derived cwd path-hash
+summary: Artifacts are bound across rounds by a server-minted local id, not by a derived cwd path-hash. Superseded by BDR-0018 — the agent no longer resubmits, so there is no agent-supplied id to bind; the server mints an artifact id when the reviewer selects a file.
 ---
 
 **Feature**: domains/artifacts/features/submission.feature

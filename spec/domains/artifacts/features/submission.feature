@@ -1,60 +1,59 @@
 @artifacts
-Feature: Markdown artifact submission
-  As an agent
-  I want to submit a markdown artifact for review
-  So that a human can review it and guide its refinement
+Feature: Project boards and artifact creation
+  As a human reviewer
+  I want to register a project directory and start reviewing a file from it
+  So that I control which artifacts enter review and when
 
   Background:
     Given Suikou is running locally
 
-  Rule: A first submission creates a review at round 1
+  # A project points at a directory on disk; the server scans it and lists its
+  # files as candidate artifacts (see BDR-0018). MVP source is a local file;
+  # other sources (e.g. a GitHub pull request) are deferred.
+  Rule: A project is a directory whose files are candidate artifacts
 
-    Scenario: Agent submits a new markdown artifact
-      Given the agent has a markdown plan titled "Auth rollout plan"
-      When the agent submits the artifact
-      Then a review is created at round 1
-      And the submitted content is stored as the round 1 snapshot
-      And the agent receives an artifact id
+    Scenario: Registering a project lists its files
+      Given a directory containing markdown files
+      When the reviewer registers it as a project
+      Then the project lists those files as candidate artifacts
 
-  Rule: Submissions must have a title and content
+  # Creating an artifact is a human action: selecting a file reads its current
+  # content from disk and persists round 0 in draft state (see BDR-0018). There
+  # is no agent content submission.
+  Rule: Selecting a file creates an artifact at round 0
 
-    Scenario: Empty content is rejected
-      When the agent submits an artifact with empty content
-      Then the submission is rejected
-      And no review is created
+    Scenario: Reviewer starts reviewing a file
+      Given a project listing a file "auth-rollout-plan.md"
+      When the reviewer selects the file to review
+      Then an artifact is created at round 0
+      And the file's content on disk is stored as the round 0 snapshot
+      And round 0 is in draft state
 
-    Scenario: Blank title is rejected
-      When the agent submits an artifact with a blank title
-      Then the submission is rejected
-      And no review is created
+    Scenario: An empty file cannot start a review
+      Given a project listing an empty file
+      When the reviewer selects the file to review
+      Then no artifact is created
 
-  # Round bumping is automatic: the server compares the hash of the submitted
-  # content against the latest snapshot. No normalization is applied and the
-  # agent never declares a new round.
-  Rule: Resubmitting changed content creates a new round
+  # The agent edits the file on disk between rounds; the reviewer pulls those
+  # edits into the current draft round by re-snapshotting (see BDR-0018).
+  Rule: Re-snapshotting refreshes the draft round content
 
-    Scenario: Revised content advances the round
-      Given an artifact at round 1
-      When the agent resubmits the same artifact id with different content
-      Then the review advances to round 2
-      And the new content is stored as the round 2 snapshot
+    Scenario: Reviewer pulls in the agent's edits
+      Given an artifact whose current round is a draft
+      And the agent has changed the file on disk
+      When the reviewer re-snapshots the file
+      Then the draft round's snapshot matches the file's current content on disk
 
-    Scenario: Byte-identical content does not advance the round
-      Given an artifact at round 1
-      When the agent resubmits the same artifact id with byte-identical content
-      Then the review stays at round 1
-      And no new snapshot is stored
-
-  Rule: An unknown artifact id is treated as a new artifact
-
-    Scenario: Submitting with an unrecognised id creates a new artifact
-      When the agent submits with an artifact id that does not exist
-      Then a new review is created at round 1
-      And the agent receives a freshly minted artifact id
+    Scenario: Re-snapshotting unchanged content leaves the draft round as is
+      Given an artifact whose current round is a draft
+      And the file on disk is byte-identical to the draft round snapshot
+      When the reviewer re-snapshots the file
+      Then the draft round snapshot is unchanged
 
   Rule: Any text content is accepted as markdown
 
     Scenario: Malformed markdown is still accepted
-      When the agent submits content that is not well-formed markdown
-      Then the submission is accepted
+      Given a project listing a file that is not well-formed markdown
+      When the reviewer selects the file to review
+      Then the artifact is created
       And the content is stored as a markdown artifact

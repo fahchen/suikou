@@ -8,13 +8,13 @@ Feature: Critique carry-forward across rounds
     Given Suikou is running locally
     And a markdown artifact reviewed at round 1 with published critique
 
-  # Only published critique carries; a round advances when the agent resubmits
-  # changed content (see BDR-0001). Carry-forward policy: see BDR-0009.
+  # Only published critique carries; a round advances when the reviewer submits
+  # (see BDR-0018). Carry-forward policy: see BDR-0009.
   Rule: Unresolved published comments carry forward to the new round
 
     Scenario: An open comment follows the artifact into round 2
       Given an unresolved published comment on round 1
-      When the agent resubmits changed content and the artifact advances to round 2
+      When the reviewer submits round 1 and the artifact advances to round 2
       Then the comment is carried forward onto round 2
 
   Rule: Resolved comments stay on their original round

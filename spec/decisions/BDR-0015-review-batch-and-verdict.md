@@ -26,8 +26,8 @@ review verdict.
 ### Option A: Reviews carry a verdict; approval is the approve verdict
 Submitting a review ([[BDR-0008-submit-review-publishes-critique]]) records one
 verdict on that submission: `approve`, `request_changes`, or `comment`. The
-artifact is approved exactly when the latest review on the latest round has
-verdict `approve`. There is no separate approve action.
+artifact is approved exactly when the latest reviewed round's review has verdict
+`approve`. There is no separate approve action.
 
 ### Option B: Neutral publish plus a standalone approval action
 The reviewer publishes critique with no disposition, and approval is an
@@ -44,9 +44,10 @@ a derived state (latest verdict is `approve`) rather than a parallel state machi
 to keep in sync. The verdict lives on the review, so a round's disposition is
 always tied to the comments that justified it.
 
-A round may receive more than one review over time; the latest review's verdict
-is the round's current disposition. Approval is reversible — the reviewer can
-dismiss it, and an agent resubmission clears it — those mechanics are detailed in
+Each round receives exactly one review — the submission that advances it
+([[BDR-0018-project-boards-and-human-controlled-rounds]]); that review's verdict
+is the round's disposition. Approval is reversible — the reviewer can dismiss it,
+and submitting a later round clears it — those mechanics are detailed in
 [[BDR-0013-approval-model]], which this decision restructures around the verdict.
 
 ## Rejected Alternatives

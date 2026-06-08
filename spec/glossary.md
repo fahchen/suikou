@@ -4,14 +4,15 @@ Shared domain terminology (ubiquitous language) for Suikou.
 
 | Term | Definition |
 |------|------------|
-| Artifact | A generated unit submitted for human review. MVP scope: a markdown document (e.g. a plan or doc). |
-| Submission | The act of an agent placing artifact content into Suikou via the API: a first submit creates the review at round 1, a resubmit under the same artifact id advances the round when content changed. Only ever an agent action; never used for human critique. |
-| Review round | A versioned state of an artifact under review: one full content snapshot plus the round number. Rounds advance automatically when submitted content changes. |
+| Project | A directory on disk registered for review. The server scans it and lists its files as candidate artifacts. The top-level board the human creates first; an artifact is created under it (see BDR-0018). |
+| Artifact | A unit under human review, created by the reviewer selecting a source under a project. MVP scope: a single markdown file read from the project directory (future sources, e.g. a GitHub pull request, are deferred — see BDR-0018). |
+| Submission | The act of creating or refreshing an artifact's draft round by reading the selected file from disk. A human action: selecting a file creates round 0; re-snapshotting refreshes the current draft round's content. Never an agent action; the agent never submits content (see BDR-0018). |
+| Review round | A versioned state of an artifact under review: one full content snapshot plus the round number, numbered from 0. Rounds advance when the human submits — submitting publishes the round's review and creates the next round (see BDR-0018). |
 | Snapshot | The full stored content of an artifact for a given round. |
-| Agent | An external system that generates artifacts, submits them, and reads structured critique. Not part of the Suikou runtime; never owns critique or approval state. |
+| Agent | An external system that edits the reviewed files on disk and reads structured critique. It only replies to published comments via the dedicated reply API; it never submits content and never advances a round (see BDR-0018). Not part of the Suikou runtime; never owns critique or approval state. |
 | Human reviewer | The person who reviews artifacts, leaves critique, and approves outputs. Holds final judgment. |
 | Server-authoritative | The local Suikou runtime owns review state; clients (agent CLI, browser) do not push authoritative state. |
-| Review | A batch of the reviewer's pending comments on a round, submitted together with one verdict. Submitting a review publishes its comments and records its verdict. A round may receive more than one review. |
+| Review | A batch of the reviewer's pending comments on a round, submitted together with one verdict. Submitting a review publishes its comments, records its verdict, and advances the round. Each round receives exactly one review — the one that advances it (see BDR-0018). |
 | Verdict | A review's overall disposition: `approve` (the artifact is accepted), `request_changes` (the reviewer wants revisions), or `comment` (neutral feedback, no acceptance). Orthogonal to a comment's critique type — verdict is the per-review disposition, critique type is the per-comment expected action. |
 | Comment | A unit of structured human critique on a round, carrying a scope, a critique type, a body, and the round it attaches to. Authored as `pending`; becomes `published` when the review batching it is submitted. |
 | Scope | The granularity a comment attaches to: `line` (carries an anchor locating a span), `file` (a whole file), or `review` (the whole review). |
@@ -28,6 +29,6 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Original anchor | A frozen copy of a comment's anchor and the round it was authored at, set once at creation and copied unchanged onto every carried row, so an outdated comment can report where it began without walking its lineage. |
 | Lineage | The origin link connecting a comment's per-round rows across the rounds it survives; each round keeps its own immutable row. |
 | Round diff | The rendered difference between two rounds: the snapshot text diff plus the critique state changes (resolved, added, carried-forward) and any verdict change. |
-| Approval | The artifact's accepted state, expressed as a review submitted with verdict `approve` on the latest round; records the approved round. Reversible — dismissed by the reviewer or superseded by an agent resubmission. Among verdicts, `approve` is the only one that can end the review loop (see BDR-0013). |
+| Approval | The artifact's accepted state, expressed as a review submitted with verdict `approve` on the latest round; records the approved round. Reversible — dismissed by the reviewer or superseded when a later round is created. Among verdicts, `approve` is the only one that can end the review loop (see BDR-0013). |
 | Approved round | The round at which an `approve` verdict was granted. |
 | Export | A read-only, self-contained, structured (JSON) rendering of an artifact's latest round for agent consumption: the round's published critique (with replies and per-comment critique types), its snapshot content, and the latest verdict. Reading it never mutates state. |

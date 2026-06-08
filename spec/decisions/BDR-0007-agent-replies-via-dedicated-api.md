@@ -14,10 +14,10 @@ summary: The agent may reply to existing comment threads via a reply API distinc
 ## Context
 
 The PRD says both the human and the agent participate in threaded discussion.
-[[BDR-0003-server-authoritative-agent-submits-content-only]] establishes that the
-agent submits artifact content only and never pushes critique. These pull in
-opposite directions: if the agent can reply, it is writing review state, which
-BDR-0003 forbids for top-level critique. We had to reconcile them.
+The server owns review state and the agent never pushes top-level critique
+([[BDR-0018-project-boards-and-human-controlled-rounds]]). These pull in opposite
+directions: if the agent can reply, it is writing review state, which is
+otherwise forbidden for top-level critique. We had to reconcile them.
 
 ## Behaviours Considered
 

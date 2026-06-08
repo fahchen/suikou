@@ -1,9 +1,10 @@
 ---
 id: BDR-0001
 title: Automatic content-hash round bump, no normalization
-status: accepted
+status: superseded
+superseded_by: BDR-0018
 date: 2026-06-06
-summary: Rounds advance automatically when submitted content's hash differs from the latest snapshot; no normalization, no agent declaration
+summary: Rounds advance automatically when submitted content's hash differs from the latest snapshot; no normalization, no agent declaration. Superseded by BDR-0018 — rounds now advance on human submit, not on agent content change.
 ---
 
 **Feature**: domains/artifacts/features/submission.feature

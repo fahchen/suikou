@@ -1,9 +1,10 @@
 ---
 id: BDR-0003
 title: Server-authoritative state; agent submits content only
-status: accepted
+status: superseded
+superseded_by: BDR-0018
 date: 2026-06-06
-summary: The local Suikou runtime owns review state; agents submit artifact content but never push comments or approval
+summary: The local Suikou runtime owns review state; agents submit artifact content but never push comments or approval. Superseded by BDR-0018 — the agent no longer submits content; it only replies. Server-authoritative state still holds.
 ---
 
 **Feature**: domains/artifacts/features/submission.feature

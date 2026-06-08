@@ -13,11 +13,11 @@ summary: When a round advances, unresolved published comments re-anchor onto the
 
 ## Context
 
-A round advances automatically when the agent resubmits changed content
-([[BDR-0001-automatic-content-hash-round-bump]]). The reviewer's open feedback
-must survive that revision, or every round would start from a blank critique
-slate and unaddressed points would be silently lost. We had to decide which
-comments follow the artifact into the new round.
+A round advances when the reviewer submits it
+([[BDR-0018-project-boards-and-human-controlled-rounds]]). The reviewer's open
+feedback must survive into the next round, or every round would start from a
+blank critique slate and unaddressed points would be silently lost. We had to
+decide which comments follow the artifact into the new round.
 
 ## Behaviours Considered
 
