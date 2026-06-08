@@ -9,6 +9,7 @@ export type CritiqueType = "fix_required" | "needs_answer" | "note"
 export type CommentScope = "line" | "file" | "review"
 
 const THEME_KEY = "suikou-theme"
+const COMMENT_MODE_KEY = "suikou-comment-mode"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -18,7 +19,6 @@ const THEME_KEY = "suikou-theme"
  */
 export class UiStore {
   theme: ThemeName = "github"
-  view: DocView = "rendered"
   commentMode: CommentMode = "side"
   statusFilter: StatusFilter = "all"
   typeFilters: Record<CritiqueType, boolean> = {
@@ -36,10 +36,16 @@ export class UiStore {
   constructor() {
     makeAutoObservable(this)
 
-    const saved = localStorage.getItem(THEME_KEY)
-    if (saved && (THEMES as readonly string[]).includes(saved)) {
-      this.theme = saved as ThemeName
+    const savedTheme = localStorage.getItem(THEME_KEY)
+    if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
+      this.theme = savedTheme as ThemeName
     }
+
+    const savedCommentMode = localStorage.getItem(COMMENT_MODE_KEY)
+    if (savedCommentMode === "inline" || savedCommentMode === "side") {
+      this.commentMode = savedCommentMode
+    }
+
     this.applyTheme()
   }
 
@@ -49,12 +55,9 @@ export class UiStore {
     this.applyTheme()
   }
 
-  setView(view: DocView): void {
-    this.view = view
-  }
-
   setCommentMode(mode: CommentMode): void {
     this.commentMode = mode
+    localStorage.setItem(COMMENT_MODE_KEY, mode)
   }
 
   setStatusFilter(filter: StatusFilter): void {

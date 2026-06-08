@@ -35,12 +35,17 @@ describe("theme", () => {
   })
 })
 
-describe("view and layout toggles", () => {
-  it("sets the view and comment mode", () => {
+describe("layout toggles", () => {
+  it("sets and persists the comment mode", () => {
     const ui = new UiStore()
-    ui.setView("raw")
     ui.setCommentMode("inline")
-    expect(ui.view).toBe("raw")
+    expect(ui.commentMode).toBe("inline")
+    expect(localStorage.getItem("suikou-comment-mode")).toBe("inline")
+  })
+
+  it("restores a persisted comment mode on construction", () => {
+    localStorage.setItem("suikou-comment-mode", "inline")
+    const ui = new UiStore()
     expect(ui.commentMode).toBe("inline")
   })
 
