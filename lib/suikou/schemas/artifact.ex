@@ -8,12 +8,15 @@ defmodule Suikou.Schemas.Artifact do
 
   use Suikou.Schema
 
+  alias Suikou.Schemas.Project
   alias Suikou.Schemas.Round
 
   typed_schema "artifacts" do
     field :title, :string, typed: [null: false]
     field :approved_round, :integer
+    field :file_path, :string
 
+    belongs_to :project, Project
     has_many :rounds, Round
 
     timestamps()
@@ -37,6 +40,27 @@ defmodule Suikou.Schemas.Artifact do
     |> cast(params, [:title])
     |> validate_required([:title])
     |> validate_format(:title, ~r/\S/, message: "can't be blank")
+  end
+
+  @doc """
+  Builds a changeset for an artifact created by selecting a file under a project.
+
+  `project_id` is set from the project struct rather than cast, so a caller can
+  never reassign an artifact to another project through params.
+
+  ## Examples
+
+      Suikou.Schemas.Artifact.create_from_file_changeset(project, %{title: "docs/plan.md", file_path: "docs/plan.md"}).valid?
+      #=> true
+
+  """
+  @spec create_from_file_changeset(Project.t(), map()) :: Ecto.Changeset.t()
+  def create_from_file_changeset(project, params) do
+    %__MODULE__{project_id: project.id}
+    |> cast(params, [:title, :file_path])
+    |> validate_required([:title, :file_path])
+    |> validate_format(:title, ~r/\S/, message: "can't be blank")
+    |> assoc_constraint(:project)
   end
 
   @doc """
