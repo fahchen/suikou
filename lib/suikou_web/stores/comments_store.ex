@@ -87,7 +87,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
-  def init(socket), do: {:ok, Socket.assign(socket, :comments, [])}
+  def init(socket), do: {:ok, reload(socket)}
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}

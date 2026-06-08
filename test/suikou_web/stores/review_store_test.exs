@@ -54,6 +54,14 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   end
 
   describe "comments child" do
+    test "mount renders pre-existing comments without a command" do
+      round = insert(:round)
+      published_comment(round.id, %{scope: :review, critique_type: :note, body: "existing"})
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      assert %{items: [%{body: "existing"}]} = Testing.render(page, ["comments"])
+    end
+
     test "add_comment renders a pending draft comment in the child" do
       artifact = insert(:round).artifact
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
