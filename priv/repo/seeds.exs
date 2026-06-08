@@ -12,14 +12,17 @@ import Ecto.Query
 
 alias Suikou.Artifacts
 alias Suikou.Critique
+alias Suikou.Projects
 alias Suikou.Repo
 alias Suikou.Review
 alias Suikou.Rounds
 alias Suikou.Schemas.Artifact
 alias Suikou.Schemas.Comment
+alias Suikou.Schemas.Project
 
-# Idempotent: clear prior artifacts (rounds/comments/replies/reviews cascade).
+# Idempotent: clear prior projects (artifacts/rounds/comments/replies/reviews cascade).
 Repo.delete_all(Artifact)
+Repo.delete_all(Project)
 
 round_one = """
 # Ingest Pipeline Design
@@ -66,10 +69,18 @@ end
 > or wait for an operator?
 """
 
-{:ok, %{artifact: artifact, round: r1}} =
-  Artifacts.submit(%{title: "Ingest Pipeline Design", content: round_one})
+# A project is a directory on disk; an artifact is a file selected under it. The
+# reviewer scans the project and picks a file, which reads disk into round 0.
+seed_dir = Path.expand("priv/repo/seed_project")
+file_path = "ingest-pipeline-design.md"
+File.rm_rf!(seed_dir)
+File.mkdir_p!(seed_dir)
+File.write!(Path.join(seed_dir, file_path), round_one)
 
-# Round 1 critique — pending until the review is submitted.
+{:ok, project} = Projects.register_project(%{name: "Data Platform", path: seed_dir})
+{:ok, %{artifact: artifact, round: r1}} = Artifacts.create_from_file(project, file_path)
+
+# Round 0 critique — pending until the review is submitted.
 {:ok, overview} =
   Critique.add_comment(%{
     round_id: r1.id,
@@ -126,8 +137,10 @@ end
     body: "Solid direction. A couple of blockers on identifiers and durability."
   })
 
-# Submit the round-1 review: publishes the pending comments, records a verdict.
-{:ok, _} = Review.submit_review(r1.id, :request_changes)
+# Submit the round-0 review: publishes the pending comments, records a verdict,
+# and opens the draft round 1 (content copied forward, unresolved critique
+# carried).
+{:ok, %{next_round: r2}} = Review.submit_review(r1.id, :request_changes)
 
 # A thread on the overview blocker, then resolve the dead-letter note.
 {:ok, _} =
@@ -136,11 +149,12 @@ end
 {:ok, _} = Critique.reply_as_human(overview.id, "Good — state that explicitly in the Overview.")
 {:ok, _} = Critique.resolve_comment(uuid.id)
 
-# Round 2: the writer commit interval changes, shifting later lines. Unresolved
-# published critique carries forward and re-anchors through the line diff.
+# Round 1: the agent edits the file (commit interval changes, shifting later
+# lines) and the reviewer re-snapshots, pulling the edit into the draft round and
+# re-anchoring the carried critique through the line diff.
 round_two = String.replace(round_one, "commits every 200ms", "commits every 100ms")
-
-{:ok, %{round: r2}} = Artifacts.submit(%{artifact_id: artifact.id, content: round_two})
+File.write!(Path.join(seed_dir, file_path), round_two)
+{:ok, r2} = Artifacts.resnapshot(r2.id)
 
 # A fresh pending comment on the latest round.
 {:ok, _} =
