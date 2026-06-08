@@ -42,6 +42,29 @@ const TONE_CLASS: Record<string, string> = {
   muted: "bg-soft text-muted-foreground",
 };
 
+const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+/** Compact "just now / 3h ago / 2d ago" label from an ISO timestamp. */
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diffSec = Math.round((then - Date.now()) / 1000);
+  const abs = Math.abs(diffSec);
+  if (abs < 45) return "just now";
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["year", 31536000],
+    ["month", 2592000],
+    ["week", 604800],
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  for (const [unit, secs] of units) {
+    if (abs >= secs) return RELATIVE.format(Math.round(diffSec / secs), unit);
+  }
+  return "just now";
+}
+
 /**
  * `context` tailors the affordances to where the card lives. An "inline" card
  * sits next to its own line in the editor, so the anchor label and the locate
@@ -109,7 +132,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="rounded-lg border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
+      className="rounded-xl border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
     >
       <Collapsible open={open} onOpenChange={setOpen}>
       <header
@@ -120,7 +143,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
             <button
               type="button"
               aria-label={open ? "Collapse comment" : "Expand comment"}
-              className="-m-1 inline-flex shrink-0 items-center rounded p-1 text-faint hover:bg-hover hover:text-muted-foreground"
+              className="-m-1 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
             />
           }
         >
@@ -138,6 +161,8 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
           </span>
         )}
 
+        <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
+
         {comment.carried && comment.original_round != null && (
           <span
             className="inline-flex items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted-foreground"
@@ -147,7 +172,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
           </span>
         )}
 
-        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}>
+        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}>
           {comment.critique_type}
         </span>
 
@@ -225,7 +250,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
         )}
 
         {relocating && !inline && (
-          <div className="flex items-center gap-2 rounded-md border border-line-soft bg-panel p-2">
+          <div className="flex items-center gap-2 rounded-lg border border-line-soft bg-panel p-2">
             <span className="text-[12px] text-muted-foreground">Re-anchor to line</span>
             <input
               type="number"
@@ -233,7 +258,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
               value={relocateStart}
               onChange={(e) => setRelocateStart(e.target.value)}
               placeholder="start"
-              className="w-16 rounded border border-line bg-control px-2 py-1 text-[12px]"
+              className="w-16 rounded-lg border border-line bg-control px-2 py-1 text-[12px]"
             />
             <span className="text-faint">–</span>
             <input
@@ -242,30 +267,30 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
               value={relocateEnd}
               onChange={(e) => setRelocateEnd(e.target.value)}
               placeholder="end"
-              className="w-16 rounded border border-line bg-control px-2 py-1 text-[12px]"
+              className="w-16 rounded-lg border border-line bg-control px-2 py-1 text-[12px]"
             />
-            <button
-              type="button"
-              className="ml-auto rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
               onClick={() => setRelocating(false)}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="rounded bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
+            </Button>
+            <Button
+              size="sm"
               disabled={commands.relocateComment.isPending || !relocateStart.trim()}
               onClick={submitRelocate}
             >
               Re-anchor
-            </button>
+            </Button>
           </div>
         )}
 
         {editing ? (
           <div className="flex flex-col gap-2">
             <textarea
-              className="min-h-16 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[13px]"
+              className="min-h-16 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px]"
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
             />
@@ -280,21 +305,17 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
                   <SelectItem value="note">note</SelectItem>
                 </SelectContent>
               </Select>
-              <button
-                type="button"
-                className="ml-auto rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-muted-foreground"
                 onClick={() => setEditing(false)}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
-                disabled={commands.editComment.isPending}
-                onClick={saveEdit}
-              >
+              </Button>
+              <Button size="sm" disabled={commands.editComment.isPending} onClick={saveEdit}>
                 Save
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -304,23 +325,27 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
         {comment.replies.map((reply) => (
           <div
             key={reply.id}
-            className={`rounded-md border-l-2 px-2.5 py-1.5 ${
-              reply.author === "agent" ? "border-blue bg-reply-agent" : "border-line bg-reply"
+            className={`rounded-lg border px-2.5 py-1.5 ${
+              reply.author === "agent"
+                ? "border-active-line-border bg-reply-agent"
+                : "border-line bg-reply"
             }`}
           >
-            <div className="mb-0.5 flex items-center gap-2 text-[12px]">
+            <div className="mb-0.5 flex items-baseline gap-2 text-[12px]">
               <strong className="text-heading">{reply.author === "agent" ? "Agent" : "You"}</strong>
+              <span className="text-[11px] text-faint">{relativeTime(reply.inserted_at)}</span>
             </div>
             <p className="whitespace-pre-wrap leading-relaxed text-text">{reply.body}</p>
           </div>
         ))}
 
         {!editing && (
-          <div className="mt-1 flex flex-col gap-2 rounded-md border border-line-soft bg-panel p-2">
+          <div className="mt-1 flex flex-col gap-2 rounded-lg border border-line-soft bg-panel p-2">
             <div className="flex items-center">
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
                 title="Insert suggestion block"
                 onClick={() =>
                   setReplyBody((b) => `${b}${b ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``)
@@ -328,10 +353,10 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
               >
                 <SquarePlus size={13} />
                 Suggest
-              </button>
+              </Button>
             </div>
             <textarea
-              className="min-h-12 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[13px]"
+              className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px]"
               rows={2}
               placeholder="Reply…"
               value={replyBody}
@@ -339,24 +364,25 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
             />
             <div className="flex items-center gap-2">
               {!comment.resolved && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded border border-green/50 bg-green/15 px-2 py-1 text-[12px] text-green-text hover:bg-green/25 disabled:opacity-50"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
                   disabled={commands.resolveComment.isPending}
                   onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
                 >
                   <CircleCheck size={14} />
                   Resolve
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
-                className="ml-auto rounded bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
+              <Button
+                size="sm"
+                className="ml-auto"
                 disabled={commands.reply.isPending || !replyBody.trim()}
                 onClick={sendReply}
               >
                 Reply
-              </button>
+              </Button>
             </div>
           </div>
         )}
