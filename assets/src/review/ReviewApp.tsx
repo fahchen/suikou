@@ -1,47 +1,24 @@
 import { useState } from "react"
 
-import { useMusubiConnectionStatus, useMusubiRoot, useMusubiSnapshot } from "../musubi"
+import { useMusubiConnectionStatus, useMusubiRoot } from "../musubi"
+import { ProjectBoard } from "./ProjectBoard"
 import { ArtifactNavProvider, ReviewStoreProvider } from "./store-context"
 import { ReviewSurface } from "./ReviewSurface"
 
-interface InboxSnapshot {
-  artifacts: { id: string; title: string }[]
-}
-
-/** Waits for the socket, then discovers a starting artifact over the live inbox store. */
+/** Waits for the socket, then routes between the project board and a mounted review. */
 export function ReviewApp() {
   const connection = useMusubiConnectionStatus()
 
   if (connection.state === "connecting") return <Centered>Connecting…</Centered>
   if (connection.state === "error") return <Centered tone="error">{connection.error.message}</Centered>
 
-  return <InboxRoot />
+  return <Router />
 }
 
-function InboxRoot() {
-  const inbox = useMusubiRoot({
-    module: "SuikouWeb.Stores.ArtifactsInboxStore",
-    id: "inbox",
-    params: {}
-  })
+function Router() {
+  const [artifactId, setArtifactId] = useState<string | null>(null)
 
-  if (inbox.status === "loading") return <Centered>Loading review…</Centered>
-  if (inbox.status === "error") return <Centered tone="error">{inbox.error.message}</Centered>
-
-  return <Inbox store={inbox.store} />
-}
-
-function Inbox({ store }: { store: Parameters<typeof useMusubiSnapshot>[0] }) {
-  const snapshot = useMusubiSnapshot(store) as unknown as InboxSnapshot
-  const first = snapshot.artifacts[0]
-
-  if (!first) return <Centered>No artifacts to review. Run the seed task.</Centered>
-
-  return <ReviewRoot initialArtifactId={first.id} />
-}
-
-function ReviewRoot({ initialArtifactId }: { initialArtifactId: string }) {
-  const [artifactId, setArtifactId] = useState(initialArtifactId)
+  if (!artifactId) return <ProjectBoard onOpen={setArtifactId} />
 
   return (
     <ArtifactNavProvider select={setArtifactId}>
