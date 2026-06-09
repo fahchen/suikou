@@ -62,3 +62,52 @@ Replace the ad hoc external-only mutation pattern with one of these local fixes:
 
 The existing `touch/1` helper (`Socket.assign(socket, :rev, System.unique_integer())`)
 is therefore a local contract fix, not an upstream workaround.
+
+## ISSUE-2: Child store runs only `init/1` on first mount, never `update/2`
+
+**Status:** Not a Musubi bug; Suikou usage issue
+
+**Severity:** High until fixed locally (silent empty child on first render)
+
+**Summary**
+A child store mounted via `Musubi.Child.child(Mod, id: ..., props...)` runs only
+`init/1` on its first mount. `update/2` fires on *later* reconciles when a parent
+prop value changes, not on the initial mount. A child whose `render/1` reads an
+assign that only `update/2` populates therefore renders empty until some later
+event (a command, or a parent prop change) triggers a reload.
+
+**Root cause**
+- On first mount the reconciler returns a `:mount` action and runs `mount_store`
+  → `init_store`, which calls only `init/1`
+  (`deps/musubi/lib/musubi/reconciler.ex` `mount_store/1`, `init_store/1`).
+- The props passed to `Child.child(...)` are already merged into the child
+  socket's assigns by `new_child_socket/5` *before* `init/1` runs, so they are
+  available inside `init/1`.
+- `update_store/2` (which calls `update/2`) only runs on the `:update` action,
+  emitted when `parent_assign_values_changed?/3` is true on a later reconcile.
+
+**Reproduction (Suikou)**
+1. Seed a round that already has comments.
+2. Mount `ReviewStore`; it mounts `CommentsStore` with `round_id: viewed.id`.
+3. Observed: the side rail shows "No comments match the filters" even though the
+   round has comments. Dispatching any command (which calls `reload/1`) makes
+   them appear.
+
+`CommentsStore.init/1` originally did `Socket.assign(socket, :comments, [])` and
+relied on `update/2` to load the round's comments, so a freshly mounted round
+rendered an empty thread.
+
+**Conclusion**
+Do not report upstream. A child store must produce its full render state from
+`init/1` (props are already in assigns there); `update/2` is only for reacting to
+later prop changes. Do not treat `update/2` as the single load path.
+
+**Suikou fix**
+Load the visible data in `init/1` from the props already merged into assigns:
+
+    def init(socket), do: {:ok, reload(socket)}
+
+`reload/1` reads `socket.assigns[:round_id]` and lists the comments. `update/2`
+keeps the same `reload/1` for the round-switch case. Covered by a mount-only
+render test in `review_store_test.exs` ("mount renders pre-existing comments
+without a command").
