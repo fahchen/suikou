@@ -12,6 +12,7 @@ export type Density = "tight" | "normal" | "loose"
 const THEME_KEY = "suikou-theme"
 const COMMENT_MODE_KEY = "suikou-comment-mode"
 const DENSITY_KEY = "suikou-density"
+const HIDE_COMMENTS_KEY = "suikou-hide-comments"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -23,6 +24,13 @@ export class UiStore {
   theme: ThemeName = "github"
   commentMode: CommentMode = "side"
   density: Density = "normal"
+  hideComments = false
+  commentsCollapsed = false
+  collapseNonce = 0
+  // Session-only: comment ids added after the page loaded. Under hide-all these
+  // stay visible so you can see what you just wrote; never persisted, so a
+  // refresh clears it and every comment falls back under the hide-all rule.
+  revealedCommentIds: string[] = []
   statusFilter: StatusFilter = "all"
   typeFilters: Record<CritiqueType, boolean> = {
     fix_required: true,
@@ -54,6 +62,10 @@ export class UiStore {
       this.density = savedDensity
     }
 
+    if (localStorage.getItem(HIDE_COMMENTS_KEY) === "true") {
+      this.hideComments = true
+    }
+
     this.applyTheme()
   }
 
@@ -71,6 +83,22 @@ export class UiStore {
   setDensity(density: Density): void {
     this.density = density
     localStorage.setItem(DENSITY_KEY, density)
+  }
+
+  setHideComments(hide: boolean): void {
+    this.hideComments = hide
+    localStorage.setItem(HIDE_COMMENTS_KEY, String(hide))
+    // Hiding starts from a clean slate; only comments added afterward reveal.
+    if (hide) this.revealedCommentIds = []
+  }
+
+  revealComment(id: string): void {
+    if (!this.revealedCommentIds.includes(id)) this.revealedCommentIds.push(id)
+  }
+
+  toggleCollapseAll(): void {
+    this.commentsCollapsed = !this.commentsCollapsed
+    this.collapseNonce++
   }
 
   setStatusFilter(filter: StatusFilter): void {

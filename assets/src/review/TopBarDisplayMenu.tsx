@@ -52,11 +52,20 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             <ToggleGroup
               size="sm"
               variant="outline"
-              value={[ui.commentMode]}
-              onValueChange={(v) => v[0] && ui.setCommentMode(v[0] as "inline" | "side")}
+              value={[ui.hideComments ? "hidden" : ui.commentMode]}
+              onValueChange={(v) => {
+                if (!v[0]) return;
+                if (v[0] === "hidden") {
+                  ui.setHideComments(true);
+                } else {
+                  ui.setHideComments(false);
+                  ui.setCommentMode(v[0] as "inline" | "side");
+                }
+              }}
             >
               <ToggleGroupItem value="inline">Inline</ToggleGroupItem>
               <ToggleGroupItem value="side">Side</ToggleGroupItem>
+              <ToggleGroupItem value="hidden">Hide</ToggleGroupItem>
             </ToggleGroup>
           </Row>
 

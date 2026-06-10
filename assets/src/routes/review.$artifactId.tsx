@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { createFileRoute, Outlet } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 
@@ -46,8 +47,28 @@ const ReviewShell = observer(function ReviewShell() {
 
   const wide = useMediaQuery(WIDE_QUERY)
   const blocks = useMarkdown(snapshot.current_round.content, ui.theme)
-  const comments = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters)
-  const sideMode = ui.commentMode === "side" && !snapshot.diff && wide
+
+  // Reveal any comment that appears after this mount (e.g. one you just added)
+  // so it shows immediately even under hide-all. The set lives only in this
+  // session, so a refresh re-seeds the baseline and re-hides everything.
+  const seenIds = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    const ids = snapshot.comments.items.map((c) => c.id)
+    if (seenIds.current === null) {
+      seenIds.current = new Set(ids)
+      return
+    }
+    for (const id of ids) {
+      if (!seenIds.current.has(id)) ui.revealComment(id)
+      seenIds.current.add(id)
+    }
+  })
+
+  const visible = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters)
+  const comments = ui.hideComments
+    ? visible.filter((c) => ui.revealedCommentIds.includes(c.id))
+    : visible
+  const sideMode = ui.commentMode === "side" && !snapshot.diff && wide && !ui.hideComments
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
 import { useLocation } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Check, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
+import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
 import { pendingCount } from "./store-context";
 import { type ReviewSnapshot, type Verdict } from "./types";
@@ -31,6 +32,19 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
         <TopBarRoundMenu snapshot={snapshot} />
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+          aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+          onClick={() => uiStore.toggleCollapseAll()}
+        >
+          {uiStore.commentsCollapsed ? (
+            <ChevronsUpDown size={14} />
+          ) : (
+            <ChevronsDownUp size={14} />
+          )}
+        </Button>
         <TopBarDisplayMenu artifactId={snapshot.artifact.id} rawView={rawView} />
         <TopBarVerdictMenu snapshot={snapshot} verdict={verdict} onVerdictChange={setVerdict} />
 
