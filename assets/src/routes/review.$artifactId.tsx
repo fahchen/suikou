@@ -4,6 +4,7 @@ import { observer } from "mobx-react-lite"
 import { useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
+import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import {
   ReviewStoreProvider,
   ReviewViewProvider,
@@ -43,31 +44,30 @@ const ReviewShell = observer(function ReviewShell() {
   const snapshot = useMusubiSnapshot(store) as ReviewSnapshot
   const ui = uiStore
 
+  const wide = useMediaQuery(WIDE_QUERY)
   const blocks = useMarkdown(snapshot.current_round.content, ui.theme)
   const comments = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters)
-  const sideMode = ui.commentMode === "side" && !snapshot.diff
+  const sideMode = ui.commentMode === "side" && !snapshot.diff && wide
 
   return (
-    <main className="flex h-screen flex-col bg-canvas text-ink">
+    <main className="h-screen overflow-auto bg-canvas text-ink">
       <TopBar snapshot={snapshot} />
 
-      <div className="flex-1 overflow-auto">
-        <div
-          className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-10 ${
-            sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
-          }`}
-        >
-          {snapshot.diff ? (
-            <DiffView diff={snapshot.diff} />
-          ) : (
-            <ReviewViewProvider
-              value={{ snapshot, blocks: blocks.blocks, loading: blocks.loading, comments }}
-            >
-              <Outlet />
-            </ReviewViewProvider>
-          )}
-          {sideMode && <CommentRail comments={comments} />}
-        </div>
+      <div
+        className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
+          sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
+        }`}
+      >
+        {snapshot.diff ? (
+          <DiffView diff={snapshot.diff} />
+        ) : (
+          <ReviewViewProvider
+            value={{ snapshot, blocks: blocks.blocks, loading: blocks.loading, comments }}
+          >
+            <Outlet />
+          </ReviewViewProvider>
+        )}
+        {sideMode && <CommentRail comments={comments} />}
       </div>
     </main>
   )

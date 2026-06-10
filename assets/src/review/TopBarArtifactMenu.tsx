@@ -14,11 +14,12 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" className="min-w-0 px-2">
-            <span className="truncate font-semibold tracking-[-0.006em] text-heading">
+          <Button variant="outline" size="sm" title="Switch artifact" className="min-w-0">
+            <FileText size={15} className="shrink-0 text-muted-foreground" />
+            <span className="hidden truncate text-[12px] font-medium text-heading sm:inline">
               {snapshot.artifact.title}
             </span>
-            <ChevronDown size={14} className="shrink-0 text-faint" />
+            <ChevronDown size={13} className="shrink-0 text-faint" />
           </Button>
         }
       />

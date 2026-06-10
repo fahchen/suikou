@@ -11,8 +11,8 @@ export function TopBarTocMenu(props: { content: string }) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon" title="Table of contents">
-            <List size={16} />
+          <Button variant="outline" size="icon-sm" title="Table of contents">
+            <List size={15} className="text-muted-foreground" />
           </Button>
         }
       />

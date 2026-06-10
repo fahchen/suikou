@@ -44,14 +44,17 @@ export const Composer = observer(function Composer(props: {
       transition={{ duration: 0.18, ease: "easeOut" }}
       className="my-1 ml-14 flex flex-col gap-2 overflow-hidden rounded-lg border border-blue-soft bg-surface p-3 shadow-[var(--surface-shadow)]"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <span className="text-[12px] font-medium text-heading">
           New comment on{" "}
           {props.startLine === props.endLine
             ? `line ${props.startLine}`
             : `lines ${props.startLine}-${props.endLine}`}
         </span>
-        <div className="ml-auto flex gap-1">
+        <span className="hidden text-[11px] text-faint pointer-coarse:inline">
+          Tap another line to extend.
+        </span>
+        <div className="flex flex-wrap gap-1 sm:ml-auto">
           {TYPES.map((type) => (
             <button
               key={type}
@@ -71,13 +74,13 @@ export const Composer = observer(function Composer(props: {
 
       <textarea
         autoFocus
-        className="min-h-20 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[13px]"
+        className="min-h-20 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         placeholder="Leave a comment. Markdown supported."
         value={ui.composerBody}
         onChange={(e) => ui.setComposerBody(e.target.value)}
       />
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
@@ -86,7 +89,7 @@ export const Composer = observer(function Composer(props: {
           <SquarePlus size={13} />
           Suggest
         </button>
-        <span className="text-[11px] text-faint">
+        <span className="hidden text-[11px] text-faint sm:inline">
           Saved as a pending draft until you submit the review.
         </span>
         <div className="ml-auto flex items-center gap-2">

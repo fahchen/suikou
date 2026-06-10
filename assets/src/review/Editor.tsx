@@ -3,12 +3,11 @@ import { AnimatePresence } from "motion/react";
 import { Plus } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
-import type { DocView } from "../stores/ui-store";
+import type { DocView, Density } from "../stores/ui-store";
 import type { RenderedBlock } from "../markdown/render";
 import type { Comment } from "./types";
 import { Composer } from "./Composer";
 import { CommentCard } from "./CommentCard";
-import { Button } from "@/components/ui/button";
 
 interface EditorProps {
   view: DocView;
@@ -25,6 +24,19 @@ const KIND_CLASS: Record<RenderedBlock["kind"], string> = {
   mermaid: "md-mermaid",
 };
 
+/**
+ * Per-density reading-rhythm top-margins keyed by block role. Classes stay
+ * static so Tailwind can see them.
+ */
+const DENSITY: Record<
+  Density,
+  { section: string; hug: string; wide: string; prose: string }
+> = {
+  tight: { section: "mt-5", hug: "mt-1", wide: "mt-3", prose: "mt-2" },
+  normal: { section: "mt-7", hug: "mt-2", wide: "mt-5", prose: "mt-3" },
+  loose: { section: "mt-10", hug: "mt-3", wide: "mt-7", prose: "mt-5" },
+};
+
 export const Editor = observer(function Editor(props: EditorProps) {
   if (props.view === "raw") return <RawView {...props} />;
   return <RenderView {...props} />;
@@ -32,9 +44,10 @@ export const Editor = observer(function Editor(props: EditorProps) {
 
 const RenderView = observer(function RenderView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
+  const tiers = DENSITY[uiStore.density];
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-line bg-editor">
+    <article className="overflow-hidden rounded-2xl border border-line bg-editor px-2 py-4 sm:px-3 sm:py-6">
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
@@ -44,7 +57,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
 
       {props.loading && <p className="px-6 py-8 text-sm text-muted-foreground">Rendering…</p>}
 
-      {props.blocks.map((block) => (
+      {props.blocks.map((block, i) => (
         <LineRow
           key={`${block.startLine}-${block.kind}`}
           startLine={block.startLine}
@@ -52,9 +65,10 @@ const RenderView = observer(function RenderView(props: EditorProps) {
           comments={props.comments}
           inline={props.inline}
           content={props.content}
+          marginClass={blockSpacing(block, props.blocks[i - 1], tiers)}
         >
           <div
-            className={`min-w-0 flex-1 py-1.5 ${KIND_CLASS[block.kind]}`}
+            className={`min-w-0 flex-1 ${KIND_CLASS[block.kind]}`}
             dangerouslySetInnerHTML={{ __html: block.html }}
           />
         </LineRow>
@@ -68,7 +82,7 @@ const RawView = observer(function RawView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-line bg-editor font-mono text-[13px]">
+    <article className="overflow-hidden rounded-2xl border border-line bg-editor px-2 py-4 font-mono text-[13px] sm:px-3 sm:py-6">
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
@@ -87,7 +101,7 @@ const RawView = observer(function RawView(props: EditorProps) {
             inline={props.inline}
             content={props.content}
           >
-            <span className="min-w-0 flex-1 whitespace-pre-wrap py-1.5 pl-2 text-text">
+            <span className="min-w-0 flex-1 whitespace-pre-wrap pl-2 text-text">
               {line || " "}
             </span>
           </LineRow>
@@ -102,12 +116,34 @@ const RawView = observer(function RawView(props: EditorProps) {
  * slot supplied by the caller, plus the inline composer and anchored comments.
  * Shared by the rendered (per-block) and raw (per-line) views.
  */
+/**
+ * Reading-rhythm gap above each rendered block (margin-top only, so adjacent
+ * flex rows never double their margins). Headings open a section, then hug the
+ * body that follows; code/mermaid/tables get a wider break; prose stays calm.
+ * Tier widths come from the active density.
+ */
+function blockSpacing(
+  block: RenderedBlock,
+  prev: RenderedBlock | undefined,
+  tiers: (typeof DENSITY)[Density],
+): string {
+  if (!prev) return "";
+  const heading = (b: RenderedBlock) => /^h[1-6]$/.test(b.tag);
+  const wide = (b: RenderedBlock) =>
+    b.kind === "code" || b.kind === "mermaid" || b.tag === "table";
+  if (heading(block)) return tiers.section;
+  if (heading(prev)) return tiers.hug;
+  if (wide(block) || wide(prev)) return tiers.wide;
+  return tiers.prose;
+}
+
 const LineRow = observer(function LineRow(props: {
   startLine: number;
   endLine: number;
   comments: Comment[];
   inline: boolean;
   content: string;
+  marginClass?: string;
   children: React.ReactNode;
 }) {
   const ui = uiStore;
@@ -125,31 +161,38 @@ const LineRow = observer(function LineRow(props: {
     : [];
 
   return (
-    <div>
+    <div className={props.marginClass}>
       <div
         className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
-        <span className="relative w-10 shrink-0 select-none py-1.5 text-right font-mono text-[12px] text-faint">
+        <button
+          type="button"
+          title={`Add a comment on line ${startLine} (Shift-click to extend)`}
+          aria-label={`Add a comment on line ${startLine}`}
+          className="relative w-10 shrink-0 select-none text-right font-mono text-[12px] text-faint transition-colors hover:text-blue"
+          onClick={(e) => {
+            // Touch has no shift-key: once a range is open, a plain tap on any
+            // other line number extends it. Fine pointers keep shift-to-extend.
+            const extend =
+              ui.selStart != null &&
+              (e.shiftKey || window.matchMedia("(pointer: coarse)").matches);
+            if (extend) {
+              ui.extendSelection(startLine, endLine);
+            } else {
+              ui.openComposer(startLine, endLine, "line");
+            }
+          }}
+        >
           {selected && <span className="absolute -left-1 top-0 h-full w-0.5 bg-blue" aria-hidden />}
+          <Plus
+            size={13}
+            className="absolute -left-2 top-0.5 hidden text-blue group-hover:block"
+            aria-hidden
+          />
           {label}
-          <Button
-            size="icon-xs"
-            title={`Add a comment on line ${startLine} (Shift-click to extend)`}
-            aria-label="Add a comment"
-            className="absolute -left-1 top-1 hidden bg-blue text-on-accent hover:bg-blue group-hover:inline-flex"
-            onClick={(e) => {
-              if (e.shiftKey && ui.selStart != null) {
-                ui.extendSelection(startLine, endLine);
-              } else {
-                ui.openComposer(startLine, endLine, "line");
-              }
-            }}
-          >
-            <Plus size={13} />
-          </Button>
-        </span>
+        </button>
         {props.children}
       </div>
 

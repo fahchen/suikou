@@ -32,14 +32,14 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         </Button>
       </div>
       <textarea
-        className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px]"
+        className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         rows={2}
         placeholder="Reply…"
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
       <div className="flex items-center gap-2">
-        {!comment.resolved && (
+        {comment.status === "published" && !comment.resolved && (
           <Button
             variant="outline"
             size="sm"

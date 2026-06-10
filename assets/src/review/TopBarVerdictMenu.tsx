@@ -3,7 +3,7 @@ import { ChevronDown, Check, PencilLine, MessageSquare } from "lucide-react";
 
 import { useReviewCommands } from "./commands";
 import { hasUnresolvedBlocker } from "./store-context";
-import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
+import { VERDICT_META, type Comment, type ReviewSnapshot, type Verdict } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,7 +20,7 @@ export function VerdictIcon(props: { verdict: Verdict; size?: number }) {
   return <MessageSquare size={props.size ?? 15} className="text-muted-foreground" />;
 }
 
-/** Verdict selection plus the review-scoped comment composer. */
+/** Verdict selection plus the review-scoped note, persisted as a pending draft. */
 export function TopBarVerdictMenu(props: {
   snapshot: ReviewSnapshot;
   verdict: Verdict;
@@ -28,27 +28,42 @@ export function TopBarVerdictMenu(props: {
 }) {
   const { snapshot, verdict, onVerdictChange } = props;
   const commands = useReviewCommands();
-  const [body, setBody] = useState("");
-  const [type, setType] = useState<CritiqueType>("note");
+  const draft = reviewDraft(snapshot.comments.items);
   const blocker = hasUnresolvedBlocker(snapshot.comments.items);
 
-  // A review-scoped comment carries no anchor and is authored as a pending draft;
-  // Submit publishes it alongside the line comments (see authoring.feature).
-  function addReviewComment() {
-    const text = body.trim();
-    if (!text) return;
-    void commands.addComment.dispatch({
-      scope: "review",
-      critique_type: type,
-      body: text,
-      start_line: null,
-      end_line: null,
-    });
-    setBody("");
+  const [reviewBody, setReviewBody] = useState(draft?.body ?? "");
+  const [reviewType, setReviewType] = useState<CritiqueType>(draft?.critique_type ?? "note");
+
+  // The note persists the moment the popover closes: a new pending review
+  // comment if none exists yet, otherwise an edit of the standing draft.
+  // Submit later publishes it with the rest of the round.
+  function handleOpenChange(open: boolean) {
+    if (open) {
+      setReviewBody(draft?.body ?? "");
+      setReviewType(draft?.critique_type ?? "note");
+      return;
+    }
+    const text = reviewBody.trim();
+    if (!text || (draft && text === draft.body && reviewType === draft.critique_type)) return;
+    if (draft) {
+      void commands.editComment.dispatch({
+        comment_id: draft.id,
+        body: text,
+        critique_type: reviewType,
+      });
+    } else {
+      void commands.addComment.dispatch({
+        scope: "review",
+        critique_type: reviewType,
+        body: text,
+        start_line: null,
+        end_line: null,
+      });
+    }
   }
 
   return (
-    <Popover>
+    <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
           <Button
@@ -105,11 +120,11 @@ export function TopBarVerdictMenu(props: {
                     key={option}
                     type="button"
                     className={`rounded-lg border px-2 py-0.5 text-[10px] transition-colors ${
-                      type === option
+                      reviewType === option
                         ? "border-transparent bg-blue text-on-accent"
                         : "border-line bg-transparent text-faint hover:bg-hover"
                     }`}
-                    onClick={() => setType(option)}
+                    onClick={() => setReviewType(option)}
                   >
                     {option}
                   </button>
@@ -117,23 +132,19 @@ export function TopBarVerdictMenu(props: {
               </div>
             </div>
             <textarea
-              className="min-h-16 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[12px]"
+              className="min-h-16 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[12px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
               placeholder="Comment on the whole review. Published on submit."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
+              value={reviewBody}
+              onChange={(e) => setReviewBody(e.target.value)}
             />
-            <div className="mt-1.5 flex justify-end">
-              <Button
-                size="sm"
-                disabled={commands.addComment.isPending || !body.trim()}
-                onClick={addReviewComment}
-              >
-                Add comment
-              </Button>
-            </div>
           </div>
         </div>
       </PopoverContent>
     </Popover>
   );
+}
+
+/** The standing review-scoped pending note for this round, if one was drafted. */
+function reviewDraft(comments: Comment[]): Comment | undefined {
+  return comments.find((c) => c.scope === "review" && c.status === "pending" && !c.anchor);
 }

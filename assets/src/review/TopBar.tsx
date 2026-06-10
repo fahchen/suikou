@@ -23,13 +23,13 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
   const pending = pendingCount(snapshot.comments.items);
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-canvas px-3 py-2 sm:gap-3 sm:px-4">
-      <div className="flex min-w-0 items-center gap-2">
+    <header className="pointer-events-none sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
+      <div className="pointer-events-auto flex min-w-0 items-center gap-2">
         <TopBarTocMenu content={snapshot.current_round.content} />
         <TopBarArtifactMenu snapshot={snapshot} rawView={rawView} />
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="pointer-events-auto ml-auto flex items-center gap-2">
         <TopBarRoundMenu snapshot={snapshot} />
         <TopBarDisplayMenu artifactId={snapshot.artifact.id} rawView={rawView} />
         <TopBarVerdictMenu snapshot={snapshot} verdict={verdict} onVerdictChange={setVerdict} />
