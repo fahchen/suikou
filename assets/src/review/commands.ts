@@ -11,7 +11,6 @@ export function useReviewCommands() {
     deleteComment: useMusubiCommand(comments, "delete_comment"),
     resolveComment: useMusubiCommand(comments, "resolve_comment"),
     reply: useMusubiCommand(comments, "reply"),
-    relocateComment: useMusubiCommand(comments, "relocate_comment"),
     submitReview: useMusubiCommand(store, "submit_review"),
     selectRound: useMusubiCommand(store, "select_round"),
     diffRound: useMusubiCommand(store, "diff_round"),

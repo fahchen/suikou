@@ -4,8 +4,6 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  LocateFixed,
-  Link2,
   ChevronDown,
 } from "lucide-react";
 
@@ -47,9 +45,8 @@ export function CommentCardHeader(props: {
   inline: boolean;
   open: boolean;
   onEdit: () => void;
-  onRelocate: () => void;
 }) {
-  const { comment, inline, open, onEdit, onRelocate } = props;
+  const { comment, inline, open, onEdit } = props;
   const commands = useReviewCommands();
   const meta = CRITIQUE_META[comment.critique_type];
   const anchorLabel = comment.anchor
@@ -57,13 +54,6 @@ export function CommentCardHeader(props: {
       ? `line ${comment.anchor.start_line}`
       : `lines ${comment.anchor.start_line}-${comment.anchor.end_line}`
     : "unanchored";
-
-  function copyLink() {
-    const anchor = comment.anchor ? `line-${comment.anchor.start_line}` : `comment-${comment.id}`;
-    void navigator.clipboard?.writeText(
-      `${window.location.origin}${window.location.pathname}#${anchor}`,
-    );
-  }
 
   function locateLine() {
     if (!comment.anchor) return;
@@ -149,18 +139,6 @@ export function CommentCardHeader(props: {
             }
           />
           <DropdownMenuContent align="end" className="w-40">
-            {comment.outdated && !inline && (
-              <DropdownMenuItem onClick={onRelocate}>
-                <LocateFixed size={14} />
-                Relocate
-              </DropdownMenuItem>
-            )}
-            {comment.outdated && !inline && (
-              <DropdownMenuItem onClick={copyLink}>
-                <Link2 size={14} />
-                Copy link
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={onEdit}>
               <Pencil size={14} />
               Edit

@@ -3,7 +3,6 @@ import { motion } from "motion/react";
 
 import type { Comment } from "./types";
 import { CommentCardHeader } from "./CommentCardHeader";
-import { CommentRelocatePanel } from "./CommentRelocatePanel";
 import { CommentEditPanel } from "./CommentEditPanel";
 import { CommentReplies } from "./CommentReplies";
 import { CommentReplyComposer } from "./CommentReplyComposer";
@@ -14,9 +13,9 @@ import {
 
 /**
  * `context` tailors the affordances to where the card lives. An "inline" card
- * sits next to its own line in the editor, so the anchor label and the locate
- * cluster (relocate, copy-link) are redundant and hidden; the "rail" card in
- * the side list keeps them, since position there is not self-evident.
+ * sits next to its own line in the editor, so the anchor label is redundant and
+ * hidden; the "rail" card in the side list keeps it, since position there is not
+ * self-evident.
  */
 export function CommentCard(props: {
   comment: Comment;
@@ -28,7 +27,6 @@ export function CommentCard(props: {
   const inline = context === "inline";
   const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
-  const [relocating, setRelocating] = useState(false);
 
   // Rail cards reveal the reply composer only when selected; inline cards
   // (next to their own line) always show it.
@@ -51,21 +49,14 @@ export function CommentCard(props: {
           inline={inline}
           open={open}
           onEdit={() => setEditing(true)}
-          onRelocate={() => setRelocating(true)}
         />
 
         <CollapsibleContent>
           <div className="flex flex-col gap-2 px-3 py-2.5">
             {comment.outdated && (
               <p className="text-[12px] text-amber">
-                {inline
-                  ? "Lost its anchor; the quoted line changed. Re-anchor from the side rail, or delete."
-                  : "Lost its anchor; the quoted line changed. Re-anchor or delete."}
+                Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
               </p>
-            )}
-
-            {relocating && !inline && (
-              <CommentRelocatePanel comment={comment} onDone={() => setRelocating(false)} />
             )}
 
             {editing ? (
