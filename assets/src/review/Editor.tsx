@@ -208,7 +208,7 @@ const LineRow = observer(function LineRow(props: {
 
       <AnimatePresence initial={false}>
         {inlineComments.map((comment) => (
-          <div key={comment.id} className="px-2 pb-2 pl-10 sm:px-4 sm:pl-14">
+          <div key={comment.id} className="px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14">
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}
