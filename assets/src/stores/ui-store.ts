@@ -7,9 +7,11 @@ export type CommentMode = "inline" | "side"
 export type StatusFilter = "all" | "unresolved" | "resolved"
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
 export type CommentScope = "line" | "file" | "review"
+export type Density = "tight" | "normal" | "loose"
 
 const THEME_KEY = "suikou-theme"
 const COMMENT_MODE_KEY = "suikou-comment-mode"
+const DENSITY_KEY = "suikou-density"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -20,6 +22,7 @@ const COMMENT_MODE_KEY = "suikou-comment-mode"
 export class UiStore {
   theme: ThemeName = "github"
   commentMode: CommentMode = "side"
+  density: Density = "normal"
   statusFilter: StatusFilter = "all"
   typeFilters: Record<CritiqueType, boolean> = {
     fix_required: true,
@@ -46,6 +49,11 @@ export class UiStore {
       this.commentMode = savedCommentMode
     }
 
+    const savedDensity = localStorage.getItem(DENSITY_KEY)
+    if (savedDensity === "tight" || savedDensity === "normal" || savedDensity === "loose") {
+      this.density = savedDensity
+    }
+
     this.applyTheme()
   }
 
@@ -58,6 +66,11 @@ export class UiStore {
   setCommentMode(mode: CommentMode): void {
     this.commentMode = mode
     localStorage.setItem(COMMENT_MODE_KEY, mode)
+  }
+
+  setDensity(density: Density): void {
+    this.density = density
+    localStorage.setItem(DENSITY_KEY, density)
   }
 
   setStatusFilter(filter: StatusFilter): void {

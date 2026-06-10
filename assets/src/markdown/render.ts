@@ -14,6 +14,8 @@ export interface RenderedBlock {
   endLine: number
   html: string
   kind: BlockKind
+  /** Top-level HTML tag for markdown blocks (`h2`, `p`, `ul`, `table`, …), else "". */
+  tag: string
   /** Fence language for code blocks, else null. */
   lang: string | null
 }
@@ -37,19 +39,20 @@ export async function renderMarkdown(content: string, theme: ThemeName): Promise
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
       if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return { startLine, endLine, kind: "mermaid", lang: "mermaid", html: await renderMermaid(fence.content, theme) }
+        return { startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: await renderMermaid(fence.content, theme) }
       }
 
       if (fence) {
         const lang = resolveLang(highlighter, fence.info)
         const html = highlighter.codeToHtml(fence.content.replace(/\n$/, ""), { lang, theme: shiki })
-        return { startLine, endLine, kind: "code", lang, html }
+        return { startLine, endLine, kind: "code", tag: "", lang, html }
       }
 
       return {
         startLine,
         endLine,
         kind: "markdown",
+        tag: group[0]?.tag ?? "",
         lang: null,
         html: md.renderer.render(group, md.options, {})
       }

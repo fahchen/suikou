@@ -4,7 +4,7 @@ import { SlidersHorizontal } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
 import { THEMES, THEME_LABELS } from "../themes";
-import type { CritiqueType, StatusFilter } from "../stores/ui-store";
+import type { CritiqueType, Density, StatusFilter } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -22,6 +22,11 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "resolved", label: "Resolved" },
 ];
 const TYPE_OPTIONS: CritiqueType[] = ["fix_required", "needs_answer", "note"];
+const DENSITY_OPTIONS: { value: Density; label: string }[] = [
+  { value: "tight", label: "Tight" },
+  { value: "normal", label: "Normal" },
+  { value: "loose", label: "Loose" },
+];
 
 /** View preferences and comment filters: layout, markdown mode, theme, status, type. */
 export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
@@ -70,6 +75,21 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             >
               <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>
               <ToggleGroupItem value="raw">Raw</ToggleGroupItem>
+            </ToggleGroup>
+          </Row>
+
+          <Row label="Spacing">
+            <ToggleGroup
+              size="sm"
+              variant="outline"
+              value={[ui.density]}
+              onValueChange={(v) => v[0] && ui.setDensity(v[0] as Density)}
+            >
+              {DENSITY_OPTIONS.map((option) => (
+                <ToggleGroupItem key={option.value} value={option.value}>
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
           </Row>
 
