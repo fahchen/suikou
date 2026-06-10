@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 
+import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
 import { CommentCardHeader } from "./CommentCardHeader";
 import { CommentEditPanel } from "./CommentEditPanel";
@@ -17,7 +19,7 @@ import {
  * hidden; the "rail" card in the side list keeps it, since position there is not
  * self-evident.
  */
-export function CommentCard(props: {
+export const CommentCard = observer(function CommentCard(props: {
   comment: Comment;
   context?: "inline" | "rail";
   selected?: boolean;
@@ -27,6 +29,15 @@ export function CommentCard(props: {
   const inline = context === "inline";
   const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
+
+  // Collapse-all / expand-all drives every card from one nonce bump. Skip the
+  // first render so resolved cards keep their initial collapsed state.
+  const collapseSeen = useRef(uiStore.collapseNonce);
+  useEffect(() => {
+    if (uiStore.collapseNonce === collapseSeen.current) return;
+    collapseSeen.current = uiStore.collapseNonce;
+    setOpen(!uiStore.commentsCollapsed);
+  }, [uiStore.collapseNonce, uiStore.commentsCollapsed]);
 
   // Rail cards reveal the reply composer only when selected; inline cards
   // (next to their own line) always show it.
@@ -73,4 +84,4 @@ export function CommentCard(props: {
       </Collapsible>
     </motion.article>
   );
-}
+});
