@@ -1,23 +1,19 @@
-const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const DATE_SAME_YEAR = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
+const DATE_WITH_YEAR = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["year", 31536000],
-  ["month", 2592000],
-  ["week", 604800],
-  ["day", 86400],
-  ["hour", 3600],
-  ["minute", 60],
-];
-
-/** Compact "just now / 3h ago / 2d ago" label from an ISO timestamp. */
+/** Compact age: "now", "5m", "3h"; past 24h falls back to a date ("Jun 9"). */
 export function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
+  const date = new Date(iso);
+  const then = date.getTime();
   if (Number.isNaN(then)) return "";
-  const diffSec = Math.round((then - Date.now()) / 1000);
-  const abs = Math.abs(diffSec);
-  if (abs < 45) return "just now";
-  for (const [unit, secs] of UNITS) {
-    if (abs >= secs) return RELATIVE.format(Math.round(diffSec / secs), unit);
-  }
-  return "just now";
+  const diffSec = Math.round((Date.now() - then) / 1000);
+  if (diffSec < 45) return "now";
+  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m`;
+  if (diffSec < 86400) return `${Math.round(diffSec / 3600)}h`;
+  const fmt = date.getFullYear() === new Date().getFullYear() ? DATE_SAME_YEAR : DATE_WITH_YEAR;
+  return fmt.format(date);
 }
