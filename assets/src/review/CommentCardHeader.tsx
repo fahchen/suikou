@@ -68,14 +68,14 @@ export function CommentCardHeader(props: {
 
   return (
     <header
-      className={`flex items-center gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
+      className={`flex items-start gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
     >
       <CollapsibleTrigger
         render={
           <button
             type="button"
             aria-label={open ? "Collapse comment" : "Expand comment"}
-            className="-m-1 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
+            className="-m-1 mt-0.5 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
           />
         }
       >
@@ -86,50 +86,56 @@ export function CommentCardHeader(props: {
         />
       </CollapsibleTrigger>
 
-      {!inline &&
-        (comment.anchor ? (
-          <button
-            type="button"
-            onClick={locateLine}
-            title="Jump to these lines"
-            className="inline-flex items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        {!inline &&
+          (comment.anchor ? (
+            <button
+              type="button"
+              onClick={locateLine}
+              title="Jump to these lines"
+              className="inline-flex shrink-0 items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
+            >
+              <Crosshair size={13} />
+              {anchorLabel}
+            </button>
+          ) : (
+            <span className="inline-flex shrink-0 items-center gap-1 text-muted-foreground">
+              {anchorLabel}
+            </span>
+          ))}
+
+        <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
+
+        {comment.carried && comment.original_round != null && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted-foreground"
+            title={`Carried from round ${comment.original_round}`}
           >
-            <Crosshair size={13} />
-            {anchorLabel}
-          </button>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">{anchorLabel}</span>
-        ))}
+            <RefreshCw size={11} />R{comment.original_round}
+          </span>
+        )}
 
-      <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
-
-      {comment.carried && comment.original_round != null && (
         <span
-          className="inline-flex items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted-foreground"
-          title={`Carried from round ${comment.original_round}`}
+          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}
         >
-          <RefreshCw size={11} />R{comment.original_round}
+          {comment.critique_type}
         </span>
-      )}
 
-      <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}>
-        {comment.critique_type}
-      </span>
+        {comment.status === "pending" && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-active-line-border bg-blue-soft px-2 py-0.5 text-[11px] text-blue">
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            Pending
+          </span>
+        )}
+        {comment.resolved && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-soft px-2 py-0.5 text-[11px] text-green-text">
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            Resolved
+          </span>
+        )}
+      </div>
 
-      {comment.status === "pending" && (
-        <span className="inline-flex items-center gap-1 rounded-full border border-active-line-border bg-blue-soft px-2 py-0.5 text-[11px] text-blue">
-          <span className="size-1.5 rounded-full bg-current" aria-hidden />
-          Pending
-        </span>
-      )}
-      {comment.resolved && (
-        <span className="inline-flex items-center gap-1 rounded-full border border-line bg-soft px-2 py-0.5 text-[11px] text-green-text">
-          <span className="size-1.5 rounded-full bg-current" aria-hidden />
-          Resolved
-        </span>
-      )}
-
-      <div className="ml-auto">
+      <div className="shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
