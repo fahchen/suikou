@@ -18,12 +18,21 @@ import {
  * cluster (relocate, copy-link) are redundant and hidden; the "rail" card in
  * the side list keeps them, since position there is not self-evident.
  */
-export function CommentCard(props: { comment: Comment; context?: "inline" | "rail" }) {
-  const { comment, context = "rail" } = props;
+export function CommentCard(props: {
+  comment: Comment;
+  context?: "inline" | "rail";
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
+  const { comment, context = "rail", selected = false, onSelect } = props;
   const inline = context === "inline";
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
   const [relocating, setRelocating] = useState(false);
+
+  // Rail cards reveal the reply composer only when selected; inline cards
+  // (next to their own line) always show it.
+  const showComposer = inline || selected;
 
   return (
     <motion.article
@@ -31,7 +40,10 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="rounded-xl border border-line bg-surface text-[13px] shadow-[var(--surface-shadow)]"
+      onClick={onSelect}
+      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] ${
+        onSelect && !selected ? "cursor-pointer" : ""
+      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"}`}
     >
       <Collapsible open={open} onOpenChange={setOpen}>
         <CommentCardHeader
@@ -64,7 +76,7 @@ export function CommentCard(props: { comment: Comment; context?: "inline" | "rai
 
             <CommentReplies replies={comment.replies} />
 
-            {!editing && <CommentReplyComposer comment={comment} />}
+            {!editing && showComposer && <CommentReplyComposer comment={comment} />}
           </div>
         </CollapsibleContent>
       </Collapsible>

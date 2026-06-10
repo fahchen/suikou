@@ -27,6 +27,20 @@ const TONE_CLASS: Record<string, string> = {
   muted: "bg-soft text-muted-foreground",
 };
 
+// Rendered rows can group several source lines under one block whose id is its
+// first line, so resolve every block whose covered range intersects the anchor.
+function rangeElements(start: number, end: number): HTMLElement[] {
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('[id^="line-"]'))
+    .map((el) => ({ el, start: Number(el.id.slice(5)) }))
+    .sort((a, b) => a.start - b.start);
+  const hits: HTMLElement[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const blockEnd = i + 1 < rows.length ? rows[i + 1].start - 1 : Infinity;
+    if (rows[i].start <= end && blockEnd >= start) hits.push(rows[i].el);
+  }
+  return hits;
+}
+
 /** Card header: collapse trigger, anchor/round/type/status badges, actions menu. */
 export function CommentCardHeader(props: {
   comment: Comment;
@@ -51,6 +65,17 @@ export function CommentCardHeader(props: {
     );
   }
 
+  function locateLine() {
+    if (!comment.anchor) return;
+    const hits = rangeElements(comment.anchor.start_line, comment.anchor.end_line);
+    if (hits.length === 0) return;
+    hits[0].scrollIntoView({ behavior: "smooth", block: "center" });
+    for (const el of hits) {
+      el.classList.add("ring-2", "ring-blue");
+      setTimeout(() => el.classList.remove("ring-2", "ring-blue"), 1200);
+    }
+  }
+
   return (
     <header
       className={`flex items-center gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
@@ -71,12 +96,20 @@ export function CommentCardHeader(props: {
         />
       </CollapsibleTrigger>
 
-      {!inline && (
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
-          {comment.anchor && <Crosshair size={13} />}
-          {anchorLabel}
-        </span>
-      )}
+      {!inline &&
+        (comment.anchor ? (
+          <button
+            type="button"
+            onClick={locateLine}
+            title="Jump to these lines"
+            className="inline-flex items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
+          >
+            <Crosshair size={13} />
+            {anchorLabel}
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">{anchorLabel}</span>
+        ))}
 
       <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
 
