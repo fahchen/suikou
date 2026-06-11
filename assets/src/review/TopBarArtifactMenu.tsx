@@ -14,8 +14,13 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" title="Switch artifact" className="min-w-0">
-            <FileText size={15} className="shrink-0 text-muted-foreground" />
+          <Button
+            variant="pill"
+            size="xs"
+            title="Switch artifact"
+            className="h-[30px] min-w-0 px-2.5"
+          >
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
             <span className="hidden truncate text-[12px] font-medium text-heading sm:inline">
               {snapshot.artifact.title}
             </span>
@@ -34,7 +39,7 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
               <button
                 key={artifact.id}
                 type="button"
-                className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] ${
+                className={`flex items-center gap-2 rounded py-1.5 pl-6 pr-2 text-left text-[13px] ${
                   active ? "bg-tint text-heading" : "hover:bg-hover"
                 }`}
                 onClick={() =>
