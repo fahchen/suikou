@@ -1,5 +1,6 @@
 import {
   Crosshair,
+  Unlink,
   RefreshCw,
   MoreHorizontal,
   Pencil,
@@ -51,9 +52,9 @@ export function CommentCardHeader(props: {
   const meta = CRITIQUE_META[comment.critique_type];
   const anchorLabel = comment.anchor
     ? comment.anchor.start_line === comment.anchor.end_line
-      ? `line ${comment.anchor.start_line}`
-      : `lines ${comment.anchor.start_line}-${comment.anchor.end_line}`
-    : "unanchored";
+      ? `L${comment.anchor.start_line}`
+      : `L${comment.anchor.start_line}–${comment.anchor.end_line}`
+    : "";
 
   function locateLine() {
     if (!comment.anchor) return;
@@ -68,14 +69,14 @@ export function CommentCardHeader(props: {
 
   return (
     <header
-      className={`flex items-start gap-2 px-3 py-2 ${open ? "border-b border-line-soft" : ""}`}
+      className={`flex items-center gap-2 px-3 py-1 ${open ? "border-b border-line-soft" : ""}`}
     >
       <CollapsibleTrigger
         render={
           <button
             type="button"
             aria-label={open ? "Collapse comment" : "Expand comment"}
-            className="-m-1 mt-0.5 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
+            className="-m-1 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
           />
         }
       >
@@ -87,22 +88,23 @@ export function CommentCardHeader(props: {
       </CollapsibleTrigger>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {!inline &&
-          (comment.anchor ? (
-            <button
-              type="button"
-              onClick={locateLine}
-              title="Jump to these lines"
-              className="inline-flex shrink-0 items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
-            >
-              <Crosshair size={13} />
-              {anchorLabel}
-            </button>
-          ) : (
-            <span className="inline-flex shrink-0 items-center gap-1 text-muted-foreground">
-              {anchorLabel}
+        {comment.anchor
+          ? !inline && (
+              <button
+                type="button"
+                onClick={locateLine}
+                title="Jump to these lines"
+                className="inline-flex shrink-0 items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
+              >
+                <Crosshair size={13} />
+                {anchorLabel}
+              </button>
+            )
+          : (
+            <span className="text-faint" title="No anchor">
+              <Unlink size={13} aria-label="No anchor" />
             </span>
-          ))}
+          )}
 
         <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
 
@@ -127,38 +129,38 @@ export function CommentCardHeader(props: {
             Pending
           </span>
         )}
-        {comment.resolved && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-soft px-2 py-0.5 text-[11px] text-green-text">
-            <span className="size-1.5 rounded-full bg-current" aria-hidden />
-            Resolved
-          </span>
-        )}
       </div>
 
-      <div className="shrink-0">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="icon-xs" title="Comment actions">
-                <MoreHorizontal size={15} />
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil size={14} />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
-            >
-              <Trash2 size={14} />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {comment.status === "pending" && (
+        <div className="shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Comment actions"
+                >
+                  <MoreHorizontal size={15} />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil size={14} />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
+              >
+                <Trash2 size={14} />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </header>
   );
 }
