@@ -10,8 +10,10 @@ export function useReviewCommands() {
     editComment: useMusubiCommand(comments, "edit_comment"),
     deleteComment: useMusubiCommand(comments, "delete_comment"),
     resolveComment: useMusubiCommand(comments, "resolve_comment"),
+    unresolveComment: useMusubiCommand(comments, "unresolve_comment"),
     reply: useMusubiCommand(comments, "reply"),
     submitReview: useMusubiCommand(store, "submit_review"),
+    setDraftVerdict: useMusubiCommand(store, "set_draft_verdict"),
     selectRound: useMusubiCommand(store, "select_round"),
     diffRound: useMusubiCommand(store, "diff_round"),
     closeDiff: useMusubiCommand(store, "close_diff")

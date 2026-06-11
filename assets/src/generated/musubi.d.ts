@@ -134,6 +134,12 @@ declare namespace Musubi {
           }
           reply: never
         }
+        unresolve_comment: {
+          payload: {
+            comment_id: string
+          }
+          reply: never
+        }
         reply: {
           payload: {
             comment_id: string
@@ -210,6 +216,7 @@ declare namespace Musubi {
         current_round: { number: number; content: string; is_latest: boolean }
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
         latest_verdict: "approve" | "request_changes" | "comment" | null
+        draft_verdict: "approve" | "request_changes" | "comment" | null
         diff: Musubi.StoreField<"SuikouWeb.Stores.DiffStore"> | null
       },
       {
@@ -220,6 +227,12 @@ declare namespace Musubi {
           reply: {
             warnings: string[]
           }
+        }
+        set_draft_verdict: {
+          payload: {
+            verdict: "approve" | "request_changes" | "comment"
+          }
+          reply: never
         }
         select_round: {
           payload: {

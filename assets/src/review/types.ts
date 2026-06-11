@@ -79,6 +79,7 @@ export interface ReviewSnapshot {
   current_round: { number: number; content: string; is_latest: boolean }
   comments: { items: Comment[] }
   latest_verdict: Verdict | null
+  draft_verdict: Verdict | null
   diff: RoundDiff | null
 }
 
