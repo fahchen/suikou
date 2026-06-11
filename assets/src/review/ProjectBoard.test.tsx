@@ -83,7 +83,7 @@ describe("ProjectBoard", () => {
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/Working directory/), {
+    fireEvent.change(screen.getByLabelText("Working directory"), {
       target: { value: "/tmp/docs" },
     });
     fireEvent.click(screen.getByText("Create project"));
@@ -100,7 +100,7 @@ describe("ProjectBoard", () => {
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/Working directory/), {
+    fireEvent.change(screen.getByLabelText("Working directory"), {
       target: { value: "/no/such/dir" },
     });
     fireEvent.click(screen.getByText("Create project"));
