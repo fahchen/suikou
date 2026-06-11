@@ -40,15 +40,13 @@ function renderHeader(c: Comment) {
 }
 
 describe("CommentCardHeader", () => {
-  // A published comment is immutable server-side, so Edit/Delete must not be
-  // offered — otherwise the action dispatches and silently fails.
-  it("hides the actions menu for a published comment", () => {
-    renderHeader(comment({ status: "published" }));
-    expect(screen.queryByTitle("Comment actions")).toBeNull();
-  });
-
   it("shows the actions menu for a pending comment", () => {
     renderHeader(comment({ status: "pending" }));
+    expect(screen.getByTitle("Comment actions")).toBeInTheDocument();
+  });
+
+  it("shows the actions menu for a published comment", () => {
+    renderHeader(comment({ status: "published" }));
     expect(screen.getByTitle("Comment actions")).toBeInTheDocument();
   });
 });

@@ -131,36 +131,34 @@ export function CommentCardHeader(props: {
         )}
       </div>
 
-      {comment.status === "pending" && (
-        <div className="shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Comment actions"
-                >
-                  <MoreHorizontal size={15} />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil size={14} />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
+      <div className="shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Comment actions"
               >
-                <Trash2 size={14} />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+                <MoreHorizontal size={15} />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil size={14} />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
+            >
+              <Trash2 size={14} />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }
