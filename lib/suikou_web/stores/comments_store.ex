@@ -204,7 +204,12 @@ defmodule SuikouWeb.Stores.CommentsStore do
   end
 
   defp render_reply(%Reply{} = reply) do
-    %{id: reply.id, author: reply.author, body: reply.body, inserted_at: iso8601(reply.inserted_at)}
+    %{
+      id: reply.id,
+      author: reply.author,
+      body: reply.body,
+      inserted_at: iso8601(reply.inserted_at)
+    }
   end
 
   defp iso8601(%NaiveDateTime{} = naive),

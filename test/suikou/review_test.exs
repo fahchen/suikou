@@ -153,7 +153,7 @@ defmodule Suikou.ReviewTest do
 
     test "a later draft verdict overwrites the earlier one" do
       round = insert(:round)
-      {:ok, _} = Review.set_draft_verdict(round.id, :approve)
+      {:ok, _round} = Review.set_draft_verdict(round.id, :approve)
 
       assert {:ok, %{draft_verdict: :request_changes}} =
                Review.set_draft_verdict(round.id, :request_changes)

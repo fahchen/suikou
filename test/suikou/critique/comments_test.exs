@@ -235,7 +235,7 @@ defmodule Suikou.Critique.CommentsTest do
       artifact = round.artifact
       comment = published_comment(round.id)
       advance(artifact.id, "changed\n")
-      {:ok, _} = Critique.resolve_comment(comment.id)
+      {:ok, _comment} = Critique.resolve_comment(comment.id)
 
       assert {:ok, %{resolved_round: nil}} = Critique.unresolve_comment(comment.id)
     end

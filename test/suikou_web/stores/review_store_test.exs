@@ -56,7 +56,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   describe "draft verdict" do
     test "mount renders the latest round's stored draft verdict" do
       round = insert(:round)
-      {:ok, _} = Review.set_draft_verdict(round.id, :approve)
+      {:ok, _round} = Review.set_draft_verdict(round.id, :approve)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       assert %{draft_verdict: :approve} = Testing.render(page)
