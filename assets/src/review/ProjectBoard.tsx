@@ -60,16 +60,16 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
     }
   }
 
-  if (snapshot.projects.length === 0) {
-    return <Centered>No projects registered. Run the seed task.</Centered>
-  }
-
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10">
-      <h1 className="mb-6 text-lg font-semibold">Select a file to review</h1>
+      <h1 className="mb-6 text-lg font-semibold">Projects</h1>
+      <CreateProjectForm store={store} />
       {error && <p className="mb-4 text-sm text-red">{error}</p>}
-      <div className="space-y-6">
-        {snapshot.projects.map((project) => (
+      {snapshot.projects.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No projects yet. Add one above.</p>
+      ) : (
+        <div className="space-y-6">
+          {snapshot.projects.map((project) => (
           <section key={project.id}>
             <h2 className="mb-2 text-sm font-medium text-muted-foreground">{project.name}</h2>
             <ul className="divide-y divide-border rounded-md border border-border">
@@ -92,11 +92,61 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
                   </li>
                 )
               })}
-            </ul>
-          </section>
-        ))}
-      </div>
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
+  )
+}
+
+function CreateProjectForm({ store }: { store: BoardStore }) {
+  const { dispatch, isPending } = useMusubiCommand(store, "create_project")
+  const [name, setName] = useState("")
+  const [path, setPath] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    const reply = await dispatch({ name: name.trim(), path: path.trim() })
+    if (reply.project_id) {
+      setName("")
+      setPath("")
+    } else {
+      setError(reply.error ?? "Could not create project")
+    }
+  }
+
+  const disabled = isPending || name.trim() === "" || path.trim() === ""
+
+  return (
+    <form onSubmit={(event) => void submit(event)} className="mb-8 space-y-3 rounded-md border border-border p-4">
+      <h2 className="text-sm font-medium">New project</h2>
+      <input
+        type="text"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        placeholder="Project name"
+        className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm"
+      />
+      <input
+        type="text"
+        value={path}
+        onChange={(event) => setPath(event.target.value)}
+        placeholder="Working directory (absolute path)"
+        className="w-full rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm"
+      />
+      {error && <p className="text-sm text-red">{error}</p>}
+      <button
+        type="submit"
+        disabled={disabled}
+        className="rounded-md border border-border px-3 py-2 text-sm hover:bg-muted disabled:opacity-60"
+      >
+        {isPending ? "Creating…" : "Create project"}
+      </button>
+    </form>
   )
 }
 

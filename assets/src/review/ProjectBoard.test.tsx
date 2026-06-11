@@ -73,6 +73,38 @@ describe("ProjectBoard", () => {
     snapshot = { projects: [] };
     render(<ProjectBoard onOpen={vi.fn()} />);
 
-    expect(screen.getByText(/No projects registered/)).toBeInTheDocument();
+    expect(screen.getByText(/No projects yet/)).toBeInTheDocument();
+  });
+
+  it("creates a project from the working directory and name", async () => {
+    dispatch.mockResolvedValue({ project_id: "p-new", error: null });
+    render(<ProjectBoard onOpen={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Project name"), {
+      target: { value: "Docs" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Working directory/), {
+      target: { value: "/tmp/docs" },
+    });
+    fireEvent.click(screen.getByText("Create project"));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({ name: "Docs", path: "/tmp/docs" }),
+    );
+  });
+
+  it("surfaces a create-project error", async () => {
+    dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" });
+    render(<ProjectBoard onOpen={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Project name"), {
+      target: { value: "Docs" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Working directory/), {
+      target: { value: "/no/such/dir" },
+    });
+    fireEvent.click(screen.getByText("Create project"));
+
+    await waitFor(() => expect(screen.getByText("not_a_directory")).toBeInTheDocument());
   });
 });
