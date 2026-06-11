@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Check, PencilLine, MessageSquare } from "lucide-react";
+import { ChevronDown, CircleCheck, PencilLine, MessageSquare } from "lucide-react";
 
 import { useReviewCommands } from "./commands";
 import { hasUnresolvedBlocker } from "./store-context";
@@ -12,12 +12,19 @@ const VERDICTS: Verdict[] = ["comment", "request_changes", "approve"];
 const TYPE_OPTIONS: CritiqueType[] = ["fix_required", "needs_answer", "note"];
 
 /** Verdict icon used in the trigger and each option row. */
-export function VerdictIcon(props: { verdict: Verdict; size?: number }) {
+export function VerdictIcon(props: { verdict: Verdict; size?: number; className?: string }) {
   if (props.verdict === "approve")
-    return <Check size={props.size ?? 15} className="text-green-text" />;
+    return (
+      <CircleCheck
+        size={props.size ?? 15}
+        className={`fill-green/20 text-green-text ${props.className ?? ""}`}
+      />
+    );
   if (props.verdict === "request_changes")
-    return <PencilLine size={props.size ?? 15} className="text-red" />;
-  return <MessageSquare size={props.size ?? 15} className="text-muted-foreground" />;
+    return <PencilLine size={props.size ?? 15} className={`text-red ${props.className ?? ""}`} />;
+  return (
+    <MessageSquare size={props.size ?? 15} className={`text-muted-foreground ${props.className ?? ""}`} />
+  );
 }
 
 /** Verdict selection plus the review-scoped note, persisted as a pending draft. */
@@ -67,18 +74,12 @@ export function TopBarVerdictMenu(props: {
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
-            size="sm"
+            variant="pill"
+            size="xs"
             title="File review verdict"
-            className={
-              verdict === "request_changes"
-                ? "border-red/40 bg-red-soft hover:bg-red-soft"
-                : verdict === "approve"
-                  ? "border-green/40 bg-green/15 hover:bg-green/20"
-                  : undefined
-            }
+            className="h-[30px] px-2.5"
           >
-            <VerdictIcon verdict={verdict} />
+            <VerdictIcon verdict={verdict} className="size-4" />
             <ChevronDown size={13} className="text-faint" />
           </Button>
         }
@@ -89,7 +90,7 @@ export function TopBarVerdictMenu(props: {
             <button
               key={option}
               type="button"
-              className={`flex items-start gap-2 rounded px-2 py-1.5 text-left ${
+              className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-left ${
                 verdict === option ? "bg-tint" : "hover:bg-hover"
               }`}
               onClick={() => onVerdictChange(option)}
@@ -106,7 +107,7 @@ export function TopBarVerdictMenu(props: {
             </button>
           ))}
           {blocker && verdict === "approve" && (
-            <p className="mt-1 rounded bg-amber-soft px-2 py-1 text-[11px] text-amber">
+            <p className="mt-1 rounded-md bg-amber-soft px-2 py-1 text-[11px] text-amber">
               Unresolved <b>fix_required</b>; approve anyway?
             </p>
           )}
@@ -119,7 +120,7 @@ export function TopBarVerdictMenu(props: {
                   <button
                     key={option}
                     type="button"
-                    className={`rounded-lg border px-2 py-0.5 text-[10px] transition-colors ${
+                    className={`rounded-md border px-2 py-0.5 text-[10px] transition-colors ${
                       reviewType === option
                         ? "border-transparent bg-blue text-on-accent"
                         : "border-line bg-transparent text-faint hover:bg-hover"
@@ -132,7 +133,7 @@ export function TopBarVerdictMenu(props: {
               </div>
             </div>
             <textarea
-              className="min-h-16 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[12px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+              className="min-h-16 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[12px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
               placeholder="Comment on the whole review. Published on submit."
               value={reviewBody}
               onChange={(e) => setReviewBody(e.target.value)}

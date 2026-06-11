@@ -15,6 +15,10 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-xs hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        // Soft-elevated pill: a 1px ring (theme-aware via --line) plus a faint
+        // drop shadow. The ring carries the edge on dark palettes where the
+        // shadow fades; surface bg lifts it off the canvas like a physical key.
+        pill: "bg-surface text-text shadow-[0_0_0_1px_var(--line),0_1px_1px_-0.5px_oklch(20%_0.01_255/0.10),0_2px_4px_-1.5px_oklch(20%_0.01_255/0.08)] hover:bg-control hover:shadow-[0_0_0_1px_var(--line-strong),0_1px_2px_-0.5px_oklch(20%_0.01_255/0.14),0_4px_6px_-2px_oklch(20%_0.01_255/0.10)] aria-expanded:bg-control aria-expanded:shadow-[0_0_0_1px_var(--line-strong)]",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",

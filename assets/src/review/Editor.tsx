@@ -171,7 +171,7 @@ const LineRow = observer(function LineRow(props: {
           type="button"
           title={`Add a comment on line ${startLine} (Shift-click to extend)`}
           aria-label={`Add a comment on line ${startLine}`}
-          className="relative w-10 shrink-0 select-none text-right font-mono text-[12px] text-faint transition-colors hover:text-blue"
+          className="pointer-coarse:self-stretch relative w-10 shrink-0 select-none text-right font-mono text-[12px] text-faint transition-colors hover:text-blue"
           onClick={(e) => {
             // Touch has no shift-key: once a range is open, a plain tap on any
             // other line number extends it. Fine pointers keep shift-to-extend.

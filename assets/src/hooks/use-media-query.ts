@@ -15,3 +15,6 @@ export function useMediaQuery(query: string): boolean {
 
 /** Tailwind `lg` breakpoint: the comment rail only earns its column here. */
 export const WIDE_QUERY = "(min-width: 1024px)"
+
+/** Touch primary input: mirrors the `pointer-coarse:` variant; folds the topbar. */
+export const COARSE_QUERY = "(pointer: coarse)"

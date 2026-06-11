@@ -16,8 +16,8 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm">
-            <GitCompare size={15} className="text-muted-foreground" />
+          <Button variant="pill" size="xs" className="h-[30px] px-2.5">
+            <GitCompare className="size-4 text-muted-foreground" />
             <span className="hidden text-[12px] font-medium sm:inline">
               R{snapshot.current_round.number}
             </span>
