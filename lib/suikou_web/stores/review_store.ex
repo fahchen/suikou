@@ -61,6 +61,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
     field(:latest_verdict, :approve | :request_changes | :comment | nil)
 
+    field(:draft_verdict, :approve | :request_changes | :comment | nil)
+
     field(:diff, DiffStore.state() | nil)
   end
 
@@ -71,6 +73,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
     reply do
       field(:warnings, list(String.t()))
+    end
+  end
+
+  command :set_draft_verdict do
+    payload do
+      field(:verdict, :approve | :request_changes | :comment)
     end
   end
 
@@ -117,6 +125,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       current_round: render_current_round(viewed, latest_number),
       comments: comments_child(artifact_id, viewed),
       latest_verdict: viewed && Review.latest_verdict(viewed.id),
+      draft_verdict: draft_verdict(rounds),
       diff: diff_child(artifact_id, Map.get(socket.assigns, :diff_range))
     }
   end
@@ -138,6 +147,17 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
       nil ->
         {:reply, %{warnings: []}, socket}
+    end
+  end
+
+  def handle_command(:set_draft_verdict, payload, socket) do
+    case latest_round(socket.assigns.artifact_id) do
+      %Round{} = round ->
+        Review.set_draft_verdict(round.id, payload["verdict"])
+        {:noreply, socket}
+
+      nil ->
+        {:noreply, socket}
     end
   end
 
@@ -168,6 +188,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   defp latest_round(artifact_id), do: Rounds.latest(artifact_id)
+
+  defp draft_verdict([]), do: nil
+  defp draft_verdict(rounds), do: List.last(rounds).draft_verdict
 
   defp viewed_round([], _number), do: nil
 

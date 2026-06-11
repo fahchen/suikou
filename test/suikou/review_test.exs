@@ -6,6 +6,7 @@ defmodule Suikou.ReviewTest do
   alias Suikou.Review
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Round
 
   describe "submission target" do
     test "a review is submitted on the latest round" do
@@ -139,6 +140,28 @@ defmodule Suikou.ReviewTest do
         Repo.insert(Suikou.Schemas.Review.changeset(%{round_id: round.id, verdict: :comment}))
 
       assert :comment = Review.latest_verdict(round.id)
+    end
+  end
+
+  describe "draft verdict" do
+    test "storing a draft verdict persists it on the round" do
+      round = insert(:round)
+
+      assert {:ok, %{draft_verdict: :approve}} = Review.set_draft_verdict(round.id, :approve)
+      assert %{draft_verdict: :approve} = Repo.get!(Round, round.id)
+    end
+
+    test "a later draft verdict overwrites the earlier one" do
+      round = insert(:round)
+      {:ok, _} = Review.set_draft_verdict(round.id, :approve)
+
+      assert {:ok, %{draft_verdict: :request_changes}} =
+               Review.set_draft_verdict(round.id, :request_changes)
+    end
+
+    test "storing a draft verdict on a non-existent round is rejected" do
+      assert {:error, :round_not_found} =
+               Review.set_draft_verdict("00000000-0000-7000-8000-000000000000", :approve)
     end
   end
 

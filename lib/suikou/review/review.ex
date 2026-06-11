@@ -57,6 +57,29 @@ defmodule Suikou.Review do
   end
 
   @doc """
+  Stores the reviewer's in-progress verdict on a draft round before submission,
+  persisting the choice so it survives a reload. Cleared when the round is
+  submitted.
+
+  ## Examples
+
+      Suikou.Review.set_draft_verdict(round.id, :approve)
+      #=> {:ok, %Suikou.Schemas.Round{draft_verdict: :approve}}
+
+      Suikou.Review.set_draft_verdict("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
+      #=> {:error, :round_not_found}
+
+  """
+  @spec set_draft_verdict(Ecto.UUID.t(), Review.verdict() | String.t()) ::
+          {:ok, Round.t()} | {:error, :round_not_found}
+  def set_draft_verdict(round_id, verdict) do
+    case Rounds.get(round_id) do
+      nil -> {:error, :round_not_found}
+      round -> round |> Round.draft_verdict_changeset(verdict) |> Repo.update()
+    end
+  end
+
+  @doc """
   Returns the most recent verdict recorded on a round, or `nil` when none.
 
   ## Examples

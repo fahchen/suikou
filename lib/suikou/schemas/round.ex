@@ -14,6 +14,7 @@ defmodule Suikou.Schemas.Round do
     field :number, :integer, typed: [null: false]
     field :content, :string, typed: [null: false]
     field :content_hash, :string, typed: [null: false]
+    field :draft_verdict, Ecto.Enum, values: [:approve, :request_changes, :comment]
 
     belongs_to :artifact, Artifact
     has_many :comments, Comment
@@ -58,5 +59,24 @@ defmodule Suikou.Schemas.Round do
     round
     |> cast(params, [:content, :content_hash])
     |> validate_required([:content, :content_hash])
+  end
+
+  @doc """
+  Builds a changeset storing the reviewer's in-progress verdict on a draft round
+  before they submit. Cleared to `nil` once the round is submitted.
+
+  ## Examples
+
+      iex> Suikou.Schemas.Round.draft_verdict_changeset(%Suikou.Schemas.Round{}, :approve).changes
+      %{draft_verdict: :approve}
+
+      iex> Suikou.Schemas.Round.draft_verdict_changeset(%Suikou.Schemas.Round{}, "approve").changes
+      %{draft_verdict: :approve}
+
+  """
+  @spec draft_verdict_changeset(t(), :approve | :request_changes | :comment | String.t()) ::
+          Ecto.Changeset.t()
+  def draft_verdict_changeset(round, verdict) do
+    cast(round, %{draft_verdict: verdict}, [:draft_verdict])
   end
 end

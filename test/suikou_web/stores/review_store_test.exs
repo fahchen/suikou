@@ -53,6 +53,26 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
   end
 
+  describe "draft verdict" do
+    test "mount renders the latest round's stored draft verdict" do
+      round = insert(:round)
+      {:ok, _} = Review.set_draft_verdict(round.id, :approve)
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      assert %{draft_verdict: :approve} = Testing.render(page)
+    end
+
+    test "set_draft_verdict persists the choice onto the latest round" do
+      artifact = insert(:round).artifact
+      page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :set_draft_verdict, %{verdict: :request_changes})
+
+      assert %{draft_verdict: :request_changes} = Testing.render(page)
+    end
+  end
+
   describe "comments child" do
     test "mount renders pre-existing comments without a command" do
       round = insert(:round)
@@ -102,6 +122,29 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
         Testing.dispatch_command(page, :resolve_comment, %{comment_id: comment.id}, ["comments"])
 
       assert %{items: [%{resolved: true}]} = Testing.render(page, ["comments"])
+    end
+
+    test "unresolve_comment reopens a resolved comment" do
+      round = insert(:round)
+
+      published_comment(round.id, %{
+        scope: :line,
+        critique_type: :fix_required,
+        body: "x",
+        start_line: 1,
+        end_line: 1
+      })
+
+      [comment] = Reads.list_comments(round.id)
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :resolve_comment, %{comment_id: comment.id}, ["comments"])
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :unresolve_comment, %{comment_id: comment.id}, ["comments"])
+
+      assert %{items: [%{resolved: false}]} = Testing.render(page, ["comments"])
     end
 
     test "reply appends a human reply to the thread" do
