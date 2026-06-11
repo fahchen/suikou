@@ -35,6 +35,18 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     )
   end
 
+  command :create_project do
+    payload do
+      field(:name, String.t())
+      field(:path, String.t())
+    end
+
+    reply do
+      field(:project_id, String.t() | nil)
+      field(:error, String.t() | nil)
+    end
+  end
+
   command :create_artifact do
     payload do
       field(:project_id, String.t())
@@ -60,6 +72,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:reply, map(), Socket.t()}
+  def handle_command(:create_project, payload, socket) do
+    case Projects.register_project(%{name: payload["name"], path: payload["path"]}) do
+      {:ok, %Project{} = project} ->
+        {:reply, %{project_id: project.id, error: nil}, touch(socket)}
+
+      {:error, reason} ->
+        {:reply, %{project_id: nil, error: project_error(reason)}, socket}
+    end
+  end
+
   def handle_command(:create_artifact, payload, socket) do
     reply =
       case Projects.get_project(payload["project_id"]) do
@@ -85,6 +107,12 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   defp error_message(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_message(_changeset), do: "invalid_file"
+
+  defp project_error(reason) when is_atom(reason), do: Atom.to_string(reason)
+
+  defp project_error(%Ecto.Changeset{errors: errors}) do
+    Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
+  end
 
   defp render_project(%Project{} = project, artifact_ids) do
     %{

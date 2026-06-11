@@ -194,6 +194,16 @@ declare namespace Musubi {
         projects: Array<{ id: string; name: string; files: Array<{ path: string; artifact_id: string | null }> }>
       },
       {
+        create_project: {
+          payload: {
+            name: string
+            path: string
+          }
+          reply: {
+            project_id: string | null
+            error: string | null
+          }
+        }
         create_artifact: {
           payload: {
             project_id: string

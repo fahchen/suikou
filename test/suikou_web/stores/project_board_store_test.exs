@@ -26,6 +26,56 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
+  describe "create_project" do
+    @tag :tmp_dir
+    test "registers a directory and lists it on the next render", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: project_id, error: nil}} =
+               Testing.dispatch_command(page, :create_project, %{name: "Docs", path: dir})
+
+      assert is_binary(project_id)
+
+      assert %{projects: [%{id: ^project_id, name: "Docs", files: [%{path: "plan.md"}]}]} =
+               Testing.render(page)
+    end
+
+    test "a path that is not a directory replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: nil, error: "not_a_directory"}} =
+               Testing.dispatch_command(page, :create_project, %{
+                 name: "Docs",
+                 path: "/no/such/dir"
+               })
+
+      assert %{projects: []} = Testing.render(page)
+    end
+
+    @tag :tmp_dir
+    test "a blank name replies with an error", %{tmp_dir: dir} do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: nil, error: error}} =
+               Testing.dispatch_command(page, :create_project, %{name: "  ", path: dir})
+
+      assert error =~ "name"
+      assert %{projects: []} = Testing.render(page)
+    end
+
+    @tag :tmp_dir
+    test "a duplicate path replies with an error", %{tmp_dir: dir} do
+      {:ok, _project} = Projects.register_project(%{name: "First", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: nil, error: error}} =
+               Testing.dispatch_command(page, :create_project, %{name: "Second", path: dir})
+
+      assert error =~ "path"
+    end
+  end
+
   describe "create_artifact" do
     @tag :tmp_dir
     test "mints an artifact from a file and links it on the next render", %{tmp_dir: dir} do
