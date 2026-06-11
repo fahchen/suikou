@@ -43,7 +43,7 @@ describe("Composer", () => {
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
       target: { value: "needs a fix" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "fix_required" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fix required" }));
     fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
 
     expect(dispatch).toHaveBeenCalledWith({

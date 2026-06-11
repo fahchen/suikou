@@ -4,9 +4,18 @@ import { motion } from "motion/react";
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
 import { SquarePlus } from "lucide-react";
+import { CRITIQUE_META } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
+
+// Selected chip wears the same tone vocabulary as the comment-card badge so the
+// reviewer picks severity by the color they'll later see on the card.
+const TYPE_TONE: Record<string, string> = {
+  red: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
+  amber: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/30",
+  muted: "bg-soft text-heading ring-1 ring-inset ring-line",
+};
 
 /** Inline "new comment" composer anchored to a line range. */
 export const Composer = observer(function Composer(props: {
@@ -36,6 +45,16 @@ export const Composer = observer(function Composer(props: {
     ui.closeComposer();
   }
 
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      add();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      ui.closeComposer();
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
@@ -59,14 +78,15 @@ export const Composer = observer(function Composer(props: {
             <button
               key={type}
               type="button"
-              className={`rounded px-2 py-1 text-[11px] ${
+              aria-pressed={ui.composerType === type}
+              className={`pointer-coarse:min-h-9 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
                 ui.composerType === type
-                  ? "bg-blue text-on-accent"
-                  : "bg-soft text-muted-foreground hover:bg-hover"
+                  ? TYPE_TONE[CRITIQUE_META[type].tone]
+                  : "bg-transparent text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
               }`}
               onClick={() => ui.setComposerType(type)}
             >
-              {type}
+              {CRITIQUE_META[type].label}
             </button>
           ))}
         </div>
@@ -74,16 +94,17 @@ export const Composer = observer(function Composer(props: {
 
       <textarea
         autoFocus
-        className="min-h-20 w-full resize-y rounded border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+        className="min-h-20 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         placeholder="Leave a comment. Markdown supported."
         value={ui.composerBody}
         onChange={(e) => ui.setComposerBody(e.target.value)}
+        onKeyDown={onKeyDown}
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+          className="pointer-coarse:min-h-9 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
           onClick={suggest}
         >
           <SquarePlus size={13} />
@@ -95,18 +116,24 @@ export const Composer = observer(function Composer(props: {
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            className="rounded px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+            className="pointer-coarse:min-h-9 inline-flex items-center rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
             onClick={() => ui.closeComposer()}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="rounded bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
+            className="pointer-coarse:min-h-9 inline-flex items-center gap-1.5 rounded-md bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
             disabled={commands.addComment.isPending || !ui.composerBody.trim()}
             onClick={add}
           >
             Add comment
+            <kbd
+              aria-hidden
+              className="hidden rounded bg-on-accent/20 px-1 font-sans text-[10px] leading-4 sm:inline"
+            >
+              ⌘⏎
+            </kbd>
           </button>
         </div>
       </div>
