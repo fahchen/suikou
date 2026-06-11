@@ -59,6 +59,17 @@ defmodule Suikou.Critique do
   defdelegate resolve_comment(comment_id), to: Comments, as: :resolve
 
   @doc """
+  Reopens a resolved comment. See `Suikou.Critique.Comments.unresolve/1`.
+
+  ## Examples
+
+      Suikou.Critique.unresolve_comment(comment.id)
+      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: nil}}
+
+  """
+  defdelegate unresolve_comment(comment_id), to: Comments, as: :unresolve
+
+  @doc """
   Relocates a line-scoped comment to a fresh line range, re-capturing its quote
   and clearing the outdated flag. See `Suikou.Critique.Comments.relocate/3`.
 

@@ -149,6 +149,20 @@ defmodule Suikou.Schemas.Comment do
   end
 
   @doc """
+  Builds a changeset reopening a resolved comment by clearing `resolved_round`.
+
+  ## Examples
+
+      iex> Suikou.Schemas.Comment.unresolve_changeset(%Suikou.Schemas.Comment{resolved_round: 2}).changes
+      %{resolved_round: nil}
+
+  """
+  @spec unresolve_changeset(t()) :: Ecto.Changeset.t()
+  def unresolve_changeset(comment) do
+    change(comment, resolved_round: nil)
+  end
+
+  @doc """
   Builds a changeset relocating a line-scoped comment to a fresh `anchor`,
   clearing the `outdated` flag. Used when a human manually re-anchors a comment
   that lost its mapping across rounds (see BDR-0017).

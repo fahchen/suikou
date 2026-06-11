@@ -77,6 +77,12 @@ defmodule SuikouWeb.Stores.CommentsStore do
     end
   end
 
+  command :unresolve_comment do
+    payload do
+      field(:comment_id, String.t())
+    end
+  end
+
   command :reply do
     payload do
       field(:comment_id, String.t())
@@ -143,6 +149,11 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   def handle_command(:resolve_comment, payload, socket) do
     Critique.resolve_comment(payload["comment_id"])
+    {:noreply, reload(socket)}
+  end
+
+  def handle_command(:unresolve_comment, payload, socket) do
+    Critique.unresolve_comment(payload["comment_id"])
     {:noreply, reload(socket)}
   end
 
