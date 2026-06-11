@@ -4,9 +4,19 @@
 @import "shadcn/tailwind.css";
 
 /* The registry's components ship `dark:` variants; this project switches palettes
-   via [data-theme], with Tokyo Night as the only dark scheme. Bind `dark:` to it
-   instead of Tailwind's default prefers-color-scheme media query. */
-@custom-variant dark (&:where([data-theme="tokyo"], [data-theme="tokyo"] *));
+   via [data-theme]. Bind `dark:` to the dark schemes instead of Tailwind's default
+   prefers-color-scheme media query. Keep this list in sync with the dark
+   [data-theme] blocks below and `THEME_CODE[*].dark` in themes.ts. */
+@custom-variant dark (&:where(
+  [data-theme="tokyo"], [data-theme="tokyo"] *,
+  [data-theme="tokyo-storm"], [data-theme="tokyo-storm"] *,
+  [data-theme="tokyo-moon"], [data-theme="tokyo-moon"] *,
+  [data-theme="dracula"], [data-theme="dracula"] *,
+  [data-theme="nord"], [data-theme="nord"] *,
+  [data-theme="onedark"], [data-theme="onedark"] *,
+  [data-theme="catppuccin-mocha"], [data-theme="catppuccin-mocha"] *,
+  [data-theme="rose-pine"], [data-theme="rose-pine"] *
+));
 
 @theme inline {
   --color-ink: var(--ink);
@@ -312,6 +322,377 @@
   --amber-soft: oklch(42% 0.09 56 / 0.6);
   --surface-shadow: 0 1px 2px oklch(12% 0.02 268 / 0.4);
   --control-shadow: 0 1px 1px oklch(12% 0.02 268 / 0.3);
+}
+
+/* Tokyo Night Storm — Night's lighter, bluer sibling */
+[data-theme="tokyo-storm"] {
+  color-scheme: dark;
+  --ink: oklch(87% 0.04 265);
+  --heading: oklch(92% 0.04 263);
+  --text: oklch(81% 0.045 265);
+  --text2: oklch(85% 0.045 265);
+  --muted: oklch(64% 0.045 265);
+  --faint: oklch(54% 0.045 265);
+  --canvas: oklch(24% 0.03 267);
+  --editor-bg: oklch(27.5% 0.032 266);
+  --gutter: oklch(30% 0.032 266);
+  --surface: oklch(30.5% 0.032 266);
+  --panel: oklch(29% 0.032 266);
+  --rail: oklch(28.5% 0.032 266);
+  --soft: oklch(35% 0.035 266);
+  --line: oklch(37% 0.032 266);
+  --line-soft: oklch(33% 0.032 266);
+  --line-strong: oklch(46% 0.035 266);
+  --control: oklch(32% 0.032 266);
+  --pop: oklch(30% 0.032 266 / 0.98);
+  --surface2: oklch(31% 0.032 266 / 0.96);
+  --hover: oklch(37% 0.035 266 / 0.7);
+  --code-bg: oklch(34% 0.032 266 / 0.7);
+  --quote-bg: oklch(32% 0.032 266 / 0.6);
+  --reply-bg: oklch(33% 0.032 266 / 0.7);
+  --reply-agent: oklch(44% 0.08 262 / 0.5);
+  --blue: oklch(73% 0.13 260);
+  --blue-strong: oklch(67% 0.14 260);
+  --blue-soft: oklch(46% 0.09 262 / 0.6);
+  --on-accent: oklch(22% 0.03 266);
+  --focus: oklch(71% 0.12 260);
+  --tint: oklch(38% 0.06 262 / 0.6);
+  --active-line: oklch(37% 0.05 262 / 0.6);
+  --active-line-border: oklch(62% 0.12 262 / 0.4);
+  --yellow: oklch(80% 0.1 80 / 0.85);
+  --yellow-line: oklch(62% 0.1 80 / 0.5);
+  --green: oklch(80% 0.15 158);
+  --green-text: oklch(84% 0.14 158);
+  --red: oklch(72% 0.16 12);
+  --red-soft: oklch(44% 0.1 15 / 0.55);
+  --amber: oklch(80% 0.11 60);
+  --amber-soft: oklch(46% 0.09 56 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(14% 0.02 266 / 0.4);
+  --control-shadow: 0 1px 1px oklch(14% 0.02 266 / 0.3);
+}
+
+/* Tokyo Night Moon — deep slate base, periwinkle accent */
+[data-theme="tokyo-moon"] {
+  color-scheme: dark;
+  --ink: oklch(88% 0.04 275);
+  --heading: oklch(93% 0.04 273);
+  --text: oklch(82% 0.045 275);
+  --text2: oklch(86% 0.045 275);
+  --muted: oklch(64% 0.045 275);
+  --faint: oklch(54% 0.045 275);
+  --canvas: oklch(23% 0.035 276);
+  --editor-bg: oklch(26.5% 0.038 275);
+  --gutter: oklch(29% 0.038 275);
+  --surface: oklch(29.5% 0.038 275);
+  --panel: oklch(28% 0.038 275);
+  --rail: oklch(27.5% 0.038 275);
+  --soft: oklch(34% 0.042 275);
+  --line: oklch(36% 0.038 275);
+  --line-soft: oklch(32% 0.038 275);
+  --line-strong: oklch(45% 0.042 275);
+  --control: oklch(31% 0.038 275);
+  --pop: oklch(29% 0.038 275 / 0.98);
+  --surface2: oklch(30% 0.038 275 / 0.96);
+  --hover: oklch(36% 0.042 275 / 0.7);
+  --code-bg: oklch(33% 0.038 275 / 0.7);
+  --quote-bg: oklch(31% 0.038 275 / 0.6);
+  --reply-bg: oklch(32% 0.038 275 / 0.7);
+  --reply-agent: oklch(43% 0.08 268 / 0.5);
+  --blue: oklch(74% 0.12 266);
+  --blue-strong: oklch(68% 0.13 266);
+  --blue-soft: oklch(45% 0.09 268 / 0.6);
+  --on-accent: oklch(21% 0.035 275);
+  --focus: oklch(72% 0.11 266);
+  --tint: oklch(37% 0.06 268 / 0.6);
+  --active-line: oklch(36% 0.05 268 / 0.6);
+  --active-line-border: oklch(62% 0.12 268 / 0.4);
+  --yellow: oklch(80% 0.1 82 / 0.85);
+  --yellow-line: oklch(62% 0.1 82 / 0.5);
+  --green: oklch(82% 0.14 165);
+  --green-text: oklch(86% 0.13 165);
+  --red: oklch(72% 0.16 6);
+  --red-soft: oklch(43% 0.1 10 / 0.55);
+  --amber: oklch(82% 0.1 62);
+  --amber-soft: oklch(45% 0.09 58 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(13% 0.02 275 / 0.42);
+  --control-shadow: 0 1px 1px oklch(13% 0.02 275 / 0.32);
+}
+
+/* Tokyo Night Day — airy light variant, ink-blue accent */
+[data-theme="tokyo-day"] {
+  color-scheme: light;
+  --ink: oklch(38% 0.06 262);
+  --heading: oklch(34% 0.07 264);
+  --text: oklch(46% 0.05 262);
+  --text2: oklch(42% 0.055 262);
+  --muted: oklch(56% 0.04 260);
+  --faint: oklch(66% 0.03 258);
+  --canvas: oklch(92% 0.012 262);
+  --editor-bg: oklch(96.5% 0.008 262);
+  --gutter: oklch(94% 0.01 262);
+  --surface: oklch(97% 0.007 262);
+  --panel: oklch(95% 0.01 262);
+  --rail: oklch(94.5% 0.01 262);
+  --soft: oklch(92.5% 0.012 262);
+  --line: oklch(85% 0.015 262);
+  --line-soft: oklch(90% 0.012 262);
+  --line-strong: oklch(78% 0.02 262);
+  --control: oklch(96.5% 0.007 262);
+  --pop: oklch(96.5% 0.008 262 / 0.98);
+  --surface2: oklch(96% 0.008 262 / 0.95);
+  --hover: oklch(92% 0.012 262 / 0.8);
+  --code-bg: oklch(90% 0.014 262 / 0.7);
+  --quote-bg: oklch(94% 0.01 262 / 0.6);
+  --reply-bg: oklch(93% 0.012 262 / 0.7);
+  --reply-agent: oklch(90% 0.05 262 / 0.55);
+  --blue: oklch(54% 0.18 258);
+  --blue-strong: oklch(48% 0.17 258);
+  --blue-soft: oklch(90% 0.05 258 / 0.78);
+  --focus: oklch(64% 0.14 258);
+  --tint: oklch(93% 0.03 258 / 0.72);
+  --active-line: oklch(93% 0.03 258 / 0.72);
+  --active-line-border: oklch(60% 0.13 258 / 0.3);
+  --red: oklch(55% 0.2 20);
+  --red-soft: oklch(92% 0.045 28 / 0.65);
+  --amber: oklch(56% 0.12 62);
+  --amber-soft: oklch(92% 0.06 75 / 0.72);
+  --green: oklch(60% 0.15 150);
+  --green-text: oklch(44% 0.13 150);
+}
+
+/* Dracula — charcoal-violet base, purple accent */
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --ink: oklch(94% 0.015 286);
+  --heading: oklch(97% 0.012 286);
+  --text: oklch(88% 0.02 286);
+  --text2: oklch(91% 0.02 286);
+  --muted: oklch(66% 0.05 280);
+  --faint: oklch(56% 0.05 280);
+  --canvas: oklch(27% 0.028 292);
+  --editor-bg: oklch(30.5% 0.03 290);
+  --gutter: oklch(33% 0.03 290);
+  --surface: oklch(33.5% 0.03 290);
+  --panel: oklch(32% 0.03 290);
+  --rail: oklch(31.5% 0.03 290);
+  --soft: oklch(38% 0.034 290);
+  --line: oklch(40% 0.03 290);
+  --line-soft: oklch(36% 0.03 290);
+  --line-strong: oklch(49% 0.034 290);
+  --control: oklch(35% 0.03 290);
+  --pop: oklch(33% 0.03 290 / 0.98);
+  --surface2: oklch(34% 0.03 290 / 0.96);
+  --hover: oklch(40% 0.034 290 / 0.7);
+  --code-bg: oklch(37% 0.03 290 / 0.7);
+  --quote-bg: oklch(35% 0.03 290 / 0.6);
+  --reply-bg: oklch(36% 0.03 290 / 0.7);
+  --reply-agent: oklch(48% 0.1 300 / 0.5);
+  --blue: oklch(76% 0.15 300);
+  --blue-strong: oklch(70% 0.16 300);
+  --blue-soft: oklch(48% 0.11 300 / 0.6);
+  --on-accent: oklch(24% 0.03 292);
+  --focus: oklch(74% 0.14 300);
+  --tint: oklch(42% 0.08 312 / 0.55);
+  --active-line: oklch(40% 0.07 312 / 0.55);
+  --active-line-border: oklch(66% 0.14 312 / 0.4);
+  --yellow: oklch(84% 0.1 95 / 0.85);
+  --yellow-line: oklch(66% 0.1 95 / 0.5);
+  --green: oklch(86% 0.2 150);
+  --green-text: oklch(88% 0.18 150);
+  --red: oklch(68% 0.2 20);
+  --red-soft: oklch(46% 0.12 18 / 0.55);
+  --amber: oklch(82% 0.12 62);
+  --amber-soft: oklch(48% 0.1 60 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(16% 0.02 292 / 0.42);
+  --control-shadow: 0 1px 1px oklch(16% 0.02 292 / 0.32);
+}
+
+/* Nord — frost-on-polar-night, cool desaturated blue */
+[data-theme="nord"] {
+  color-scheme: dark;
+  --ink: oklch(92% 0.012 240);
+  --heading: oklch(95% 0.01 240);
+  --text: oklch(86% 0.016 240);
+  --text2: oklch(89% 0.014 240);
+  --muted: oklch(68% 0.02 240);
+  --faint: oklch(58% 0.022 240);
+  --canvas: oklch(32% 0.018 252);
+  --editor-bg: oklch(35.5% 0.02 250);
+  --gutter: oklch(38% 0.02 250);
+  --surface: oklch(38.5% 0.02 250);
+  --panel: oklch(37% 0.02 250);
+  --rail: oklch(36.5% 0.02 250);
+  --soft: oklch(43% 0.022 250);
+  --line: oklch(45% 0.02 250);
+  --line-soft: oklch(41% 0.02 250);
+  --line-strong: oklch(54% 0.022 250);
+  --control: oklch(40% 0.02 250);
+  --pop: oklch(38% 0.02 250 / 0.98);
+  --surface2: oklch(39% 0.02 250 / 0.96);
+  --hover: oklch(45% 0.022 250 / 0.7);
+  --code-bg: oklch(42% 0.02 250 / 0.7);
+  --quote-bg: oklch(40% 0.02 250 / 0.6);
+  --reply-bg: oklch(41% 0.02 250 / 0.7);
+  --reply-agent: oklch(52% 0.06 230 / 0.5);
+  --blue: oklch(80% 0.07 220);
+  --blue-strong: oklch(74% 0.08 222);
+  --blue-soft: oklch(54% 0.06 224 / 0.6);
+  --on-accent: oklch(30% 0.02 250);
+  --focus: oklch(78% 0.07 220);
+  --tint: oklch(48% 0.05 222 / 0.55);
+  --active-line: oklch(46% 0.045 222 / 0.55);
+  --active-line-border: oklch(70% 0.08 222 / 0.4);
+  --yellow: oklch(86% 0.08 92 / 0.85);
+  --yellow-line: oklch(68% 0.08 92 / 0.5);
+  --green: oklch(80% 0.09 140);
+  --green-text: oklch(84% 0.08 140);
+  --red: oklch(64% 0.12 22);
+  --red-soft: oklch(48% 0.08 20 / 0.55);
+  --amber: oklch(85% 0.09 86);
+  --amber-soft: oklch(52% 0.08 84 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(20% 0.015 250 / 0.4);
+  --control-shadow: 0 1px 1px oklch(20% 0.015 250 / 0.3);
+}
+
+/* One Dark Pro — Atom's classic slate base, sky-blue accent */
+[data-theme="onedark"] {
+  color-scheme: dark;
+  --ink: oklch(85% 0.02 258);
+  --heading: oklch(90% 0.018 258);
+  --text: oklch(79% 0.022 258);
+  --text2: oklch(83% 0.022 258);
+  --muted: oklch(62% 0.025 258);
+  --faint: oklch(52% 0.025 258);
+  --canvas: oklch(30% 0.02 260);
+  --editor-bg: oklch(33.5% 0.022 259);
+  --gutter: oklch(36% 0.022 259);
+  --surface: oklch(36.5% 0.022 259);
+  --panel: oklch(35% 0.022 259);
+  --rail: oklch(34.5% 0.022 259);
+  --soft: oklch(41% 0.024 259);
+  --line: oklch(43% 0.022 259);
+  --line-soft: oklch(39% 0.022 259);
+  --line-strong: oklch(52% 0.024 259);
+  --control: oklch(38% 0.022 259);
+  --pop: oklch(36% 0.022 259 / 0.98);
+  --surface2: oklch(37% 0.022 259 / 0.96);
+  --hover: oklch(43% 0.024 259 / 0.7);
+  --code-bg: oklch(40% 0.022 259 / 0.7);
+  --quote-bg: oklch(38% 0.022 259 / 0.6);
+  --reply-bg: oklch(39% 0.022 259 / 0.7);
+  --reply-agent: oklch(50% 0.08 250 / 0.5);
+  --blue: oklch(74% 0.13 248);
+  --blue-strong: oklch(68% 0.14 248);
+  --blue-soft: oklch(50% 0.1 250 / 0.6);
+  --on-accent: oklch(27% 0.02 259);
+  --focus: oklch(72% 0.12 248);
+  --tint: oklch(44% 0.07 250 / 0.55);
+  --active-line: oklch(42% 0.06 250 / 0.55);
+  --active-line-border: oklch(66% 0.12 250 / 0.4);
+  --yellow: oklch(84% 0.1 84 / 0.85);
+  --yellow-line: oklch(66% 0.1 84 / 0.5);
+  --green: oklch(82% 0.13 140);
+  --green-text: oklch(85% 0.12 140);
+  --red: oklch(70% 0.14 18);
+  --red-soft: oklch(48% 0.1 16 / 0.55);
+  --amber: oklch(84% 0.1 80);
+  --amber-soft: oklch(50% 0.09 76 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(18% 0.015 259 / 0.42);
+  --control-shadow: 0 1px 1px oklch(18% 0.015 259 / 0.32);
+}
+
+/* Catppuccin Mocha — soft mauve-tinted dark, blue accent */
+[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+  --ink: oklch(89% 0.03 282);
+  --heading: oklch(93% 0.028 282);
+  --text: oklch(83% 0.032 282);
+  --text2: oklch(87% 0.032 282);
+  --muted: oklch(64% 0.04 282);
+  --faint: oklch(54% 0.04 282);
+  --canvas: oklch(23% 0.03 285);
+  --editor-bg: oklch(26.5% 0.033 284);
+  --gutter: oklch(29% 0.033 284);
+  --surface: oklch(29.5% 0.033 284);
+  --panel: oklch(28% 0.033 284);
+  --rail: oklch(27.5% 0.033 284);
+  --soft: oklch(34% 0.037 284);
+  --line: oklch(36% 0.033 284);
+  --line-soft: oklch(32% 0.033 284);
+  --line-strong: oklch(45% 0.037 284);
+  --control: oklch(31% 0.033 284);
+  --pop: oklch(29% 0.033 284 / 0.98);
+  --surface2: oklch(30% 0.033 284 / 0.96);
+  --hover: oklch(36% 0.037 284 / 0.7);
+  --code-bg: oklch(33% 0.033 284 / 0.7);
+  --quote-bg: oklch(31% 0.033 284 / 0.6);
+  --reply-bg: oklch(32% 0.033 284 / 0.7);
+  --reply-agent: oklch(44% 0.09 270 / 0.5);
+  --blue: oklch(78% 0.12 268);
+  --blue-strong: oklch(72% 0.13 268);
+  --blue-soft: oklch(46% 0.1 270 / 0.6);
+  --on-accent: oklch(21% 0.03 284);
+  --focus: oklch(76% 0.11 268);
+  --tint: oklch(38% 0.07 270 / 0.55);
+  --active-line: oklch(36% 0.06 270 / 0.55);
+  --active-line-border: oklch(66% 0.12 270 / 0.4);
+  --yellow: oklch(85% 0.1 90 / 0.85);
+  --yellow-line: oklch(66% 0.1 90 / 0.5);
+  --green: oklch(84% 0.13 145);
+  --green-text: oklch(87% 0.12 145);
+  --red: oklch(74% 0.14 8);
+  --red-soft: oklch(46% 0.11 10 / 0.55);
+  --amber: oklch(82% 0.11 56);
+  --amber-soft: oklch(46% 0.1 54 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(13% 0.02 285 / 0.42);
+  --control-shadow: 0 1px 1px oklch(13% 0.02 285 / 0.32);
+}
+
+/* Rosé Pine — muted dawn-violet base, iris accent */
+[data-theme="rose-pine"] {
+  color-scheme: dark;
+  --ink: oklch(90% 0.02 295);
+  --heading: oklch(94% 0.018 295);
+  --text: oklch(84% 0.024 295);
+  --text2: oklch(88% 0.024 295);
+  --muted: oklch(66% 0.035 290);
+  --faint: oklch(56% 0.035 290);
+  --canvas: oklch(22% 0.025 300);
+  --editor-bg: oklch(25.5% 0.027 298);
+  --gutter: oklch(28% 0.027 298);
+  --surface: oklch(28.5% 0.027 298);
+  --panel: oklch(27% 0.027 298);
+  --rail: oklch(26.5% 0.027 298);
+  --soft: oklch(33% 0.03 298);
+  --line: oklch(35% 0.027 298);
+  --line-soft: oklch(31% 0.027 298);
+  --line-strong: oklch(44% 0.03 298);
+  --control: oklch(30% 0.027 298);
+  --pop: oklch(28% 0.027 298 / 0.98);
+  --surface2: oklch(29% 0.027 298 / 0.96);
+  --hover: oklch(35% 0.03 298 / 0.7);
+  --code-bg: oklch(32% 0.027 298 / 0.7);
+  --quote-bg: oklch(30% 0.027 298 / 0.6);
+  --reply-bg: oklch(31% 0.027 298 / 0.7);
+  --reply-agent: oklch(44% 0.08 300 / 0.5);
+  --blue: oklch(78% 0.09 300);
+  --blue-strong: oklch(72% 0.1 300);
+  --blue-soft: oklch(46% 0.08 300 / 0.6);
+  --on-accent: oklch(20% 0.025 298);
+  --focus: oklch(76% 0.08 300);
+  --tint: oklch(38% 0.06 300 / 0.55);
+  --active-line: oklch(36% 0.05 300 / 0.55);
+  --active-line-border: oklch(64% 0.1 300 / 0.4);
+  --yellow: oklch(84% 0.09 80 / 0.85);
+  --yellow-line: oklch(66% 0.09 80 / 0.5);
+  --green: oklch(80% 0.07 195);
+  --green-text: oklch(84% 0.07 195);
+  --red: oklch(72% 0.13 5);
+  --red-soft: oklch(44% 0.1 6 / 0.55);
+  --amber: oklch(82% 0.1 72);
+  --amber-soft: oklch(46% 0.09 70 / 0.6);
+  --surface-shadow: 0 1px 2px oklch(13% 0.018 300 / 0.42);
+  --control-shadow: 0 1px 1px oklch(13% 0.018 300 / 0.32);
 }
 
 @layer base {
