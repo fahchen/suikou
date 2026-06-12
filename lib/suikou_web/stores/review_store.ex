@@ -16,10 +16,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Musubi.Child
   alias Musubi.Socket
   alias Suikou.Reads
-  alias Suikou.Review
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Round
+  alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentsStore
   alias SuikouWeb.Stores.DiffStore
 
@@ -124,7 +124,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       rounds: Enum.map(rounds, &render_round_summary/1),
       current_round: render_current_round(viewed, latest_number),
       comments: comments_child(artifact_id, viewed),
-      latest_verdict: viewed && Review.latest_verdict(viewed.id),
+      latest_verdict: viewed && Submissions.latest_verdict(viewed.id),
       draft_verdict: draft_verdict(rounds),
       diff: diff_child(artifact_id, Map.get(socket.assigns, :diff_range))
     }
@@ -136,7 +136,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   def handle_command(:submit_review, payload, socket) do
     case latest_round(socket.assigns.artifact_id) do
       %Round{} = round ->
-        case Review.submit_review(round.id, payload["verdict"]) do
+        case Submissions.submit(round.id, payload["verdict"]) do
           {:ok, %{warnings: warnings, next_round: %Round{number: next_number}}} ->
             {:reply, %{warnings: Enum.map(warnings, &Atom.to_string/1)},
              Socket.assign(socket, :round_number, next_number)}
@@ -153,7 +153,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   def handle_command(:set_draft_verdict, payload, socket) do
     case latest_round(socket.assigns.artifact_id) do
       %Round{} = round ->
-        Review.set_draft_verdict(round.id, payload["verdict"])
+        Submissions.set_draft_verdict(round.id, payload["verdict"])
         {:noreply, socket}
 
       nil ->
@@ -225,7 +225,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     %{
       number: round.number,
       content_hash: round.content_hash,
-      verdict: Review.latest_verdict(round.id),
+      verdict: Submissions.latest_verdict(round.id),
       comment_count: length(Reads.list_comments(round.id))
     }
   end

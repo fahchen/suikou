@@ -1,24 +1,23 @@
 defmodule SuikouWeb.Stores.ProjectBoardStore do
   @moduledoc """
-  Root store backing the project board: the reviewer's entry point before an
-  artifact exists.
+  Root store backing the project board: the reviewer's entry point.
 
   Takes no mount params. Renders every registered project with its candidate
-  markdown files, each linked to the artifact it has already started (or `nil`
-  when the file has not been selected for review yet). The `create_artifact`
-  command selects a file under a project — reading round 0 from disk (see
-  BDR-0018) — and replies with the new artifact id so the client can mount
-  `SuikouWeb.Stores.ReviewStore` against it.
+  markdown files (for building a selection) and its reviews. A review is a named
+  set of selected files, each backed by an artifact (see BDR-0018); the
+  `create_review` command mints one from a project and a list of file paths and
+  replies with the new review id, while `update_review_files` reconciles a
+  review's selection. The `create_project` command registers a directory.
   """
 
   use Musubi.Store, root: true
 
   alias Musubi.Socket
-  alias Suikou.Artifacts
   alias Suikou.Projects
-  alias Suikou.Reads
+  alias Suikou.Reviews
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
+  alias Suikou.Schemas.Review
 
   state do
     field(
@@ -26,10 +25,18 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       list(%{
         id: String.t(),
         name: String.t(),
-        files:
+        path: String.t(),
+        files: list(String.t()),
+        reviews:
           list(%{
-            path: String.t(),
-            artifact_id: String.t() | nil
+            id: String.t(),
+            name: String.t(),
+            files:
+              list(%{
+                artifact_id: String.t(),
+                path: String.t(),
+                approved: boolean()
+              })
           })
       })
     )
@@ -47,14 +54,26 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
-  command :create_artifact do
+  command :create_review do
     payload do
       field(:project_id, String.t())
-      field(:file_path, String.t())
+      field(:name, String.t())
+      field(:file_paths, list(String.t()))
     end
 
     reply do
-      field(:artifact_id, String.t() | nil)
+      field(:review_id, String.t() | nil)
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :update_review_files do
+    payload do
+      field(:review_id, String.t())
+      field(:file_paths, list(String.t()))
+    end
+
+    reply do
       field(:error, String.t() | nil)
     end
   end
@@ -66,8 +85,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(_socket) do
-    artifact_ids = artifact_ids_by_file()
-    %{projects: Enum.map(Projects.list_projects(), &render_project(&1, artifact_ids))}
+    %{projects: Enum.map(Projects.list_projects(), &render_project/1)}
   end
 
   @impl Musubi.Store
@@ -82,31 +100,47 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
-  def handle_command(:create_artifact, payload, socket) do
+  def handle_command(:create_review, payload, socket) do
     reply =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> create(project, payload["file_path"])
-        nil -> %{artifact_id: nil, error: "project_not_found"}
+        %Project{} = project -> create_review(project, payload)
+        nil -> %{review_id: nil, error: "project_not_found"}
       end
 
     {:reply, reply, touch(socket)}
   end
 
-  # The render derives entirely from the database; `create_artifact` mutates it
-  # without touching assigns, so the resolver would reuse the cached render and
-  # push no patch (see docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant
-  # assign so another client viewing the board sees the file flip to "started".
+  def handle_command(:update_review_files, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review -> update_review_files(review, payload["file_paths"])
+        nil -> %{error: "review_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
+  # The render derives entirely from the database; a mutation that does not touch
+  # assigns would reuse the cached render and push no patch (see
+  # docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant assign so another
+  # client viewing the board sees the change.
   defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
-  defp create(project, file_path) do
-    case Artifacts.create_from_file(project, file_path) do
-      {:ok, %{artifact: artifact}} -> %{artifact_id: artifact.id, error: nil}
-      {:error, reason} -> %{artifact_id: nil, error: error_message(reason)}
+  defp create_review(project, payload) do
+    params = %{name: payload["name"], file_paths: payload["file_paths"]}
+
+    case Reviews.create_review(project, params) do
+      {:ok, %Review{} = review} -> %{review_id: review.id, error: nil}
+      {:error, reason} -> %{review_id: nil, error: review_error(reason)}
     end
   end
 
-  defp error_message(reason) when is_atom(reason), do: Atom.to_string(reason)
-  defp error_message(_changeset), do: "invalid_file"
+  defp update_review_files(review, file_paths) do
+    case Reviews.set_files(review, file_paths) do
+      {:ok, %Review{}} -> %{error: nil}
+      {:error, reason} -> %{error: review_error(reason)}
+    end
+  end
 
   defp project_error(reason) when is_atom(reason), do: Atom.to_string(reason)
 
@@ -114,26 +148,39 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
   end
 
-  defp render_project(%Project{} = project, artifact_ids) do
+  defp review_error(:no_files), do: "no_files"
+  defp review_error({:file, path, reason}), do: "#{path}: #{file_reason(reason)}"
+
+  defp review_error(%Ecto.Changeset{errors: errors}) do
+    Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
+  end
+
+  defp file_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp file_reason(_changeset), do: "invalid_file"
+
+  defp render_project(%Project{} = project) do
     %{
       id: project.id,
       name: project.name,
-      files: Enum.map(Projects.list_files(project), &render_file(project.id, &1, artifact_ids))
+      path: project.path,
+      files: Projects.list_files(project),
+      reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)
     }
   end
 
-  defp render_file(project_id, path, artifact_ids) do
-    %{path: path, artifact_id: Map.get(artifact_ids, {project_id, path})}
+  defp render_review(%Review{} = review) do
+    %{
+      id: review.id,
+      name: review.name,
+      files: Enum.map(review.artifacts, &render_review_file/1)
+    }
   end
 
-  # Maps each {project_id, file_path} to its newest artifact id, so a file the
-  # reviewer already started links straight to its review instead of minting a
-  # duplicate artifact.
-  defp artifact_ids_by_file do
-    Reads.list_artifacts()
-    |> Enum.reverse()
-    |> Map.new(fn %Artifact{} = artifact ->
-      {{artifact.project_id, artifact.file_path}, artifact.id}
-    end)
+  defp render_review_file(%Artifact{} = artifact) do
+    %{
+      artifact_id: artifact.id,
+      path: artifact.file_path,
+      approved: not is_nil(artifact.approved_round)
+    }
   end
 end
