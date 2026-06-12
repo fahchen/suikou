@@ -1,52 +1,42 @@
 defmodule Suikou.Schemas.Review do
   @moduledoc """
-  A batch submission on a round carrying one verdict. Submitting a review
-  publishes the round's pending comments and records the round's disposition.
+  A review groups the files a reviewer selected under a project. Each selected
+  file becomes one `Suikou.Schemas.Artifact` under the review; the selection is
+  editable, and removing a file soft-removes its artifact (see BDR-0018).
   """
 
   use Suikou.Schema
 
-  alias Suikou.Schemas.Round
-
-  @verdicts [:approve, :request_changes, :comment]
-  @type verdict() :: :approve | :request_changes | :comment
+  alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.Project
 
   typed_schema "reviews" do
-    field :verdict, Ecto.Enum, values: @verdicts, typed: [null: false]
+    field :name, :string, typed: [null: false]
 
-    belongs_to :round, Round
+    belongs_to :project, Project
+    has_many :artifacts, Artifact
 
     timestamps()
   end
 
   @doc """
-  Returns the allowed verdicts.
+  Builds a changeset for a review created under a project.
+
+  `project_id` is set from the project struct rather than cast, so a caller can
+  never reassign a review to another project through params.
 
   ## Examples
 
-      iex> Suikou.Schemas.Review.verdicts()
-      [:approve, :request_changes, :comment]
+      Suikou.Schemas.Review.create_changeset(project, %{name: "Launch docs"}).valid?
+      #=> true
 
   """
-  @spec verdicts() :: [verdict()]
-  def verdicts, do: @verdicts
-
-  @doc """
-  Builds a changeset for a review, requiring a round and verdict.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Review.changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", verdict: :approve}).valid?
-      true
-
-      iex> Suikou.Schemas.Review.changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"}).valid?
-      false
-
-  """
-  @spec changeset(map()) :: Ecto.Changeset.t()
-  def changeset(params) do
-    %__MODULE__{}
-    |> cast(params, [:round_id, :verdict])
-    |> validate_required([:round_id, :verdict])
+  @spec create_changeset(Project.t(), map()) :: Ecto.Changeset.t()
+  def create_changeset(project, params) do
+    %__MODULE__{project_id: project.id}
+    |> cast(params, [:name])
+    |> validate_required([:name])
+    |> validate_format(:name, ~r/\S/, message: "can't be blank")
+    |> assoc_constraint(:project)
   end
 end

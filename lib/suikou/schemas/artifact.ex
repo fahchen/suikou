@@ -8,39 +8,69 @@ defmodule Suikou.Schemas.Artifact do
 
   use Suikou.Schema
 
-  alias Suikou.Schemas.Project
+  alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
 
   typed_schema "artifacts" do
     field :title, :string, typed: [null: false]
     field :approved_round, :integer
     field :file_path, :string, typed: [null: false]
+    field :removed_at, :utc_datetime
 
-    belongs_to :project, Project
+    belongs_to :review, Review
     has_many :rounds, Round
 
     timestamps()
   end
 
   @doc """
-  Builds a changeset for an artifact created by selecting a file under a project.
+  Builds a changeset for an artifact created by selecting a file into a review.
 
-  `project_id` is set from the project struct rather than cast, so a caller can
-  never reassign an artifact to another project through params.
+  `review_id` is set from the review struct rather than cast, so a caller can
+  never reassign an artifact to another review through params.
 
   ## Examples
 
-      Suikou.Schemas.Artifact.create_from_file_changeset(project, %{title: "docs/plan.md", file_path: "docs/plan.md"}).valid?
+      Suikou.Schemas.Artifact.create_from_file_changeset(review, %{title: "docs/plan.md", file_path: "docs/plan.md"}).valid?
       #=> true
 
   """
-  @spec create_from_file_changeset(Project.t(), map()) :: Ecto.Changeset.t()
-  def create_from_file_changeset(project, params) do
-    %__MODULE__{project_id: project.id}
+  @spec create_from_file_changeset(Review.t(), map()) :: Ecto.Changeset.t()
+  def create_from_file_changeset(review, params) do
+    %__MODULE__{review_id: review.id}
     |> cast(params, [:title, :file_path])
     |> validate_required([:title, :file_path])
     |> validate_format(:title, ~r/\S/, message: "can't be blank")
-    |> assoc_constraint(:project)
+    |> assoc_constraint(:review)
+  end
+
+  @doc """
+  Builds a changeset soft-removing the artifact from its review at the given time.
+
+  ## Examples
+
+      iex> %{removed_at: ts} = Suikou.Schemas.Artifact.remove_changeset(%Suikou.Schemas.Artifact{}, ~U[2026-06-12 00:00:00Z]).changes
+      iex> ts
+      ~U[2026-06-12 00:00:00Z]
+
+  """
+  @spec remove_changeset(t(), DateTime.t()) :: Ecto.Changeset.t()
+  def remove_changeset(artifact, removed_at) do
+    change(artifact, removed_at: removed_at)
+  end
+
+  @doc """
+  Builds a changeset restoring a soft-removed artifact to its review.
+
+  ## Examples
+
+      iex> Suikou.Schemas.Artifact.restore_changeset(%Suikou.Schemas.Artifact{removed_at: ~U[2026-06-12 00:00:00Z]}).changes
+      %{removed_at: nil}
+
+  """
+  @spec restore_changeset(t()) :: Ecto.Changeset.t()
+  def restore_changeset(artifact) do
+    change(artifact, removed_at: nil)
   end
 
   @doc """

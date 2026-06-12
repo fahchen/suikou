@@ -39,14 +39,14 @@ defmodule Suikou.Repo.Migrations.CreateReviewSchema do
     create index(:comments, [:round_id])
     create index(:comments, [:origin_id])
 
-    create table(:reviews) do
+    create table(:submissions) do
       add :round_id, references(:rounds, on_delete: :delete_all), null: false
       add :verdict, :string, null: false
 
       timestamps()
     end
 
-    create index(:reviews, [:round_id])
+    create index(:submissions, [:round_id])
 
     create table(:replies) do
       add :comment_id, references(:comments, on_delete: :delete_all), null: false

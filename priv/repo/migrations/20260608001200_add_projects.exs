@@ -11,13 +11,25 @@ defmodule Suikou.Repo.Migrations.AddProjects do
 
     create unique_index(:projects, [:path])
 
-    # Every artifact is born from a file selected under a project (BDR-0018), so
-    # both columns are mandatory.
-    alter table(:artifacts) do
+    # A review groups the files a reviewer selected under a project; each selected
+    # file becomes one artifact under the review (see BDR-0018).
+    create table(:reviews) do
       add :project_id, references(:projects, on_delete: :delete_all), null: false
-      add :file_path, :string, null: false
+      add :name, :string, null: false
+
+      timestamps()
     end
 
-    create index(:artifacts, [:project_id])
+    create index(:reviews, [:project_id])
+
+    # Every artifact is born from a file selected into a review. `removed_at`
+    # soft-removes a file from its review while keeping its critique history.
+    alter table(:artifacts) do
+      add :review_id, references(:reviews, on_delete: :delete_all), null: false
+      add :file_path, :string, null: false
+      add :removed_at, :utc_datetime
+    end
+
+    create index(:artifacts, [:review_id])
   end
 end

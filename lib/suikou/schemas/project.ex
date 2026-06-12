@@ -7,13 +7,13 @@ defmodule Suikou.Schemas.Project do
 
   use Suikou.Schema
 
-  alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.Review
 
   typed_schema "projects" do
     field :name, :string, typed: [null: false]
     field :path, :string, typed: [null: false]
 
-    has_many :artifacts, Artifact
+    has_many :reviews, Review
 
     timestamps()
   end

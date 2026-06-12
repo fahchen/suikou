@@ -8,7 +8,7 @@ defmodule Suikou.Schemas.Round do
 
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.Review
+  alias Suikou.Schemas.Submission
 
   typed_schema "rounds" do
     field :number, :integer, typed: [null: false]
@@ -18,7 +18,7 @@ defmodule Suikou.Schemas.Round do
 
     belongs_to :artifact, Artifact
     has_many :comments, Comment
-    has_many :reviews, Review
+    has_many :submissions, Submission
 
     timestamps()
   end
