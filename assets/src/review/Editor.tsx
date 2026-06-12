@@ -19,6 +19,10 @@ interface EditorProps {
   comments: Comment[];
   rawLines: ThemedToken[][] | null;
   inline: boolean;
+  /** Asset URL when the artifact is a displayable image; renders it instead of source. */
+  imageSrc?: string;
+  /** Set when the source content couldn't be fetched (file deleted, moved, unreadable). */
+  contentError?: string | null;
 }
 
 // Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline).
@@ -51,21 +55,39 @@ const DENSITY: Record<
 };
 
 export const Editor = observer(function Editor(props: EditorProps) {
-  if (isBinaryContent(props.content)) return <BinaryNotice />;
+  if (props.imageSrc) return <ImageView src={props.imageSrc} />;
+  if (props.contentError)
+    return <FileNotice title="Can't load this file" message={props.contentError} />;
+  if (isBinaryContent(props.content))
+    return (
+      <FileNotice
+        title="Can't render this file"
+        message="It looks like a binary file (an image or other non-text format), so there's no source to preview."
+      />
+    );
   if (props.view === "raw") return <RawView {...props} />;
   return <RenderView {...props} />;
 });
 
-// Binary files (images, PDFs, other non-text) have no source to show.
-const BinaryNotice = function BinaryNotice() {
+const FileNotice = function FileNotice(props: { title: string; message: string }) {
   return (
     <article className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-editor px-6 py-16 text-center">
       <FileX2 size={28} className="text-faint" aria-hidden />
-      <div className="text-sm font-medium text-heading">Can't render this file</div>
-      <p className="max-w-sm text-[13px] text-muted-foreground">
-        It looks like a binary file (an image or other non-text format), so there's no source to
-        preview.
-      </p>
+      <div className="text-sm font-medium text-heading">{props.title}</div>
+      <p className="max-w-sm text-[13px] text-muted-foreground">{props.message}</p>
+    </article>
+  );
+};
+
+const ImageView = function ImageView(props: { src: string }) {
+  const name = decodeURIComponent(props.src.slice(props.src.lastIndexOf("/") + 1));
+  return (
+    <article className="flex justify-center rounded-2xl border border-line bg-editor px-2 py-6 sm:px-3">
+      <img
+        src={props.src}
+        alt={name}
+        className="max-h-[80vh] max-w-full rounded-md object-contain"
+      />
     </article>
   );
 };

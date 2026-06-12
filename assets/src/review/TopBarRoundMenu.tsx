@@ -5,7 +5,7 @@ import { useReviewCommands } from "./commands";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-/** Round picker and round-to-round diff launcher. */
+/** Round picker. */
 export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
   const { snapshot } = props;
   const commands = useReviewCommands();
@@ -50,27 +50,6 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
               </button>
             );
           })}
-          {rounds.length >= 2 &&
-            (() => {
-              const prev = rounds[rounds.length - 2].number;
-              return (
-                <>
-                  <div className="my-1 border-t border-line-soft" />
-                  <button
-                    type="button"
-                    className="flex flex-col rounded px-2 py-1.5 text-left hover:bg-hover"
-                    onClick={() => void commands.diffRound.dispatch({ from: prev, to: latest })}
-                  >
-                    <span className="text-[13px] font-medium text-heading">
-                      Diff R{prev} → R{latest}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      Compare changes across rounds.
-                    </span>
-                  </button>
-                </>
-              );
-            })()}
         </div>
       </PopoverContent>
     </Popover>

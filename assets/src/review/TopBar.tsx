@@ -47,8 +47,9 @@ const SPLIT_SEAM = "bg-[color-mix(in_oklch,var(--primary),black_22%)]";
 export const TopBar = observer(function TopBar(props: {
   snapshot: ReviewSnapshot;
   previewable: boolean;
+  content: string;
 }) {
-  const { snapshot, previewable } = props;
+  const { snapshot, previewable, content } = props;
   const commands = useReviewCommands();
   const navigate = useNavigate();
   const rawView = useLocation().pathname.endsWith("/raw");
@@ -96,10 +97,7 @@ export const TopBar = observer(function TopBar(props: {
         >
           <Home className="size-4 text-muted-foreground" />
         </Button>
-        <TopBarTocMenu
-          content={snapshot.current_round.content}
-          path={snapshot.artifact.title}
-        />
+        <TopBarTocMenu content={content} path={snapshot.artifact.title} />
         <TopBarArtifactMenu snapshot={snapshot} rawView={rawView} />
       </div>
 

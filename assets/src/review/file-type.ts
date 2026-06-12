@@ -1,10 +1,42 @@
+import { assetUrl } from "./urls"
+
 const PREVIEWABLE_EXTENSIONS = new Set([".md", ".markdown"])
+const IMAGE_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".svg",
+  ".webp",
+  ".avif",
+  ".bmp",
+  ".ico"
+])
+
+/** Lowercased extension including the dot (".md"), or "" when there is none. */
+function extname(path: string): string {
+  const dot = path.lastIndexOf(".")
+  return dot === -1 ? "" : path.slice(dot).toLowerCase()
+}
 
 /** Whether a file has a rendered preview (markdown); every other type is raw-only. */
 export function isPreviewable(path: string): boolean {
-  const dot = path.lastIndexOf(".")
-  if (dot === -1) return false
-  return PREVIEWABLE_EXTENSIONS.has(path.slice(dot).toLowerCase())
+  return PREVIEWABLE_EXTENSIONS.has(extname(path))
+}
+
+/** Whether a file is a browser-displayable image, shown via the asset route. */
+export function isImagePath(path: string): boolean {
+  return IMAGE_EXTENSIONS.has(extname(path))
+}
+
+/**
+ * The asset-route URL for an image artifact's own file, or undefined when the
+ * artifact isn't a displayable image. The artifact's bytes are served by name
+ * relative to its own directory, so `dirname/basename` round-trips to file_path.
+ */
+export function imageAssetSrc(artifactId: string, title: string): string | undefined {
+  if (!isImagePath(title)) return undefined
+  return assetUrl(artifactId, title.slice(title.lastIndexOf("/") + 1))
 }
 
 /**

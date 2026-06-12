@@ -14,8 +14,6 @@ export function useReviewCommands() {
     reply: useMusubiCommand(comments, "reply"),
     submitReview: useMusubiCommand(store, "submit_review"),
     setDraftVerdict: useMusubiCommand(store, "set_draft_verdict"),
-    selectRound: useMusubiCommand(store, "select_round"),
-    diffRound: useMusubiCommand(store, "diff_round"),
-    closeDiff: useMusubiCommand(store, "close_diff")
+    selectRound: useMusubiCommand(store, "select_round")
   }
 }

@@ -50,37 +50,14 @@ export interface ArtifactSummary {
   latest_round: number | null
 }
 
-export interface DiffSegment {
-  op: "eq" | "ins" | "del"
-  value: string
-}
-
-export interface DiffComment {
-  id: string
-  critique_type: CritiqueType
-  body: string
-}
-
-export interface RoundDiff {
-  from: number
-  to: number
-  text: DiffSegment[]
-  resolved: DiffComment[]
-  added: DiffComment[]
-  carried_forward: DiffComment[]
-  verdict_from: Verdict | null
-  verdict_to: Verdict | null
-}
-
 export interface ReviewSnapshot {
   artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
   artifacts: ArtifactSummary[]
   rounds: RoundSummary[]
-  current_round: { number: number; content: string; is_latest: boolean }
+  current_round: { number: number; content_hash: string; is_latest: boolean }
   comments: { items: Comment[] }
   latest_verdict: Verdict | null
   draft_verdict: Verdict | null
-  diff: RoundDiff | null
 }
 
 export const CRITIQUE_META: Record<CritiqueType, { label: string; short: string; tone: string }> = {

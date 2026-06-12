@@ -25,6 +25,10 @@ export function useReviewStore(): ReviewStore {
  */
 export interface ReviewView {
   snapshot: ReviewSnapshot
+  /** Reviewed source text fetched live from the content route ("" for images). */
+  content: string
+  /** Set when the content route fails (file deleted, moved, or unreadable). */
+  contentError: string | null
   blocks: RenderedBlock[]
   loading: boolean
   comments: Comment[]
