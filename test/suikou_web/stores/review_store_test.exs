@@ -8,51 +8,6 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Submissions
   alias SuikouWeb.Stores.ReviewStore
 
-  describe "diff child" do
-    test "renders no diff child until a round pair is selected" do
-      artifact = insert(:round).artifact
-      page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
-
-      assert %{diff: nil} = Testing.render(page)
-    end
-
-    test "renders the text, transitions, and verdict change for the selected rounds" do
-      round1 = insert(:round, content: "alpha\nbeta\n")
-      artifact = round1.artifact
-      {:ok, %{next_round: round2}} = Submissions.submit(round1.id, :request_changes)
-      edit_round(artifact.id, "alpha\ngamma\n")
-      {:ok, _r2} = Submissions.submit(round2.id, :approve)
-
-      page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
-      {:ok, _reply} = Testing.dispatch_command(page, :diff_round, %{from: 0, to: 1})
-
-      assert %{
-               from: 0,
-               to: 1,
-               text: text,
-               verdict_from: :request_changes,
-               verdict_to: :approve
-             } = Testing.render(page, ["diff"])
-
-      deleted = for %{op: :del, value: value} <- text, into: "", do: value
-      inserted = for %{op: :ins, value: value} <- text, into: "", do: value
-      assert deleted =~ "bet"
-      assert inserted =~ "mma"
-    end
-
-    test "close_diff unmounts the diff child" do
-      artifact = insert(:round).artifact
-      advance(artifact.id, "changed\n")
-      page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
-
-      {:ok, _reply} = Testing.dispatch_command(page, :diff_round, %{from: 0, to: 1})
-      assert %{from: 0} = Testing.render(page, ["diff"])
-
-      {:ok, _reply} = Testing.dispatch_command(page, :close_diff, %{})
-      assert %{diff: nil} = Testing.render(page)
-    end
-  end
-
   describe "draft verdict" do
     test "mount renders the latest round's stored draft verdict" do
       round = insert(:round)
@@ -83,7 +38,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
 
     test "add_comment renders a pending draft comment in the child" do
-      artifact = insert(:round).artifact
+      artifact = source_round("line 1\nline 2\nline 3\n").artifact
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
 
       {:ok, _reply} =
@@ -105,7 +60,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
 
     test "resolve_comment marks a published comment resolved" do
-      round = insert(:round)
+      round = source_round("line 1\nline 2\nline 3\n")
 
       published_comment(round.id, %{
         scope: :line,
@@ -125,7 +80,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
 
     test "unresolve_comment reopens a resolved comment" do
-      round = insert(:round)
+      round = source_round("line 1\nline 2\nline 3\n")
 
       published_comment(round.id, %{
         scope: :line,
@@ -177,8 +132,8 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert %{items: []} = Testing.render(page, ["comments"])
     end
 
-    test "relocate_comment re-anchors an outdated carried comment and clears the flag" do
-      round1 = insert(:round, content: "alpha\nbeta\ngamma\n")
+    test "relocate_comment re-pins a comment whose quote is gone and renders it located" do
+      round1 = source_round("alpha\nbeta\ngamma\n")
       artifact = round1.artifact
 
       published_comment(round1.id, %{
@@ -189,11 +144,13 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
         end_line: 2
       })
 
-      %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nbeta\n")
+      # The quoted "beta" no longer appears, so the carried comment can't be
+      # located and renders outdated until it is manually re-pinned.
+      %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nEPSILON\n")
       [carried] = Reads.list_comments(round2.id)
-      assert carried.outdated
 
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
+      assert %{items: [%{outdated: true}]} = Testing.render(page, ["comments"])
 
       {:ok, _reply} =
         Testing.dispatch_command(
@@ -203,8 +160,47 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
           ["comments"]
         )
 
-      assert %{items: [%{outdated: false, anchor: %{start_line: 4, end_line: 4}}]} =
+      assert %{
+               items: [
+                 %{outdated: false, anchor: %{start_line: 4, end_line: 4, quote: "EPSILON"}}
+               ]
+             } =
                Testing.render(page, ["comments"])
+    end
+
+    test "a line comment re-resolves to its quote's current line after the file changes" do
+      round = source_round("alpha\nbeta\ngamma\n")
+
+      published_comment(round.id, %{
+        scope: :line,
+        critique_type: :note,
+        body: "re: beta",
+        start_line: 2,
+        end_line: 2
+      })
+
+      rewrite_source(round.artifact_id, "added\nalpha\nbeta\ngamma\n")
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      assert %{items: [%{outdated: false, anchor: %{start_line: 3, end_line: 3, quote: "beta"}}]} =
+               Testing.render(page, ["comments"])
+    end
+
+    test "a line comment renders outdated when its quote no longer appears" do
+      round = source_round("alpha\nbeta\ngamma\n")
+
+      published_comment(round.id, %{
+        scope: :line,
+        critique_type: :note,
+        body: "re: beta",
+        start_line: 2,
+        end_line: 2
+      })
+
+      rewrite_source(round.artifact_id, "wholly\ndifferent\n")
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      assert %{items: [%{outdated: true}]} = Testing.render(page, ["comments"])
     end
   end
 end

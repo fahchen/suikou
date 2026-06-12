@@ -9,8 +9,7 @@ defmodule Suikou.Critique.CommentsTest do
 
   describe "authoring scope" do
     test "a line-scoped comment anchors to a range and captures the quoted source" do
-      content = Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n"
-      round = insert(:round, content: content)
+      round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
@@ -33,8 +32,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "a line-scoped comment freezes its original anchor and authoring round" do
-      content = Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n"
-      round = insert(:round, content: content)
+      round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
@@ -57,8 +55,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
 
     test "a single-line comment stores equal start and end lines" do
-      content = Enum.map_join(1..8, "\n", &"line #{&1}") <> "\n"
-      round = insert(:round, content: content)
+      round = source_round(Enum.map_join(1..8, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{

@@ -4,8 +4,8 @@ defmodule Suikou.Schemas.Comment do
   body, lifecycle status, and optional line anchor.
 
   A carried-forward comment is a new row whose `origin_id` links back to the
-  row it was carried from; `outdated` marks a carried comment whose quote no
-  longer exists in the new snapshot.
+  row it was carried from. Whether a line comment is outdated is derived live by
+  locating its quote in the current file, not stored.
   """
 
   use Suikou.Schema
@@ -46,7 +46,6 @@ defmodule Suikou.Schemas.Comment do
     field :body, :string, typed: [null: false]
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
     field :resolved_round, :integer
-    field :outdated, :boolean, default: false, typed: [null: false]
 
     belongs_to :round, Round
     belongs_to :origin, __MODULE__
@@ -164,13 +163,13 @@ defmodule Suikou.Schemas.Comment do
 
   @doc """
   Builds a changeset relocating a line-scoped comment to a fresh `anchor`,
-  clearing the `outdated` flag. Used when a human manually re-anchors a comment
-  that lost its mapping across rounds (see BDR-0017).
+  re-capturing its quote so live resolution finds it again. Used when a human
+  manually re-anchors a comment whose quote no longer matched (see BDR-0017).
 
   ## Examples
 
       iex> anchor = %{__type__: "line_range", start_line: 3, end_line: 3, quote: "c"}
-      iex> Suikou.Schemas.Comment.relocate_changeset(%Suikou.Schemas.Comment{outdated: true}, %{anchor: anchor}).valid?
+      iex> Suikou.Schemas.Comment.relocate_changeset(%Suikou.Schemas.Comment{}, %{anchor: anchor}).valid?
       true
 
   """
@@ -178,7 +177,6 @@ defmodule Suikou.Schemas.Comment do
   def relocate_changeset(comment, params) do
     comment
     |> cast(params, [])
-    |> put_change(:outdated, false)
     |> cast_polymorphic_embed(:anchor, required: true)
   end
 end

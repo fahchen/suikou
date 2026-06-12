@@ -173,21 +173,6 @@ declare namespace Musubi {
       }
     >
 
-    "SuikouWeb.Stores.DiffStore": StoreDef<
-      "SuikouWeb.Stores.DiffStore",
-      {
-        from: number
-        to: number
-        text: Array<{ op: "eq" | "ins" | "del"; value: string }>
-        resolved: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
-        added: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
-        carried_forward: Array<{ id: string; critique_type: "fix_required" | "needs_answer" | "note"; body: string }>
-        verdict_from: "approve" | "request_changes" | "comment" | null
-        verdict_to: "approve" | "request_changes" | "comment" | null
-      },
-      {}
-    >
-
     "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
       "SuikouWeb.Stores.ProjectBoardStore",
       {
@@ -258,11 +243,10 @@ declare namespace Musubi {
         artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
         rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
-        current_round: { number: number; content: string; is_latest: boolean }
+        current_round: { number: number; content_hash: string; is_latest: boolean }
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
         latest_verdict: "approve" | "request_changes" | "comment" | null
         draft_verdict: "approve" | "request_changes" | "comment" | null
-        diff: Musubi.StoreField<"SuikouWeb.Stores.DiffStore"> | null
       },
       {
         submit_review: {
@@ -283,17 +267,6 @@ declare namespace Musubi {
           payload: {
             number: number
           }
-          reply: never
-        }
-        diff_round: {
-          payload: {
-            from: number
-            to: number
-          }
-          reply: never
-        }
-        close_diff: {
-          payload: {}
           reply: never
         }
       }

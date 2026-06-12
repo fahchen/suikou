@@ -8,7 +8,6 @@ defmodule Suikou.Reads do
 
   import Ecto.Query
 
-  alias Suikou.Reads.Diff
   alias Suikou.Repo
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
@@ -119,19 +118,6 @@ defmodule Suikou.Reads do
     |> preload(replies: ^thread_order())
     |> Repo.get(comment_id)
   end
-
-  @doc """
-  Diffs two rounds of an artifact for the reviewer: the snapshot text
-  difference, the critique state transitions (resolved, added, carried-forward),
-  and the change in latest verdict. See `Suikou.Reads.Diff.round_diff/3`.
-
-  ## Examples
-
-      Suikou.Reads.round_diff(artifact.id, 1, 2)
-      #=> {:ok, %{resolved: [], added: [], carried_forward: [], text: [], verdict_from: nil, verdict_to: nil}}
-
-  """
-  defdelegate round_diff(artifact_id, from_number, to_number), to: Diff
 
   defp thread_order do
     order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)

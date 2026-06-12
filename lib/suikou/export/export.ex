@@ -9,6 +9,8 @@ defmodule Suikou.Export do
 
   import Ecto.Query
 
+  alias Suikou.Artifacts
+  alias Suikou.Critique.Anchor
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Anchor.LineRange
@@ -72,45 +74,48 @@ defmodule Suikou.Export do
 
   defp build(artifact) do
     round = Rounds.latest(artifact.id)
+    content = Artifacts.read_content_or_nil(artifact.id)
 
     %{
       artifact_id: artifact.id,
       title: artifact.title,
       round: round.number,
-      content: round.content,
+      content: content || "",
       verdict: Suikou.Submissions.latest_verdict_for_artifact(artifact.id),
       approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
-      comments: published_comments(round.id)
+      comments: published_comments(round.id, content)
     }
   end
 
-  defp published_comments(round_id) do
+  defp published_comments(round_id, content) do
     from(c in Comment, as: :comment)
     |> where([comment: c], c.round_id == ^round_id and c.status == :published)
     |> order_by([comment: c], asc: c.id)
     |> preload(replies: ^reply_thread())
     |> Repo.all()
-    |> Enum.map(&comment_view/1)
+    |> Enum.map(&comment_view(&1, content))
   end
 
   defp reply_thread do
     order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
   end
 
-  defp comment_view(comment) do
+  defp comment_view(comment, content) do
+    {anchor, outdated} = Anchor.resolve(comment.anchor, content)
+
     %{
       id: comment.id,
       scope: comment.scope,
       critique_type: comment.critique_type,
       body: comment.body,
-      anchor: anchor_view(comment.anchor),
+      anchor: anchor,
       original_anchor: anchor_view(comment.original_anchor),
       original_round: comment.original_round,
       resolved_round: comment.resolved_round,
       resolved: not is_nil(comment.resolved_round),
-      outdated: comment.outdated,
-      line_anchor: line_anchor?(comment),
+      outdated: outdated,
+      line_anchor: comment.scope == :line and not outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
   end
@@ -120,7 +125,4 @@ defmodule Suikou.Export do
   end
 
   defp anchor_view(nil), do: nil
-
-  defp line_anchor?(%Comment{scope: :line, outdated: false, anchor: %LineRange{}}), do: true
-  defp line_anchor?(_comment), do: false
 end

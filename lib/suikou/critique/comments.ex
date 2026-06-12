@@ -6,6 +6,7 @@ defmodule Suikou.Critique.Comments do
   `unresolve` require a published comment.
   """
 
+  alias Suikou.Artifacts
   alias Suikou.Critique.Anchor
   alias Suikou.Repo
   alias Suikou.Rounds
@@ -26,14 +27,25 @@ defmodule Suikou.Critique.Comments do
   """
   @spec add(map()) ::
           {:ok, Comment.t()}
-          | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
+          | {:error,
+             Ecto.Changeset.t()
+             | :round_not_found
+             | :not_latest_round
+             | Artifacts.read_content_error()}
   def add(params) do
     round = Rounds.get(params[:round_id])
 
     cond do
-      is_nil(round) -> {:error, :round_not_found}
-      not Rounds.latest?(round) -> {:error, :not_latest_round}
-      true -> params |> put_anchor(round) |> Comment.author_changeset() |> Repo.insert()
+      is_nil(round) ->
+        {:error, :round_not_found}
+
+      not Rounds.latest?(round) ->
+        {:error, :not_latest_round}
+
+      true ->
+        with {:ok, params} <- put_anchor(params, round) do
+          params |> Comment.author_changeset() |> Repo.insert()
+        end
     end
   end
 
@@ -134,14 +146,14 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Relocates a line-scoped comment to lines `start_line..end_line` of its round,
-  re-capturing the quoted source and clearing the `outdated` flag. Rejects a
-  comment that carries no line anchor.
+  Relocates a line-scoped comment to lines `start_line..end_line` of its file,
+  re-capturing the quoted source from the live file so live resolution finds it
+  again. Rejects a comment that carries no line anchor.
 
   ## Examples
 
       Suikou.Critique.Comments.relocate(comment.id, 4, 5)
-      #=> {:ok, %Suikou.Schemas.Comment{outdated: false}}
+      #=> {:ok, %Suikou.Schemas.Comment{}}
 
       Suikou.Critique.Comments.relocate(review_comment.id, 4, 5)
       #=> {:error, :not_line_scoped}
@@ -149,7 +161,11 @@ defmodule Suikou.Critique.Comments do
   """
   @spec relocate(Ecto.UUID.t(), pos_integer(), pos_integer()) ::
           {:ok, Comment.t()}
-          | {:error, Ecto.Changeset.t() | :comment_not_found | :not_line_scoped}
+          | {:error,
+             Ecto.Changeset.t()
+             | :comment_not_found
+             | :not_line_scoped
+             | Artifacts.read_content_error()}
   def relocate(comment_id, start_line, end_line) do
     case Repo.get(Comment, comment_id) do
       nil ->
@@ -157,11 +173,14 @@ defmodule Suikou.Critique.Comments do
 
       %Comment{scope: :line} = comment ->
         round = Rounds.get(comment.round_id)
-        anchor = Anchor.capture(round.content, start_line, end_line)
 
-        comment
-        |> Comment.relocate_changeset(%{anchor: anchor})
-        |> Repo.update()
+        with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
+          anchor = Anchor.capture(content, start_line, end_line)
+
+          comment
+          |> Comment.relocate_changeset(%{anchor: anchor})
+          |> Repo.update()
+        end
 
       %Comment{} ->
         {:error, :not_line_scoped}
@@ -180,14 +199,17 @@ defmodule Suikou.Critique.Comments do
     end_line = params[:end_line]
 
     if line_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
-      anchor = Anchor.capture(round.content, start_line, end_line)
+      with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
+        anchor = Anchor.capture(content, start_line, end_line)
 
-      params
-      |> Map.put(:anchor, anchor)
-      |> Map.put(:original_anchor, anchor)
-      |> Map.put(:original_round, round.number)
+        {:ok,
+         params
+         |> Map.put(:anchor, anchor)
+         |> Map.put(:original_anchor, anchor)
+         |> Map.put(:original_round, round.number)}
+      end
     else
-      params
+      {:ok, params}
     end
   end
 

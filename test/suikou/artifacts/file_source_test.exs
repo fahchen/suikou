@@ -18,7 +18,8 @@ defmodule Suikou.Artifacts.FileSourceTest do
 
       assert %Artifact{title: "plan.md", file_path: "plan.md", review_id: review_id} = artifact
       assert review_id == review.id
-      assert %Round{number: 0, content: "# Plan\nbody\n"} = round
+      assert %Round{number: 0, content_hash: hash} = round
+      assert hash == Base.encode16(:crypto.hash(:sha256, "# Plan\nbody\n"))
     end
 
     @tag :tmp_dir

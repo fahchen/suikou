@@ -3,12 +3,11 @@ defmodule SuikouWeb.Stores.ReviewStore do
   Root store backing the human review surface for a single artifact.
 
   Mounts against an `artifact_id` (and optional `round_number`, defaulting to the
-  latest) and renders the artifact header, its rounds, the viewed round's
-  snapshot, and the latest recorded verdict. The viewed round's comment thread is
-  delegated to a `SuikouWeb.Stores.CommentsStore` child; an open round-diff is
-  delegated to a `SuikouWeb.Stores.DiffStore` child. The root owns round
-  selection and diff open/close, so every root command changes an assign and the
-  render cycle always has a dirty signal.
+  latest) and renders the artifact header, its rounds, the viewed round, and the
+  latest recorded verdict. Reviewed content is served separately over HTTP, not
+  carried in the snapshot. The viewed round's comment thread is delegated to a
+  `SuikouWeb.Stores.CommentsStore` child. The root owns round selection, so every
+  root command changes an assign and the render cycle always has a dirty signal.
   """
 
   use Musubi.Store, root: true
@@ -21,7 +20,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentsStore
-  alias SuikouWeb.Stores.DiffStore
 
   state do
     field(:artifact, %{
@@ -53,7 +51,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
     field(:current_round, %{
       number: integer(),
-      content: String.t(),
+      content_hash: String.t(),
       is_latest: boolean()
     })
 
@@ -62,8 +60,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
     field(:latest_verdict, :approve | :request_changes | :comment | nil)
 
     field(:draft_verdict, :approve | :request_changes | :comment | nil)
-
-    field(:diff, DiffStore.state() | nil)
   end
 
   command :submit_review do
@@ -86,16 +82,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
     payload do
       field(:number, integer())
     end
-  end
-
-  command :diff_round do
-    payload do
-      field(:from, integer())
-      field(:to, integer())
-    end
-  end
-
-  command :close_diff do
   end
 
   @impl Musubi.Store
@@ -126,8 +112,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       current_round: render_current_round(viewed, latest_number),
       comments: comments_child(artifact_id, viewed),
       latest_verdict: viewed && Submissions.latest_verdict(viewed.id),
-      draft_verdict: draft_verdict(rounds),
-      diff: diff_child(artifact_id, Map.get(socket.assigns, :diff_range))
+      draft_verdict: draft_verdict(rounds)
     }
   end
 
@@ -166,26 +151,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
     {:noreply, Socket.assign(socket, :round_number, payload["number"])}
   end
 
-  def handle_command(:diff_round, payload, socket) do
-    {:noreply, Socket.assign(socket, :diff_range, {payload["from"], payload["to"]})}
-  end
-
-  def handle_command(:close_diff, _payload, socket) do
-    {:noreply, Socket.assign(socket, :diff_range, nil)}
-  end
-
   defp comments_child(artifact_id, nil) do
     Child.child(CommentsStore, id: "comments", artifact_id: artifact_id, round_id: nil)
   end
 
   defp comments_child(artifact_id, %Round{} = viewed) do
     Child.child(CommentsStore, id: "comments", artifact_id: artifact_id, round_id: viewed.id)
-  end
-
-  defp diff_child(_artifact_id, nil), do: nil
-
-  defp diff_child(artifact_id, {from, to}) do
-    Child.child(DiffStore, id: "diff", artifact_id: artifact_id, from: from, to: to)
   end
 
   defp latest_round(artifact_id), do: Rounds.latest(artifact_id)
@@ -232,10 +203,14 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   defp render_current_round(nil, _latest_number) do
-    %{number: 0, content: "", is_latest: true}
+    %{number: 0, content_hash: "", is_latest: true}
   end
 
   defp render_current_round(%Round{} = round, latest_number) do
-    %{number: round.number, content: round.content, is_latest: round.number == latest_number}
+    %{
+      number: round.number,
+      content_hash: round.content_hash,
+      is_latest: round.number == latest_number
+    }
   end
 end

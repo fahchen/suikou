@@ -191,7 +191,6 @@ defmodule Suikou.Submissions do
       %{
         artifact_id: round.artifact_id,
         number: round.number + 1,
-        content: round.content,
         content_hash: round.content_hash
       }
       |> Round.changeset()

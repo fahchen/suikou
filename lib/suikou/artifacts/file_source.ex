@@ -7,7 +7,6 @@ defmodule Suikou.Artifacts.FileSource do
   directory.
   """
 
-  alias Suikou.Critique
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
@@ -42,8 +41,9 @@ defmodule Suikou.Artifacts.FileSource do
   end
 
   @doc """
-  Refreshes a draft round's snapshot by re-reading its artifact's file from disk,
-  then re-anchors the round's line-scoped comments against the content change.
+  Refreshes a draft round's content hash by re-reading its artifact's file from
+  disk. Content is read live rather than stored, so a re-snapshot only updates
+  the hash that identifies the revision; comment anchors resolve live at render.
 
   Only the latest (draft) round may be re-snapshotted. Returns
   `{:error, :not_latest_round}` for a superseded round, `{:error, :not_a_file}`
@@ -64,7 +64,10 @@ defmodule Suikou.Artifacts.FileSource do
            Repo.preload(Repo.get!(Artifact, round.artifact_id), review: :project),
          {:ok, content} <- read_regular_file(source_path(artifact)),
          :ok <- ensure_present(content) do
-      Repo.transaction(fn -> refresh(round, content) end)
+      {:ok,
+       round
+       |> Round.resnapshot_changeset(%{content_hash: hash(content)})
+       |> Repo.update!()}
     end
   end
 
@@ -80,18 +83,6 @@ defmodule Suikou.Artifacts.FileSource do
 
   defp source_path(%Artifact{} = artifact),
     do: Path.join(artifact.review.project.path, artifact.file_path)
-
-  defp refresh(round, content) do
-    prev_content = round.content
-
-    round =
-      round
-      |> Round.resnapshot_changeset(%{content: content, content_hash: hash(content)})
-      |> Repo.update!()
-
-    Critique.reanchor_round(round.id, prev_content, content)
-    round
-  end
 
   defp safe_relative(path, file_path) do
     case Path.safe_relative(file_path, path) do
@@ -120,7 +111,7 @@ defmodule Suikou.Artifacts.FileSource do
       |> Repo.insert!()
 
     round =
-      %{artifact_id: artifact.id, number: 0, content: content, content_hash: hash(content)}
+      %{artifact_id: artifact.id, number: 0, content_hash: hash(content)}
       |> Round.changeset()
       |> Repo.insert!()
 

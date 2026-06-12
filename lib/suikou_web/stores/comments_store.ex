@@ -14,7 +14,9 @@ defmodule SuikouWeb.Stores.CommentsStore do
   use Musubi.Store
 
   alias Musubi.Socket
+  alias Suikou.Artifacts
   alias Suikou.Critique
+  alias Suikou.Critique.Anchor
   alias Suikou.Reads
   alias Suikou.Rounds
   alias Suikou.Schemas.Comment
@@ -109,7 +111,8 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    %{items: Enum.map(socket.assigns.comments, &render_comment/1)}
+    content = Artifacts.read_content_or_nil(socket.assigns[:artifact_id])
+    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, content))}
   end
 
   @impl Musubi.Store
@@ -179,7 +182,9 @@ defmodule SuikouWeb.Stores.CommentsStore do
     Socket.assign(socket, :comments, comments)
   end
 
-  defp render_comment(%Comment{} = comment) do
+  defp render_comment(%Comment{} = comment, content) do
+    {anchor, outdated} = Anchor.resolve(comment.anchor, content)
+
     %{
       id: comment.id,
       scope: comment.scope,
@@ -188,19 +193,13 @@ defmodule SuikouWeb.Stores.CommentsStore do
       body: comment.body,
       resolved: not is_nil(comment.resolved_round),
       resolved_round: comment.resolved_round,
-      outdated: comment.outdated,
+      outdated: outdated,
       original_round: comment.original_round,
       carried: not is_nil(comment.origin_id),
       inserted_at: iso8601(comment.inserted_at),
-      anchor: render_anchor(comment.anchor),
+      anchor: anchor,
       replies: Enum.map(comment.replies, &render_reply/1)
     }
-  end
-
-  defp render_anchor(nil), do: nil
-
-  defp render_anchor(anchor) do
-    %{start_line: anchor.start_line, end_line: anchor.end_line, quote: anchor.quote}
   end
 
   defp render_reply(%Reply{} = reply) do

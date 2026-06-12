@@ -1,9 +1,9 @@
 defmodule Suikou.Critique.Anchor do
   @moduledoc """
   Line-range anchor helpers. A line-scoped comment captures the quoted source of
-  its lines at creation, then re-anchors on a later round by mapping its line
-  range through the round-to-round line diff: an unchanged line moves to its new
-  position, an edited or deleted line marks the comment outdated (see BDR-0017).
+  its lines at creation; because content is read live rather than stored, the
+  comment's position is then resolved by locating that quote in the current file
+  each render. A quote that no longer appears marks the comment outdated.
   """
 
   alias Suikou.Schemas.Anchor.LineRange
@@ -35,69 +35,87 @@ defmodule Suikou.Critique.Anchor do
   end
 
   @doc """
-  Re-anchors a `line_range` from `prev_content` into `new_content` by mapping its
-  range through the line diff. Returns `{:ok, line_range}` with the mapped range
-  and re-captured quote when every anchored line is unchanged and contiguous, or
-  `:outdated` when any anchored line was edited or deleted.
+  Locates a comment's captured `quote` in `content`, returning the 1-based
+  inclusive line range it now occupies. Content is read live rather than stored,
+  so a comment's line numbers are resolved by finding its quote each render.
+
+  Returns `{:ok, {start_line, end_line}}` for the contiguous run of lines equal
+  to the quote, choosing the occurrence nearest `hint_start` (the comment's
+  last-known start line) when the quote appears more than once, or `:not_found`
+  when the quote no longer appears, which marks the comment outdated.
 
   ## Examples
 
-      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "x\\na\\nb\\nc", %Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 3, quote: "b\\nc"})
-      {:ok, %Suikou.Schemas.Anchor.LineRange{start_line: 3, end_line: 4, quote: "b\\nc"}}
+      iex> Suikou.Critique.Anchor.locate("a\\nb\\nc", "b", 2)
+      {:ok, {2, 2}}
 
-      iex> Suikou.Critique.Anchor.reanchor("a\\nb\\nc", "a\\nB\\nc", %Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"})
-      :outdated
+      iex> Suikou.Critique.Anchor.locate("a\\nb\\nc", "x", 2)
+      :not_found
 
   """
-  @spec reanchor(String.t(), String.t(), LineRange.t()) :: {:ok, LineRange.t()} | :outdated
-  def reanchor(prev_content, new_content, %LineRange{start_line: start_line, end_line: end_line}) do
-    prev_lines = String.split(prev_content, "\n")
-    new_lines = String.split(new_content, "\n")
+  @spec locate(String.t(), String.t(), pos_integer()) ::
+          {:ok, {pos_integer(), pos_integer()}} | :not_found
+  def locate(content, quote, hint_start) do
+    content_lines = String.split(content, "\n")
+    quote_lines = String.split(quote, "\n")
+    span = length(quote_lines)
+    total = length(content_lines)
 
-    case map_range(prev_lines, new_lines, start_line, end_line) do
-      {new_start, new_end} ->
-        quote = Enum.join(Enum.slice(new_lines, (new_start - 1)..(new_end - 1)//1), "\n")
-        {:ok, %LineRange{start_line: new_start, end_line: new_end, quote: quote}}
+    starts =
+      if span > total do
+        []
+      else
+        Enum.filter(0..(total - span)//1, fn i ->
+          Enum.slice(content_lines, i, span) == quote_lines
+        end)
+      end
 
-      nil ->
-        :outdated
+    case starts do
+      [] -> :not_found
+      found -> {:ok, nearest(found, span, hint_start)}
     end
   end
 
-  defp map_range(prev_lines, new_lines, start_line, end_line) do
-    line_map = line_map(prev_lines, new_lines)
-    mapped = Enum.map(start_line..end_line//1, &Map.get(line_map, &1))
+  defp nearest(starts, span, hint_start) do
+    start = Enum.min_by(starts, &abs(&1 + 1 - hint_start))
+    {start + 1, start + span}
+  end
 
-    if Enum.all?(mapped, &is_integer/1) and consecutive?(mapped) do
-      {hd(mapped), List.last(mapped)}
+  @type resolved() :: %{start_line: pos_integer(), end_line: pos_integer(), quote: String.t()}
+
+  @doc """
+  Resolves a stored line anchor against live `content`, returning its current
+  view and whether it is outdated. A located quote yields its present line range
+  (not outdated); a quote that no longer appears, or unreadable content, leaves
+  the anchor at its last-known lines and marks it outdated. A `nil` anchor (a
+  file- or review-scoped comment) resolves to `{nil, false}`.
+
+  ## Examples
+
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, "x\\nb\\nc")
+      {%{start_line: 2, end_line: 2, quote: "b"}, false}
+
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, "gone\\n")
+      {%{start_line: 2, end_line: 2, quote: "b"}, true}
+
+  """
+  @spec resolve(LineRange.t() | nil, String.t() | nil) :: {resolved() | nil, boolean()}
+  def resolve(nil, _content), do: {nil, false}
+
+  def resolve(%LineRange{} = anchor, content) when is_binary(content) do
+    case locate(content, anchor.quote, anchor.start_line) do
+      {:ok, {start_line, end_line}} ->
+        {%{start_line: start_line, end_line: end_line, quote: anchor.quote}, false}
+
+      :not_found ->
+        {stale(anchor), true}
     end
   end
 
-  defp line_map(prev_lines, new_lines) do
-    prev_lines
-    |> List.myers_difference(new_lines)
-    |> Enum.reduce({1, 1, %{}}, fn
-      {:eq, lines}, {old_no, new_no, acc} ->
-        acc =
-          Enum.reduce(0..(length(lines) - 1)//1, acc, fn offset, acc ->
-            Map.put(acc, old_no + offset, new_no + offset)
-          end)
+  def resolve(%LineRange{} = anchor, nil), do: {stale(anchor), true}
 
-        {old_no + length(lines), new_no + length(lines), acc}
-
-      {:del, lines}, {old_no, new_no, acc} ->
-        {old_no + length(lines), new_no, acc}
-
-      {:ins, lines}, {old_no, new_no, acc} ->
-        {old_no, new_no + length(lines), acc}
-    end)
-    |> elem(2)
-  end
-
-  defp consecutive?(line_numbers) do
-    line_numbers
-    |> Enum.chunk_every(2, 1, :discard)
-    |> Enum.all?(fn [a, b] -> b - a == 1 end)
+  defp stale(%LineRange{} = anchor) do
+    %{start_line: anchor.start_line, end_line: anchor.end_line, quote: anchor.quote}
   end
 
   defp quote_lines(content, start_line, end_line) do

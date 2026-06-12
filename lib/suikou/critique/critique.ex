@@ -11,7 +11,6 @@ defmodule Suikou.Critique do
   alias Suikou.Critique.CarryForward
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
-  alias Suikou.Critique.Reanchor
 
   @doc """
   Adds a pending critique to the latest round. See
@@ -71,12 +70,12 @@ defmodule Suikou.Critique do
 
   @doc """
   Relocates a line-scoped comment to a fresh line range, re-capturing its quote
-  and clearing the outdated flag. See `Suikou.Critique.Comments.relocate/3`.
+  from the live file. See `Suikou.Critique.Comments.relocate/3`.
 
   ## Examples
 
       Suikou.Critique.relocate_comment(comment.id, 4, 5)
-      #=> {:ok, %Suikou.Schemas.Comment{outdated: false}}
+      #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
   defdelegate relocate_comment(comment_id, start_line, end_line), to: Comments, as: :relocate
@@ -117,17 +116,4 @@ defmodule Suikou.Critique do
 
   """
   defdelegate carry_forward(prev_round, new_round), to: CarryForward, as: :carry
-
-  @doc """
-  Re-anchors a draft round's line-scoped comments after its content is refreshed
-  from disk. The artifacts domain invokes this when a round is re-snapshotted.
-  See `Suikou.Critique.Reanchor.reanchor_round/3`.
-
-  ## Examples
-
-      Suikou.Critique.reanchor_round(round.id, prev_content, new_content)
-      #=> :ok
-
-  """
-  defdelegate reanchor_round(round_id, prev_content, new_content), to: Reanchor
 end

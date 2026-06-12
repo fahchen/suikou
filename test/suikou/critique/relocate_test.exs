@@ -6,8 +6,8 @@ defmodule Suikou.Critique.RelocateTest do
   alias Suikou.Critique
   alias Suikou.Reads
 
-  test "relocate re-anchors an outdated carried comment and clears the flag" do
-    round1 = insert(:round, content: "alpha\nbeta\ngamma\n")
+  test "relocate re-captures the quote at fresh lines from the live file" do
+    round1 = source_round("alpha\nbeta\ngamma\n")
     artifact = round1.artifact
 
     published_comment(round1.id, %{
@@ -18,13 +18,13 @@ defmodule Suikou.Critique.RelocateTest do
       end_line: 2
     })
 
-    %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nbeta\n")
+    # The quoted "beta" is gone; the human re-pins the comment to a fresh line,
+    # which re-captures the quote there from the current file.
+    %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nEPSILON\n")
     [carried] = Reads.list_comments(round2.id)
-    assert carried.outdated
 
     assert {:ok, relocated} = Critique.relocate_comment(carried.id, 4, 4)
-    refute relocated.outdated
-    assert %{start_line: 4, end_line: 4, quote: "beta"} = relocated.anchor
+    assert %{start_line: 4, end_line: 4, quote: "EPSILON"} = relocated.anchor
   end
 
   test "relocate rejects a comment with no line anchor" do

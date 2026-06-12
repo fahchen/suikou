@@ -39,8 +39,7 @@ defmodule Suikou.Factories.ReviewFactory do
       def round_factory do
         %Round{
           number: 0,
-          content: "line 1\nline 2\nline 3\n",
-          content_hash: fn round -> Base.encode16(:crypto.hash(:sha256, round.content)) end,
+          content_hash: sequence(:content_hash, &"HASH#{&1}"),
           artifact: build(:artifact)
         }
       end
@@ -70,6 +69,18 @@ defmodule Suikou.Factories.ReviewFactory do
         {:ok, round} = Artifacts.resnapshot(latest.id)
         round
       end
+
+      # Round 0 for a fresh artifact, with `content` written to its file on disk
+      # (the source of truth for live reads and quote capture).
+      def source_round(content) do
+        round = insert(:round, content_hash: Base.encode16(:crypto.hash(:sha256, content)))
+        write_source(round.artifact_id, content)
+        round
+      end
+
+      # Overwrites the artifact's file on disk without touching its round, to
+      # exercise live content reads and anchor resolution against a changed file.
+      def rewrite_source(artifact_id, content), do: write_source(artifact_id, content)
 
       defp write_source(artifact_id, content) do
         artifact = Artifact |> Repo.get!(artifact_id) |> Repo.preload(review: :project)

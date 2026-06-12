@@ -45,7 +45,7 @@ defmodule Suikou.ExportTest do
   end
 
   test "the latest snapshot content travels with the critique" do
-    artifact = insert(:round, content: "snapshot body\n").artifact
+    artifact = source_round("snapshot body\n").artifact
     assert {:ok, %{content: "snapshot body\n"}} = Export.export(artifact.id)
   end
 
@@ -79,7 +79,7 @@ defmodule Suikou.ExportTest do
   end
 
   test "a carried-forward outdated comment exports flagged with no valid anchor" do
-    round = insert(:round, content: "intro\nrate limit is 100 rps\n")
+    round = source_round("intro\nrate limit is 100 rps\n")
     artifact = round.artifact
 
     published_comment(round.id, %{
