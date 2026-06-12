@@ -15,6 +15,7 @@ import {
 import { TopBar } from "../review/TopBar"
 import { DiffView } from "../review/DiffView"
 import { CommentRail } from "../review/CommentRail"
+import { isPreviewable } from "../review/file-type"
 import type { ReviewSnapshot } from "../review/types"
 
 export const Route = createFileRoute("/review/$artifactId")({
@@ -46,7 +47,8 @@ const ReviewShell = observer(function ReviewShell() {
   const ui = uiStore
 
   const wide = useMediaQuery(WIDE_QUERY)
-  const blocks = useMarkdown(snapshot.current_round.content, ui.theme)
+  const previewable = isPreviewable(snapshot.artifact.title)
+  const blocks = useMarkdown(previewable ? snapshot.current_round.content : "", ui.theme)
 
   // Reveal any comment that appears after this mount (e.g. one you just added)
   // so it shows immediately even under hide-all. The set lives only in this
@@ -72,7 +74,7 @@ const ReviewShell = observer(function ReviewShell() {
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
-      <TopBar snapshot={snapshot} />
+      <TopBar snapshot={snapshot} previewable={previewable} />
 
       <div
         className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
@@ -83,7 +85,13 @@ const ReviewShell = observer(function ReviewShell() {
           <DiffView diff={snapshot.diff} />
         ) : (
           <ReviewViewProvider
-            value={{ snapshot, blocks: blocks.blocks, loading: blocks.loading, comments }}
+            value={{
+              snapshot,
+              blocks: blocks.blocks,
+              loading: blocks.loading,
+              comments,
+              previewable
+            }}
           >
             <Outlet />
           </ReviewViewProvider>

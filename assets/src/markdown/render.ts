@@ -39,7 +39,7 @@ export async function renderMarkdown(content: string, theme: ThemeName): Promise
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
       if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return { startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: await renderMermaid(fence.content, theme) }
+        return { startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }
       }
 
       if (fence) {

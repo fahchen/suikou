@@ -7,11 +7,11 @@ import { useReviewView } from "../review/store-context"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 
 const RenderedEditorRoute = observer(function RenderedEditorRoute() {
-  const { snapshot, blocks, loading, comments } = useReviewView()
+  const { snapshot, blocks, loading, comments, previewable } = useReviewView()
   const wide = useMediaQuery(WIDE_QUERY)
   return (
     <Editor
-      view="rendered"
+      view={previewable ? "rendered" : "raw"}
       content={snapshot.current_round.content}
       blocks={blocks}
       loading={loading}

@@ -32,6 +32,8 @@ export default defineConfig({
     manifest: true
   },
   server: {
+    host: true,
+    allowedHosts: [".ts.net"],
     proxy: {
       "/socket": {
         target: "ws://localhost:4000",

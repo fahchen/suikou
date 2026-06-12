@@ -43,8 +43,11 @@ import {
 // deliberate seam on the filled button and tracks every [data-theme] palette.
 const SPLIT_SEAM = "bg-[color-mix(in_oklch,var(--primary),black_22%)]";
 
-export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot }) {
-  const { snapshot } = props;
+export const TopBar = observer(function TopBar(props: {
+  snapshot: ReviewSnapshot;
+  previewable: boolean;
+}) {
+  const { snapshot, previewable } = props;
   const commands = useReviewCommands();
   const rawView = useLocation().pathname.endsWith("/raw");
   const [verdict, setVerdict] = useState<Verdict>(
@@ -102,7 +105,11 @@ export const TopBar = observer(function TopBar(props: { snapshot: ReviewSnapshot
             <ChevronsDownUp className="size-4" />
           )}
         </Button>
-        <TopBarDisplayMenu artifactId={snapshot.artifact.id} rawView={rawView} />
+        <TopBarDisplayMenu
+          artifactId={snapshot.artifact.id}
+          rawView={rawView}
+          previewable={previewable}
+        />
         <TopBarVerdictMenu snapshot={snapshot} verdict={verdict} onVerdictChange={changeVerdict} />
 
         <ButtonGroup>

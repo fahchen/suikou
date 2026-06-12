@@ -27,6 +27,7 @@ export interface ReviewView {
   blocks: RenderedBlock[]
   loading: boolean
   comments: Comment[]
+  previewable: boolean
 }
 
 const ReviewViewContext = createContext<ReviewView | null>(null)

@@ -1,110 +1,136 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 
-const dispatch = vi.fn();
-let snapshot: unknown;
+const dispatch = vi.fn()
+let snapshot: unknown
 
 vi.mock("../musubi", () => ({
   useMusubiRoot: () => ({ status: "ok", store: {} }),
   useMusubiSnapshot: () => snapshot,
-  useMusubiCommand: () => ({ dispatch, isPending: false }),
-}));
+  useMusubiCommand: () => ({ dispatch, isPending: false })
+}))
 
-import { ProjectBoard } from "./ProjectBoard";
+import { ProjectBoard } from "./ProjectBoard"
 
 beforeEach(() => {
-  dispatch.mockReset();
+  dispatch.mockReset()
   snapshot = {
     projects: [
       {
         id: "p1",
         name: "Data Platform",
-        files: [
-          { path: "draft.md", artifact_id: null },
-          { path: "design.md", artifact_id: "a-99" },
-        ],
-      },
-    ],
-  };
-});
+        path: "/tmp/dp",
+        files: ["design.md", "draft.md"],
+        reviews: [
+          {
+            id: "r1",
+            name: "Launch",
+            files: [{ artifact_id: "a-99", path: "design.md", approved: false }]
+          }
+        ]
+      }
+    ]
+  }
+})
 
 describe("ProjectBoard", () => {
-  it("lists each project with its files", () => {
-    render(<ProjectBoard onOpen={vi.fn()} />);
+  it("lists each project with its path and reviews", () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
 
-    expect(screen.getByText("Data Platform")).toBeInTheDocument();
-    expect(screen.getByText("draft.md")).toBeInTheDocument();
-    expect(screen.getByText("design.md")).toBeInTheDocument();
-  });
+    expect(screen.getByText("Data Platform")).toBeInTheDocument()
+    expect(screen.getByText("/tmp/dp")).toBeInTheDocument()
+    expect(screen.getByText("Launch")).toBeInTheDocument()
+    expect(screen.getByText("design.md")).toBeInTheDocument()
+  })
 
-  it("opens an already-started file without minting a new artifact", () => {
-    const onOpen = vi.fn();
-    render(<ProjectBoard onOpen={onOpen} />);
+  it("opens a review file by its artifact id", () => {
+    const onOpen = vi.fn()
+    render(<ProjectBoard onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByText("design.md"));
+    fireEvent.click(screen.getByText("design.md"))
 
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(onOpen).toHaveBeenCalledWith("a-99");
-  });
+    expect(onOpen).toHaveBeenCalledWith("a-99")
+  })
 
-  it("mints an artifact for an unstarted file, then opens it", async () => {
-    dispatch.mockResolvedValue({ artifact_id: "a-new", error: null });
-    const onOpen = vi.fn();
-    render(<ProjectBoard onOpen={onOpen} />);
+  it("creates a review from a name and selected files", async () => {
+    dispatch.mockResolvedValue({ review_id: "r-new", error: null })
+    render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByText("draft.md"));
+    fireEvent.click(screen.getByText("New review"))
+    fireEvent.change(screen.getByPlaceholderText("e.g. Launch docs"), {
+      target: { value: "Spec pass" }
+    })
 
-    expect(dispatch).toHaveBeenCalledWith({ project_id: "p1", file_path: "draft.md" });
-    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("a-new"));
-  });
+    const composer = screen.getByText("New review", { selector: "h3" }).closest("div")!.parentElement!
+    const [firstFile] = within(composer).getAllByRole("checkbox")
+    fireEvent.click(firstFile)
 
-  it("surfaces a reply error and does not open", async () => {
-    dispatch.mockResolvedValue({ artifact_id: null, error: "empty_content" });
-    const onOpen = vi.fn();
-    render(<ProjectBoard onOpen={onOpen} />);
-
-    fireEvent.click(screen.getByText("draft.md"));
-
-    await waitFor(() => expect(screen.getByText("empty_content")).toBeInTheDocument());
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("shows an empty state when no project is registered", () => {
-    snapshot = { projects: [] };
-    render(<ProjectBoard onOpen={vi.fn()} />);
-
-    expect(screen.getByText(/No projects yet/)).toBeInTheDocument();
-  });
-
-  it("creates a project from the working directory and name", async () => {
-    dispatch.mockResolvedValue({ project_id: "p-new", error: null });
-    render(<ProjectBoard onOpen={vi.fn()} />);
-
-    fireEvent.change(screen.getByPlaceholderText("Project name"), {
-      target: { value: "Docs" },
-    });
-    fireEvent.change(screen.getByLabelText("Working directory"), {
-      target: { value: "/tmp/docs" },
-    });
-    fireEvent.click(screen.getByText("Create project"));
+    fireEvent.click(screen.getByText("Create review"))
 
     await waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith({ name: "Docs", path: "/tmp/docs" }),
-    );
-  });
+      expect(dispatch).toHaveBeenCalledWith({
+        project_id: "p1",
+        name: "Spec pass",
+        file_paths: ["design.md"]
+      })
+    )
+  })
 
-  it("surfaces a create-project error", async () => {
-    dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" });
-    render(<ProjectBoard onOpen={vi.fn()} />);
+  it("edits a review's file selection", async () => {
+    dispatch.mockResolvedValue({ error: null })
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByText("Edit files"))
+
+    const checkboxes = screen.getAllByRole("checkbox")
+    fireEvent.click(checkboxes[1])
+
+    fireEvent.click(screen.getByText("Save files"))
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({
+        review_id: "r1",
+        file_paths: ["design.md", "draft.md"]
+      })
+    )
+  })
+
+  it("shows an empty state when no project is registered", () => {
+    snapshot = { projects: [] }
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    expect(screen.getByText(/No projects yet/)).toBeInTheDocument()
+  })
+
+  it("creates a project from the working directory and name", async () => {
+    dispatch.mockResolvedValue({ project_id: "p-new", error: null })
+    render(<ProjectBoard onOpen={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
-      target: { value: "Docs" },
-    });
+      target: { value: "Docs" }
+    })
     fireEvent.change(screen.getByLabelText("Working directory"), {
-      target: { value: "/no/such/dir" },
-    });
-    fireEvent.click(screen.getByText("Create project"));
+      target: { value: "/tmp/docs" }
+    })
+    fireEvent.click(screen.getByText("Create project"))
 
-    await waitFor(() => expect(screen.getByText("not_a_directory")).toBeInTheDocument());
-  });
-});
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({ name: "Docs", path: "/tmp/docs" })
+    )
+  })
+
+  it("surfaces a create-project error", async () => {
+    dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" })
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.change(screen.getByPlaceholderText("Project name"), {
+      target: { value: "Docs" }
+    })
+    fireEvent.change(screen.getByLabelText("Working directory"), {
+      target: { value: "/no/such/dir" }
+    })
+    fireEvent.click(screen.getByText("Create project"))
+
+    await waitFor(() => expect(screen.getByText("not_a_directory")).toBeInTheDocument())
+  })
+})
