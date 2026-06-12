@@ -101,7 +101,11 @@ const RawView = observer(function RawView(props: EditorProps) {
             inline={props.inline}
             content={props.content}
           >
-            <span className="min-w-0 flex-1 whitespace-pre-wrap pl-2 text-text">
+            <span
+              className={`min-w-0 flex-1 pl-2 text-text ${
+                uiStore.wrapLines ? "whitespace-pre-wrap" : "overflow-x-auto whitespace-pre"
+              }`}
+            >
               {line || " "}
             </span>
           </LineRow>

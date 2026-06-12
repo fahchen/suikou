@@ -13,6 +13,7 @@ const THEME_KEY = "suikou-theme"
 const COMMENT_MODE_KEY = "suikou-comment-mode"
 const DENSITY_KEY = "suikou-density"
 const HIDE_COMMENTS_KEY = "suikou-hide-comments"
+const WRAP_LINES_KEY = "suikou-wrap-lines"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -24,6 +25,7 @@ export class UiStore {
   theme: ThemeName = "github"
   commentMode: CommentMode = "side"
   density: Density = "normal"
+  wrapLines = true
   hideComments = false
   commentsCollapsed = false
   collapseNonce = 0
@@ -62,6 +64,10 @@ export class UiStore {
       this.density = savedDensity
     }
 
+    if (localStorage.getItem(WRAP_LINES_KEY) === "false") {
+      this.wrapLines = false
+    }
+
     if (localStorage.getItem(HIDE_COMMENTS_KEY) === "true") {
       this.hideComments = true
     }
@@ -83,6 +89,11 @@ export class UiStore {
   setDensity(density: Density): void {
     this.density = density
     localStorage.setItem(DENSITY_KEY, density)
+  }
+
+  setWrapLines(wrap: boolean): void {
+    this.wrapLines = wrap
+    localStorage.setItem(WRAP_LINES_KEY, String(wrap))
   }
 
   setHideComments(hide: boolean): void {

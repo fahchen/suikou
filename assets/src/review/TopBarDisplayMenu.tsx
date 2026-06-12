@@ -32,8 +32,9 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
 export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
   artifactId: string;
   rawView: boolean;
+  previewable: boolean;
 }) {
-  const { artifactId, rawView } = props;
+  const { artifactId, rawView, previewable } = props;
   const ui = uiStore;
   const navigate = useNavigate();
 
@@ -74,23 +75,39 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </ToggleGroup>
           </Row>
 
-          <Row label="Markdown">
-            <ToggleGroup
-              size="sm"
-              variant="outline"
-              value={[rawView ? "raw" : "rendered"]}
-              onValueChange={(v) =>
-                v[0] &&
-                void navigate({
-                  to: v[0] === "raw" ? "/review/$artifactId/raw" : "/review/$artifactId",
-                  params: { artifactId },
-                })
-              }
-            >
-              <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>
-              <ToggleGroupItem value="raw">Raw</ToggleGroupItem>
-            </ToggleGroup>
-          </Row>
+          {previewable && (
+            <Row label="Markdown">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[rawView ? "raw" : "rendered"]}
+                onValueChange={(v) =>
+                  v[0] &&
+                  void navigate({
+                    to: v[0] === "raw" ? "/review/$artifactId/raw" : "/review/$artifactId",
+                    params: { artifactId },
+                  })
+                }
+              >
+                <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>
+                <ToggleGroupItem value="raw">Raw</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
+
+          {(rawView || !previewable) && (
+            <Row label="Wrap">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[ui.wrapLines ? "on" : "off"]}
+                onValueChange={(v) => v[0] && ui.setWrapLines(v[0] === "on")}
+              >
+                <ToggleGroupItem value="on">On</ToggleGroupItem>
+                <ToggleGroupItem value="off">Off</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
 
           <Row label="Spacing">
             <ToggleGroup
