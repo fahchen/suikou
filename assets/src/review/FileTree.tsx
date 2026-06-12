@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 
-import { ChevronRight, FileText, Folder } from "lucide-react"
+import { ChevronRight, Folder } from "lucide-react"
+
+import { FileIcon } from "./FileIcon"
 
 interface TreeNode {
   name: string
@@ -123,7 +125,7 @@ function TreeRow({
           className="flex cursor-pointer items-center gap-2 py-1 pr-2.5 transition-colors hover:bg-hover pointer-coarse:min-h-9"
         >
           <Box checked={checked ? "checked" : "unchecked"} onClick={() => onToggle(node, !checked)} />
-          <FileText size={13} className="shrink-0 text-faint" />
+          <FileIcon name={node.name} />
           <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-text">{node.name}</span>
         </label>
       </li>
