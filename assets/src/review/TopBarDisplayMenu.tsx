@@ -94,6 +94,20 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Row>
           )}
 
+          {previewable && !rawView && (
+            <Row label="Flavor">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[ui.markdownFlavor]}
+                onValueChange={(v) => v[0] && ui.setMarkdownFlavor(v[0] as "gfm" | "plain")}
+              >
+                <ToggleGroupItem value="gfm">GFM</ToggleGroupItem>
+                <ToggleGroupItem value="plain">Plain</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
+
           {(rawView || !previewable) && (
             <Row label="Wrap">
               <ToggleGroup

@@ -801,8 +801,35 @@
     padding-left: 19px;
   }
 
+  .md-content ul {
+    list-style: disc;
+  }
+
+  .md-content ol {
+    list-style: decimal;
+  }
+
+  .md-content ul ul {
+    list-style: circle;
+  }
+
   .md-content li {
     margin: 0.15em 0;
+  }
+
+  .md-content li::marker {
+    color: var(--faint);
+  }
+
+  .md-content li.task-item {
+    list-style: none;
+    margin-left: -19px;
+  }
+
+  .md-content .task-checkbox {
+    margin-right: 0.4em;
+    vertical-align: middle;
+    accent-color: var(--blue);
   }
 
   .md-content a {
@@ -812,6 +839,40 @@
 
   .md-content a:hover {
     text-decoration: underline;
+  }
+
+  .md-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .md-content sub,
+  .md-content sup {
+    font-size: 0.75em;
+    line-height: 0;
+  }
+
+  .md-content .footnote-ref a {
+    font-size: 0.8em;
+    padding: 0 1px;
+  }
+
+  .md-content .footnotes {
+    margin-top: 1.5em;
+    padding-top: 0.75em;
+    border-top: 1px solid var(--line);
+    font-size: 0.9em;
+    color: var(--faint);
+  }
+
+  .md-content .footnotes-sep {
+    display: none;
+  }
+
+  .md-content .footnote-backref {
+    margin-left: 4px;
+    text-decoration: none;
   }
 
   .md-content strong {

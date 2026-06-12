@@ -1,5 +1,6 @@
 import { makeAutoObservable } from "mobx"
 
+import type { MarkdownFlavor } from "../markdown/render"
 import { THEMES, type ThemeName } from "../themes"
 
 export type DocView = "rendered" | "raw"
@@ -14,6 +15,7 @@ const COMMENT_MODE_KEY = "suikou-comment-mode"
 const DENSITY_KEY = "suikou-density"
 const HIDE_COMMENTS_KEY = "suikou-hide-comments"
 const WRAP_LINES_KEY = "suikou-wrap-lines"
+const MARKDOWN_FLAVOR_KEY = "suikou-markdown-flavor"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -25,6 +27,7 @@ export class UiStore {
   theme: ThemeName = "github"
   commentMode: CommentMode = "side"
   density: Density = "normal"
+  markdownFlavor: MarkdownFlavor = "gfm"
   wrapLines = true
   hideComments = false
   commentsCollapsed = false
@@ -64,6 +67,10 @@ export class UiStore {
       this.density = savedDensity
     }
 
+    if (localStorage.getItem(MARKDOWN_FLAVOR_KEY) === "plain") {
+      this.markdownFlavor = "plain"
+    }
+
     if (localStorage.getItem(WRAP_LINES_KEY) === "false") {
       this.wrapLines = false
     }
@@ -89,6 +96,11 @@ export class UiStore {
   setDensity(density: Density): void {
     this.density = density
     localStorage.setItem(DENSITY_KEY, density)
+  }
+
+  setMarkdownFlavor(flavor: MarkdownFlavor): void {
+    this.markdownFlavor = flavor
+    localStorage.setItem(MARKDOWN_FLAVOR_KEY, flavor)
   }
 
   setWrapLines(wrap: boolean): void {

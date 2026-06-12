@@ -49,7 +49,11 @@ const ReviewShell = observer(function ReviewShell() {
 
   const wide = useMediaQuery(WIDE_QUERY)
   const previewable = isPreviewable(snapshot.artifact.title)
-  const blocks = useMarkdown(previewable ? snapshot.current_round.content : "", ui.theme)
+  const blocks = useMarkdown(
+    previewable ? snapshot.current_round.content : "",
+    ui.theme,
+    ui.markdownFlavor
+  )
   const rawLines = useRawHighlight(
     snapshot.current_round.content,
     snapshot.artifact.title,
