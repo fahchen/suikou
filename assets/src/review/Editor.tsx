@@ -1,6 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
-import { Plus } from "lucide-react";
+import { FileX2, Plus } from "lucide-react";
 import type { ThemedToken } from "shiki";
 
 import { uiStore } from "../stores/ui-store";
@@ -9,6 +9,7 @@ import type { RenderedBlock } from "../markdown/render";
 import type { Comment } from "./types";
 import { Composer } from "./Composer";
 import { CommentCard } from "./CommentCard";
+import { isBinaryContent } from "./file-type";
 
 interface EditorProps {
   view: DocView;
@@ -50,9 +51,24 @@ const DENSITY: Record<
 };
 
 export const Editor = observer(function Editor(props: EditorProps) {
+  if (isBinaryContent(props.content)) return <BinaryNotice />;
   if (props.view === "raw") return <RawView {...props} />;
   return <RenderView {...props} />;
 });
+
+// Binary files (images, PDFs, other non-text) have no source to show.
+const BinaryNotice = function BinaryNotice() {
+  return (
+    <article className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-editor px-6 py-16 text-center">
+      <FileX2 size={28} className="text-faint" aria-hidden />
+      <div className="text-sm font-medium text-heading">Can't render this file</div>
+      <p className="max-w-sm text-[13px] text-muted-foreground">
+        It looks like a binary file (an image or other non-text format), so there's no source to
+        preview.
+      </p>
+    </article>
+  );
+};
 
 const RenderView = observer(function RenderView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
