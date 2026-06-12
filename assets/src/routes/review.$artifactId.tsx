@@ -5,6 +5,7 @@ import { observer } from "mobx-react-lite"
 import { useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
+import { useRawHighlight } from "../review/use-raw-highlight"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import {
   ReviewStoreProvider,
@@ -49,6 +50,11 @@ const ReviewShell = observer(function ReviewShell() {
   const wide = useMediaQuery(WIDE_QUERY)
   const previewable = isPreviewable(snapshot.artifact.title)
   const blocks = useMarkdown(previewable ? snapshot.current_round.content : "", ui.theme)
+  const rawLines = useRawHighlight(
+    snapshot.current_round.content,
+    snapshot.artifact.title,
+    ui.theme
+  )
 
   // Reveal any comment that appears after this mount (e.g. one you just added)
   // so it shows immediately even under hide-all. The set lives only in this
@@ -90,7 +96,8 @@ const ReviewShell = observer(function ReviewShell() {
               blocks: blocks.blocks,
               loading: blocks.loading,
               comments,
-              previewable
+              previewable,
+              rawLines
             }}
           >
             <Outlet />

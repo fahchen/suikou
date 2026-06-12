@@ -1,6 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
 import { Plus } from "lucide-react";
+import type { ThemedToken } from "shiki";
 
 import { uiStore } from "../stores/ui-store";
 import type { DocView, Density } from "../stores/ui-store";
@@ -15,7 +16,18 @@ interface EditorProps {
   blocks: RenderedBlock[];
   loading: boolean;
   comments: Comment[];
+  rawLines: ThemedToken[][] | null;
   inline: boolean;
+}
+
+// Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline).
+function tokenStyle(token: ThemedToken): React.CSSProperties {
+  const style: React.CSSProperties = { color: token.color };
+  const fontStyle = token.fontStyle ?? 0;
+  if (fontStyle & 1) style.fontStyle = "italic";
+  if (fontStyle & 2) style.fontWeight = "bold";
+  if (fontStyle & 4) style.textDecoration = "underline";
+  return style;
 }
 
 const KIND_CLASS: Record<RenderedBlock["kind"], string> = {
@@ -82,7 +94,14 @@ const RawView = observer(function RawView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-line bg-editor px-2 py-4 font-mono text-[13px] sm:px-3 sm:py-6">
+    <article
+      className={`rounded-2xl border border-line bg-editor py-4 font-mono text-[13px] sm:py-6 ${
+        // No left padding when scrolling: overflow-x clips to the padding box, so
+        // a left pad would let scrolled text show in the strip beside the sticky
+        // gutter. The w-12 gutter supplies the left gutter space itself.
+        uiStore.wrapLines ? "overflow-hidden px-2 sm:px-3" : "overflow-x-auto pr-2 sm:pr-3"
+      }`}
+    >
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
@@ -90,27 +109,41 @@ const RawView = observer(function RawView(props: EditorProps) {
           </div>
         ))}
 
-      {lines.map((line, i) => {
-        const lineNo = i + 1;
-        return (
-          <LineRow
-            key={i}
-            startLine={lineNo}
-            endLine={lineNo}
-            comments={props.comments}
-            inline={props.inline}
-            content={props.content}
-          >
-            <span
-              className={`min-w-0 flex-1 pl-2 text-text ${
-                uiStore.wrapLines ? "whitespace-pre-wrap" : "overflow-x-auto whitespace-pre"
-              }`}
+      <div className={uiStore.wrapLines ? undefined : "w-max min-w-full"}>
+        {lines.map((line, i) => {
+          const lineNo = i + 1;
+          const tokens = props.rawLines?.[i];
+          return (
+            <LineRow
+              key={i}
+              startLine={lineNo}
+              endLine={lineNo}
+              comments={props.comments}
+              inline={props.inline}
+              content={props.content}
+              fill={!uiStore.wrapLines}
             >
-              {line || " "}
-            </span>
-          </LineRow>
-        );
-      })}
+              <span
+                className={`min-w-0 flex-1 pl-2 text-text ${
+                  uiStore.wrapLines ? "whitespace-pre-wrap" : "whitespace-pre"
+                }`}
+              >
+                {line === "" ? (
+                  " "
+                ) : tokens ? (
+                  tokens.map((token, j) => (
+                    <span key={j} style={tokenStyle(token)}>
+                      {token.content}
+                    </span>
+                  ))
+                ) : (
+                  line
+                )}
+              </span>
+            </LineRow>
+          );
+        })}
+      </div>
     </article>
   );
 });
@@ -148,6 +181,7 @@ const LineRow = observer(function LineRow(props: {
   inline: boolean;
   content: string;
   marginClass?: string;
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   const ui = uiStore;
@@ -165,9 +199,9 @@ const LineRow = observer(function LineRow(props: {
     : [];
 
   return (
-    <div className={props.marginClass}>
+    <div className={`${props.marginClass ?? ""} ${props.fill ? "min-w-full" : ""}`}>
       <div
-        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "bg-editor hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
@@ -175,7 +209,7 @@ const LineRow = observer(function LineRow(props: {
           type="button"
           title={`Add a comment on line ${startLine} (Shift-click to extend)`}
           aria-label={`Add a comment on line ${startLine}`}
-          className="pointer-coarse:self-stretch relative w-10 shrink-0 select-none text-right font-mono text-[12px] text-faint transition-colors hover:text-blue"
+          className="pointer-coarse:self-stretch sticky left-0 z-10 relative w-12 shrink-0 select-none bg-editor pr-2 text-right font-mono text-[12px] text-faint transition-colors hover:text-blue"
           onClick={(e) => {
             // Touch has no shift-key: once a range is open, a plain tap on any
             // other line number extends it. Fine pointers keep shift-to-extend.
@@ -202,17 +236,22 @@ const LineRow = observer(function LineRow(props: {
 
       <AnimatePresence>
         {composerOpen && selStart != null && selEnd != null && (
-          <Composer
-            startLine={selStart}
-            endLine={selEnd}
-            selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
-          />
+          <div className={props.fill ? "sticky left-0 max-w-3xl" : undefined}>
+            <Composer
+              startLine={selStart}
+              endLine={selEnd}
+              selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
+            />
+          </div>
         )}
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {inlineComments.map((comment) => (
-          <div key={comment.id} className="px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14">
+          <div
+            key={comment.id}
+            className={`px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14 ${props.fill ? "sticky left-0 max-w-3xl" : ""}`}
+          >
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}

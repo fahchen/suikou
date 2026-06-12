@@ -20,8 +20,41 @@ const LANGS = [
   "yaml",
   "toml",
   "diff",
-  "markdown"
+  "markdown",
+  "gherkin"
 ]
+
+/** File extension (no dot, lowercase) to the Shiki language that highlights it. */
+const RAW_EXTENSIONS: Record<string, string> = {
+  ex: "elixir",
+  exs: "elixir",
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  jsx: "jsx",
+  json: "json",
+  py: "python",
+  rs: "rust",
+  go: "go",
+  sh: "bash",
+  bash: "bash",
+  sql: "sql",
+  html: "html",
+  htm: "html",
+  css: "css",
+  yml: "yaml",
+  yaml: "yaml",
+  toml: "toml",
+  md: "markdown",
+  markdown: "markdown",
+  diff: "diff",
+  patch: "diff",
+  feature: "gherkin"
+}
 
 let instance: Promise<Highlighter> | null = null
 
@@ -36,4 +69,11 @@ export function getHighlighter(): Promise<Highlighter> {
 export function resolveLang(highlighter: Highlighter, info: string): string {
   const lang = info.trim().split(/\s+/)[0]?.toLowerCase() ?? ""
   return highlighter.getLoadedLanguages().includes(lang) ? lang : "text"
+}
+
+/** Resolves a file path to the Shiki language for raw highlighting, or null. */
+export function shikiLangForPath(path: string): string | null {
+  const dot = path.lastIndexOf(".")
+  if (dot === -1) return null
+  return RAW_EXTENSIONS[path.slice(dot + 1).toLowerCase()] ?? null
 }

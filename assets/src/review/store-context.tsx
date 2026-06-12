@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react"
+import type { ThemedToken } from "shiki"
 
 import type { Comment, ReviewSnapshot, ReviewStore } from "./types"
 import type { RenderedBlock } from "../markdown/render"
@@ -28,6 +29,8 @@ export interface ReviewView {
   loading: boolean
   comments: Comment[]
   previewable: boolean
+  /** Per-line syntax tokens for the raw view, or null for plain-text files. */
+  rawLines: ThemedToken[][] | null
 }
 
 const ReviewViewContext = createContext<ReviewView | null>(null)

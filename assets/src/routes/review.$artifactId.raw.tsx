@@ -7,7 +7,7 @@ import { useReviewView } from "../review/store-context"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 
 const RawEditorRoute = observer(function RawEditorRoute() {
-  const { snapshot, blocks, loading, comments } = useReviewView()
+  const { snapshot, blocks, loading, comments, rawLines } = useReviewView()
   const wide = useMediaQuery(WIDE_QUERY)
   return (
     <Editor
@@ -16,6 +16,7 @@ const RawEditorRoute = observer(function RawEditorRoute() {
       blocks={blocks}
       loading={loading}
       comments={comments}
+      rawLines={rawLines}
       inline={uiStore.commentMode !== "side" || !wide}
     />
   )
