@@ -85,6 +85,20 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Deletes a review and every artifact, round, and comment beneath it (the
+  database cascades on the foreign keys). Unlike removing a single file, this
+  discards the review's whole critique history.
+
+  ## Examples
+
+      Suikou.Reviews.delete_review(review)
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec delete_review(Review.t()) :: {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
+  def delete_review(%Review{} = review), do: Repo.delete(review)
+
+  @doc """
   Fetches a review by id with its project and active (not soft-removed) files
   preloaded, or `nil` when none exists.
 

@@ -26,7 +26,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
         id: String.t(),
         name: String.t(),
         path: String.t(),
-        files: list(String.t()),
         reviews:
           list(%{
             id: String.t(),
@@ -78,6 +77,26 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  command :delete_review do
+    payload do
+      field(:review_id, String.t())
+    end
+
+    reply do
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :list_project_files do
+    payload do
+      field(:project_id, String.t())
+    end
+
+    reply do
+      field(:files, list(String.t()))
+    end
+  end
+
   @impl Musubi.Store
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(_params, socket), do: {:ok, socket}
@@ -120,6 +139,28 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
+  def handle_command(:delete_review, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review -> delete_review(review)
+        nil -> %{error: "review_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
+  # On-demand directory scan: kept off render so the board's first snapshot
+  # never blocks on walking a working directory (see docs/musubi-issues.md).
+  def handle_command(:list_project_files, payload, socket) do
+    files =
+      case Projects.get_project(payload["project_id"]) do
+        %Project{} = project -> Projects.list_files(project)
+        nil -> []
+      end
+
+    {:reply, %{files: files}, socket}
+  end
+
   # The render derives entirely from the database; a mutation that does not touch
   # assigns would reuse the cached render and push no patch (see
   # docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant assign so another
@@ -137,6 +178,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   defp update_review_files(review, file_paths) do
     case Reviews.set_files(review, file_paths) do
+      {:ok, %Review{}} -> %{error: nil}
+      {:error, reason} -> %{error: review_error(reason)}
+    end
+  end
+
+  defp delete_review(review) do
+    case Reviews.delete_review(review) do
       {:ok, %Review{}} -> %{error: nil}
       {:error, reason} -> %{error: review_error(reason)}
     end
@@ -163,7 +211,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       id: project.id,
       name: project.name,
       path: project.path,
-      files: Projects.list_files(project),
       reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)
     }
   end

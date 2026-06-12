@@ -117,6 +117,20 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "delete_review/1" do
+    @tag :tmp_dir
+    test "deletes the review and cascades to its artifacts", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, path: dir)
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      assert {:ok, _review} = Reviews.delete_review(review)
+
+      assert is_nil(Reviews.get_review(review.id))
+      assert Repo.aggregate(Artifact, :count) == 0
+    end
+  end
+
   describe "get_review/1 and list_for_project/1" do
     @tag :tmp_dir
     test "get_review preloads only active artifacts", %{tmp_dir: dir} do

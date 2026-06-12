@@ -8,15 +8,12 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   describe "render/1" do
     @tag :tmp_dir
-    test "lists each project with its candidate files and no reviews yet", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      File.write!(Path.join(dir, "notes.md"), "# Notes\n")
+    test "lists each registered project with no reviews yet", %{tmp_dir: dir} do
       {:ok, _project} = Projects.register_project(%{name: "Docs", path: dir})
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert %{projects: [%{name: "Docs", files: files, reviews: []}]} = Testing.render(page)
-      assert files == ["notes.md", "plan.md"]
+      assert %{projects: [%{name: "Docs", reviews: []}]} = Testing.render(page)
     end
 
     @tag :tmp_dir
@@ -41,7 +38,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
   describe "create_project" do
     @tag :tmp_dir
     test "registers a directory and lists it on the next render", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: project_id, error: nil}} =
@@ -49,8 +45,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       assert is_binary(project_id)
 
-      assert %{projects: [%{id: ^project_id, name: "Docs", files: ["plan.md"]}]} =
-               Testing.render(page)
+      assert %{projects: [%{id: ^project_id, name: "Docs"}]} = Testing.render(page)
     end
 
     test "a path that is not a directory replies with an error" do
@@ -85,6 +80,54 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_project, %{name: "Second", path: dir})
 
       assert error =~ "path"
+    end
+  end
+
+  describe "delete_review" do
+    @tag :tmp_dir
+    test "removes the review from the next render", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :delete_review, %{review_id: review.id})
+
+      assert %{projects: [%{reviews: []}]} = Testing.render(page)
+    end
+
+    test "an unknown review replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "review_not_found"}} =
+               Testing.dispatch_command(page, :delete_review, %{
+                 review_id: "00000000-0000-7000-8000-000000000000"
+               })
+    end
+  end
+
+  describe "list_project_files" do
+    @tag :tmp_dir
+    test "replies with the project's candidate files, sorted", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      File.write!(Path.join(dir, "notes.md"), "# Notes\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{files: ["notes.md", "plan.md"]}} =
+               Testing.dispatch_command(page, :list_project_files, %{project_id: project.id})
+    end
+
+    test "an unknown project replies with no files" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{files: []}} =
+               Testing.dispatch_command(page, :list_project_files, %{
+                 project_id: "00000000-0000-7000-8000-000000000000"
+               })
     end
   end
 
