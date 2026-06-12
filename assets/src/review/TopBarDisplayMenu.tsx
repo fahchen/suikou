@@ -45,7 +45,6 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
           <Button
             variant="pill"
             size="icon-xs"
-            className="size-[30px]"
             title="Display settings"
           >
             <SlidersHorizontal className="size-4 text-muted-foreground" />

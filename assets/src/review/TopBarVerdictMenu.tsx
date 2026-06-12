@@ -77,7 +77,7 @@ export function TopBarVerdictMenu(props: {
             variant="pill"
             size="xs"
             title="File review verdict"
-            className="h-[30px] px-2.5"
+            className="px-2.5"
           >
             <VerdictIcon verdict={verdict} className="size-4" />
             <ChevronDown size={13} className="text-faint" />

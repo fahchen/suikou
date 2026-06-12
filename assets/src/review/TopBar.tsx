@@ -90,7 +90,6 @@ export const TopBar = observer(function TopBar(props: {
         <Button
           variant="pill"
           size="icon-xs"
-          className="size-[30px]"
           title="Project board"
           aria-label="Project board"
           onClick={() => void navigate({ to: "/" })}
@@ -109,7 +108,6 @@ export const TopBar = observer(function TopBar(props: {
         <Button
           variant="pill"
           size="icon-xs"
-          className="size-[30px]"
           title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
           aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
           onClick={() => uiStore.toggleCollapseAll()}
@@ -127,10 +125,9 @@ export const TopBar = observer(function TopBar(props: {
         />
         <TopBarVerdictMenu snapshot={snapshot} verdict={verdict} onVerdictChange={changeVerdict} />
 
-        <ButtonGroup>
+        <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),0_1px_1px_-0.5px_oklch(20%_0.01_255/0.10),0_2px_4px_-1.5px_oklch(20%_0.01_255/0.08)]">
           <Button
             size="icon-xs"
-            className="size-[30px]"
             title="Submit review"
             aria-label="Submit review"
             onClick={() => setConfirmOpen(true)}
@@ -143,7 +140,6 @@ export const TopBar = observer(function TopBar(props: {
               render={
                 <Button
                   size="icon-xs"
-                  className="size-[30px]"
                   title="Copy comments"
                   aria-label="Copy comments"
                 />

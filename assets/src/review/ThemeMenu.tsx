@@ -20,7 +20,7 @@ export const ThemeMenu = observer(function ThemeMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="pill" size="icon-xs" className="size-[30px]" title="Theme">
+          <Button variant="pill" size="icon-xs" title="Theme">
             <Palette className="size-4 text-muted-foreground" />
           </Button>
         }

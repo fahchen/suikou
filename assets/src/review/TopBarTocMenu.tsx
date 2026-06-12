@@ -15,7 +15,6 @@ export function TopBarTocMenu(props: { content: string; path: string }) {
           <Button
             variant="pill"
             size="icon-xs"
-            className="size-[30px]"
             title="Table of contents"
           >
             <List className="size-4 text-muted-foreground" />
