@@ -1,14 +1,29 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { motion } from "motion/react"
-import { ArrowRight, Check, FilePlus2, FolderPlus, Pencil, X } from "lucide-react"
+import { ChevronRight, FilePlus2, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import type { StoreProxy } from "@musubi/react"
 
 import { useMusubiCommand, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { FileTree } from "./FileTree"
+import { ReviewFileTree } from "./ReviewFileTree"
 import { ThemeMenu } from "./ThemeMenu"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 
 interface ReviewFile {
   artifact_id: string
@@ -26,7 +41,6 @@ interface BoardProject {
   id: string
   name: string
   path: string
-  files: string[]
   reviews: BoardReview[]
 }
 
@@ -159,30 +173,68 @@ function ReviewCard({
   review: BoardReview
   onOpen: (artifactId: string) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const remove = useMusubiCommand(store, "delete_review")
+  const open = editing || expanded
 
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-surface">
-      <div className="flex items-center justify-between gap-3 border-b border-line px-3.5 py-2.5">
-        <div className="flex min-w-0 items-baseline gap-2">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (editing) return
+            setExpanded((value) => !value)
+          }}
+          aria-expanded={open}
+          className="group flex min-w-0 flex-1 items-center gap-2 text-left pointer-coarse:min-h-9"
+        >
+          <ChevronRight
+            size={14}
+            className={`shrink-0 text-faint transition-transform ${open ? "rotate-90" : ""}`}
+          />
           <h3 className="truncate text-[13px] font-semibold text-heading">{review.name}</h3>
           <span className="shrink-0 text-[11px] text-faint">
             {review.files.length} {review.files.length === 1 ? "file" : "files"}
           </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setEditing((value) => !value)}
-          className="shrink-0 text-muted-foreground pointer-coarse:min-h-9"
-        >
-          {editing ? <X size={12} /> : <Pencil size={12} />}
-          {editing ? "Cancel" : "Edit files"}
-        </Button>
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground"
+                title="Review actions"
+                aria-label="Review actions"
+              />
+            }
+          >
+            <MoreHorizontal size={15} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem
+              onClick={() => {
+                setExpanded(true)
+                setEditing(true)
+              }}
+            >
+              <Pencil size={14} />
+              Edit files
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={14} />
+              Delete review
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {editing ? (
-        <div className="p-3.5">
+        <div className="border-t border-line p-3.5">
           <ReviewComposer
             store={store}
             project={project}
@@ -193,32 +245,51 @@ function ReviewCard({
           />
         </div>
       ) : (
-        <ul className="divide-y divide-line">
-          {review.files.map((file) => (
-            <li key={file.artifact_id}>
-              <button
-                type="button"
-                onClick={() => onOpen(file.artifact_id)}
-                className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-hover pointer-coarse:min-h-11"
-              >
-                <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text">
-                  {file.path}
-                </span>
-                {file.approved && (
-                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-green">
-                    <Check size={12} />
-                    Approved
-                  </span>
-                )}
-                <ArrowRight
-                  size={13}
-                  className="shrink-0 text-faint opacity-0 transition-opacity group-hover:opacity-100"
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
+        expanded &&
+        (review.files.length === 0 ? (
+          <p className="border-t border-line px-3.5 py-3 text-[12px] text-faint">
+            No files in this review.
+          </p>
+        ) : (
+          <div className="border-t border-line py-1">
+            <ReviewFileTree files={review.files} onOpen={onOpen} />
+          </div>
+        ))
       )}
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 size={16} className="text-red" />
+              Delete this review?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[13px] text-muted-foreground">
+            Permanently removes <b className="text-heading">{review.name}</b> and its{" "}
+            {review.files.length} {review.files.length === 1 ? "file" : "files"}, along with every
+            comment on them. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" className="h-10 sm:h-7" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-10 sm:h-7"
+              disabled={remove.isPending}
+              onClick={() => {
+                void remove.dispatch({ review_id: review.id })
+                setConfirmDelete(false)
+              }}
+            >
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -242,9 +313,30 @@ function ReviewComposer({
 }) {
   const create = useMusubiCommand(store, "create_review")
   const update = useMusubiCommand(store, "update_review_files")
+  const list = useMusubiCommand(store, "list_project_files")
   const [name, setName] = useState("")
   const [selected, setSelected] = useState<Set<string>>(initial)
+  const [files, setFiles] = useState<string[] | null>(null)
+  const [scanFailed, setScanFailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Scan the working directory only once this composer opens, never on the
+  // board render, so registering many projects stays cheap.
+  useEffect(() => {
+    let cancelled = false
+    void list
+      .dispatch({ project_id: project.id })
+      .then((reply) => {
+        if (!cancelled) setFiles(reply.files)
+      })
+      .catch(() => {
+        if (!cancelled) setScanFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id])
 
   const isCreate = command === "create_review"
   const pending = isCreate ? create.isPending : update.isPending
@@ -296,7 +388,17 @@ function ReviewComposer({
       <div className="mb-1 text-[11px] font-medium text-muted-foreground">
         Files <span className="text-faint">({selected.size} selected)</span>
       </div>
-      <FileTree files={project.files} selected={selected} onChange={setSelected} />
+      {scanFailed ? (
+        <p className="rounded-md border border-dashed border-line px-3 py-2.5 text-[12px] text-red">
+          Could not scan the working directory.
+        </p>
+      ) : files === null ? (
+        <p className="rounded-md border border-dashed border-line px-3 py-2.5 text-[12px] text-faint">
+          Scanning directory…
+        </p>
+      ) : (
+        <FileTree files={files} selected={selected} onChange={setSelected} />
+      )}
 
       {error && (
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2.5 text-[12px] text-red">
