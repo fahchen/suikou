@@ -78,8 +78,9 @@ defmodule Suikou.Projects do
 
   @doc """
   Lists a project's files as candidate artifacts, relative to the project
-  directory and sorted. Every file type is reviewable; only the preview differs
-  (markdown renders, others are raw-only).
+  directory and sorted. With `rel` it lists only files recursively under that
+  subdirectory; the default `""` lists the whole project. Every file type is
+  reviewable; only the preview differs (markdown renders, others are raw-only).
 
   When a `.gitignore` lives at the project root, its patterns filter the
   result so ignored files are skipped. Otherwise every regular file under the
@@ -90,14 +91,66 @@ defmodule Suikou.Projects do
       Suikou.Projects.list_files(project)
       #=> ["docs/plan.md", "lib/app.ex", "readme.md"]
 
+      Suikou.Projects.list_files(project, "lib")
+      #=> ["lib/app.ex"]
+
   """
-  @spec list_files(Project.t()) :: [String.t()]
-  def list_files(%Project{path: path}) do
+  @spec list_files(Project.t(), String.t()) :: [String.t()]
+  def list_files(%Project{path: path}, rel \\ "") do
     rules = ignore_rules(path)
 
     path
-    |> walk("", rules)
+    |> walk(rel, rules)
     |> Enum.sort()
+  end
+
+  @doc """
+  Lists the immediate children of a project subdirectory, each tagged as a file
+  or directory, with directories first then names sorted. Ignored entries are
+  skipped. This backs lazy file-tree browsing: a level is read only when opened,
+  so a large working directory is never walked in full.
+
+  ## Examples
+
+      Suikou.Projects.list_dir(project, "")
+      #=> [%{path: "lib", dir: true}, %{path: "readme.md", dir: false}]
+
+      Suikou.Projects.list_dir(project, "lib")
+      #=> [%{path: "lib/app.ex", dir: false}]
+
+  """
+  @spec list_dir(Project.t(), String.t()) :: [%{path: String.t(), dir: boolean()}]
+  def list_dir(%Project{path: path}, rel) do
+    rules = ignore_rules(path)
+    dir = if rel == "", do: path, else: Path.join(path, rel)
+
+    case File.ls(dir) do
+      {:ok, entries} ->
+        entries
+        |> Enum.flat_map(&dir_entry(path, rel, &1, rules))
+        |> Enum.sort_by(fn %{path: p, dir: d} -> {not d, p} end)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  defp dir_entry(_root, _rel, ".git", _rules), do: []
+
+  defp dir_entry(root, rel, entry, rules) do
+    child = if rel == "", do: entry, else: rel <> "/" <> entry
+    abs = Path.join(root, child)
+
+    cond do
+      File.dir?(abs) ->
+        if ignored?(child, rules, true), do: [], else: [%{path: child, dir: true}]
+
+      File.regular?(abs) ->
+        if ignored?(child, rules, false), do: [], else: [%{path: child, dir: false}]
+
+      true ->
+        []
+    end
   end
 
   # Depth-first walk that prunes ignored directories before descending, so the

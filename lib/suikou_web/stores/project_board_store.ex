@@ -32,6 +32,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
             id: String.t(),
             name: String.t(),
             inserted_at: String.t(),
+            selections: list(String.t()),
             files:
               list(%{
                 artifact_id: String.t(),
@@ -59,7 +60,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:project_id, String.t())
       field(:name, String.t())
-      field(:file_paths, list(String.t()))
+      field(:selections, list(String.t()))
     end
 
     reply do
@@ -71,7 +72,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   command :update_review_files do
     payload do
       field(:review_id, String.t())
-      field(:file_paths, list(String.t()))
+      field(:selections, list(String.t()))
     end
 
     reply do
@@ -100,13 +101,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
-  command :list_project_files do
+  command :list_dir do
     payload do
       field(:project_id, String.t())
+      field(:path, String.t())
     end
 
     reply do
-      field(:files, list(String.t()))
+      field(:entries, list(%{path: String.t(), dir: boolean()}))
     end
   end
 
@@ -145,7 +147,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:update_review_files, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review -> update_review_files(review, payload["file_paths"])
+        %Review{} = review -> update_review_files(review, payload["selections"])
         nil -> %{error: "review_not_found"}
       end
 
@@ -172,16 +174,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
-  # On-demand directory scan: kept off render so the board's first snapshot
-  # never blocks on walking a working directory (see docs/musubi-issues.md).
-  def handle_command(:list_project_files, payload, socket) do
-    files =
+  # On-demand directory scan: one level at a time, kept off render so neither the
+  # board's first snapshot nor opening the picker blocks on walking a whole
+  # working directory (see docs/musubi-issues.md).
+  def handle_command(:list_dir, payload, socket) do
+    entries =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> Projects.list_files(project)
+        %Project{} = project -> Projects.list_dir(project, payload["path"])
         nil -> []
       end
 
-    {:reply, %{files: files}, socket}
+    {:reply, %{entries: entries}, socket}
   end
 
   # The render derives entirely from the database; a mutation that does not touch
@@ -191,7 +194,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp create_review(project, payload) do
-    params = %{name: payload["name"], file_paths: payload["file_paths"]}
+    params = %{name: payload["name"], selections: payload["selections"]}
 
     case Reviews.create_review(project, params) do
       {:ok, %Review{} = review} -> %{review_id: review.id, error: nil}
@@ -199,8 +202,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
-  defp update_review_files(review, file_paths) do
-    case Reviews.set_files(review, file_paths) do
+  defp update_review_files(review, selections) do
+    case Reviews.set_selection(review, selections) do
       {:ok, %Review{}} -> %{error: nil}
       {:error, reason} -> %{error: review_error(reason)}
     end
@@ -250,6 +253,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       id: review.id,
       name: review.name,
       inserted_at: Iso8601.utc(review.inserted_at),
+      selections: review.selection_paths,
       files: Enum.map(review.artifacts, &render_review_file/1)
     }
   end

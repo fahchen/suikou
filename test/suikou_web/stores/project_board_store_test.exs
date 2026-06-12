@@ -20,7 +20,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "renders a project's reviews with their selected files", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -88,7 +88,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "removes the review from the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -113,7 +113,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "renames the review on the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -137,25 +137,39 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
-  describe "list_project_files" do
+  describe "list_dir" do
     @tag :tmp_dir
-    test "replies with the project's candidate files, sorted", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+    test "replies with one level of entries, directories first", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
       File.write!(Path.join(dir, "notes.md"), "# Notes\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{files: ["notes.md", "plan.md"]}} =
-               Testing.dispatch_command(page, :list_project_files, %{project_id: project.id})
+      assert {:ok, %{entries: [%{path: "docs", dir: true}, %{path: "notes.md", dir: false}]}} =
+               Testing.dispatch_command(page, :list_dir, %{project_id: project.id, path: ""})
     end
 
-    test "an unknown project replies with no files" do
+    @tag :tmp_dir
+    test "lists a subdirectory's immediate children", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{files: []}} =
-               Testing.dispatch_command(page, :list_project_files, %{
-                 project_id: "00000000-0000-7000-8000-000000000000"
+      assert {:ok, %{entries: [%{path: "docs/plan.md", dir: false}]}} =
+               Testing.dispatch_command(page, :list_dir, %{project_id: project.id, path: "docs"})
+    end
+
+    test "an unknown project replies with no entries" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{entries: []}} =
+               Testing.dispatch_command(page, :list_dir, %{
+                 project_id: "00000000-0000-7000-8000-000000000000",
+                 path: ""
                })
     end
   end
@@ -173,7 +187,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
                  name: "Launch",
-                 file_paths: ["plan.md", "spec.md"]
+                 selections: ["plan.md", "spec.md"]
                })
 
       assert is_binary(review_id)
@@ -191,7 +205,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
                  name: "Launch",
-                 file_paths: []
+                 selections: []
                })
     end
 
@@ -205,7 +219,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
                  name: "Launch",
-                 file_paths: ["blank.md"]
+                 selections: ["blank.md"]
                })
 
       assert error =~ "empty_content"
@@ -219,7 +233,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_review, %{
                  project_id: "00000000-0000-7000-8000-000000000000",
                  name: "Launch",
-                 file_paths: ["plan.md"]
+                 selections: ["plan.md"]
                })
     end
   end
@@ -230,14 +244,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
 
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{error: nil}} =
                Testing.dispatch_command(page, :update_review_files, %{
                  review_id: review.id,
-                 file_paths: ["spec.md"]
+                 selections: ["spec.md"]
                })
 
       assert %{projects: [%{reviews: [%{files: [%{path: "spec.md"}]}]}]} = Testing.render(page)
@@ -249,7 +263,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{error: "review_not_found"}} =
                Testing.dispatch_command(page, :update_review_files, %{
                  review_id: "00000000-0000-7000-8000-000000000000",
-                 file_paths: ["plan.md"]
+                 selections: ["plan.md"]
                })
     end
   end

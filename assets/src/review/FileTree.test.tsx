@@ -1,63 +1,69 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, fireEvent, within } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 
-import { buildTree, FileTree } from "./FileTree"
+import { FileTree, type DirEntry } from "./FileTree"
 
-describe("buildTree", () => {
-  it("nests paths into folders with files sorted after folders", () => {
-    const tree = buildTree(["readme.md", "docs/spec.md", "docs/plan.md"])
+// A canned tree: root has folder "docs" and file "readme.md"; docs holds two files.
+const TREE: Record<string, DirEntry[]> = {
+  "": [
+    { path: "docs", dir: true },
+    { path: "readme.md", dir: false }
+  ],
+  docs: [
+    { path: "docs/plan.md", dir: false },
+    { path: "docs/spec.md", dir: false }
+  ]
+}
 
-    expect(tree.map((node) => node.name)).toEqual(["docs", "readme.md"])
-    const docs = tree[0]
-    expect(docs.isFile).toBe(false)
-    expect(docs.children.map((node) => node.name)).toEqual(["plan.md", "spec.md"])
-  })
-})
+const loadDir = (path: string) => Promise.resolve(TREE[path] ?? [])
 
 describe("FileTree", () => {
-  it("cascades a folder toggle to every file beneath it", () => {
-    const onChange = vi.fn()
-    render(
-      <FileTree
-        files={["docs/plan.md", "docs/spec.md"]}
-        selected={new Set()}
-        onChange={onChange}
-      />
-    )
+  it("reads only the root level until a folder is opened", async () => {
+    const spy = vi.fn(loadDir)
+    render(<FileTree loadDir={spy} selected={new Set()} onChange={vi.fn()} />)
 
-    const folder = screen.getAllByRole("checkbox")[0]
-    fireEvent.click(folder)
+    await screen.findByText("docs")
+    expect(screen.queryByText("plan.md")).toBeNull()
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith("")
 
-    expect(onChange).toHaveBeenCalledWith(new Set(["docs/plan.md", "docs/spec.md"]))
+    fireEvent.click(screen.getByText("docs"))
+
+    expect(await screen.findByText("plan.md")).toBeInTheDocument()
+    expect(spy).toHaveBeenCalledWith("docs")
   })
 
-  it("marks a partially selected folder as indeterminate", () => {
-    render(
-      <FileTree
-        files={["docs/plan.md", "docs/spec.md"]}
-        selected={new Set(["docs/plan.md"])}
-        onChange={vi.fn()}
-      />
-    )
+  it("selects a directory as a single wildcard path", async () => {
+    const onChange = vi.fn()
+    render(<FileTree loadDir={loadDir} selected={new Set()} onChange={onChange} />)
 
-    const folder = screen.getAllByRole("checkbox")[0]
-    expect(folder).toHaveAttribute("aria-checked", "mixed")
+    const docs = (await screen.findByText("docs")).closest("li")!
+    fireEvent.click(within(docs).getByRole("checkbox"))
+
+    expect(onChange).toHaveBeenCalledWith(new Set(["docs"]))
   })
 
-  it("removes a single file from the selection on toggle", () => {
-    const onChange = vi.fn()
+  it("shows a directory checked and its children locked when selected", async () => {
+    render(<FileTree loadDir={loadDir} selected={new Set(["docs"])} onChange={vi.fn()} />)
+
+    const docs = (await screen.findByText("docs")).closest("li")!
+    expect(within(docs).getByRole("checkbox")).toHaveAttribute("aria-checked", "true")
+
+    fireEvent.click(screen.getByText("docs"))
+    const child = await screen.findByText("plan.md")
+    const box = within(child.closest("li")!).getByRole("checkbox")
+    expect(box).toHaveAttribute("aria-checked", "true")
+    expect(box).toBeDisabled()
+  })
+
+  it("marks a directory indeterminate when only some descendants are picked", async () => {
     render(
-      <FileTree
-        files={["docs/plan.md", "docs/spec.md"]}
-        selected={new Set(["docs/plan.md", "docs/spec.md"])}
-        onChange={onChange}
-      />
+      <FileTree loadDir={loadDir} selected={new Set(["docs/plan.md"])} onChange={vi.fn()} />
     )
 
-    const docs = screen.getByText("docs").closest("li")!
-    const fileBox = within(docs).getAllByRole("checkbox")[1]
-    fireEvent.click(fileBox)
-
-    expect(onChange).toHaveBeenCalledWith(new Set(["docs/spec.md"]))
+    const docs = (await screen.findByText("docs")).closest("li")!
+    await waitFor(() =>
+      expect(within(docs).getByRole("checkbox")).toHaveAttribute("aria-checked", "mixed")
+    )
   })
 })

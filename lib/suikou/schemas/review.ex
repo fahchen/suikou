@@ -1,8 +1,11 @@
 defmodule Suikou.Schemas.Review do
   @moduledoc """
-  A review groups the files a reviewer selected under a project. Each selected
-  file becomes one `Suikou.Schemas.Artifact` under the review; the selection is
-  editable, and removing a file soft-removes its artifact (see BDR-0018).
+  A review groups the files a reviewer selected under a project. `selection_paths`
+  records what was picked — file paths and whole-directory paths (a directory
+  stands for every file beneath it) — and is expanded to concrete files when the
+  selection is saved. Each expanded file becomes one `Suikou.Schemas.Artifact`
+  under the review; the selection is editable, and removing a file soft-removes
+  its artifact (see BDR-0018).
   """
 
   use Suikou.Schema
@@ -12,6 +15,7 @@ defmodule Suikou.Schemas.Review do
 
   typed_schema "reviews" do
     field :name, :string, typed: [null: false]
+    field :selection_paths, {:array, :string}, default: [], typed: [null: false]
 
     belongs_to :project, Project
     has_many :artifacts, Artifact
@@ -34,10 +38,25 @@ defmodule Suikou.Schemas.Review do
   @spec create_changeset(Project.t(), map()) :: Ecto.Changeset.t()
   def create_changeset(project, params) do
     %__MODULE__{project_id: project.id}
-    |> cast(params, [:name])
+    |> cast(params, [:name, :selection_paths])
     |> validate_required([:name])
     |> validate_format(:name, ~r/\S/, message: "can't be blank")
     |> assoc_constraint(:project)
+  end
+
+  @doc """
+  Builds a changeset replacing a review's stored selection (file and directory
+  paths). Artifacts are reconciled separately by the reviews context.
+
+  ## Examples
+
+      Suikou.Schemas.Review.selection_changeset(%Suikou.Schemas.Review{}, ["lib", "readme.md"]).changes
+      #=> %{selection_paths: ["lib", "readme.md"]}
+
+  """
+  @spec selection_changeset(t(), [String.t()]) :: Ecto.Changeset.t()
+  def selection_changeset(%__MODULE__{} = review, paths) do
+    cast(review, %{selection_paths: paths}, [:selection_paths])
   end
 
   @doc """

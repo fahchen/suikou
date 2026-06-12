@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -44,6 +44,7 @@ interface BoardReview {
   id: string
   name: string
   inserted_at: string
+  selections: string[]
   files: ReviewFile[]
 }
 
@@ -334,7 +335,7 @@ function ReviewCard({
             project={project}
             command="update_review_files"
             reviewId={review.id}
-            initial={new Set(review.files.map((file) => file.path))}
+            initial={new Set(review.selections)}
             onClose={() => setEditing(false)}
           />
         </div>
@@ -418,30 +419,18 @@ function ReviewComposer({
 }) {
   const create = useMusubiCommand(store, "create_review")
   const update = useMusubiCommand(store, "update_review_files")
-  const list = useMusubiCommand(store, "list_project_files")
+  const list = useMusubiCommand(store, "list_dir")
   const [name, setName] = useState("")
   const [selected, setSelected] = useState<Set<string>>(initial)
-  const [files, setFiles] = useState<string[] | null>(null)
-  const [scanFailed, setScanFailed] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Scan the working directory only once this composer opens, never on the
-  // board render, so registering many projects stays cheap.
-  useEffect(() => {
-    let cancelled = false
-    void list
-      .dispatch({ project_id: project.id })
-      .then((reply) => {
-        if (!cancelled) setFiles(reply.files)
-      })
-      .catch(() => {
-        if (!cancelled) setScanFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
+  // Read one directory level on demand, so opening the picker never walks the
+  // whole working directory.
+  const loadDir = useCallback(
+    (path: string) => list.dispatch({ project_id: project.id, path }).then((reply) => reply.entries),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id])
+    [project.id]
+  )
 
   const isCreate = command === "create_review"
   const pending = isCreate ? create.isPending : update.isPending
@@ -450,12 +439,12 @@ function ReviewComposer({
 
   async function save() {
     setError(null)
-    const file_paths = [...selected]
+    const selections = [...selected]
 
     try {
       const reply = isCreate
-        ? await create.dispatch({ project_id: project.id, name: name.trim(), file_paths })
-        : await update.dispatch({ review_id: reviewId as string, file_paths })
+        ? await create.dispatch({ project_id: project.id, name: name.trim(), selections })
+        : await update.dispatch({ review_id: reviewId as string, selections })
 
       if (reply.error) {
         setError(reply.error)
@@ -493,17 +482,7 @@ function ReviewComposer({
       <div className="mb-1 text-[11px] font-medium text-muted-foreground">
         Files <span className="text-faint">({selected.size} selected)</span>
       </div>
-      {scanFailed ? (
-        <p className="rounded-md border border-dashed border-line px-3 py-2.5 text-[12px] text-red">
-          Could not scan the working directory.
-        </p>
-      ) : files === null ? (
-        <p className="rounded-md border border-dashed border-line px-3 py-2.5 text-[12px] text-faint">
-          Scanning directory…
-        </p>
-      ) : (
-        <FileTree files={files} selected={selected} onChange={setSelected} />
-      )}
+      <FileTree loadDir={loadDir} selected={selected} onChange={setSelected} />
 
       {error && (
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2.5 text-[12px] text-red">

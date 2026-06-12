@@ -3,14 +3,14 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 
 const dispatch = vi.fn()
 let snapshot: unknown
-let projectFiles: string[]
+let rootEntries: { path: string; dir: boolean }[]
 
 vi.mock("../musubi", () => ({
   useMusubiRoot: () => ({ status: "ok", store: {} }),
   useMusubiSnapshot: () => snapshot,
   useMusubiCommand: (_store: unknown, name: string) =>
-    name === "list_project_files"
-      ? { dispatch: () => Promise.resolve({ files: projectFiles }), isPending: false }
+    name === "list_dir"
+      ? { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
       : { dispatch, isPending: false }
 }))
 
@@ -18,7 +18,10 @@ import { ProjectBoard } from "./ProjectBoard"
 
 beforeEach(() => {
   dispatch.mockReset()
-  projectFiles = ["design.md", "draft.md"]
+  rootEntries = [
+    { path: "design.md", dir: false },
+    { path: "draft.md", dir: false }
+  ]
   snapshot = {
     projects: [
       {
@@ -30,6 +33,7 @@ beforeEach(() => {
             id: "r1",
             name: "Launch",
             inserted_at: "2026-06-12T09:30:00",
+            selections: ["design.md"],
             files: [{ artifact_id: "a-99", path: "design.md", approved: false }]
           }
         ]
@@ -123,7 +127,7 @@ describe("ProjectBoard", () => {
       expect(dispatch).toHaveBeenCalledWith({
         project_id: "p1",
         name: "Spec pass",
-        file_paths: ["design.md"]
+        selections: ["design.md"]
       })
     )
   })
@@ -143,7 +147,7 @@ describe("ProjectBoard", () => {
     await waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith({
         review_id: "r1",
-        file_paths: ["design.md", "draft.md"]
+        selections: ["design.md", "draft.md"]
       })
     )
   })
