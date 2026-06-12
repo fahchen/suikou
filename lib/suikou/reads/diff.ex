@@ -10,15 +10,15 @@ defmodule Suikou.Reads.Diff do
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.Review
+  alias Suikou.Schemas.Submission
 
   @type t :: %{
           text: [{:eq | :ins | :del, String.t()}],
           resolved: [Comment.t()],
           added: [Comment.t()],
           carried_forward: [Comment.t()],
-          verdict_from: Review.verdict() | nil,
-          verdict_to: Review.verdict() | nil
+          verdict_from: Submission.verdict() | nil,
+          verdict_to: Submission.verdict() | nil
         }
 
   @doc """
@@ -54,8 +54,8 @@ defmodule Suikou.Reads.Diff do
       resolved: resolved_at(from_round.id, to_number),
       added: added_on(to_round.id),
       carried_forward: carried_onto(to_round.id),
-      verdict_from: Suikou.Review.latest_verdict(from_round.id),
-      verdict_to: Suikou.Review.latest_verdict(to_round.id)
+      verdict_from: Suikou.Submissions.latest_verdict(from_round.id),
+      verdict_to: Suikou.Submissions.latest_verdict(to_round.id)
     }
   end
 

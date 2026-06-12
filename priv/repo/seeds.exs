@@ -14,11 +14,12 @@ alias Suikou.Artifacts
 alias Suikou.Critique
 alias Suikou.Projects
 alias Suikou.Repo
-alias Suikou.Review
+alias Suikou.Reviews
 alias Suikou.Rounds
 alias Suikou.Schemas.Artifact
 alias Suikou.Schemas.Comment
 alias Suikou.Schemas.Project
+alias Suikou.Submissions
 
 # Idempotent: clear prior projects (artifacts/rounds/comments/replies/reviews cascade).
 Repo.delete_all(Artifact)
@@ -69,8 +70,8 @@ end
 > or wait for an operator?
 """
 
-# A project is a directory on disk; an artifact is a file selected under it. The
-# reviewer scans the project and picks a file, which reads disk into round 0.
+# A project is a directory on disk; a review selects a set of its files. Each
+# selected file becomes an artifact whose round 0 is read from disk.
 seed_dir = Path.expand("priv/repo/seed_project")
 file_path = "ingest-pipeline-design.md"
 File.rm_rf!(seed_dir)
@@ -78,7 +79,12 @@ File.mkdir_p!(seed_dir)
 File.write!(Path.join(seed_dir, file_path), round_one)
 
 {:ok, project} = Projects.register_project(%{name: "Data Platform", path: seed_dir})
-{:ok, %{artifact: artifact, round: r1}} = Artifacts.create_from_file(project, file_path)
+
+{:ok, review} =
+  Reviews.create_review(project, %{name: "Ingest pipeline review", file_paths: [file_path]})
+
+[artifact] = Reviews.get_review(review.id).artifacts
+r1 = Rounds.latest(artifact.id)
 
 # Round 0 critique: pending until the review is submitted.
 {:ok, overview} =
@@ -153,7 +159,7 @@ File.write!(Path.join(seed_dir, file_path), round_one)
 # Submit the round-0 review: publishes the pending comments, records a verdict,
 # and opens the draft round 1 (content copied forward, unresolved critique
 # carried).
-{:ok, %{next_round: r2}} = Review.submit_review(r1.id, :request_changes)
+{:ok, %{next_round: r2}} = Submissions.submit(r1.id, :request_changes)
 
 # A thread on the overview blocker, then resolve the dead-letter note.
 {:ok, _} =

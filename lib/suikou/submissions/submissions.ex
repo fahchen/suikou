@@ -1,6 +1,6 @@
-defmodule Suikou.Review do
+defmodule Suikou.Submissions do
   @moduledoc """
-  Review submission and approval. Submitting is what advances a round (see
+  Round submission and approval. Submitting is what advances a round (see
   BDR-0018): it publishes the submitted round's pending comments, records one
   verdict, and opens the next draft round by copying the snapshot forward and
   carrying unresolved published critique. An `approve` verdict records the
@@ -16,43 +16,43 @@ defmodule Suikou.Review do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
+  alias Suikou.Schemas.Submission
 
   @type submit_result :: %{
-          review: Review.t(),
+          submission: Submission.t(),
           next_round: Round.t(),
           warnings: [:unresolved_fix_required]
         }
 
   @doc """
-  Submits a review of the latest round, advancing the artifact. Publishes the
-  round's pending comments, records the verdict, opens the next draft round
-  (copying content forward and carrying unresolved published critique), and
-  sets or clears approval. An `approve` verdict warns (without blocking) when
-  open `fix_required` critique remains.
+  Submits the latest round, advancing the artifact. Publishes the round's
+  pending comments, records the verdict, opens the next draft round (copying
+  content forward and carrying unresolved published critique), and sets or
+  clears approval. An `approve` verdict warns (without blocking) when open
+  `fix_required` critique remains.
 
   ## Examples
 
-      Suikou.Review.submit_review(round.id, :approve)
-      #=> {:ok, %{review: %Suikou.Schemas.Review{verdict: :approve}, next_round: %Suikou.Schemas.Round{}, warnings: []}}
+      Suikou.Submissions.submit(round.id, :approve)
+      #=> {:ok, %{submission: %Suikou.Schemas.Submission{verdict: :approve}, next_round: %Suikou.Schemas.Round{}, warnings: []}}
 
-      Suikou.Review.submit_review("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
+      Suikou.Submissions.submit("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
       #=> {:error, :round_not_found}
 
   """
-  @spec submit_review(Ecto.UUID.t(), Review.verdict() | String.t()) ::
+  @spec submit(Ecto.UUID.t(), Submission.verdict() | String.t()) ::
           {:ok, submit_result()}
           | {:error, Ecto.Changeset.t() | :round_not_found | :not_latest_round}
-  def submit_review(round_id, verdict) do
+  def submit(round_id, verdict) do
     round = Rounds.get(round_id)
-    changeset = Review.changeset(%{round_id: round_id, verdict: verdict})
+    changeset = Submission.changeset(%{round_id: round_id, verdict: verdict})
 
     cond do
       is_nil(round) -> {:error, :round_not_found}
       not Rounds.latest?(round) -> {:error, :not_latest_round}
       not changeset.valid? -> {:error, changeset}
-      true -> Repo.transaction(fn -> apply_review(round, changeset) end)
+      true -> Repo.transaction(fn -> apply_submission(round, changeset) end)
     end
   end
 
@@ -63,14 +63,14 @@ defmodule Suikou.Review do
 
   ## Examples
 
-      Suikou.Review.set_draft_verdict(round.id, :approve)
+      Suikou.Submissions.set_draft_verdict(round.id, :approve)
       #=> {:ok, %Suikou.Schemas.Round{draft_verdict: :approve}}
 
-      Suikou.Review.set_draft_verdict("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
+      Suikou.Submissions.set_draft_verdict("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", :approve)
       #=> {:error, :round_not_found}
 
   """
-  @spec set_draft_verdict(Ecto.UUID.t(), Review.verdict() | String.t()) ::
+  @spec set_draft_verdict(Ecto.UUID.t(), Submission.verdict() | String.t()) ::
           {:ok, Round.t()} | {:error, :round_not_found}
   def set_draft_verdict(round_id, verdict) do
     case Rounds.get(round_id) do
@@ -84,46 +84,46 @@ defmodule Suikou.Review do
 
   ## Examples
 
-      Suikou.Review.latest_verdict(round.id)
+      Suikou.Submissions.latest_verdict(round.id)
       #=> :approve
 
-      Suikou.Review.latest_verdict(round_without_review.id)
+      Suikou.Submissions.latest_verdict(unsubmitted_round.id)
       #=> nil
 
   """
-  @spec latest_verdict(Ecto.UUID.t()) :: Review.verdict() | nil
+  @spec latest_verdict(Ecto.UUID.t()) :: Submission.verdict() | nil
   def latest_verdict(round_id) do
-    from(r in Review, as: :review)
-    |> where([review: r], r.round_id == ^round_id)
-    |> order_by([review: r], desc: r.id)
+    from(s in Submission, as: :submission)
+    |> where([submission: s], s.round_id == ^round_id)
+    |> order_by([submission: s], desc: s.id)
     |> limit(1)
-    |> select([review: r], r.verdict)
+    |> select([submission: s], s.verdict)
     |> Repo.one()
   end
 
   @doc """
   Returns the most recent verdict across all of an artifact's rounds, or `nil`
-  when no review exists. Because submitting always opens a fresh draft round,
+  when no submission exists. Because submitting always opens a fresh draft round,
   the artifact's standing verdict lives on the latest submitted round, never on
   the current draft.
 
   ## Examples
 
-      Suikou.Review.latest_verdict_for_artifact(artifact.id)
+      Suikou.Submissions.latest_verdict_for_artifact(artifact.id)
       #=> :request_changes
 
-      Suikou.Review.latest_verdict_for_artifact(unreviewed_artifact.id)
+      Suikou.Submissions.latest_verdict_for_artifact(unsubmitted_artifact.id)
       #=> nil
 
   """
-  @spec latest_verdict_for_artifact(Ecto.UUID.t()) :: Review.verdict() | nil
+  @spec latest_verdict_for_artifact(Ecto.UUID.t()) :: Submission.verdict() | nil
   def latest_verdict_for_artifact(artifact_id) do
-    from(r in Review, as: :review)
-    |> join(:inner, [review: r], rd in Round, as: :round, on: r.round_id == rd.id)
+    from(s in Submission, as: :submission)
+    |> join(:inner, [submission: s], rd in Round, as: :round, on: s.round_id == rd.id)
     |> where([round: rd], rd.artifact_id == ^artifact_id)
-    |> order_by([round: rd, review: r], desc: rd.number, desc: r.id)
+    |> order_by([round: rd, submission: s], desc: rd.number, desc: s.id)
     |> limit(1)
-    |> select([review: r], r.verdict)
+    |> select([submission: s], s.verdict)
     |> Repo.one()
   end
 
@@ -132,10 +132,10 @@ defmodule Suikou.Review do
 
   ## Examples
 
-      Suikou.Review.dismiss(artifact.id)
+      Suikou.Submissions.dismiss(artifact.id)
       #=> {:ok, %Suikou.Schemas.Artifact{approved_round: nil}}
 
-      Suikou.Review.dismiss("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      Suikou.Submissions.dismiss("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
 
   """
@@ -150,12 +150,17 @@ defmodule Suikou.Review do
     end
   end
 
-  defp apply_review(round, changeset) do
-    review = Repo.insert!(changeset)
+  defp apply_submission(round, changeset) do
+    submission = Repo.insert!(changeset)
     publish_pending(round)
-    update_approval(round, review.verdict)
+    update_approval(round, submission.verdict)
     next_round = open_next_round(round)
-    %{review: review, next_round: next_round, warnings: warnings(round, review.verdict)}
+
+    %{
+      submission: submission,
+      next_round: next_round,
+      warnings: warnings(round, submission.verdict)
+    }
   end
 
   defp publish_pending(round) do

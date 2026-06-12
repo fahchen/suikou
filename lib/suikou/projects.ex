@@ -77,21 +77,98 @@ defmodule Suikou.Projects do
   end
 
   @doc """
-  Lists a project's markdown files as candidate artifacts, relative to the
-  project directory and sorted.
+  Lists a project's files as candidate artifacts, relative to the project
+  directory and sorted. Every file type is reviewable; only the preview differs
+  (markdown renders, others are raw-only).
+
+  When a `.gitignore` lives at the project root, its patterns filter the
+  result so ignored files are skipped. Otherwise every regular file under the
+  directory is listed.
 
   ## Examples
 
       Suikou.Projects.list_files(project)
-      #=> ["docs/plan.md", "readme.md"]
+      #=> ["docs/plan.md", "lib/app.ex", "readme.md"]
 
   """
   @spec list_files(Project.t()) :: [String.t()]
   def list_files(%Project{path: path}) do
+    rules = ignore_rules(path)
+
     path
-    |> Path.join("**/*.md")
+    |> Path.join("**/*")
     |> Path.wildcard()
+    |> Enum.filter(&File.regular?/1)
     |> Enum.map(&Path.relative_to(&1, path))
+    |> Enum.reject(&ignored?(&1, rules))
     |> Enum.sort()
+  end
+
+  defp ignore_rules(dir) do
+    case File.read(Path.join(dir, ".gitignore")) do
+      {:ok, content} ->
+        content
+        |> String.split("\n")
+        |> Enum.map(&String.trim_trailing/1)
+        |> Enum.reject(&(&1 == "" or String.starts_with?(&1, "#")))
+        |> Enum.map(&compile_rule/1)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  defp compile_rule(line) do
+    {negated, line} =
+      case line do
+        "!" <> rest -> {true, rest}
+        _unnegated -> {false, line}
+      end
+
+    dir_only = String.ends_with?(line, "/")
+    body = line |> String.trim_trailing("/") |> String.trim_leading("/")
+    anchored = String.starts_with?(line, "/") or String.contains?(body, "/")
+
+    %{negated: negated, dir_only: dir_only, regex: glob_to_regex(body, anchored)}
+  end
+
+  defp glob_to_regex(body, anchored) do
+    core =
+      body
+      |> Regex.escape()
+      |> String.replace("\\*\\*", ".*")
+      |> String.replace("\\*", "[^/]*")
+      |> String.replace("\\?", "[^/]")
+
+    prefix = if anchored, do: "^", else: "(?:^|.*/)"
+    Regex.compile!(prefix <> core <> "$")
+  end
+
+  # A path is ignored when the last matching rule is not a negation. Directory
+  # rules are tested against ancestor segments only, so they sweep in contents.
+  defp ignored?(path, rules) do
+    prefixes = path_prefixes(path)
+
+    Enum.reduce(rules, false, fn rule, ignored ->
+      if rule_matches?(rule, prefixes), do: not rule.negated, else: ignored
+    end)
+  end
+
+  defp path_prefixes(path) do
+    segments = String.split(path, "/")
+    last = length(segments)
+
+    for i <- 1..last do
+      {segments |> Enum.take(i) |> Enum.join("/"), i < last}
+    end
+  end
+
+  defp rule_matches?(rule, prefixes) do
+    candidates =
+      if rule.dir_only,
+        do: Enum.filter(prefixes, fn {_prefix, dir?} -> dir? end),
+        else: prefixes
+
+    Enum.any?(candidates, fn {prefix, _dir?} -> Regex.match?(rule.regex, prefix) end)
   end
 end

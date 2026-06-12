@@ -1,9 +1,9 @@
 defmodule Suikou.Artifacts do
   @moduledoc """
   Public API for the artifacts domain: a reviewer mints an artifact by selecting
-  a file under a project (round 0, draft) and refreshes a draft round's snapshot
+  a file into a review (round 0, draft) and refreshes a draft round's snapshot
   by re-reading the file from disk after the agent edits it. Rounds advance only
-  when the reviewer submits a review (see `Suikou.Review`); the agent never
+  when the reviewer submits a round (see `Suikou.Submissions`); the agent never
   submits content (BDR-0018).
 
   This facade is the only module other layers may call; its internal submodules
@@ -12,17 +12,19 @@ defmodule Suikou.Artifacts do
 
   alias Suikou.Artifacts.FileSource
 
+  @type create_error() :: FileSource.create_error()
+
   @doc """
-  Creates an artifact at round 0 from a file selected under a project. See
+  Creates an artifact at round 0 from a file selected into a review. See
   `Suikou.Artifacts.FileSource.create/2`.
 
   ## Examples
 
-      Suikou.Artifacts.create_from_file(project, "docs/plan.md")
+      Suikou.Artifacts.create_from_file(review, "docs/plan.md")
       #=> {:ok, %{artifact: %Suikou.Schemas.Artifact{}, round: %Suikou.Schemas.Round{number: 0}}}
 
   """
-  defdelegate create_from_file(project, file_path), to: FileSource, as: :create
+  defdelegate create_from_file(review, file_path), to: FileSource, as: :create
 
   @doc """
   Refreshes a draft round's snapshot from disk and re-anchors its line-scoped

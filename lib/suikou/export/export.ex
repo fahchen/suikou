@@ -15,7 +15,7 @@ defmodule Suikou.Export do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
-  alias Suikou.Schemas.Review
+  alias Suikou.Schemas.Submission
 
   @type anchor_view :: %{
           start_line: pos_integer(),
@@ -43,7 +43,7 @@ defmodule Suikou.Export do
           title: String.t(),
           round: integer(),
           content: String.t(),
-          verdict: Review.verdict() | nil,
+          verdict: Submission.verdict() | nil,
           approved: boolean(),
           approved_round: integer() | nil,
           comments: [comment_view()]
@@ -78,7 +78,7 @@ defmodule Suikou.Export do
       title: artifact.title,
       round: round.number,
       content: round.content,
-      verdict: Suikou.Review.latest_verdict_for_artifact(artifact.id),
+      verdict: Suikou.Submissions.latest_verdict_for_artifact(artifact.id),
       approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
       comments: published_comments(round.id)
