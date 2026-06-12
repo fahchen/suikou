@@ -120,7 +120,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
     %{
       artifact: render_artifact(artifact),
-      artifacts: Enum.map(Reads.list_artifacts(), &render_artifact_summary/1),
+      artifacts:
+        Enum.map(Reads.list_review_artifacts(artifact.review_id), &render_artifact_summary/1),
       rounds: Enum.map(rounds, &render_round_summary/1),
       current_round: render_current_round(viewed, latest_number),
       comments: comments_child(artifact_id, viewed),

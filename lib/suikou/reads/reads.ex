@@ -32,6 +32,24 @@ defmodule Suikou.Reads do
   end
 
   @doc """
+  Lists the active (not soft-removed) artifacts of a review, ordered by file
+  path, for the artifact switcher on the review surface.
+
+  ## Examples
+
+      Suikou.Reads.list_review_artifacts(review.id)
+      #=> [%Suikou.Schemas.Artifact{}]
+
+  """
+  @spec list_review_artifacts(Ecto.UUID.t()) :: [Artifact.t()]
+  def list_review_artifacts(review_id) do
+    from(a in Artifact, as: :artifact)
+    |> where([artifact: a], a.review_id == ^review_id and is_nil(a.removed_at))
+    |> order_by([artifact: a], asc: a.file_path)
+    |> Repo.all()
+  end
+
+  @doc """
   Fetches an artifact by id, or `nil` when none exists.
 
   ## Examples
