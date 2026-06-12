@@ -18,3 +18,6 @@ export const WIDE_QUERY = "(min-width: 1024px)"
 
 /** Touch primary input: mirrors the `pointer-coarse:` variant; folds the topbar. */
 export const COARSE_QUERY = "(pointer: coarse)"
+
+/** Below Tailwind `sm`: phone widths where popovers give way to full modals. */
+export const MOBILE_QUERY = "(max-width: 639px)"
