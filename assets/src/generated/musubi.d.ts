@@ -191,7 +191,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
       "SuikouWeb.Stores.ProjectBoardStore",
       {
-        projects: { id: string; name: string; path: string; reviews: { id: string; name: string; files: { artifact_id: string; path: string; approved: boolean }[] }[] }[]
+        projects: { id: string; name: string; path: string; reviews: { id: string; name: string; inserted_at: string; files: { artifact_id: string; path: string; approved: boolean }[] }[] }[]
       },
       {
         create_project: {
@@ -219,6 +219,15 @@ declare namespace Musubi {
           payload: {
             review_id: string
             file_paths: string[]
+          }
+          reply: {
+            error: string | null
+          }
+        }
+        rename_review: {
+          payload: {
+            review_id: string
+            name: string
           }
           reply: {
             error: string | null

@@ -29,6 +29,7 @@ beforeEach(() => {
           {
             id: "r1",
             name: "Launch",
+            inserted_at: "2026-06-12T09:30:00",
             files: [{ artifact_id: "a-99", path: "design.md", approved: false }]
           }
         ]
@@ -51,7 +52,7 @@ describe("ProjectBoard", () => {
 
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText("Launch"))
+    fireEvent.click(screen.getByLabelText("Expand files"))
 
     expect(screen.getByText("design.md")).toBeInTheDocument()
   })
@@ -60,10 +61,36 @@ describe("ProjectBoard", () => {
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByText("Launch"))
+    fireEvent.click(screen.getByLabelText("Expand files"))
     fireEvent.click(screen.getByText("design.md"))
 
     expect(onOpen).toHaveBeenCalledWith("a-99")
+  })
+
+  it("opens a review by its title without expanding", () => {
+    const onOpen = vi.fn()
+    render(<ProjectBoard onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Launch" }))
+
+    expect(onOpen).toHaveBeenCalledWith("a-99")
+    expect(screen.queryByText("design.md")).not.toBeInTheDocument()
+  })
+
+  it("renames a review from the actions menu", async () => {
+    dispatch.mockResolvedValue({ error: null })
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText("Review actions"))
+    fireEvent.click(await screen.findByText("Rename"))
+
+    const input = screen.getByLabelText("Review name")
+    fireEvent.change(input, { target: { value: "Spec pass" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith({ review_id: "r1", name: "Spec pass" })
+    )
   })
 
   it("deletes a review from the actions menu", async () => {
@@ -132,6 +159,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ project_id: "p-new", error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole("button", { name: "New project" }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" }
     })
@@ -149,6 +177,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole("button", { name: "New project" }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" }
     })

@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react"
 
-import { motion } from "motion/react"
-import { ChevronRight, FilePlus2, FolderPlus, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
+import {
+  ChevronRight,
+  FilePlus2,
+  FileStack,
+  FolderPlus,
+  MoreHorizontal,
+  PenLine,
+  Trash2
+} from "lucide-react"
 
 import type { StoreProxy } from "@musubi/react"
 
@@ -34,7 +42,41 @@ interface ReviewFile {
 interface BoardReview {
   id: string
   name: string
+  inserted_at: string
   files: ReviewFile[]
+}
+
+const DATE_FMT = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit"
+})
+
+/** Compact age of a naive server timestamp, read as local wall-clock time. */
+function formatCreated(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ""
+
+  const sec = Math.max(0, Math.floor((Date.now() - then) / 1000))
+  if (sec < 60) return "now"
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h`
+  const day = Math.floor(hr / 24)
+  if (day < 7) return `${day}d`
+  const wk = Math.floor(day / 7)
+  if (wk < 5) return `${wk}w`
+  const mo = Math.floor(day / 30)
+  return mo < 12 ? `${mo}mo` : `${Math.floor(day / 365)}y`
+}
+
+/** Full timestamp for the relative-age tooltip. */
+function fullDate(iso: string): string {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? "" : DATE_FMT.format(date)
 }
 
 interface BoardProject {
@@ -67,6 +109,7 @@ export function ProjectBoard({ onOpen }: { onOpen: (artifactId: string) => void 
 function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: string) => void }) {
   const snapshot = useMusubiSnapshot(store) as unknown as BoardSnapshot
   const hasProjects = snapshot.projects.length > 0
+  const [creating, setCreating] = useState(false)
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 sm:px-6 sm:py-14">
@@ -77,22 +120,33 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
             Register a working directory, then group its files into reviews.
           </p>
         </div>
-        <ThemeMenu />
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="pill"
+            size="icon-xs"
+            onClick={() => setCreating(true)}
+            title="New project"
+            aria-label="New project"
+          >
+            <FolderPlus className="size-4 text-muted-foreground" />
+          </Button>
+          <ThemeMenu />
+        </div>
       </header>
 
-      <CreateProjectForm store={store} />
-
       {hasProjects ? (
-        <div className="mt-8 space-y-9">
+        <div className="space-y-9">
           {snapshot.projects.map((project) => (
             <ProjectSection key={project.id} store={store} project={project} onOpen={onOpen} />
           ))}
         </div>
       ) : (
         <p className="mt-6 text-[12px] text-faint">
-          No projects yet. Add a working directory above to begin.
+          No projects yet. Create one to start reviewing its files.
         </p>
       )}
+
+      <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
     </div>
   )
 }
@@ -147,15 +201,18 @@ function ProjectSection({
         )
       ) : (
         <div className="space-y-3">
-          {project.reviews.map((review) => (
-            <ReviewCard
-              key={review.id}
-              store={store}
-              project={project}
-              review={review}
-              onOpen={onOpen}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {project.reviews.map((review, index) => (
+              <ReviewCard
+                key={review.id}
+                index={index}
+                store={store}
+                project={project}
+                review={review}
+                onOpen={onOpen}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </section>
@@ -166,40 +223,105 @@ function ReviewCard({
   store,
   project,
   review,
+  index,
   onOpen
 }: {
   store: BoardStore
   project: BoardProject
   review: BoardReview
+  index: number
   onOpen: (artifactId: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [draftName, setDraftName] = useState(review.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const remove = useMusubiCommand(store, "delete_review")
+  const rename = useMusubiCommand(store, "rename_review")
   const open = editing || expanded
+  const firstFile = review.files[0]
+
+  function startRename() {
+    setDraftName(review.name)
+    setRenaming(true)
+  }
+
+  function saveRename() {
+    if (!renaming) return
+    const next = draftName.trim()
+    setRenaming(false)
+    if (next && next !== review.name) {
+      void rename.dispatch({ review_id: review.id, name: next })
+    }
+  }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-surface">
-      <div className="flex items-center gap-2 px-3 py-2">
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: index * 0.04 }}
+      className="overflow-hidden rounded-lg border border-line bg-surface"
+    >
+      <div className="flex items-center gap-1 px-3 py-2">
         <button
           type="button"
           onClick={() => {
-            if (editing) return
-            setExpanded((value) => !value)
+            if (!editing) setExpanded((value) => !value)
           }}
           aria-expanded={open}
-          className="group flex min-w-0 flex-1 items-center gap-2 text-left pointer-coarse:min-h-9"
+          aria-label={open ? "Collapse files" : "Expand files"}
+          className="-ml-1 shrink-0 rounded p-1 text-faint transition-colors hover:text-muted-foreground pointer-coarse:min-h-9"
         >
           <ChevronRight
             size={14}
-            className={`shrink-0 text-faint transition-transform ${open ? "rotate-90" : ""}`}
+            className={`transition-transform ${open ? "rotate-90" : ""}`}
           />
-          <h3 className="truncate text-[13px] font-semibold text-heading">{review.name}</h3>
-          <span className="shrink-0 text-[11px] text-faint">
-            {review.files.length} {review.files.length === 1 ? "file" : "files"}
-          </span>
         </button>
+
+        {renaming ? (
+          <input
+            autoFocus
+            value={draftName}
+            aria-label="Review name"
+            onChange={(event) => setDraftName(event.target.value)}
+            onBlur={saveRename}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                saveRename()
+              } else if (event.key === "Escape") {
+                event.preventDefault()
+                setRenaming(false)
+              }
+            }}
+            className="min-w-0 flex-1 rounded-md border border-line bg-control px-2 py-1 text-[13px] font-semibold text-heading focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+          />
+        ) : (
+          <button
+            type="button"
+            disabled={!firstFile}
+            aria-label={`Open ${review.name}`}
+            title={firstFile ? "Open review" : "No files to open"}
+            onClick={() => firstFile && onOpen(firstFile.artifact_id)}
+            className="group flex min-w-0 flex-1 items-center gap-2 text-left pointer-coarse:min-h-9"
+          >
+            <h3 className="truncate text-[13px] font-semibold text-heading decoration-line/70 underline-offset-[3px] group-hover:underline">
+              {review.name}
+            </h3>
+            <span className="shrink-0 text-[11px] text-faint">
+              {review.files.length} {review.files.length === 1 ? "file" : "files"}
+            </span>
+            <span
+              className="hidden shrink-0 text-[11px] text-faint sm:inline"
+              title={fullDate(review.inserted_at)}
+            >
+              · {formatCreated(review.inserted_at)}
+            </span>
+          </button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -216,13 +338,17 @@ function ReviewCard({
             <MoreHorizontal size={15} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={startRename}>
+              <PenLine size={14} />
+              Rename
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 setExpanded(true)
                 setEditing(true)
               }}
             >
-              <Pencil size={14} />
+              <FileStack size={14} />
               Edit files
             </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
@@ -245,16 +371,27 @@ function ReviewCard({
           />
         </div>
       ) : (
-        expanded &&
-        (review.files.length === 0 ? (
-          <p className="border-t border-line px-3.5 py-3 text-[12px] text-faint">
-            No files in this review.
-          </p>
-        ) : (
-          <div className="border-t border-line py-1">
-            <ReviewFileTree files={review.files} onOpen={onOpen} />
-          </div>
-        ))
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="overflow-hidden"
+            >
+              {review.files.length === 0 ? (
+                <p className="border-t border-line px-3.5 py-3 text-[12px] text-faint">
+                  No files in this review.
+                </p>
+              ) : (
+                <div className="border-t border-line py-1">
+                  <ReviewFileTree files={review.files} onOpen={onOpen} />
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -290,7 +427,7 @@ function ReviewCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   )
 }
 
@@ -428,7 +565,15 @@ function ReviewComposer({
   )
 }
 
-function CreateProjectForm({ store }: { store: BoardStore }) {
+function CreateProjectDialog({
+  store,
+  open,
+  onOpenChange
+}: {
+  store: BoardStore
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const { dispatch, isPending } = useMusubiCommand(store, "create_project")
   const [name, setName] = useState("")
   const [path, setPath] = useState("")
@@ -440,6 +585,7 @@ function CreateProjectForm({ store }: { store: BoardStore }) {
     if (reply.project_id) {
       setName("")
       setPath("")
+      onOpenChange(false)
     } else {
       setError(reply.error ?? "Could not create project")
     }
@@ -448,63 +594,71 @@ function CreateProjectForm({ store }: { store: BoardStore }) {
   const disabled = isPending || name.trim() === "" || path.trim() === ""
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        void submit()
-      }}
-      className="rounded-xl border border-line bg-surface p-4 shadow-[var(--surface-shadow)] sm:p-5"
-    >
-      <div className="mb-3.5 flex items-center gap-2">
-        <FolderPlus size={15} className="text-blue" />
-        <h2 className="text-[13px] font-semibold text-heading">New project</h2>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FolderPlus size={16} className="text-blue" />
+            New project
+          </DialogTitle>
+        </DialogHeader>
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium text-muted-foreground">Name</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Project name"
-            className="rounded-md border border-line bg-control px-2.5 py-1.5 text-[13px] text-text focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 pointer-coarse:min-h-9"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-medium text-muted-foreground">Working directory</span>
-          <input
-            type="text"
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
-            placeholder="/Users/you/notes"
-            className="rounded-md border border-line bg-control px-2.5 py-1.5 font-mono text-[12.5px] text-text focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 pointer-coarse:min-h-9"
-          />
-        </label>
-      </div>
-
-      {error && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-3 text-[12px] text-red"
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+          className="flex flex-col gap-3"
         >
-          {error}
-        </motion.p>
-      )}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">Name</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Project name"
+              className="rounded-md border border-line bg-control px-2.5 py-1.5 text-[13px] text-text focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 pointer-coarse:min-h-9"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">Working directory</span>
+            <input
+              type="text"
+              value={path}
+              onChange={(event) => setPath(event.target.value)}
+              placeholder="/Users/you/notes"
+              className="rounded-md border border-line bg-control px-2.5 py-1.5 font-mono text-[12.5px] text-text focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 pointer-coarse:min-h-9"
+            />
+          </label>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-[11px] text-faint">Scans the directory for files to review.</p>
-        <Button
-          type="submit"
-          size="sm"
-          disabled={disabled}
-          className="shrink-0 pointer-coarse:min-h-9"
-        >
-          {isPending ? "Creating…" : "Create project"}
-        </Button>
-      </div>
-    </form>
+          <p className="text-[11px] text-faint">Scans the directory for files to review.</p>
+
+          {error && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-[12px] text-red"
+            >
+              {error}
+            </motion.p>
+          )}
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" className="h-10 sm:h-7" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              type="submit"
+              size="sm"
+              className="h-10 sm:h-7"
+              disabled={disabled}
+            >
+              {isPending ? "Creating…" : "Create project"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
