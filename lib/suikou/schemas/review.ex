@@ -39,4 +39,22 @@ defmodule Suikou.Schemas.Review do
     |> validate_format(:name, ~r/\S/, message: "can't be blank")
     |> assoc_constraint(:project)
   end
+
+  @doc """
+  Builds a changeset that renames an existing review.
+
+  ## Examples
+
+      review = %Suikou.Schemas.Review{name: "Launch docs"}
+      Suikou.Schemas.Review.rename_changeset(review, %{name: "Spec pass"}).valid?
+      #=> true
+
+  """
+  @spec rename_changeset(t(), map()) :: Ecto.Changeset.t()
+  def rename_changeset(%__MODULE__{} = review, params) do
+    review
+    |> cast(params, [:name])
+    |> validate_required([:name])
+    |> validate_format(:name, ~r/\S/, message: "can't be blank")
+  end
 end

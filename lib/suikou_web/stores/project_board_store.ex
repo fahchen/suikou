@@ -30,6 +30,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
           list(%{
             id: String.t(),
             name: String.t(),
+            inserted_at: String.t(),
             files:
               list(%{
                 artifact_id: String.t(),
@@ -70,6 +71,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:review_id, String.t())
       field(:file_paths, list(String.t()))
+    end
+
+    reply do
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :rename_review do
+    payload do
+      field(:review_id, String.t())
+      field(:name, String.t())
     end
 
     reply do
@@ -139,6 +151,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
+  def handle_command(:rename_review, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review -> rename_review(review, payload["name"])
+        nil -> %{error: "review_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
   def handle_command(:delete_review, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
@@ -183,6 +205,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  defp rename_review(review, name) do
+    case Reviews.rename_review(review, name) do
+      {:ok, %Review{}} -> %{error: nil}
+      {:error, reason} -> %{error: review_error(reason)}
+    end
+  end
+
   defp delete_review(review) do
     case Reviews.delete_review(review) do
       {:ok, %Review{}} -> %{error: nil}
@@ -219,6 +248,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     %{
       id: review.id,
       name: review.name,
+      inserted_at: NaiveDateTime.to_iso8601(review.inserted_at),
       files: Enum.map(review.artifacts, &render_review_file/1)
     }
   end

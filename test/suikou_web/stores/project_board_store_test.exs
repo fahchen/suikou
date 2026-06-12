@@ -108,6 +108,35 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
+  describe "rename_review" do
+    @tag :tmp_dir
+    test "renames the review on the next render", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :rename_review, %{
+                 review_id: review.id,
+                 name: "Spec pass"
+               })
+
+      assert %{projects: [%{reviews: [%{name: "Spec pass"}]}]} = Testing.render(page)
+    end
+
+    test "an unknown review replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "review_not_found"}} =
+               Testing.dispatch_command(page, :rename_review, %{
+                 review_id: "00000000-0000-7000-8000-000000000000",
+                 name: "Spec pass"
+               })
+    end
+  end
+
   describe "list_project_files" do
     @tag :tmp_dir
     test "replies with the project's candidate files, sorted", %{tmp_dir: dir} do

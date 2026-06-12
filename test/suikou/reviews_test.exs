@@ -131,6 +131,27 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "rename_review/2" do
+    @tag :tmp_dir
+    test "renames the review, leaving its artifacts untouched", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, path: dir)
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      assert {:ok, %{name: "Spec pass"}} = Reviews.rename_review(review, "Spec pass")
+      assert [%{file_path: "plan.md"}] = Reviews.get_review(review.id).artifacts
+    end
+
+    @tag :tmp_dir
+    test "rejects a blank name", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, path: dir)
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      assert {:error, %Ecto.Changeset{}} = Reviews.rename_review(review, "  ")
+    end
+  end
+
   describe "get_review/1 and list_for_project/1" do
     @tag :tmp_dir
     test "get_review preloads only active artifacts", %{tmp_dir: dir} do

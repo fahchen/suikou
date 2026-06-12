@@ -85,6 +85,21 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Renames a review, leaving its files and critique history untouched.
+
+  ## Examples
+
+      Suikou.Reviews.rename_review(review, "Spec pass")
+      #=> {:ok, %Suikou.Schemas.Review{name: "Spec pass"}}
+
+  """
+  @spec rename_review(Review.t(), String.t()) ::
+          {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
+  def rename_review(%Review{} = review, name) do
+    review |> Review.rename_changeset(%{name: name}) |> Repo.update()
+  end
+
+  @doc """
   Deletes a review and every artifact, round, and comment beneath it (the
   database cascades on the foreign keys). Unlike removing a single file, this
   discards the review's whole critique history.
