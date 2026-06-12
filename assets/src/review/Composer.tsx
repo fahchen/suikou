@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
 import { SquarePlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { CRITIQUE_META } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 
@@ -79,10 +80,10 @@ export const Composer = observer(function Composer(props: {
               key={type}
               type="button"
               aria-pressed={ui.composerType === type}
-              className={`pointer-coarse:min-h-9 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+              className={`pointer-coarse:h-8 inline-flex h-6 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
                 ui.composerType === type
                   ? TYPE_TONE[CRITIQUE_META[type].tone]
-                  : "bg-transparent text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
+                  : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
               }`}
               onClick={() => ui.setComposerType(type)}
             >
@@ -102,28 +103,33 @@ export const Composer = observer(function Composer(props: {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
-          className="pointer-coarse:min-h-9 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+          variant="ghost"
+          size="xs"
+          className="text-muted-foreground pointer-coarse:min-h-8"
           onClick={suggest}
         >
           <SquarePlus size={13} />
           Suggest
-        </button>
+        </Button>
         <span className="hidden text-[11px] text-faint sm:inline">
           Saved as a pending draft until you submit the review.
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="pointer-coarse:min-h-9 inline-flex items-center rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-hover"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground pointer-coarse:min-h-9"
             onClick={() => ui.closeComposer()}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="pointer-coarse:min-h-9 inline-flex items-center gap-1.5 rounded-md bg-blue px-3 py-1 text-[12px] font-medium text-on-accent disabled:opacity-50"
+            size="sm"
+            className="pointer-coarse:min-h-9"
             disabled={commands.addComment.isPending || !ui.composerBody.trim()}
             onClick={add}
           >
@@ -134,7 +140,7 @@ export const Composer = observer(function Composer(props: {
             >
               ⌘⏎
             </kbd>
-          </button>
+          </Button>
         </div>
       </div>
     </motion.div>
