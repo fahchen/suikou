@@ -107,7 +107,7 @@ function FolderRow({
   return (
     <>
       <div
-        className="flex items-center gap-1.5 py-1 pr-3.5 text-[12px] text-muted-foreground"
+        className="flex w-full min-w-0 items-center gap-1.5 py-1 pr-3.5 text-[12px] text-muted-foreground"
         style={{ paddingLeft: `${depth * 14 + 14}px` }}
       >
         <Folder size={13} className="shrink-0 text-faint" />
@@ -133,7 +133,7 @@ function FileRow({
       type="button"
       onClick={() => onOpen(file.artifact_id)}
       style={{ paddingLeft: `${depth * 14 + 14}px` }}
-      className="group flex items-center gap-2 py-1.5 pr-3.5 text-left transition-colors hover:bg-hover pointer-coarse:min-h-11"
+      className="group flex w-full min-w-0 items-center gap-2 py-1.5 pr-3.5 text-left transition-colors hover:bg-hover pointer-coarse:min-h-11"
     >
       <FileIcon name={node.name} />
       <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text">{node.name}</span>

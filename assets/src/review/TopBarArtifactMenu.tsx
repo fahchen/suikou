@@ -6,7 +6,13 @@ import type { ArtifactSummary, ReviewSnapshot } from "./types";
 import { useMediaQuery, MOBILE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface FileNode {
   type: "file";
@@ -90,7 +96,7 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
   }
 
   const trigger = (
-    <Button variant="pill" size="xs" title="Switch artifact" className="h-[30px] min-w-0 px-2.5">
+    <Button variant="pill" size="xs" title="Switch artifact" className="min-w-0 px-2.5">
       <FileText className="size-4 shrink-0 text-muted-foreground" />
       <span className="hidden truncate text-[12px] font-medium text-heading sm:inline">
         {snapshot.artifact.title}
@@ -113,10 +119,12 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger render={trigger} />
         <DialogContent className="max-h-[80vh] gap-3 overflow-y-auto p-3">
-          <DialogTitle className="flex items-center gap-1.5 text-[12px] font-normal text-muted-foreground">
-            <Folder size={14} /> artifacts
-          </DialogTitle>
-          <div className="flex flex-col gap-0.5">{tree}</div>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5 text-[13px]">
+              <Folder size={14} className="text-faint" /> Artifacts
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex min-w-0 flex-col gap-0.5">{tree}</div>
         </DialogContent>
       </Dialog>
     );
@@ -126,12 +134,7 @@ export function TopBarArtifactMenu(props: { snapshot: ReviewSnapshot; rawView: b
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={trigger} />
       <PopoverContent align="start" className="max-h-[70vh] w-72 overflow-y-auto p-2">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1.5 px-2 py-1 text-[12px] text-muted-foreground">
-            <Folder size={13} /> artifacts
-          </div>
-          {tree}
-        </div>
+        <div className="flex flex-col gap-0.5">{tree}</div>
       </PopoverContent>
     </Popover>
   );
@@ -181,7 +184,7 @@ function FolderRow(props: {
   return (
     <>
       <div
-        className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-muted-foreground"
+        className="flex w-full min-w-0 items-center gap-1.5 rounded px-2 py-1 text-[12px] text-muted-foreground"
         style={{ paddingLeft: `${props.depth * 12 + 8}px` }}
       >
         <Folder size={13} className="shrink-0" />
@@ -207,7 +210,7 @@ function FileRow(props: {
   return (
     <button
       type="button"
-      className={`flex items-center gap-2 rounded py-1.5 pr-2 text-left text-[13px] ${
+      className={`flex w-full min-w-0 items-center gap-2 rounded py-1.5 pr-2 text-left text-[13px] ${
         props.active ? "bg-tint text-heading" : "hover:bg-hover"
       }`}
       style={{ paddingLeft: `${props.depth * 12 + 8}px` }}
