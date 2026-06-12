@@ -5,7 +5,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   alias Musubi.Testing
   alias Suikou.Reads
-  alias Suikou.Review
+  alias Suikou.Submissions
   alias SuikouWeb.Stores.ReviewStore
 
   describe "diff child" do
@@ -19,9 +19,9 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "renders the text, transitions, and verdict change for the selected rounds" do
       round1 = insert(:round, content: "alpha\nbeta\n")
       artifact = round1.artifact
-      {:ok, %{next_round: round2}} = Review.submit_review(round1.id, :request_changes)
+      {:ok, %{next_round: round2}} = Submissions.submit(round1.id, :request_changes)
       edit_round(artifact.id, "alpha\ngamma\n")
-      {:ok, _r2} = Review.submit_review(round2.id, :approve)
+      {:ok, _r2} = Submissions.submit(round2.id, :approve)
 
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
       {:ok, _reply} = Testing.dispatch_command(page, :diff_round, %{from: 0, to: 1})
@@ -56,7 +56,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   describe "draft verdict" do
     test "mount renders the latest round's stored draft verdict" do
       round = insert(:round)
-      {:ok, _round} = Review.set_draft_verdict(round.id, :approve)
+      {:ok, _round} = Submissions.set_draft_verdict(round.id, :approve)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       assert %{draft_verdict: :approve} = Testing.render(page)

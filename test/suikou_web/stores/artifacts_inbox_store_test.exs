@@ -34,7 +34,7 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStoreTest do
 
     test "marks an artifact approved once a round is approved" do
       artifact = insert(:round).artifact
-      Suikou.Review.submit_review(Suikou.Rounds.latest(artifact.id).id, :approve)
+      Suikou.Submissions.submit(Suikou.Rounds.latest(artifact.id).id, :approve)
 
       page = Testing.mount(ArtifactsInboxStore)
 

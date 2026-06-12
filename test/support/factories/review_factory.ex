@@ -6,17 +6,25 @@ defmodule Suikou.Factories.ReviewFactory do
       alias Suikou.Artifacts
       alias Suikou.Critique
       alias Suikou.Repo
-      alias Suikou.Review
       alias Suikou.Rounds
       alias Suikou.Schemas.Artifact
       alias Suikou.Schemas.Comment
       alias Suikou.Schemas.Project
+      alias Suikou.Schemas.Review
       alias Suikou.Schemas.Round
+      alias Suikou.Submissions
 
       def artifact_factory do
         %Artifact{
           title: sequence(:title, &"Artifact #{&1}"),
           file_path: "doc.md",
+          review: build(:review)
+        }
+      end
+
+      def review_factory do
+        %Review{
+          name: sequence(:name, &"Review #{&1}"),
           project: build(:project)
         }
       end
@@ -47,7 +55,7 @@ defmodule Suikou.Factories.ReviewFactory do
       # content and carried line anchors reflect the change.
       def advance(artifact_id, content, verdict \\ :comment) do
         latest = Rounds.latest(artifact_id)
-        {:ok, %{next_round: next}} = Review.submit_review(latest.id, verdict)
+        {:ok, %{next_round: next}} = Submissions.submit(latest.id, verdict)
         write_source(artifact_id, content)
         {:ok, round} = Artifacts.resnapshot(next.id)
         %{round: round}
@@ -64,8 +72,8 @@ defmodule Suikou.Factories.ReviewFactory do
       end
 
       defp write_source(artifact_id, content) do
-        artifact = Artifact |> Repo.get!(artifact_id) |> Repo.preload(:project)
-        path = Path.join(artifact.project.path, artifact.file_path)
+        artifact = Artifact |> Repo.get!(artifact_id) |> Repo.preload(review: :project)
+        path = Path.join(artifact.review.project.path, artifact.file_path)
         File.mkdir_p!(Path.dirname(path))
         File.write!(path, content)
       end

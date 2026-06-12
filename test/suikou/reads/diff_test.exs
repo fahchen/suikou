@@ -5,7 +5,7 @@ defmodule Suikou.Reads.DiffTest do
 
   alias Suikou.Critique
   alias Suikou.Reads
-  alias Suikou.Review
+  alias Suikou.Submissions
 
   test "content changes between rounds render as a text diff" do
     artifact = insert(:round, content: "alpha\nbeta\n").artifact
@@ -38,8 +38,8 @@ defmodule Suikou.Reads.DiffTest do
   test "a change in latest verdict between rounds is rendered" do
     round1 = insert(:round)
     artifact = round1.artifact
-    {:ok, %{next_round: round2}} = Review.submit_review(round1.id, :request_changes)
-    {:ok, _r2} = Review.submit_review(round2.id, :approve)
+    {:ok, %{next_round: round2}} = Submissions.submit(round1.id, :request_changes)
+    {:ok, _r2} = Submissions.submit(round2.id, :approve)
 
     assert {:ok, %{verdict_from: :request_changes, verdict_to: :approve}} =
              Reads.round_diff(artifact.id, 0, 1)
@@ -67,9 +67,9 @@ defmodule Suikou.Reads.DiffTest do
   test "an unchanged verdict reports the same value on both sides" do
     round1 = insert(:round)
     artifact = round1.artifact
-    {:ok, _r1} = Review.submit_review(round1.id, :comment)
+    {:ok, _r1} = Submissions.submit(round1.id, :comment)
     %{round: round2} = advance(artifact.id, "changed\n")
-    {:ok, _r2} = Review.submit_review(round2.id, :comment)
+    {:ok, _r2} = Submissions.submit(round2.id, :comment)
 
     assert {:ok, %{verdict_from: :comment, verdict_to: :comment}} =
              Reads.round_diff(artifact.id, 1, 2)

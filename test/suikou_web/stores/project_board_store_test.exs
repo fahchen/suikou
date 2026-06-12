@@ -3,24 +3,36 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   alias Musubi.Testing
   alias Suikou.Projects
+  alias Suikou.Reviews
   alias SuikouWeb.Stores.ProjectBoardStore
 
   describe "render/1" do
     @tag :tmp_dir
-    test "lists each project with its candidate markdown files", %{tmp_dir: dir} do
+    test "lists each project with its candidate files and no reviews yet", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "notes.md"), "# Notes\n")
       {:ok, _project} = Projects.register_project(%{name: "Docs", path: dir})
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert %{projects: [%{name: "Docs", files: files}]} = Testing.render(page)
-      assert Enum.map(files, & &1.path) == ["notes.md", "plan.md"]
-      assert Enum.all?(files, &is_nil(&1.artifact_id))
+      assert %{projects: [%{name: "Docs", files: files, reviews: []}]} = Testing.render(page)
+      assert files == ["notes.md", "plan.md"]
     end
 
     @tag :tmp_dir
-    test "renders an empty list when no project is registered", %{tmp_dir: _dir} do
+    test "renders a project's reviews with their selected files", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{projects: [%{reviews: [%{name: "Launch", files: [file]}]}]} = Testing.render(page)
+      assert %{path: "plan.md", approved: false} = file
+      assert is_binary(file.artifact_id)
+    end
+
+    test "renders an empty list when no project is registered" do
       page = Testing.mount(ProjectBoardStore)
       assert %{projects: []} = Testing.render(page)
     end
@@ -37,7 +49,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       assert is_binary(project_id)
 
-      assert %{projects: [%{id: ^project_id, name: "Docs", files: [%{path: "plan.md"}]}]} =
+      assert %{projects: [%{id: ^project_id, name: "Docs", files: ["plan.md"]}]} =
                Testing.render(page)
     end
 
@@ -76,49 +88,96 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
-  describe "create_artifact" do
+  describe "create_review" do
     @tag :tmp_dir
-    test "mints an artifact from a file and links it on the next render", %{tmp_dir: dir} do
+    test "mints a review from selected files and lists it on the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      File.write!(Path.join(dir, "spec.md"), "# Spec\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{artifact_id: artifact_id, error: nil}} =
-               Testing.dispatch_command(page, :create_artifact, %{
+      assert {:ok, %{review_id: review_id, error: nil}} =
+               Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
-                 file_path: "plan.md"
+                 name: "Launch",
+                 file_paths: ["plan.md", "spec.md"]
                })
 
-      assert is_binary(artifact_id)
+      assert is_binary(review_id)
 
-      assert %{projects: [%{files: [%{path: "plan.md", artifact_id: ^artifact_id}]}]} =
-               Testing.render(page)
+      assert %{projects: [%{reviews: [%{id: ^review_id, files: files}]}]} = Testing.render(page)
+      assert Enum.map(files, & &1.path) == ["plan.md", "spec.md"]
     end
 
     @tag :tmp_dir
-    test "an empty file mints no artifact and replies with an error", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "blank.md"), "   \n")
+    test "an empty selection replies with an error", %{tmp_dir: dir} do
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{artifact_id: nil, error: "empty_content"}} =
-               Testing.dispatch_command(page, :create_artifact, %{
+      assert {:ok, %{review_id: nil, error: "no_files"}} =
+               Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
-                 file_path: "blank.md"
+                 name: "Launch",
+                 file_paths: []
+               })
+    end
+
+    @tag :tmp_dir
+    test "an unreadable file rolls back and replies with an error", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "blank.md"), "   \n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{review_id: nil, error: error}} =
+               Testing.dispatch_command(page, :create_review, %{
+                 project_id: project.id,
+                 name: "Launch",
+                 file_paths: ["blank.md"]
                })
 
-      assert %{projects: [%{files: [%{artifact_id: nil}]}]} = Testing.render(page)
+      assert error =~ "empty_content"
+      assert %{projects: [%{reviews: []}]} = Testing.render(page)
     end
 
     test "an unknown project replies with an error" do
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{artifact_id: nil, error: "project_not_found"}} =
-               Testing.dispatch_command(page, :create_artifact, %{
+      assert {:ok, %{review_id: nil, error: "project_not_found"}} =
+               Testing.dispatch_command(page, :create_review, %{
                  project_id: "00000000-0000-7000-8000-000000000000",
-                 file_path: "plan.md"
+                 name: "Launch",
+                 file_paths: ["plan.md"]
+               })
+    end
+  end
+
+  describe "update_review_files" do
+    @tag :tmp_dir
+    test "reconciles a review's selection on the next render", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      File.write!(Path.join(dir, "spec.md"), "# Spec\nbody\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", file_paths: ["plan.md"]})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :update_review_files, %{
+                 review_id: review.id,
+                 file_paths: ["spec.md"]
+               })
+
+      assert %{projects: [%{reviews: [%{files: [%{path: "spec.md"}]}]}]} = Testing.render(page)
+    end
+
+    test "an unknown review replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "review_not_found"}} =
+               Testing.dispatch_command(page, :update_review_files, %{
+                 review_id: "00000000-0000-7000-8000-000000000000",
+                 file_paths: ["plan.md"]
                })
     end
   end

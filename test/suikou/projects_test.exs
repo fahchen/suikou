@@ -45,15 +45,39 @@ defmodule Suikou.ProjectsTest do
 
   describe "list_files/1" do
     @tag :tmp_dir
-    test "lists markdown files relative to the project, sorted", %{tmp_dir: dir} do
+    test "lists every file type relative to the project, sorted", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "readme.md"), "# readme\n")
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join(dir, "docs/plan.md"), "# plan\n")
-      File.write!(Path.join(dir, "notes.txt"), "ignore me\n")
+      File.write!(Path.join(dir, "notes.txt"), "plain text\n")
 
       project = build(:project, path: dir)
 
-      assert ["docs/plan.md", "readme.md"] = Projects.list_files(project)
+      assert ["docs/plan.md", "notes.txt", "readme.md"] = Projects.list_files(project)
+    end
+
+    @tag :tmp_dir
+    test "skips files matched by a .gitignore at the project root", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "readme.md"), "# readme\n")
+      File.mkdir_p!(Path.join(dir, "node_modules/pkg"))
+      File.write!(Path.join(dir, "node_modules/pkg/dep.md"), "# vendored\n")
+      File.write!(Path.join(dir, "draft.tmp.md"), "# scratch\n")
+      File.write!(Path.join(dir, ".gitignore"), "node_modules/\n*.tmp.md\n")
+
+      project = build(:project, path: dir)
+
+      assert ["readme.md"] = Projects.list_files(project)
+    end
+
+    @tag :tmp_dir
+    test "re-includes a path a later negation rule un-ignores", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "keep.md"), "# keep\n")
+      File.write!(Path.join(dir, "scratch.md"), "# scratch\n")
+      File.write!(Path.join(dir, ".gitignore"), "*.md\n!keep.md\n")
+
+      project = build(:project, path: dir)
+
+      assert ["keep.md"] = Projects.list_files(project)
     end
   end
 end

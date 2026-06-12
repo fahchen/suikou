@@ -5,7 +5,7 @@ defmodule Suikou.ExportTest do
 
   alias Suikou.Critique
   alias Suikou.Export
-  alias Suikou.Review
+  alias Suikou.Submissions
 
   test "published comments on the latest round are exported, resolved and open alike" do
     round = insert(:round)
@@ -52,7 +52,7 @@ defmodule Suikou.ExportTest do
   test "an approved artifact reports its approval and verdict" do
     artifact = insert(:round).artifact
     %{round: round2} = advance(artifact.id, "v2\n")
-    {:ok, _review} = Review.submit_review(round2.id, :approve)
+    {:ok, _submission} = Submissions.submit(round2.id, :approve)
 
     assert {:ok, %{verdict: :approve, approved: true, approved_round: 1}} =
              Export.export(artifact.id)
@@ -61,7 +61,7 @@ defmodule Suikou.ExportTest do
   test "a request_changes verdict reports not approved" do
     round = insert(:round)
     artifact = round.artifact
-    {:ok, _review} = Review.submit_review(round.id, :request_changes)
+    {:ok, _submission} = Submissions.submit(round.id, :request_changes)
 
     assert {:ok, %{verdict: :request_changes, approved: false}} = Export.export(artifact.id)
   end
