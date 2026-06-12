@@ -10,9 +10,11 @@ defmodule Suikou.Artifacts do
   are reachable only from within the domain.
   """
 
+  alias Suikou.Artifacts.Asset
   alias Suikou.Artifacts.FileSource
 
   @type create_error() :: FileSource.create_error()
+  @type resolve_asset_error() :: Asset.resolve_error()
 
   @doc """
   Creates an artifact at round 0 from a file selected into a review. See
@@ -37,4 +39,16 @@ defmodule Suikou.Artifacts do
 
   """
   defdelegate resnapshot(round_id), to: FileSource
+
+  @doc """
+  Resolves an asset reference from an artifact's markdown to a file on disk. See
+  `Suikou.Artifacts.Asset.resolve/2`.
+
+  ## Examples
+
+      Suikou.Artifacts.resolve_asset(artifact.id, "img/diagram.png")
+      #=> {:ok, "/projects/app/docs/img/diagram.png"}
+
+  """
+  defdelegate resolve_asset(artifact_id, request_path), to: Asset, as: :resolve
 end
