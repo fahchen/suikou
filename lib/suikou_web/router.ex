@@ -16,6 +16,7 @@ defmodule SuikouWeb.Router do
   scope "/api", SuikouWeb do
     pipe_through :asset
 
+    get "/review/:artifact_id/content", AssetController, :content
     get "/review/:artifact_id/asset/*path", AssetController, :show
   end
 end

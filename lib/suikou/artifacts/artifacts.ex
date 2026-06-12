@@ -15,6 +15,7 @@ defmodule Suikou.Artifacts do
 
   @type create_error() :: FileSource.create_error()
   @type resolve_asset_error() :: Asset.resolve_error()
+  @type read_content_error() :: Asset.read_error()
 
   @doc """
   Creates an artifact at round 0 from a file selected into a review. See
@@ -51,4 +52,42 @@ defmodule Suikou.Artifacts do
 
   """
   defdelegate resolve_asset(artifact_id, request_path), to: Asset, as: :resolve
+
+  @doc """
+  Resolves an artifact's own source file to an absolute path on disk, so the
+  reviewed content can be served or read live. See
+  `Suikou.Artifacts.Asset.content_path/1`.
+
+  ## Examples
+
+      Suikou.Artifacts.content_path(artifact.id)
+      #=> {:ok, "/projects/app/docs/plan.md"}
+
+  """
+  defdelegate content_path(artifact_id), to: Asset
+
+  @doc """
+  Reads an artifact's own source file live from disk, so the reviewed content
+  can be rendered or a comment quote captured. See
+  `Suikou.Artifacts.Asset.read_content/1`.
+
+  ## Examples
+
+      Suikou.Artifacts.read_content(artifact.id)
+      #=> {:ok, "# Plan\\n"}
+
+  """
+  defdelegate read_content(artifact_id), to: Asset
+
+  @doc """
+  Reads an artifact's source file live, returning `nil` on any failure. See
+  `Suikou.Artifacts.Asset.read_content_or_nil/1`.
+
+  ## Examples
+
+      Suikou.Artifacts.read_content_or_nil(artifact.id)
+      #=> "# Plan\\n"
+
+  """
+  defdelegate read_content_or_nil(artifact_id), to: Asset
 end
