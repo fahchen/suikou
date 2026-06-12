@@ -105,77 +105,97 @@ export async function outline(content: string, lang: Lang): Promise<OutlineItem[
   parser.setLanguage(language)
 
   const tree = parser.parse(content)
-  const lines = content.split("\n")
+  return buildOutline(tree.rootNode, content.split("\n"), lang)
+}
+
+/**
+ * Walks a parsed tree into outline items. Nesting depth comes from the number of
+ * heading ancestors, so headings nest by their position in the tree rather than
+ * a fixed per-type level.
+ */
+export function buildOutline(root: Parser.SyntaxNode, lines: string[], lang: Lang): OutlineItem[] {
   const items: OutlineItem[] = []
 
-  const visit = (node: Parser.SyntaxNode): void => {
-    const level = levelOf(lang, node)
-    if (level !== null) {
-      items.push({ level, text: label(lines, node.startPosition.row), line: node.startPosition.row + 1 })
+  const visit = (node: Parser.SyntaxNode, depth: number): void => {
+    const heading = isHeading(lang, node)
+    const nextDepth = heading ? depth + 1 : depth
+    if (heading) {
+      const row = lang === "gherkin" ? titleRow(node) : node.startPosition.row
+      items.push({ level: nextDepth, text: label(lines, row), line: row + 1 })
     }
-    for (const child of node.namedChildren) visit(child)
+    for (const child of node.namedChildren) visit(child, nextDepth)
   }
-  visit(tree.rootNode)
+  visit(root, 0)
 
   return items
 }
 
-const ELIXIR_DEFS: Record<string, number> = {
-  defmodule: 1,
-  defprotocol: 1,
-  defimpl: 1,
-  def: 2,
-  defp: 2,
-  defmacro: 2,
-  defmacrop: 2,
-  defstruct: 2,
-  describe: 2,
-  test: 2
+const ELIXIR_DEFS = new Set([
+  "defmodule",
+  "defprotocol",
+  "defimpl",
+  "def",
+  "defp",
+  "defmacro",
+  "defmacrop",
+  "defstruct",
+  "describe",
+  "test"
+])
+
+/**
+ * Node types that count as an outline heading. Nesting depth is derived from how
+ * many heading ancestors a node has, so these carry no fixed level.
+ */
+const HEADING_TYPES: Partial<Record<Lang, Set<string>>> = {
+  typescript: new Set([
+    "class_declaration",
+    "abstract_class_declaration",
+    "interface_declaration",
+    "type_alias_declaration",
+    "enum_declaration",
+    "function_declaration",
+    "method_definition"
+  ]),
+  python: new Set(["class_definition", "function_definition"]),
+  rust: new Set(["mod_item", "struct_item", "enum_item", "trait_item", "impl_item", "function_item"]),
+  go: new Set(["function_declaration", "method_declaration", "type_declaration"]),
+  bash: new Set(["function_definition"]),
+  gherkin: new Set(["feature", "rule", "background", "scenario", "examples"])
 }
 
-const TYPES: Partial<Record<Lang, Record<string, number>>> = {
-  typescript: {
-    class_declaration: 1,
-    abstract_class_declaration: 1,
-    interface_declaration: 1,
-    type_alias_declaration: 1,
-    enum_declaration: 1,
-    function_declaration: 1,
-    method_definition: 2
-  },
-  python: { class_definition: 1, function_definition: 2 },
-  rust: {
-    mod_item: 1,
-    struct_item: 1,
-    enum_item: 1,
-    trait_item: 1,
-    impl_item: 1,
-    function_item: 2
-  },
-  go: { function_declaration: 1, method_declaration: 1, type_declaration: 1 },
-  bash: { function_definition: 1 },
-  gherkin: {
-    feature: 1,
-    rule: 2,
-    background: 2,
-    scenario: 2,
-    scenario_outline: 2,
-    examples: 3
-  }
-}
-
-/** The outline depth a node contributes, or null when it is not an item. */
-function levelOf(lang: Lang, node: Parser.SyntaxNode): number | null {
+/** Whether a node opens an outline heading. */
+function isHeading(lang: Lang, node: Parser.SyntaxNode): boolean {
   if (lang === "elixir") {
-    if (node.type !== "call") return null
+    if (node.type !== "call") return false
     const head = node.firstNamedChild
-    if (head && head.type === "identifier") return ELIXIR_DEFS[head.text] ?? null
-    return null
+    return head?.type === "identifier" && ELIXIR_DEFS.has(head.text)
   }
   if (lang === "tsx" || lang === "javascript") {
-    return TYPES.typescript?.[node.type] ?? null
+    return HEADING_TYPES.typescript?.has(node.type) ?? false
   }
-  return TYPES[lang]?.[node.type] ?? null
+  return HEADING_TYPES[lang]?.has(node.type) ?? false
+}
+
+/**
+ * The source row carrying a Gherkin heading's title. The grammar wraps a
+ * heading's tags ahead of its keyword line, so the node's own start row can land
+ * on a `@tag` line; the title lives on the nearest `*_line` descendant instead.
+ */
+function titleRow(node: Parser.SyntaxNode): number {
+  return (firstLineNode(node) ?? node).startPosition.row
+}
+
+// Every Gherkin heading rule emits its own `*_line` as the first element of its
+// sequence, ahead of any nested heading or step, so first-match DFS returns the
+// node's own title line and never crosses into a child heading.
+function firstLineNode(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
+  for (const child of node.namedChildren) {
+    if (child.type.endsWith("_line")) return child
+    const nested = firstLineNode(child)
+    if (nested) return nested
+  }
+  return null
 }
 
 /** A compact label from the node's opening source line. */
