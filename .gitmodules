@@ -1,0 +1,3 @@
+[submodule "assets/vendor/tree-sitter-gherkin"]
+	path = assets/vendor/tree-sitter-gherkin
+	url = https://github.com/binhtddev/tree-sitter-gherkin
