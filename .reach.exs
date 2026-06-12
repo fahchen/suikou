@@ -16,8 +16,8 @@
     ]
   ],
   boundaries: [
-    # The domain is cut into four business contexts (Artifacts, Critique,
-    # Review, Export) plus a human read surface (Reads). Each context's
+    # The domain is cut into business contexts (Artifacts, Critique, Reviews,
+    # Submissions, Export) plus a human read surface (Reads). Each context's
     # top-level module is its public API; its internal submodules are reachable
     # only from within that context. The shared kernel (`Suikou.Schemas.*` and
     # `Suikou.Rounds`) is intentionally unlisted, leaving it open to every
@@ -25,21 +25,24 @@
     public: [
       "Suikou.Artifacts",
       "Suikou.Critique",
-      "Suikou.Review",
+      "Suikou.Reviews",
+      "Suikou.Submissions",
       "Suikou.Export",
       "Suikou.Reads"
     ],
     internal: [
       "Suikou.Artifacts.*",
       "Suikou.Critique.*",
-      "Suikou.Review.*",
+      "Suikou.Reviews.*",
+      "Suikou.Submissions.*",
       "Suikou.Export.*",
       "Suikou.Reads.*"
     ],
     internal_callers: [
       {"Suikou.Artifacts.*", ["Suikou.Artifacts", "Suikou.Artifacts.*"]},
       {"Suikou.Critique.*", ["Suikou.Critique", "Suikou.Critique.*"]},
-      {"Suikou.Review.*", ["Suikou.Review", "Suikou.Review.*"]},
+      {"Suikou.Reviews.*", ["Suikou.Reviews", "Suikou.Reviews.*"]},
+      {"Suikou.Submissions.*", ["Suikou.Submissions", "Suikou.Submissions.*"]},
       {"Suikou.Export.*", ["Suikou.Export", "Suikou.Export.*"]},
       {"Suikou.Reads.*", ["Suikou.Reads", "Suikou.Reads.*"]}
     ]
