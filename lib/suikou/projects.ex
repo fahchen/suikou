@@ -96,12 +96,36 @@ defmodule Suikou.Projects do
     rules = ignore_rules(path)
 
     path
-    |> Path.join("**/*")
-    |> Path.wildcard()
-    |> Enum.filter(&File.regular?/1)
-    |> Enum.map(&Path.relative_to(&1, path))
-    |> Enum.reject(&ignored?(&1, rules))
+    |> walk("", rules)
     |> Enum.sort()
+  end
+
+  # Depth-first walk that prunes ignored directories before descending, so the
+  # scan never pays to walk `node_modules`, `_build`, or `deps` on a large repo.
+  # Git itself never enters an ignored directory, so a file a negation rule
+  # would re-include under a pruned directory stays excluded. Only `.git` is
+  # excluded unconditionally (git never tracks it and it is never gitignored);
+  # every other entry is judged solely by the project's `.gitignore`.
+  defp walk(root, rel, rules) do
+    dir = if rel == "", do: root, else: Path.join(root, rel)
+
+    case File.ls(dir) do
+      {:ok, entries} -> Enum.flat_map(entries, &walk_entry(root, rel, &1, rules))
+      {:error, _reason} -> []
+    end
+  end
+
+  defp walk_entry(_root, _rel, ".git", _rules), do: []
+
+  defp walk_entry(root, rel, entry, rules) do
+    child = if rel == "", do: entry, else: rel <> "/" <> entry
+    abs = Path.join(root, child)
+
+    cond do
+      File.dir?(abs) -> if ignored?(child, rules, true), do: [], else: walk(root, child, rules)
+      File.regular?(abs) -> if ignored?(child, rules, false), do: [], else: [child]
+      true -> []
+    end
   end
 
   defp ignore_rules(dir) do
@@ -145,21 +169,23 @@ defmodule Suikou.Projects do
   end
 
   # A path is ignored when the last matching rule is not a negation. Directory
-  # rules are tested against ancestor segments only, so they sweep in contents.
-  defp ignored?(path, rules) do
-    prefixes = path_prefixes(path)
+  # rules are tested against ancestor segments only, so they sweep in contents;
+  # `dir?` marks whether the path itself is a directory so a dir-only rule can
+  # match the path's own last segment.
+  defp ignored?(path, rules, dir?) do
+    prefixes = path_prefixes(path, dir?)
 
     Enum.reduce(rules, false, fn rule, ignored ->
       if rule_matches?(rule, prefixes), do: not rule.negated, else: ignored
     end)
   end
 
-  defp path_prefixes(path) do
+  defp path_prefixes(path, last_is_dir) do
     segments = String.split(path, "/")
     last = length(segments)
 
     for i <- 1..last do
-      {segments |> Enum.take(i) |> Enum.join("/"), i < last}
+      {segments |> Enum.take(i) |> Enum.join("/"), i < last or last_is_dir}
     end
   end
 

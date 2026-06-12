@@ -66,7 +66,7 @@ defmodule Suikou.ProjectsTest do
 
       project = build(:project, path: dir)
 
-      assert ["readme.md"] = Projects.list_files(project)
+      assert [".gitignore", "readme.md"] = Projects.list_files(project)
     end
 
     @tag :tmp_dir
@@ -77,7 +77,7 @@ defmodule Suikou.ProjectsTest do
 
       project = build(:project, path: dir)
 
-      assert ["keep.md"] = Projects.list_files(project)
+      assert [".gitignore", "keep.md"] = Projects.list_files(project)
     end
   end
 end
