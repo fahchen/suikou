@@ -17,6 +17,7 @@ import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
 import { pendingCount } from "./store-context";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
+import { isImagePath, isBinaryContent } from "./file-type";
 import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
 import { TopBarTocMenu } from "./TopBarTocMenu";
 import { TopBarArtifactMenu } from "./TopBarArtifactMenu";
@@ -53,6 +54,9 @@ export const TopBar = observer(function TopBar(props: {
   const commands = useReviewCommands();
   const navigate = useNavigate();
   const rawView = useLocation().pathname.endsWith("/raw");
+  // Comments anchor to editor lines; an image or other binary has none.
+  const commentsSupported =
+    !isImagePath(snapshot.artifact.title) && !isBinaryContent(content);
   const [verdict, setVerdict] = useState<Verdict>(
     snapshot.draft_verdict ?? snapshot.latest_verdict ?? "request_changes",
   );
@@ -103,19 +107,21 @@ export const TopBar = observer(function TopBar(props: {
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
         <TopBarRoundMenu snapshot={snapshot} />
-        <Button
-          variant="pill"
-          size="icon-xs"
-          title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
-          aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
-          onClick={() => uiStore.toggleCollapseAll()}
-        >
-          {uiStore.commentsCollapsed ? (
-            <ChevronsUpDown className="size-4" />
-          ) : (
-            <ChevronsDownUp className="size-4" />
-          )}
-        </Button>
+        {commentsSupported && (
+          <Button
+            variant="pill"
+            size="icon-xs"
+            title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+            aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+            onClick={() => uiStore.toggleCollapseAll()}
+          >
+            {uiStore.commentsCollapsed ? (
+              <ChevronsUpDown className="size-4" />
+            ) : (
+              <ChevronsDownUp className="size-4" />
+            )}
+          </Button>
+        )}
         <TopBarDisplayMenu
           artifactId={snapshot.artifact.id}
           rawView={rawView}
