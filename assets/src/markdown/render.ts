@@ -12,7 +12,19 @@ import { renderMermaid } from "./mermaid"
 export type BlockKind = "markdown" | "code" | "mermaid"
 
 /** GitHub Flavored Markdown (tables, strikethrough, autolinks, task lists) or strict CommonMark. */
-export type MarkdownFlavor = "gfm" | "plain"
+export type MarkdownFlavor = "gfm" | "commonmark"
+
+/** Where to resolve a markdown image's relative `src` against the backend. */
+export interface AssetContext {
+  /** URL prefix serving the artifact's project files, e.g. `/api/review/<id>/asset`. */
+  base: string
+  /** The markdown file's directory within its project (`""` at the project root). */
+  dir: string
+}
+
+interface AssetEnv {
+  suikouAsset?: AssetContext
+}
 
 export interface RenderedBlock {
   /** 1-based, inclusive source line where the block begins. */
@@ -33,10 +45,12 @@ export interface RenderedBlock {
  */
 const gfm = new MarkdownIt({ html: false, linkify: true, typographer: true })
 taskLists(gfm)
+assetImages(gfm)
 gfm.use(emoji).use(footnote).use(sub).use(sup)
 
-/** Plain: strict CommonMark, no tables/strikethrough/autolinks/task lists. */
-const plain = new MarkdownIt("commonmark", { html: false, typographer: true })
+/** Strict CommonMark: no tables/strikethrough/autolinks/task lists. */
+const commonmark = new MarkdownIt("commonmark", { html: false, typographer: true })
+assetImages(commonmark)
 
 /**
  * Parses markdown into top-level blocks, each carrying its source line range so
@@ -47,10 +61,12 @@ const plain = new MarkdownIt("commonmark", { html: false, typographer: true })
 export async function renderMarkdown(
   content: string,
   theme: ThemeName,
-  flavor: MarkdownFlavor = "gfm"
+  flavor: MarkdownFlavor = "gfm",
+  asset?: AssetContext
 ): Promise<RenderedBlock[]> {
-  const md = flavor === "plain" ? plain : gfm
-  const tokens = md.parse(content, {})
+  const md = flavor === "commonmark" ? commonmark : gfm
+  const env: AssetEnv = { suikouAsset: asset }
+  const tokens = md.parse(content, env)
   const groups = groupTopLevel(tokens)
   const { shiki } = THEME_CODE[theme]
   const highlighter = await getHighlighter()
@@ -76,7 +92,7 @@ export async function renderMarkdown(
         kind: "markdown",
         tag: group[0]?.tag ?? "",
         lang: null,
-        html: md.renderer.render(group, md.options, {})
+        html: md.renderer.render(group, md.options, env)
       }
     })
   )
@@ -112,6 +128,47 @@ function taskLists(parser: MarkdownIt): void {
     }
     return true
   })
+}
+
+/**
+ * Rewrites a markdown image's relative `src` to the backend asset route so
+ * repo-relative images (e.g. `![](img/x.png)`) load. Absolute URLs, protocol-
+ * relative URLs, `data:` URIs, and root-absolute paths are left untouched. The
+ * target is `<base>/<fileDir>/<src>`, resolved server-side against the project.
+ */
+function assetImages(parser: MarkdownIt): void {
+  const fallback = parser.renderer.rules.image
+  parser.renderer.rules.image = (tokens, idx, options, env: AssetEnv, self) => {
+    const token = tokens[idx]
+    const attr = token.attrIndex("src")
+    const ctx = env?.suikouAsset
+    if (ctx && attr >= 0 && token.attrs) {
+      const src = token.attrs[attr][1]
+      if (isRepoRelative(src)) {
+        const path = joinRelative(ctx.dir, src)
+        token.attrs[attr][1] = `${ctx.base}/${path.split("/").map(encodeURIComponent).join("/")}`
+      }
+    }
+    return fallback
+      ? fallback(tokens, idx, options, env, self)
+      : self.renderToken(tokens, idx, options)
+  }
+}
+
+/** A bare relative reference: no scheme, no `//`, no leading `/`, no `#` anchor. */
+function isRepoRelative(src: string): boolean {
+  return !/^([a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(src)
+}
+
+/** POSIX-joins `dir` and `rel`, collapsing `.`/`..` segments without escaping past root. */
+function joinRelative(dir: string, rel: string): string {
+  const out: string[] = []
+  for (const part of `${dir}/${rel}`.split("/")) {
+    if (part === "" || part === ".") continue
+    if (part === "..") out.pop()
+    else out.push(part)
+  }
+  return out.join("/")
 }
 
 /** Splits a flat token stream into top-level block groups by nesting depth. */

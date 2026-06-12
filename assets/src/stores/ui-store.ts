@@ -67,8 +67,8 @@ export class UiStore {
       this.density = savedDensity
     }
 
-    if (localStorage.getItem(MARKDOWN_FLAVOR_KEY) === "plain") {
-      this.markdownFlavor = "plain"
+    if (localStorage.getItem(MARKDOWN_FLAVOR_KEY) === "commonmark") {
+      this.markdownFlavor = "commonmark"
     }
 
     if (localStorage.getItem(WRAP_LINES_KEY) === "false") {

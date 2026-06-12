@@ -100,10 +100,10 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
                 size="sm"
                 variant="outline"
                 value={[ui.markdownFlavor]}
-                onValueChange={(v) => v[0] && ui.setMarkdownFlavor(v[0] as "gfm" | "plain")}
+                onValueChange={(v) => v[0] && ui.setMarkdownFlavor(v[0] as "gfm" | "commonmark")}
               >
                 <ToggleGroupItem value="gfm">GFM</ToggleGroupItem>
-                <ToggleGroupItem value="plain">Plain</ToggleGroupItem>
+                <ToggleGroupItem value="commonmark">CommonMark</ToggleGroupItem>
               </ToggleGroup>
             </Row>
           )}
