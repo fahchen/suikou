@@ -10,7 +10,7 @@ import {
 
 import { CRITIQUE_META, type Comment } from "./types";
 import { useReviewCommands } from "./commands";
-import { relativeTime } from "./time";
+import { relativeTime, fullTimestamp } from "./time";
 import { Button } from "@/components/ui/button";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -106,7 +106,9 @@ export function CommentCardHeader(props: {
             </span>
           )}
 
-        <span className="text-[11px] text-faint">{relativeTime(comment.inserted_at)}</span>
+        <span className="text-[11px] text-faint" title={fullTimestamp(comment.inserted_at)}>
+          {relativeTime(comment.inserted_at)}
+        </span>
 
         {comment.carried && comment.original_round != null && (
           <span

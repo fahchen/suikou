@@ -17,6 +17,7 @@ import { useMusubiCommand, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { FileTree } from "./FileTree"
 import { ReviewFileTree } from "./ReviewFileTree"
 import { ThemeMenu } from "./ThemeMenu"
+import { elapsed, fullTimestamp } from "./time"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -44,39 +45,6 @@ interface BoardReview {
   name: string
   inserted_at: string
   files: ReviewFile[]
-}
-
-const DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit"
-})
-
-/** Compact age of a naive server timestamp, read as local wall-clock time. */
-function formatCreated(iso: string): string {
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ""
-
-  const sec = Math.max(0, Math.floor((Date.now() - then) / 1000))
-  if (sec < 60) return "now"
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h`
-  const day = Math.floor(hr / 24)
-  if (day < 7) return `${day}d`
-  const wk = Math.floor(day / 7)
-  if (wk < 5) return `${wk}w`
-  const mo = Math.floor(day / 30)
-  return mo < 12 ? `${mo}mo` : `${Math.floor(day / 365)}y`
-}
-
-/** Full timestamp for the relative-age tooltip. */
-function fullDate(iso: string): string {
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? "" : DATE_FMT.format(date)
 }
 
 interface BoardProject {
@@ -316,9 +284,9 @@ function ReviewCard({
             </span>
             <span
               className="hidden shrink-0 text-[11px] text-faint sm:inline"
-              title={fullDate(review.inserted_at)}
+              title={fullTimestamp(review.inserted_at)}
             >
-              · {formatCreated(review.inserted_at)}
+              · {elapsed(review.inserted_at)}
             </span>
           </button>
         )}

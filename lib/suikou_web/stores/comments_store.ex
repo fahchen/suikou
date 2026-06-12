@@ -21,6 +21,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Rounds
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
+  alias SuikouWeb.Iso8601
 
   state do
     field(
@@ -196,7 +197,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       outdated: outdated,
       original_round: comment.original_round,
       carried: not is_nil(comment.origin_id),
-      inserted_at: iso8601(comment.inserted_at),
+      inserted_at: Iso8601.utc(comment.inserted_at),
       anchor: anchor,
       replies: Enum.map(comment.replies, &render_reply/1)
     }
@@ -207,12 +208,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       id: reply.id,
       author: reply.author,
       body: reply.body,
-      inserted_at: iso8601(reply.inserted_at)
+      inserted_at: Iso8601.utc(reply.inserted_at)
     }
   end
-
-  defp iso8601(%NaiveDateTime{} = naive),
-    do: naive |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
-
-  defp iso8601(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
 end

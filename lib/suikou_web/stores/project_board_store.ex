@@ -18,6 +18,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
+  alias SuikouWeb.Iso8601
 
   state do
     field(
@@ -248,7 +249,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     %{
       id: review.id,
       name: review.name,
-      inserted_at: NaiveDateTime.to_iso8601(review.inserted_at),
+      inserted_at: Iso8601.utc(review.inserted_at),
       files: Enum.map(review.artifacts, &render_review_file/1)
     }
   end
