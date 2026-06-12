@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Check,
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Copy,
+  Home,
   Send,
 } from "lucide-react";
 
@@ -49,6 +50,7 @@ export const TopBar = observer(function TopBar(props: {
 }) {
   const { snapshot, previewable } = props;
   const commands = useReviewCommands();
+  const navigate = useNavigate();
   const rawView = useLocation().pathname.endsWith("/raw");
   const [verdict, setVerdict] = useState<Verdict>(
     snapshot.draft_verdict ?? snapshot.latest_verdict ?? "request_changes",
@@ -85,7 +87,20 @@ export const TopBar = observer(function TopBar(props: {
   return (
     <header className="pointer-events-none sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
       <div className="pointer-events-auto flex min-w-0 items-center gap-2">
-        <TopBarTocMenu content={snapshot.current_round.content} />
+        <Button
+          variant="pill"
+          size="icon-xs"
+          className="size-[30px]"
+          title="Project board"
+          aria-label="Project board"
+          onClick={() => void navigate({ to: "/" })}
+        >
+          <Home className="size-4 text-muted-foreground" />
+        </Button>
+        <TopBarTocMenu
+          content={snapshot.current_round.content}
+          path={snapshot.artifact.title}
+        />
         <TopBarArtifactMenu snapshot={snapshot} rawView={rawView} />
       </div>
 
