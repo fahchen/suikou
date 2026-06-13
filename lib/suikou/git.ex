@@ -14,6 +14,7 @@ defmodule Suikou.Git do
   @type rel_path() :: String.t()
 
   @type default_branch_error() :: :not_a_repo
+  @type list_branches_error() :: :not_a_repo | :git_error
   @type changed_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
 
@@ -56,6 +57,26 @@ defmodule Suikou.Git do
     if repo?(dir),
       do: {:ok, resolve_default_branch(dir)},
       else: {:error, :not_a_repo}
+  end
+
+  @doc """
+  Lists `dir`'s local branch names sorted by descending commit date so the
+  most recently touched branch leads. Used by `ProjectBoardStore` to populate
+  a diff-review creation picker (see BDR-0020).
+
+  ## Examples
+
+      Suikou.Git.list_branches("/projects/app")
+      #=> {:ok, ["topic", "main"]}
+
+  """
+  @spec list_branches(repo_dir()) :: {:ok, [ref()]} | {:error, list_branches_error()}
+  def list_branches(dir) do
+    with :ok <- ensure_repo(dir),
+         {:ok, out} <-
+           run(dir, ["for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads/"]) do
+      {:ok, parse_names(out)}
+    end
   end
 
   @doc """

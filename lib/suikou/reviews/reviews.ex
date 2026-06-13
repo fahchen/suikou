@@ -58,6 +58,46 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Lists `project`'s candidate branches together with its resolved default
+  branch, for the board's diff-review creation picker (see BDR-0020). The
+  branches are sorted by descending commit date; `default` is the repository
+  default branch via `Suikou.Git.default_branch/1` and is the suggested base.
+
+  Returns `{:error, :not_a_git_repo}` when `project.path` is not a git working
+  tree, and `{:error, :git_error}` when git fails.
+
+  ## Examples
+
+      Suikou.Reviews.list_branches(project)
+      #=> {:ok, %{branches: ["topic", "main"], default: "main"}}
+
+  """
+  @spec list_branches(Project.t()) ::
+          {:ok, %{branches: [String.t()], default: String.t()}}
+          | {:error, :not_a_git_repo | :git_error}
+  def list_branches(%Project{path: path}) do
+    with {:ok, branches} <- branches_or_error(path),
+         {:ok, default} <- default_or_error(path) do
+      {:ok, %{branches: branches, default: default}}
+    end
+  end
+
+  defp branches_or_error(path) do
+    case Git.list_branches(path) do
+      {:ok, branches} -> {:ok, branches}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, :git_error} -> {:error, :git_error}
+    end
+  end
+
+  defp default_or_error(path) do
+    case Git.default_branch(path) do
+      {:ok, ref} -> {:ok, ref}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+    end
+  end
+
+  @doc """
   Creates a git-diff review under a project: its artifacts are the files
   changed between `base_ref` and `head_ref` with three-dot merge-base
   semantics. Refs are fixed at creation — changing branches means a new
