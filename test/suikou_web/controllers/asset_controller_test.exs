@@ -61,6 +61,31 @@ defmodule SuikouWeb.AssetControllerTest do
       assert response(conn, 404)
     end
 
+    @tag :tmp_dir
+    test "serves a git-diff artifact's live diff inline as text/x-diff",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      {:ok, artifact} = Suikou.Reviews.open_file(review, "a.txt")
+
+      conn = get(conn, "/api/review/#{artifact.id}/content")
+
+      body = response(conn, 200)
+      assert body =~ "diff --git a/a.txt b/a.txt"
+      assert body =~ "+new"
+      assert ["text/x-diff"] = get_resp_header(conn, "content-type")
+    end
+
     test "404 when the source file is missing from disk", %{conn: conn} do
       dir = Path.join(System.tmp_dir!(), "suikou-content-#{System.unique_integer([:positive])}")
       File.mkdir_p!(dir)
@@ -76,6 +101,35 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert response(conn, 404)
     end
+  end
+
+  defp init_repo!(dir) do
+    File.mkdir_p!(dir)
+    git!(dir, ["init", "-q", "-b", "main", "."])
+    File.write!(Path.join(dir, "seed.txt"), "seed\n")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "seed"])
+  end
+
+  defp branch!(dir, name, edit) when is_function(edit, 0) do
+    git!(dir, ["checkout", "-q", "-b", name])
+    edit.()
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "topic"])
+  end
+
+  defp git!(dir, args) do
+    env = [
+      {"GIT_AUTHOR_NAME", "Test"},
+      {"GIT_AUTHOR_EMAIL", "test@example.com"},
+      {"GIT_COMMITTER_NAME", "Test"},
+      {"GIT_COMMITTER_EMAIL", "test@example.com"},
+      {"GIT_CONFIG_GLOBAL", "/dev/null"},
+      {"GIT_CONFIG_SYSTEM", "/dev/null"}
+    ]
+
+    {_out, 0} = System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true)
+    :ok
   end
 
   defp project_with_file(file_path, content) do
