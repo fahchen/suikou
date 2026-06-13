@@ -4,14 +4,18 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 const dispatch = vi.fn()
 let snapshot: unknown
 let rootEntries: { path: string; dir: boolean }[]
+let reviewFiles: { path: string; artifact_id: string | null; approved: boolean }[]
 
 vi.mock("../musubi", () => ({
   useMusubiRoot: () => ({ status: "ok", store: {} }),
   useMusubiSnapshot: () => snapshot,
-  useMusubiCommand: (_store: unknown, name: string) =>
-    name === "list_dir"
-      ? { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
-      : { dispatch, isPending: false }
+  useMusubiCommand: (_store: unknown, name: string) => {
+    if (name === "list_dir")
+      return { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
+    if (name === "list_review_files")
+      return { dispatch: () => Promise.resolve({ files: reviewFiles, error: null }), isPending: false }
+    return { dispatch, isPending: false }
+  }
 }))
 
 import { ProjectBoard } from "./ProjectBoard"
@@ -22,6 +26,7 @@ beforeEach(() => {
     { path: "design.md", dir: false },
     { path: "draft.md", dir: false }
   ]
+  reviewFiles = [{ path: "design.md", artifact_id: "a-99", approved: false }]
   snapshot = {
     projects: [
       {
@@ -34,7 +39,7 @@ beforeEach(() => {
             name: "Launch",
             inserted_at: "2026-06-12T09:30:00",
             selections: ["design.md"],
-            files: [{ artifact_id: "a-99", path: "design.md", approved: false }]
+            selection_count: 1
           }
         ]
       }
@@ -51,33 +56,35 @@ describe("ProjectBoard", () => {
     expect(screen.getByText("Launch")).toBeInTheDocument()
   })
 
-  it("reveals a review's files only once expanded", () => {
+  it("reveals a review's files only once expanded", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText("Expand files"))
 
-    expect(screen.getByText("design.md")).toBeInTheDocument()
+    expect(await screen.findByText("design.md")).toBeInTheDocument()
   })
 
-  it("opens a review file by its artifact id", () => {
+  it("opens a review file by resolving its path to an artifact id", async () => {
+    dispatch.mockResolvedValue({ artifact_id: "a-99", error: null })
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
     fireEvent.click(screen.getByLabelText("Expand files"))
-    fireEvent.click(screen.getByText("design.md"))
+    fireEvent.click(await screen.findByText("design.md"))
 
-    expect(onOpen).toHaveBeenCalledWith("a-99")
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("a-99"))
   })
 
-  it("opens a review by its title without expanding", () => {
+  it("opens a review by its title without expanding", async () => {
+    dispatch.mockResolvedValue({ artifact_id: "a-99", error: null })
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
     fireEvent.click(screen.getByRole("button", { name: "Open Launch" }))
 
-    expect(onOpen).toHaveBeenCalledWith("a-99")
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("a-99"))
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
   })
 

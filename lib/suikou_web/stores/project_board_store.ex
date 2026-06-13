@@ -15,7 +15,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Musubi.Socket
   alias Suikou.Projects
   alias Suikou.Reviews
-  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
   alias SuikouWeb.Iso8601
@@ -33,12 +32,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
             name: String.t(),
             inserted_at: String.t(),
             selections: list(String.t()),
-            files:
-              list(%{
-                artifact_id: String.t(),
-                path: String.t(),
-                approved: boolean()
-              })
+            selection_count: integer()
           })
       })
     )
@@ -109,6 +103,29 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
     reply do
       field(:entries, list(%{path: String.t(), dir: boolean()}))
+    end
+  end
+
+  command :list_review_files do
+    payload do
+      field(:review_id, String.t())
+    end
+
+    reply do
+      field(:files, list(%{path: String.t(), artifact_id: String.t() | nil, approved: boolean()}))
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :open_review_file do
+    payload do
+      field(:review_id, String.t())
+      field(:path, String.t())
+    end
+
+    reply do
+      field(:artifact_id, String.t() | nil)
+      field(:error, String.t() | nil)
     end
   end
 
@@ -187,6 +204,28 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, %{entries: entries}, socket}
   end
 
+  # Expands a review's selection against disk on demand (only when its files are
+  # revealed), so the board's render never walks a working directory.
+  def handle_command(:list_review_files, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review -> %{files: Reviews.list_files(review), error: nil}
+        nil -> %{files: [], error: "review_not_found"}
+      end
+
+    {:reply, reply, socket}
+  end
+
+  def handle_command(:open_review_file, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review -> open_review_file(review, payload["path"])
+        nil -> %{artifact_id: nil, error: "review_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
   # The render derives entirely from the database; a mutation that does not touch
   # assigns would reuse the cached render and push no patch (see
   # docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant assign so another
@@ -203,9 +242,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   defp update_review_files(review, selections) do
-    case Reviews.set_selection(review, selections) do
-      {:ok, %Review{}} -> %{error: nil}
-      {:error, reason} -> %{error: review_error(reason)}
+    {:ok, %Review{}} = Reviews.set_selection(review, selections)
+    %{error: nil}
+  end
+
+  defp open_review_file(review, path) do
+    case Reviews.open_file(review, path) do
+      {:ok, artifact} -> %{artifact_id: artifact.id, error: nil}
+      {:error, reason} -> %{artifact_id: nil, error: review_error(reason)}
     end
   end
 
@@ -229,15 +273,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
   end
 
-  defp review_error(:no_files), do: "no_files"
-  defp review_error({:file, path, reason}), do: "#{path}: #{file_reason(reason)}"
+  defp review_error(reason) when is_atom(reason), do: Atom.to_string(reason)
 
   defp review_error(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)
   end
-
-  defp file_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
-  defp file_reason(_changeset), do: "invalid_file"
 
   defp render_project(%Project{} = project) do
     %{
@@ -254,15 +294,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       name: review.name,
       inserted_at: Iso8601.utc(review.inserted_at),
       selections: review.selection_paths,
-      files: Enum.map(review.artifacts, &render_review_file/1)
-    }
-  end
-
-  defp render_review_file(%Artifact{} = artifact) do
-    %{
-      artifact_id: artifact.id,
-      path: artifact.file_path,
-      approved: not is_nil(artifact.approved_round)
+      selection_count: length(review.selection_paths)
     }
   end
 end

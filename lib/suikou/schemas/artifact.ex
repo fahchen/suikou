@@ -42,6 +42,7 @@ defmodule Suikou.Schemas.Artifact do
     |> validate_required([:title, :file_path])
     |> validate_format(:title, ~r/\S/, message: "can't be blank")
     |> assoc_constraint(:review)
+    |> unique_constraint([:review_id, :file_path], name: :artifacts_review_id_file_path_index)
   end
 
   @doc """

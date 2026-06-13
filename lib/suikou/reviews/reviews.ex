@@ -1,12 +1,13 @@
 defmodule Suikou.Reviews do
   @moduledoc """
   Reviews: a reviewer selects files and whole directories under a project to
-  review together. The selection is stored verbatim on the review (a directory
-  path stands for every file beneath it) and expanded to concrete files when
-  saved; each expanded file becomes one `Suikou.Schemas.Artifact` (round 0,
-  draft). The selection is editable — adding a file mints an artifact, removing
-  one soft-removes its artifact while keeping its critique history, and re-adding
-  a removed file restores it (see BDR-0018).
+  review together. The selection is stored verbatim on the review (`selection_paths`,
+  where a directory path stands for every file beneath it) and expanded against
+  disk on demand, so files added under a selected directory join automatically.
+  A `Suikou.Schemas.Artifact` (round 0, draft) is minted lazily the first time a
+  file is opened (`open_file/2`); deselecting a file soft-removes its artifact
+  while keeping its critique history, and reopening a covered file restores it
+  (see BDR-0018).
 
   Params are atom-keyed maps, matching the rest of the domain.
   """
@@ -20,13 +21,10 @@ defmodule Suikou.Reviews do
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
 
-  @type file_error() :: {:file, String.t(), Artifacts.create_error()}
-
   @doc """
   Creates a review under a project from a non-empty selection of files and
-  directories. The selection is stored, then expanded to concrete files (a
-  directory to every file beneath it) and one artifact is minted per file. Rolls
-  back if any file cannot be read.
+  directories. Only the selection is stored — no artifacts are minted. Files
+  become artifacts lazily when first opened (see `open_file/2`).
 
   ## Examples
 
@@ -38,7 +36,7 @@ defmodule Suikou.Reviews do
 
   """
   @spec create_review(Project.t(), map()) ::
-          {:ok, Review.t()} | {:error, :no_files | Ecto.Changeset.t() | file_error()}
+          {:ok, Review.t()} | {:error, :no_files | Ecto.Changeset.t()}
   def create_review(%Project{} = project, params) do
     selections = Map.get(params, :selections, [])
 
@@ -49,29 +47,18 @@ defmodule Suikou.Reviews do
       })
 
     cond do
-      selections == [] ->
-        {:error, :no_files}
-
-      not changeset.valid? ->
-        {:error, changeset}
-
-      true ->
-        Repo.transaction(fn -> insert_review!(project, changeset, selections) end)
+      selections == [] -> {:error, :no_files}
+      not changeset.valid? -> {:error, changeset}
+      true -> Repo.insert(changeset)
     end
   end
 
-  defp insert_review!(project, changeset, selections) do
-    review = %{Repo.insert!(changeset) | project: project}
-    for path <- expand(project, selections), do: add_file!(review, path)
-    review
-  end
-
   @doc """
-  Replaces a review's selection of files and directories. Stores the new
-  selection, then reconciles artifacts against its expansion: mints artifacts
-  for newly covered files, restores soft-removed files that reappear, and
-  soft-removes files no longer covered. Rolls back if a newly added file cannot
-  be read.
+  Replaces a review's stored selection. Only existing artifacts are reconciled
+  against the new selection's expansion: a soft-removed artifact whose file is
+  covered again is restored, and an active artifact no longer covered is
+  soft-removed (keeping its critique history). No new artifacts are minted —
+  newly covered files become artifacts lazily on first open.
 
   ## Examples
 
@@ -79,24 +66,48 @@ defmodule Suikou.Reviews do
       #=> {:ok, %Suikou.Schemas.Review{}}
 
   """
-  @spec set_selection(Review.t(), [String.t()]) ::
-          {:ok, Review.t()} | {:error, file_error()}
+  @spec set_selection(Review.t(), [String.t()]) :: {:ok, Review.t()}
   def set_selection(%Review{} = review, selections) do
-    # Force-load every artifact, including soft-removed ones: callers pass a
-    # review preloaded with active artifacts only, so without `force` a removed
-    # file would be invisible here and re-adding it would mint a duplicate
-    # instead of restoring its critique history (see BDR-0018).
+    # Force-load every artifact, including soft-removed ones, so a re-covered
+    # file is restored rather than left dangling (see BDR-0018).
     review = Repo.preload(review, [:project, :artifacts], force: true)
     target = MapSet.new(expand(review.project, selections))
-    by_path = Map.new(review.artifacts, &{&1.file_path, &1})
-    known = MapSet.new(Map.keys(by_path))
+    artifacts = review.artifacts
 
     Repo.transaction(fn ->
-      review = review |> Review.selection_changeset(selections) |> Repo.update!()
-      for path <- MapSet.difference(target, known), do: add_file!(review, path)
-      for {path, artifact} <- by_path, do: reconcile!(artifact, MapSet.member?(target, path))
-      review
+      updated = review |> Review.selection_changeset(selections) |> Repo.update!()
+
+      for artifact <- artifacts,
+          do: reconcile!(artifact, MapSet.member?(target, artifact.file_path))
+
+      updated
     end)
+  end
+
+  @doc """
+  Opens a covered file in the review, returning its artifact — minting it (round
+  0) on first open, restoring it if it was soft-removed, or returning the
+  existing one. Rejects a path not covered by the stored selection.
+
+  ## Examples
+
+      Suikou.Reviews.open_file(review, "docs/plan.md")
+      #=> {:ok, %Suikou.Schemas.Artifact{}}
+
+      Suikou.Reviews.open_file(review, "not/selected.md")
+      #=> {:error, :not_covered}
+
+  """
+  @spec open_file(Review.t(), String.t()) ::
+          {:ok, Artifact.t()} | {:error, :not_covered | Artifacts.create_error()}
+  def open_file(%Review{} = review, path) do
+    review = Repo.preload(review, :project)
+
+    if path in expand(review.project, review.selection_paths) do
+      mint_or_get(review, path)
+    else
+      {:error, :not_covered}
+    end
   end
 
   @doc """
@@ -162,9 +173,38 @@ defmodule Suikou.Reviews do
     |> preload_active()
   end
 
-  # A selected directory stands for every file beneath it now; a selected file is
-  # itself. Expansion reads the directory live, so the artifacts it mints are a
-  # snapshot of the files present when the selection was saved.
+  @doc """
+  Lists a review's current files by expanding its selection against disk. Each
+  entry carries the file path, the id of its already-minted active artifact (or
+  `nil` when the file has not been opened yet), and whether it is approved.
+  Walked on demand, never on the board render.
+
+  ## Examples
+
+      Suikou.Reviews.list_files(review)
+      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false}]
+
+  """
+  @spec list_files(Review.t()) ::
+          [%{path: String.t(), artifact_id: Ecto.UUID.t() | nil, approved: boolean()}]
+  def list_files(%Review{} = review) do
+    review = Repo.preload(review, [:project, :artifacts], force: true)
+    active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
+
+    review.project
+    |> expand(review.selection_paths)
+    |> Enum.map(&file_entry(&1, Map.get(active, &1)))
+  end
+
+  defp file_entry(path, nil), do: %{path: path, artifact_id: nil, approved: false}
+
+  defp file_entry(path, %Artifact{} = artifact) do
+    %{path: path, artifact_id: artifact.id, approved: not is_nil(artifact.approved_round)}
+  end
+
+  # A selected directory stands for every file beneath it; a selected file is
+  # itself. Expansion reads the directory live, so membership is dynamic — files
+  # added under a selected directory appear without editing the selection.
   defp expand(%Project{} = project, paths) do
     paths
     |> Enum.flat_map(fn path ->
@@ -175,11 +215,33 @@ defmodule Suikou.Reviews do
     |> Enum.uniq()
   end
 
-  defp add_file!(review, path) do
-    case Artifacts.create_from_file(review, path) do
-      {:ok, _result} -> :ok
-      {:error, reason} -> Repo.rollback({:file, path, reason})
+  defp mint_or_get(review, path) do
+    case find_artifact(review.id, path) do
+      %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
+      %Artifact{} = artifact -> {:ok, restore!(artifact)}
+      nil -> mint(review, path)
     end
+  end
+
+  defp mint(review, path) do
+    case Artifacts.create_from_file(review, path) do
+      {:ok, %{artifact: artifact}} -> {:ok, artifact}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    # Lost a concurrent-open race: the unique (review_id, file_path) index
+    # rejected the second insert. The winner's row already exists.
+    Ecto.InvalidChangesetError -> {:ok, find_artifact(review.id, path)}
+  end
+
+  defp find_artifact(review_id, path) do
+    query =
+      from(a in Artifact,
+        as: :artifact,
+        where: a.review_id == ^review_id and a.file_path == ^path
+      )
+
+    Repo.one(query)
   end
 
   defp reconcile!(artifact, selected) do

@@ -10,42 +10,25 @@ defmodule Suikou.ReviewsTest do
 
   describe "create_review/2" do
     @tag :tmp_dir
-    test "mints one artifact at round 0 per selected file", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      File.write!(Path.join(dir, "spec.md"), "# Spec\n")
-      project = insert(:project, path: dir)
-
-      assert {:ok, review} =
-               Reviews.create_review(project, %{
-                 name: "Launch",
-                 selections: ["plan.md", "spec.md"]
-               })
-
-      [a, b] = Reviews.get_review(review.id).artifacts
-      assert Enum.sort([a.file_path, b.file_path]) == ["plan.md", "spec.md"]
-      assert %{number: 0} = Rounds.latest(a.id)
-    end
-
-    @tag :tmp_dir
-    test "expands a selected directory to its files and stores the selection", %{tmp_dir: dir} do
+    test "stores the selection without minting any artifacts", %{tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
-      File.write!(Path.join([dir, "docs", "spec.md"]), "# Spec\n")
       File.write!(Path.join(dir, "readme.md"), "# Readme\n")
       project = insert(:project, path: dir)
 
       assert {:ok, review} =
                Reviews.create_review(project, %{name: "Launch", selections: ["docs", "readme.md"]})
 
-      review = Reviews.get_review(review.id)
-
-      assert Enum.map(review.artifacts, & &1.file_path) == [
-               "docs/plan.md",
-               "docs/spec.md",
-               "readme.md"
-             ]
-
       assert review.selection_paths == ["docs", "readme.md"]
+      assert Repo.aggregate(Artifact, :count) == 0
+    end
+
+    @tag :tmp_dir
+    test "succeeds even when a selected file is unreadable (validated on open)", %{tmp_dir: dir} do
+      project = insert(:project, path: dir)
+
+      assert {:ok, _review} =
+               Reviews.create_review(project, %{name: "Launch", selections: ["missing.md"]})
     end
 
     @tag :tmp_dir
@@ -58,51 +41,86 @@ defmodule Suikou.ReviewsTest do
 
     @tag :tmp_dir
     test "rejects a blank name", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       project = insert(:project, path: dir)
 
       assert {:error, %Ecto.Changeset{}} =
                Reviews.create_review(project, %{name: "  ", selections: ["plan.md"]})
     end
+  end
+
+  describe "open_file/2" do
+    @tag :tmp_dir
+    test "mints a round-0 artifact on first open and returns the same one after", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      review = review_with(dir, ["plan.md"])
+
+      assert {:ok, artifact} = Reviews.open_file(review, "plan.md")
+      assert %{number: 0} = Rounds.latest(artifact.id)
+
+      assert {:ok, ^artifact} = Reviews.open_file(review, "plan.md")
+      assert Repo.aggregate(Artifact, :count) == 1
+    end
 
     @tag :tmp_dir
-    test "rolls back the whole review when a file cannot be read", %{tmp_dir: dir} do
+    test "opens a file covered by a selected directory", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
+      review = review_with(dir, ["docs"])
+
+      assert {:ok, %Artifact{file_path: "docs/plan.md"}} =
+               Reviews.open_file(review, "docs/plan.md")
+    end
+
+    @tag :tmp_dir
+    test "restores a soft-removed artifact rather than minting a duplicate", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      review = review_with(dir, ["plan.md"])
+      {:ok, _artifact} = Reviews.open_file(review, "plan.md")
+      {:ok, _review} = Reviews.set_selection(review, [])
+
+      assert {:ok, restored} = Reviews.open_file(review, "plan.md")
+      assert is_nil(restored.removed_at)
+      assert Repo.aggregate(Artifact, :count) == 1
+    end
+
+    @tag :tmp_dir
+    test "rejects a path not covered by the selection", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      review = review_with(dir, ["plan.md"])
+
+      assert {:error, :not_covered} = Reviews.open_file(review, "other.md")
+      assert Repo.aggregate(Artifact, :count) == 0
+    end
+
+    @tag :tmp_dir
+    test "surfaces a per-file error when the covered file is unreadable", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "blank.md"), "   \n")
-      project = insert(:project, path: dir)
+      review = review_with(dir, ["blank.md"])
 
-      assert {:error, {:file, "blank.md", :empty_content}} =
-               Reviews.create_review(project, %{
-                 name: "Launch",
-                 selections: ["plan.md", "blank.md"]
-               })
-
+      assert {:error, :empty_content} = Reviews.open_file(review, "blank.md")
       assert Repo.aggregate(Artifact, :count) == 0
     end
   end
 
   describe "set_selection/2" do
     @tag :tmp_dir
-    test "mints artifacts for newly added files", %{tmp_dir: dir} do
+    test "stores the new selection and mints nothing", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      review = review_with(dir, ["plan.md"])
 
       assert {:ok, _review} = Reviews.set_selection(review, ["plan.md", "spec.md"])
-
-      paths = Reviews.get_review(review.id).artifacts |> Enum.map(& &1.file_path) |> Enum.sort()
-      assert paths == ["plan.md", "spec.md"]
+      assert Reviews.get_review(review.id).selection_paths == ["plan.md", "spec.md"]
+      assert Repo.aggregate(Artifact, :count) == 0
     end
 
     @tag :tmp_dir
-    test "soft-removes a deselected file but keeps its artifact history", %{tmp_dir: dir} do
+    test "soft-removes a deselected opened file but keeps its history", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\n")
-      project = insert(:project, path: dir)
-
-      {:ok, review} =
-        Reviews.create_review(project, %{name: "Launch", selections: ["plan.md", "spec.md"]})
+      review = review_with(dir, ["plan.md", "spec.md"])
+      {:ok, _a} = Reviews.open_file(review, "plan.md")
+      {:ok, _b} = Reviews.open_file(review, "spec.md")
 
       assert {:ok, _review} = Reviews.set_selection(review, ["plan.md"])
 
@@ -111,27 +129,14 @@ defmodule Suikou.ReviewsTest do
     end
 
     @tag :tmp_dir
-    test "restores a re-selected file instead of minting a duplicate", %{tmp_dir: dir} do
+    test "restores a re-selected opened file given a review preloaded active-only", %{
+      tmp_dir: dir
+    } do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
-      {:ok, _removed} = Reviews.set_selection(review, [])
-
-      assert {:ok, _review} = Reviews.set_selection(review, ["plan.md"])
-
-      assert [%{file_path: "plan.md"}] = Reviews.get_review(review.id).artifacts
-      assert Repo.aggregate(Artifact, :count) == 1
-    end
-
-    @tag :tmp_dir
-    test "restores a re-selected file when given a review preloaded active-only", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      review = review_with(dir, ["plan.md"])
+      {:ok, _a} = Reviews.open_file(review, "plan.md")
       {:ok, _removed} = Reviews.set_selection(Reviews.get_review(review.id), [])
 
-      # The store hands set_selection a review preloaded with active artifacts only;
-      # the soft-removed plan.md must still be restored, not duplicated.
       assert {:ok, _review} = Reviews.set_selection(Reviews.get_review(review.id), ["plan.md"])
 
       assert [%{file_path: "plan.md"}] = Reviews.get_review(review.id).artifacts
@@ -139,15 +144,46 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "list_files/1" do
+    @tag :tmp_dir
+    test "expands the selection, reporting opened vs unopened files", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
+      File.write!(Path.join([dir, "docs", "spec.md"]), "# Spec\n")
+      review = review_with(dir, ["docs"])
+      {:ok, opened} = Reviews.open_file(review, "docs/plan.md")
+
+      files = Reviews.list_files(Reviews.get_review(review.id))
+
+      assert [
+               %{path: "docs/plan.md", artifact_id: id, approved: false},
+               %{path: "docs/spec.md", artifact_id: nil, approved: false}
+             ] = files
+
+      assert id == opened.id
+    end
+
+    @tag :tmp_dir
+    test "includes a file added under a selected directory after creation", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
+      review = review_with(dir, ["docs"])
+
+      File.write!(Path.join([dir, "docs", "later.md"]), "# Later\n")
+
+      paths = review.id |> Reviews.get_review() |> Reviews.list_files() |> Enum.map(& &1.path)
+      assert paths == ["docs/later.md", "docs/plan.md"]
+    end
+  end
+
   describe "delete_review/1" do
     @tag :tmp_dir
-    test "deletes the review and cascades to its artifacts", %{tmp_dir: dir} do
+    test "deletes the review and cascades to its opened artifacts", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      review = review_with(dir, ["plan.md"])
+      {:ok, _a} = Reviews.open_file(review, "plan.md")
 
       assert {:ok, _review} = Reviews.delete_review(review)
-
       assert is_nil(Reviews.get_review(review.id))
       assert Repo.aggregate(Artifact, :count) == 0
     end
@@ -155,20 +191,16 @@ defmodule Suikou.ReviewsTest do
 
   describe "rename_review/2" do
     @tag :tmp_dir
-    test "renames the review, leaving its artifacts untouched", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+    test "renames the review, leaving its selection untouched", %{tmp_dir: dir} do
+      review = review_with(dir, ["plan.md"])
 
       assert {:ok, %{name: "Spec pass"}} = Reviews.rename_review(review, "Spec pass")
-      assert [%{file_path: "plan.md"}] = Reviews.get_review(review.id).artifacts
+      assert Reviews.get_review(review.id).selection_paths == ["plan.md"]
     end
 
     @tag :tmp_dir
     test "rejects a blank name", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      review = review_with(dir, ["plan.md"])
 
       assert {:error, %Ecto.Changeset{}} = Reviews.rename_review(review, "  ")
     end
@@ -179,11 +211,9 @@ defmodule Suikou.ReviewsTest do
     test "get_review preloads only active artifacts", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\n")
-      project = insert(:project, path: dir)
-
-      {:ok, review} =
-        Reviews.create_review(project, %{name: "Launch", selections: ["plan.md", "spec.md"]})
-
+      review = review_with(dir, ["plan.md", "spec.md"])
+      {:ok, _a} = Reviews.open_file(review, "plan.md")
+      {:ok, _b} = Reviews.open_file(review, "spec.md")
       {:ok, _review} = Reviews.set_selection(review, ["plan.md"])
 
       assert %{artifacts: [%{file_path: "plan.md"}]} = Reviews.get_review(review.id)
@@ -195,12 +225,17 @@ defmodule Suikou.ReviewsTest do
 
     @tag :tmp_dir
     test "list_for_project returns a project's reviews newest first", %{tmp_dir: dir} do
-      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       project = insert(:project, path: dir)
       {:ok, _first} = Reviews.create_review(project, %{name: "First", selections: ["plan.md"]})
       {:ok, _second} = Reviews.create_review(project, %{name: "Second", selections: ["plan.md"]})
 
-      assert ["Second", "First"] = project |> Reviews.list_for_project() |> Enum.map(& &1.name)
+      assert [%{name: "Second"}, %{name: "First"}] = Reviews.list_for_project(project)
     end
+  end
+
+  defp review_with(dir, selections) do
+    project = insert(:project, path: dir)
+    {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: selections})
+    %{review | project: project}
   end
 end

@@ -17,16 +17,19 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
 
     @tag :tmp_dir
-    test "renders a project's reviews with their selected files", %{tmp_dir: dir} do
+    test "renders a project's reviews with their selection (no disk walk)", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
       {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert %{projects: [%{reviews: [%{name: "Launch", files: [file]}]}]} = Testing.render(page)
-      assert %{path: "plan.md", approved: false} = file
-      assert is_binary(file.artifact_id)
+      assert %{
+               projects: [
+                 %{reviews: [%{name: "Launch", selections: ["plan.md"], selection_count: 1}]}
+               ]
+             } =
+               Testing.render(page)
     end
 
     test "renders an empty list when no project is registered" do
@@ -176,7 +179,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   describe "create_review" do
     @tag :tmp_dir
-    test "mints a review from selected files and lists it on the next render", %{tmp_dir: dir} do
+    test "stores a review's selection and lists it on the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
@@ -192,8 +195,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       assert is_binary(review_id)
 
-      assert %{projects: [%{reviews: [%{id: ^review_id, files: files}]}]} = Testing.render(page)
-      assert Enum.map(files, & &1.path) == ["plan.md", "spec.md"]
+      assert %{projects: [%{reviews: [%{id: ^review_id, selections: ["plan.md", "spec.md"]}]}]} =
+               Testing.render(page)
     end
 
     @tag :tmp_dir
@@ -210,20 +213,21 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
 
     @tag :tmp_dir
-    test "an unreadable file rolls back and replies with an error", %{tmp_dir: dir} do
+    test "an unreadable selected file still creates the review (validated on open)", %{
+      tmp_dir: dir
+    } do
       File.write!(Path.join(dir, "blank.md"), "   \n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{review_id: nil, error: error}} =
+      assert {:ok, %{review_id: review_id, error: nil}} =
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
                  name: "Launch",
                  selections: ["blank.md"]
                })
 
-      assert error =~ "empty_content"
-      assert %{projects: [%{reviews: []}]} = Testing.render(page)
+      assert is_binary(review_id)
     end
 
     test "an unknown project replies with an error" do
@@ -254,7 +258,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                  selections: ["spec.md"]
                })
 
-      assert %{projects: [%{reviews: [%{files: [%{path: "spec.md"}]}]}]} = Testing.render(page)
+      assert %{projects: [%{reviews: [%{selections: ["spec.md"]}]}]} = Testing.render(page)
     end
 
     test "an unknown review replies with an error" do
@@ -264,6 +268,60 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :update_review_files, %{
                  review_id: "00000000-0000-7000-8000-000000000000",
                  selections: ["plan.md"]
+               })
+    end
+  end
+
+  describe "list_review_files" do
+    @tag :tmp_dir
+    test "replies with the expanded files and their minted state", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{files: [%{path: "plan.md", artifact_id: nil, approved: false}], error: nil}} =
+               Testing.dispatch_command(page, :list_review_files, %{review_id: review.id})
+    end
+
+    test "an unknown review replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{files: [], error: "review_not_found"}} =
+               Testing.dispatch_command(page, :list_review_files, %{
+                 review_id: "00000000-0000-7000-8000-000000000000"
+               })
+    end
+  end
+
+  describe "open_review_file" do
+    @tag :tmp_dir
+    test "mints/returns the artifact id for a covered file", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{artifact_id: id, error: nil}} =
+               Testing.dispatch_command(page, :open_review_file, %{
+                 review_id: review.id,
+                 path: "plan.md"
+               })
+
+      assert is_binary(id)
+    end
+
+    @tag :tmp_dir
+    test "rejects a path not covered by the selection", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{artifact_id: nil, error: "not_covered"}} =
+               Testing.dispatch_command(page, :open_review_file, %{
+                 review_id: review.id,
+                 path: "other.md"
                })
     end
   end

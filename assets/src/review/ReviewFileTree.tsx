@@ -3,8 +3,8 @@ import { ArrowRight, Check, Folder } from "lucide-react"
 import { FileIcon } from "./FileIcon"
 
 interface ReviewFile {
-  artifact_id: string
   path: string
+  artifact_id: string | null
   approved: boolean
 }
 
@@ -60,7 +60,7 @@ export function ReviewFileTree({
   onOpen
 }: {
   files: ReviewFile[]
-  onOpen: (artifactId: string) => void
+  onOpen: (path: string) => void
 }) {
   return (
     <div className="flex flex-col">
@@ -76,13 +76,13 @@ function TreeLevel({
 }: {
   nodes: TreeNode[]
   depth: number
-  onOpen: (artifactId: string) => void
+  onOpen: (path: string) => void
 }) {
   return nodes.map((node) =>
     node.type === "folder" ? (
       <FolderRow key={`folder:${node.name}`} node={node} depth={depth} onOpen={onOpen} />
     ) : (
-      <FileRow key={node.file.artifact_id} node={node} depth={depth} onOpen={onOpen} />
+      <FileRow key={node.file.path} node={node} depth={depth} onOpen={onOpen} />
     )
   )
 }
@@ -95,7 +95,7 @@ function FolderRow({
 }: {
   node: FolderNode
   depth: number
-  onOpen: (artifactId: string) => void
+  onOpen: (path: string) => void
 }) {
   let name = node.name
   let children = node.children
@@ -125,18 +125,24 @@ function FileRow({
 }: {
   node: FileNode
   depth: number
-  onOpen: (artifactId: string) => void
+  onOpen: (path: string) => void
 }) {
   const { file } = node
   return (
     <button
       type="button"
-      onClick={() => onOpen(file.artifact_id)}
+      onClick={() => onOpen(file.path)}
       style={{ paddingLeft: `${depth * 14 + 14}px` }}
       className="group flex w-full min-w-0 items-center gap-2 py-1.5 pr-3.5 text-left transition-colors hover:bg-hover pointer-coarse:min-h-11"
     >
       <FileIcon name={node.name} />
-      <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-text">{node.name}</span>
+      <span
+        className={`min-w-0 flex-1 truncate font-mono text-[12.5px] ${
+          file.artifact_id ? "text-text" : "text-muted-foreground"
+        }`}
+      >
+        {node.name}
+      </span>
       {file.approved && (
         <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-green">
           <Check size={12} />
