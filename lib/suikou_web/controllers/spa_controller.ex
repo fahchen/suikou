@@ -12,7 +12,9 @@ defmodule SuikouWeb.SpaController do
   Sends the SPA shell `priv/static/index.html` for client routes; returns 404 for
   requests under a reserved prefix (`/api` or a static root). A missing asset or an
   unknown API path then fails honestly instead of returning HTML with a 200 — the
-  SPA shell is only ever served for genuine browser routes.
+  SPA shell is only ever served for genuine browser routes. When the shell hasn't
+  been built yet (e.g. a fresh checkout), responds 500 with a build hint instead
+  of crashing on the missing file.
 
   ## Examples
 
@@ -28,12 +30,24 @@ defmodule SuikouWeb.SpaController do
   """
   @spec index(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def index(conn, _params) do
-    if reserved_path?(conn) do
-      send_resp(conn, 404, "")
-    else
-      conn
-      |> put_resp_content_type("text/html")
-      |> send_file(200, Application.app_dir(:suikou, "priv/static/index.html"))
+    shell = Application.app_dir(:suikou, "priv/static/index.html")
+
+    cond do
+      reserved_path?(conn) ->
+        send_resp(conn, 404, "")
+
+      File.exists?(shell) ->
+        conn
+        |> put_resp_content_type("text/html")
+        |> send_file(200, shell)
+
+      true ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(
+          500,
+          "SPA shell not built. Run `mix suikou.package`, or `bun run build` in assets/."
+        )
     end
   end
 

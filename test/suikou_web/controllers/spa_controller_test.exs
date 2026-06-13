@@ -1,7 +1,12 @@
 defmodule SuikouWeb.SpaControllerTest do
-  use SuikouWeb.ConnCase, async: true
+  # async: false — these tests create/remove the shared priv/static/index.html.
+  use SuikouWeb.ConnCase, async: false
+
+  @shell Application.app_dir(:suikou, "priv/static/index.html")
 
   describe "SPA fallback" do
+    setup [:ensure_shell]
+
     test "serves the shell at the root", %{conn: conn} do
       conn = get(conn, "/")
 
@@ -27,17 +32,36 @@ defmodule SuikouWeb.SpaControllerTest do
     end
   end
 
-  setup do
-    index = Application.app_dir(:suikou, "priv/static/index.html")
+  describe "when the shell has not been built" do
+    setup [:remove_shell]
 
-    created? =
-      unless File.exists?(index) do
-        File.mkdir_p!(Path.dirname(index))
-        File.write!(index, ~s(<!doctype html><div id="suikou-spa-test-shell"></div>))
-        true
-      end
+    test "500s with a build hint instead of crashing", %{conn: conn} do
+      conn = get(conn, "/")
 
-    on_exit(fn -> if created?, do: File.rm(index) end)
+      assert response(conn, 500) =~ "not built"
+    end
+  end
+
+  defp ensure_shell(_context) do
+    if File.exists?(@shell) do
+      :ok
+    else
+      File.mkdir_p!(Path.dirname(@shell))
+      File.write!(@shell, ~s(<!doctype html><div id="root"></div>))
+      on_exit(fn -> File.rm(@shell) end)
+    end
+
+    :ok
+  end
+
+  defp remove_shell(_context) do
+    backup = @shell <> ".bak"
+
+    if File.exists?(@shell) do
+      File.rename!(@shell, backup)
+      on_exit(fn -> File.rename!(backup, @shell) end)
+    end
+
     :ok
   end
 end
