@@ -217,10 +217,22 @@ defmodule Suikou.Git do
     end
   end
 
-  defp env do
+  # Exposed (`@doc false`) so tests can assert the neutralized-env contract
+  # without going through behavioural fixtures.
+  @doc false
+  @spec env() :: [{String.t(), String.t() | nil}]
+  def env do
+    # Neutralize every parent-process env that could redirect git off the
+    # `cd:` repo: config sources point at /dev/null, and the GIT_DIR /
+    # work-tree / index / object-dir overrides are unset so they can't bypass
+    # our repo confinement.
     [
       {"GIT_CONFIG_GLOBAL", "/dev/null"},
       {"GIT_CONFIG_SYSTEM", "/dev/null"},
+      {"GIT_DIR", nil},
+      {"GIT_WORK_TREE", nil},
+      {"GIT_INDEX_FILE", nil},
+      {"GIT_OBJECT_DIRECTORY", nil},
       {"GIT_TERMINAL_PROMPT", "0"}
     ]
   end

@@ -163,6 +163,19 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "env/0" do
+    test "neutralizes config + GIT_DIR/work-tree/index/object-dir overrides" do
+      env = Map.new(Git.env())
+
+      for key <- ~w(GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY) do
+        assert Map.fetch(env, key) == {:ok, nil}, "#{key} must be unset"
+      end
+
+      assert env["GIT_CONFIG_GLOBAL"] == "/dev/null"
+      assert env["GIT_CONFIG_SYSTEM"] == "/dev/null"
+    end
+  end
+
   defp init_repo!(dir, opts \\ []) do
     branch = Keyword.get(opts, :branch, "main")
     File.mkdir_p!(dir)
