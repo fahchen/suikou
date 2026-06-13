@@ -326,6 +326,19 @@ defmodule Suikou.ReviewsTest do
                  head_ref: "topic"
                })
     end
+
+    @tag :tmp_dir
+    test "rejects a ref pair with no changed files", %{tmp_dir: dir} do
+      init_repo!(dir)
+      project = insert(:project, path: dir)
+
+      assert {:error, :no_changes} =
+               Reviews.create_diff_review(project, %{
+                 name: "Empty",
+                 base_ref: "main",
+                 head_ref: "main"
+               })
+    end
   end
 
   describe "list_files/1 (git diff)" do

@@ -120,13 +120,15 @@ defmodule Suikou.Reviews do
              | :missing_head_ref
              | :base_ref_not_found
              | :head_ref_not_found
+             | :no_changes
              | Ecto.Changeset.t()}
   def create_diff_review(%Project{} = project, params) do
     with :ok <- ensure_git_repo(project),
          {:ok, base} <- resolve_base_ref(project, params),
          {:ok, head} <- fetch_head_ref(params),
          :ok <- ensure_ref(project, base, :base_ref_not_found),
-         :ok <- ensure_ref(project, head, :head_ref_not_found) do
+         :ok <- ensure_ref(project, head, :head_ref_not_found),
+         :ok <- ensure_changes(project, base, head) do
       changeset =
         Review.create_changeset(project, %{
           name: Map.get(params, :name),
@@ -405,6 +407,18 @@ defmodule Suikou.Reviews do
 
   defp ensure_ref(%Project{path: path}, ref, error) do
     if Git.ref_exists?(path, ref), do: :ok, else: {:error, error}
+  end
+
+  # Refs/repo are already validated above, so the only path to an empty list
+  # is a base==head (or otherwise no-change) pair — reject before persisting
+  # an empty review.
+  defp ensure_changes(%Project{path: path}, base, head) do
+    case Git.changed_files(path, base, head) do
+      {:ok, []} -> {:error, :no_changes}
+      {:ok, [_head | _rest]} -> :ok
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :no_changes}
+    end
   end
 
   defp changed_paths(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
