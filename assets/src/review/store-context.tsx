@@ -64,11 +64,6 @@ export function visibleComments(
   })
 }
 
-/** Pending (unpublished) comments — the count the Submit button publishes. */
-export function pendingCount(comments: Comment[]): number {
-  return comments.filter((comment) => comment.status === "pending").length
-}
-
 /** Whether an unresolved fix_required blocks a clean approval. */
 export function hasUnresolvedBlocker(comments: Comment[]): boolean {
   return comments.some((c) => c.critique_type === "fix_required" && !c.resolved)

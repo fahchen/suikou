@@ -15,7 +15,6 @@ import {
 
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
-import { pendingCount } from "./store-context";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
@@ -61,8 +60,6 @@ export const TopBar = observer(function TopBar(props: {
     snapshot.draft_verdict ?? snapshot.latest_verdict ?? "request_changes",
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const pending = pendingCount(snapshot.comments.items);
 
   function changeVerdict(next: Verdict) {
     setVerdict(next);
@@ -173,11 +170,8 @@ export const TopBar = observer(function TopBar(props: {
               </DialogTitle>
             </DialogHeader>
             <p className="text-[13px] text-muted-foreground">
-              Files the <b className="text-heading">{VERDICT_META[verdict].label}</b> verdict
-              {pending > 0
-                ? ` and publishes ${pending} pending comment${pending === 1 ? "" : "s"}`
-                : ""}
-              .
+              Files the <b className="text-heading">{VERDICT_META[verdict].label}</b> verdict for
+              this file and publishes every pending comment across this review.
             </p>
 
             <DialogFooter>

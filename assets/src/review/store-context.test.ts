@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { visibleComments, pendingCount, hasUnresolvedBlocker } from "./store-context"
+import { visibleComments, hasUnresolvedBlocker } from "./store-context"
 import type { Comment } from "./types"
 import type { CritiqueType, StatusFilter } from "../stores/ui-store"
 
@@ -63,21 +63,6 @@ describe("visibleComments", () => {
     ]
     const onlyFix = { ...ALL_TYPES, note: false, needs_answer: false }
     expect(visibleComments(comments, "unresolved", onlyFix).map((c) => c.id)).toEqual(["a"])
-  })
-})
-
-describe("pendingCount", () => {
-  it("counts only pending comments", () => {
-    const comments = [
-      comment({ id: "a", status: "pending" }),
-      comment({ id: "b", status: "published" }),
-      comment({ id: "c", status: "pending" })
-    ]
-    expect(pendingCount(comments)).toBe(2)
-  })
-
-  it("is zero with no pending comments", () => {
-    expect(pendingCount([comment({ status: "published" })])).toBe(0)
   })
 })
 
