@@ -25,7 +25,7 @@ const LANGS = [
   "diff",
   "markdown",
   "gherkin"
-]
+] satisfies readonly BundledLanguage[]
 
 /** File extension (no dot, lowercase) to the Shiki language that highlights it. */
 const RAW_EXTENSIONS: Record<string, string> = {
@@ -59,7 +59,7 @@ const RAW_EXTENSIONS: Record<string, string> = {
   feature: "gherkin"
 }
 
-const SUPPORTED = new Set(LANGS)
+const SUPPORTED = new Set<string>(LANGS)
 
 let instance: Promise<Highlighter> | null = null
 
