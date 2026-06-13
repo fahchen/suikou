@@ -74,7 +74,12 @@ defmodule Suikou.Git do
   def list_branches(dir) do
     with :ok <- ensure_repo(dir),
          {:ok, out} <-
-           run(dir, ["for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads/"]) do
+           run(dir, [
+             "for-each-ref",
+             "--format=%(refname:short)",
+             "--sort=-committerdate",
+             "refs/heads/"
+           ]) do
       {:ok, parse_names(out)}
     end
   end

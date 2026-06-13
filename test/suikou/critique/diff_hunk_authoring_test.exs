@@ -42,7 +42,6 @@ defmodule Suikou.Critique.DiffHunkAuthoringTest do
                }
              } = comment
     end
-
   end
 
   defp diff_review_with(dir, base, head) do
