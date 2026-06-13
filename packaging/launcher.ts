@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { mkdir, mkdtemp, rename, rm } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rename, rm } from "node:fs/promises"
 import { connect as netConnect } from "node:net"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
@@ -42,7 +42,7 @@ const proc = spawn([bin, "start"], {
 // SIGTERM lets the release drain gracefully (it traps it). Forward both signals,
 // then exit once the child does.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => proc.kill())
+  process.on(signal, () => proc.kill(signal))
 }
 
 const url = `http://localhost:${port}`
@@ -73,6 +73,8 @@ async function ensureExtracted(): Promise<string> {
     const tar = spawn(["tar", "-xzf", tarPath, "-C", tmp])
     if ((await tar.exited) !== 0) throw new Error("failed to extract embedded release")
     // tar archive root is `suikou/`; promote it into the versioned cache dir.
+    // Clear any stale partial promotion first so rename lands on a clean target.
+    await rm(join(dest, "suikou"), { recursive: true, force: true })
     await rename(join(tmp, "suikou"), join(dest, "suikou"))
     return dest
   } finally {
@@ -85,10 +87,16 @@ async function ensureExtracted(): Promise<string> {
 async function ensureSecret(): Promise<string> {
   const path = join(base, "secret_key_base")
   const f = file(path)
-  if (await f.exists()) return (await f.text()).trim()
+  if (await f.exists()) {
+    const existing = (await f.text()).trim()
+    // Phoenix demands >= 64 bytes; a truncated/corrupt file would crash the boot,
+    // so regenerate rather than hand back something too short.
+    if (existing.length >= 64) return existing
+  }
 
   const secret = randomBytes(64).toString("hex")
   await write(path, secret)
+  await chmod(path, 0o600)
   return secret
 }
 
@@ -96,7 +104,13 @@ async function ensureSecret(): Promise<string> {
 // failing loudly rather than drifting to an unpredictable port.
 async function pickPort(): Promise<number> {
   const explicit = process.env.PORT
-  if (explicit) return Number.parseInt(explicit, 10)
+  if (explicit) {
+    const parsed = Number.parseInt(explicit, 10)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+      throw new Error(`invalid PORT ${explicit}; expected an integer in 1-65535`)
+    }
+    return parsed
+  }
 
   for (let p = BASE_PORT; p < BASE_PORT + PORT_PROBE_LIMIT; p++) {
     if (!(await tcpUp(p))) return p
@@ -118,10 +132,11 @@ async function waitForReady(p: number, timeoutMs = 20_000): Promise<boolean> {
 function tcpUp(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = netConnect({ port, host })
-    socket.once("connect", () => {
+    const settle = (up: boolean) => {
       socket.destroy()
-      resolve(true)
-    })
-    socket.once("error", () => resolve(false))
+      resolve(up)
+    }
+    socket.once("connect", () => settle(true))
+    socket.once("error", () => settle(false))
   })
 }
