@@ -19,7 +19,7 @@ defmodule Suikou.ReviewsTest do
       assert {:ok, review} =
                Reviews.create_review(project, %{name: "Launch", selections: ["docs", "readme.md"]})
 
-      assert review.selection_paths == ["docs", "readme.md"]
+      assert review.source.selection_paths == ["docs", "readme.md"]
       assert Repo.aggregate(Artifact, :count) == 0
     end
 
@@ -110,7 +110,7 @@ defmodule Suikou.ReviewsTest do
       review = review_with(dir, ["plan.md"])
 
       assert {:ok, _review} = Reviews.set_selection(review, ["plan.md", "spec.md"])
-      assert Reviews.get_review(review.id).selection_paths == ["plan.md", "spec.md"]
+      assert Reviews.get_review(review.id).source.selection_paths == ["plan.md", "spec.md"]
       assert Repo.aggregate(Artifact, :count) == 0
     end
 
@@ -195,7 +195,7 @@ defmodule Suikou.ReviewsTest do
       review = review_with(dir, ["plan.md"])
 
       assert {:ok, %{name: "Spec pass"}} = Reviews.rename_review(review, "Spec pass")
-      assert Reviews.get_review(review.id).selection_paths == ["plan.md"]
+      assert Reviews.get_review(review.id).source.selection_paths == ["plan.md"]
     end
 
     @tag :tmp_dir

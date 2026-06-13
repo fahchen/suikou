@@ -1,6 +1,7 @@
 defmodule Suikou.Factory do
   @moduledoc false
 
-  use ExMachina.Ecto, repo: Suikou.Repo
+  use ExMachina
+  use Suikou.Factories.EctoStrategy, repo: Suikou.Repo
   use Suikou.Factories.ReviewFactory
 end

@@ -11,6 +11,7 @@ defmodule Suikou.Factories.ReviewFactory do
       alias Suikou.Schemas.Comment
       alias Suikou.Schemas.Project
       alias Suikou.Schemas.Review
+      alias Suikou.Schemas.ReviewSource.FileSelection
       alias Suikou.Schemas.Round
       alias Suikou.Submissions
 
@@ -25,7 +26,8 @@ defmodule Suikou.Factories.ReviewFactory do
       def review_factory do
         %Review{
           name: sequence(:name, &"Review #{&1}"),
-          project: build(:project)
+          project: build(:project),
+          source: %FileSelection{selection_paths: []}
         }
       end
 
