@@ -17,6 +17,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
+  alias Suikou.Schemas.ReviewSource.FileSelection
   alias SuikouWeb.Iso8601
 
   state do
@@ -288,13 +289,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     }
   end
 
-  defp render_review(%Review{} = review) do
+  defp render_review(%Review{source: %FileSelection{selection_paths: paths}} = review) do
     %{
       id: review.id,
       name: review.name,
       inserted_at: Iso8601.utc(review.inserted_at),
-      selections: review.selection_paths,
-      selection_count: length(review.selection_paths)
+      selections: paths,
+      selection_count: length(paths)
     }
   end
 end

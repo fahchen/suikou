@@ -1,9 +1,10 @@
 defmodule Suikou.Reviews do
   @moduledoc """
   Reviews: a reviewer selects files and whole directories under a project to
-  review together. The selection is stored verbatim on the review (`selection_paths`,
-  where a directory path stands for every file beneath it) and expanded against
-  disk on demand, so files added under a selected directory join automatically.
+  review together. The selection is stored verbatim on the review's
+  `FileSelection` source (a directory path stands for every file beneath it) and
+  expanded against disk on demand, so files added under a selected directory join
+  automatically.
   A `Suikou.Schemas.Artifact` (round 0, draft) is minted lazily the first time a
   file is opened (`open_file/2`); deselecting a file soft-removes its artifact
   while keeping its critique history, and reopening a covered file restores it
@@ -20,6 +21,7 @@ defmodule Suikou.Reviews do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
+  alias Suikou.Schemas.ReviewSource.FileSelection
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
@@ -43,7 +45,7 @@ defmodule Suikou.Reviews do
     changeset =
       Review.create_changeset(project, %{
         name: Map.get(params, :name),
-        selection_paths: selections
+        source: %{__type__: "file_selection", selection_paths: selections}
       })
 
     cond do
@@ -67,7 +69,7 @@ defmodule Suikou.Reviews do
 
   """
   @spec set_selection(Review.t(), [String.t()]) :: {:ok, Review.t()}
-  def set_selection(%Review{} = review, selections) do
+  def set_selection(%Review{source: %FileSelection{}} = review, selections) do
     # Force-load every artifact, including soft-removed ones, so a re-covered
     # file is restored rather than left dangling (see BDR-0018).
     review = Repo.preload(review, [:project, :artifacts], force: true)
@@ -100,10 +102,10 @@ defmodule Suikou.Reviews do
   """
   @spec open_file(Review.t(), String.t()) ::
           {:ok, Artifact.t()} | {:error, :not_covered | Artifacts.create_error()}
-  def open_file(%Review{} = review, path) do
+  def open_file(%Review{source: %FileSelection{selection_paths: paths}} = review, path) do
     review = Repo.preload(review, :project)
 
-    if path in expand(review.project, review.selection_paths) do
+    if path in expand(review.project, paths) do
       mint_or_get(review, path)
     else
       {:error, :not_covered}
@@ -187,12 +189,12 @@ defmodule Suikou.Reviews do
   """
   @spec list_files(Review.t()) ::
           [%{path: String.t(), artifact_id: Ecto.UUID.t() | nil, approved: boolean()}]
-  def list_files(%Review{} = review) do
+  def list_files(%Review{source: %FileSelection{selection_paths: paths}} = review) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
 
     review.project
-    |> expand(review.selection_paths)
+    |> expand(paths)
     |> Enum.map(&file_entry(&1, Map.get(active, &1)))
   end
 
