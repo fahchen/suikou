@@ -1,9 +1,11 @@
 defmodule Suikou.Submissions do
   @moduledoc """
   Round submission and approval. Submitting is what advances a round (see
-  BDR-0018): it publishes the submitted round's pending comments, records one
-  verdict, and opens the next draft round by copying the snapshot forward and
-  carrying unresolved published critique. An `approve` verdict records the
+  BDR-0018): it publishes every pending comment across the round's review (all
+  files, not just the submitted file), records one verdict, and opens the next
+  draft round by copying the snapshot forward and carrying unresolved published
+  critique. Verdict and round advance stay per-artifact — only the submitted
+  round records a verdict and opens a next round. An `approve` verdict records the
   approved round; any other verdict clears a standing approval. Approval is a
   soft gate — it is allowed with open `fix_required` comments but returns a
   warning (see BDR-0012), and is reversible via `dismiss/1`.
@@ -26,11 +28,11 @@ defmodule Suikou.Submissions do
         }
 
   @doc """
-  Submits the latest round, advancing the artifact. Publishes the round's
-  pending comments, records the verdict, opens the next draft round (copying
-  content forward and carrying unresolved published critique), and sets or
-  clears approval. An `approve` verdict warns (without blocking) when open
-  `fix_required` critique remains.
+  Submits the latest round, advancing the artifact. Publishes every pending
+  comment across the round's review (all files), records the verdict, opens the
+  next draft round (copying content forward and carrying unresolved published
+  critique), and sets or clears approval. An `approve` verdict warns (without
+  blocking) when open `fix_required` critique remains.
 
   ## Examples
 
@@ -164,8 +166,17 @@ defmodule Suikou.Submissions do
   end
 
   defp publish_pending(round) do
+    review_id =
+      Artifact
+      |> where([a], a.id == ^round.artifact_id)
+      |> select([a], a.review_id)
+      |> Repo.one!()
+
     from(c in Comment, as: :comment)
-    |> where([comment: c], c.round_id == ^round.id and c.status == :pending)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([comment: c], c.status == :pending)
+    |> where([artifact: a], a.review_id == ^review_id)
     |> Repo.update_all(set: [status: :published])
   end
 

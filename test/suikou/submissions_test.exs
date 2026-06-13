@@ -45,6 +45,40 @@ defmodule Suikou.SubmissionsTest do
       assert %{status: :published} = Repo.get!(Comment, b.id)
     end
 
+    test "submitting publishes pending comments across every file in the review" do
+      review = insert(:review)
+      round1 = round_in_review(review)
+      round2 = round_in_review(review)
+      a = pending_comment(round1.id)
+      b = pending_comment(round2.id)
+
+      assert {:ok, _submission} = Submissions.submit(round1.id, :comment)
+      assert %{status: :published} = Repo.get!(Comment, a.id)
+      assert %{status: :published} = Repo.get!(Comment, b.id)
+    end
+
+    test "submitting one file does not advance another file's round" do
+      review = insert(:review)
+      round1 = round_in_review(review)
+      round2 = round_in_review(review)
+      pending_comment(round2.id)
+
+      assert {:ok, _submission} = Submissions.submit(round1.id, :comment)
+
+      round2_artifact_id = round2.artifact_id
+      assert [%{id: round2_id}] = Repo.all(where(Round, artifact_id: ^round2_artifact_id))
+      assert round2_id == round2.id
+    end
+
+    test "submitting does not publish pending comments in a different review" do
+      round = insert(:round)
+      other = insert(:round)
+      stranger = pending_comment(other.id)
+
+      assert {:ok, _submission} = Submissions.submit(round.id, :comment)
+      assert %{status: :pending} = Repo.get!(Comment, stranger.id)
+    end
+
     test "each submission records its verdict" do
       for verdict <- [:approve, :request_changes, :comment] do
         round = insert(:round)

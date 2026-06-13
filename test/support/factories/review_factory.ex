@@ -44,6 +44,22 @@ defmodule Suikou.Factories.ReviewFactory do
         }
       end
 
+      # Round 0 for a fresh artifact under an existing review, so several files
+      # can be wired to the same review without ExMachina re-inserting it.
+      def round_in_review(review) do
+        review
+        |> Ecto.build_assoc(:artifacts,
+          title: sequence(:title, &"Artifact #{&1}"),
+          file_path: sequence(:file_path, &"doc-#{&1}.md")
+        )
+        |> Repo.insert!()
+        |> Ecto.build_assoc(:rounds,
+          number: 0,
+          content_hash: sequence(:content_hash, &"HASH#{&1}")
+        )
+        |> Repo.insert!()
+      end
+
       def comment_factory do
         %{scope: :review, critique_type: :note, body: "please clarify"}
       end
