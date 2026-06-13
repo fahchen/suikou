@@ -13,6 +13,12 @@ defmodule Suikou.Schemas.Anchor.Element do
 
   import Ecto.Changeset
 
+  # Caps keep a client from persisting megabyte blobs: real CSS selectors fit
+  # well under 1 KiB, and a meaningful text quote is bounded by what fits on
+  # screen — 10 KiB is generous headroom.
+  @selector_max 1_000
+  @quote_max 10_000
+
   @primary_key false
   typed_embedded_schema do
     field :selector, :string, typed: [null: false]
@@ -21,7 +27,9 @@ defmodule Suikou.Schemas.Anchor.Element do
 
   @doc """
   Builds a changeset for an element anchor, requiring both the CSS `selector`
-  and the captured `quote`.
+  and the captured `quote`. Both fields are capped (#{@selector_max} chars for
+  `selector`, #{@quote_max} for `quote`) so a client cannot store unbounded
+  blobs.
 
   ## Examples
 
@@ -31,11 +39,16 @@ defmodule Suikou.Schemas.Anchor.Element do
       iex> Suikou.Schemas.Anchor.Element.changeset(%Suikou.Schemas.Anchor.Element{}, %{selector: "", quote: ""}).valid?
       false
 
+      iex> Suikou.Schemas.Anchor.Element.changeset(%Suikou.Schemas.Anchor.Element{}, %{selector: String.duplicate("a", 1_001), quote: "Hello"}).valid?
+      false
+
   """
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(element, params) do
     element
     |> cast(params, [:selector, :quote])
     |> validate_required([:selector, :quote])
+    |> validate_length(:selector, max: @selector_max)
+    |> validate_length(:quote, max: @quote_max)
   end
 end
