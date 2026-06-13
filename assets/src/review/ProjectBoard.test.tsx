@@ -7,7 +7,14 @@ let rootEntries: { path: string; dir: boolean }[]
 let reviewFiles: { path: string; artifact_id: string | null; approved: boolean }[]
 
 vi.mock("../musubi", () => ({
-  useMusubiRoot: () => ({ status: "ok", store: {} }),
+  storeCache: {},
+  useMusubiRoot: () => ({
+    status: "ready",
+    store: {},
+    error: null,
+    isFetching: false,
+    revalidationError: null
+  }),
   useMusubiSnapshot: () => snapshot,
   useMusubiCommand: (_store: unknown, name: string) => {
     if (name === "list_dir")

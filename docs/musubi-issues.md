@@ -111,3 +111,100 @@ Load the visible data in `init/1` from the props already merged into assigns:
 keeps the same `reload/1` for the round-switch case. Covered by a mount-only
 render test in `review_store_test.exs` ("mount renders pre-existing comments
 without a command").
+
+## ISSUE-3: Hand-rolled snapshot types defeat the generated codegen
+
+**Status:** Not a Musubi bug; Suikou usage issue (discoverability)
+
+**Severity:** Medium — silent type drift, no runtime effect
+
+**Summary**
+`assets/src/review/types.ts` hand-declares the full `ReviewSnapshot` shape plus
+`Anchor` / `Reply` / `Comment` / `RoundSummary` / `ArtifactSummary` (lines 9-61),
+then casts the hook result onto it: `useMusubiSnapshot(store) as ReviewSnapshot`
+(`assets/src/routes/review.$artifactId.tsx:50`). The hand type duplicates the
+generated `Musubi.Stores["SuikouWeb.Stores.ReviewStore"]` shape. Add a field to
+the Elixir store and the generated type updates, the hand type does not, and the
+cast hides the drift — the frontend silently goes stale.
+
+**Root cause**
+- `useMusubiSnapshot(store)` already returns a fully-typed `StoreSnapshot<M, R>`
+  that recursively resolves nested `StoreField` into child snapshots and
+  `StreamField` into arrays — so `snapshot.comments.items: Comment[]` is typed
+  out of the box. The hand-written layer is pure redundancy.
+- `StoreSnapshot` is already exported from `@musubi/react` /
+  `@musubi/client` (it is the return type of the hook). Suikou imports its
+  sibling `StoreProxy` the same way (`types.ts:1`) and already threads
+  `Musubi.Stores` once for `ReviewStore` (`types.ts:5`).
+- The reason for hand-rolling was discoverability, not a missing API: the
+  `StoreSnapshot<M, Musubi.Stores>` pattern (and its automatic nested-store
+  resolution) was not obvious.
+
+**Suikou fix (no library change needed)**
+Delete the six hand interfaces and alias the generated type, symmetric with the
+existing `ReviewStore` proxy alias:
+
+    export type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
+
+Then drop the `as ReviewSnapshot` cast at `review.$artifactId.tsx:50` (the hook
+already returns this type). Adding a field to the Elixir store now propagates to
+the frontend types automatically.
+
+**Upstream evaluation (P1 — bound `Musubi.Snapshot<M>` aliases)**
+The upstream report proposed emitting registry-bound aliases (via codegen or a
+`@musubi/client` `Registry` augmentation interface) so consumers could write
+`Snapshot<"X">` instead of `StoreSnapshot<"X", Musubi.Stores>`. Evaluated as
+**not necessary**: Suikou uses an alias-once pattern, so `Musubi.Stores` is
+threaded exactly once per store and the only thing P1 saves is repeating
+`, Musubi.Stores`. The genuine bug (hand-rolled drift) is fixed by the one-line
+consumer change above with zero library work. Recommend a docs note upstream on
+the alias-once + nested-resolution pattern rather than new API.
+
+## ISSUE-4: Test mock invents a status literal outside the union
+
+**Status:** Suikou test bug
+
+**Severity:** Medium — a green test asserting the wrong code path
+
+**Summary**
+`assets/src/review/ProjectBoard.test.tsx:10` mocks the hook as
+`useMusubiRoot: () => ({ status: "ok", store: {} })`. `"ok"` is **not** a member
+of the real `MusubiRootMount` discriminated union
+(`"loading" | "ready" | "error"`), and `store: {}` is untyped. The test passes
+only because the component never branches on `"ready"` explicitly and falls
+through. The moment production code is written as `status === "ready"`, prod is
+correct but this test silently exercises the wrong branch.
+
+**Root cause**
+`vi.mock` replaces the whole `../musubi` module with an untyped factory, so the
+returned object is never checked against the real union. This is mock drift, not
+a library defect — `MusubiRootMount` is already a sound discriminated union.
+
+**Suikou fix**
+Use the real discriminant and a typed store in the mock:
+
+    useMusubiRoot: () => ({ status: "ready", store: <typed proxy>, error: null,
+      isFetching: false, revalidationError: null })
+
+**Upstream evaluation (P2 / P3)**
+- P2 (exported `isReady` / `isLoading` / `isError` guards): **rejected**. Guards
+  do not touch the `vi.mock` path (the factory returns a bare object that bypasses
+  types), and production branching via `switch (status)` is already clean. Pure
+  API-surface bloat.
+- P3 (typed `@musubi/react/testing` `mockRoot(module, snapshot)`): **deferred**.
+  It would prevent exactly this drift by returning a correctly-typed mount, but
+  Suikou has only one or two such mocks and the one-line fix above suffices.
+  Worth revisiting upstream only if many components mock the hook.
+
+## ISSUE-5 (non-issues): evaluated and intentionally skipped
+
+- **Read vs dispatch divergence (F3)** — reading `snapshot.comments.items`
+  (`review.$artifactId.tsx:76,87`) vs dispatching through the `store.comments`
+  child proxy is **by design**: the snapshot is an immutable value tree, the
+  proxy is the live command target. Not a defect. Documentation only.
+- **IndexedDB cache persister (P4)** — Suikou uses
+  `createStorageCachePersister(localStorage)` with `buster: "v1"`
+  (`assets/src/musubi.ts:19-21`). No jank observed; review-scale snapshots fit
+  localStorage's ~5 MB ceiling comfortably. The persister interface is already
+  async (`MaybePromise`), so an IndexedDB adapter stays a future opt-in, not a
+  default. Not needed now.

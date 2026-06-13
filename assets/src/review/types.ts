@@ -1,64 +1,20 @@
-import type { StoreProxy } from "@musubi/react"
+import type { StoreProxy, StoreSnapshot } from "@musubi/react"
 
-import type { CommentScope, CritiqueType } from "../stores/ui-store"
+import type { CritiqueType } from "../stores/ui-store"
 
 export type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
+export type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 
 export type Verdict = "approve" | "request_changes" | "comment"
 export type CommentStatus = "pending" | "published"
 
-export interface Anchor {
-  start_line: number
-  end_line: number
-  quote: string
-}
-
-export interface Reply {
-  id: string
-  author: "human" | "agent"
-  body: string
-  inserted_at: string
-}
-
-export interface Comment {
-  id: string
-  scope: CommentScope
-  critique_type: CritiqueType
-  status: CommentStatus
-  body: string
-  resolved: boolean
-  resolved_round: number | null
-  outdated: boolean
-  original_round: number | null
-  carried: boolean
-  inserted_at: string
-  anchor: Anchor | null
-  replies: Reply[]
-}
-
-export interface RoundSummary {
-  number: number
-  content_hash: string
-  verdict: Verdict | null
-  comment_count: number
-}
-
-export interface ArtifactSummary {
-  id: string
-  title: string
-  approved: boolean
-  latest_round: number | null
-}
-
-export interface ReviewSnapshot {
-  artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
-  artifacts: ArtifactSummary[]
-  rounds: RoundSummary[]
-  current_round: { number: number; content_hash: string; is_latest: boolean }
-  comments: { items: Comment[] }
-  latest_verdict: Verdict | null
-  draft_verdict: Verdict | null
-}
+// Sub-shapes derived from the generated snapshot so a store change can't drift
+// them. Named for the many call sites that import them directly.
+export type Comment = ReviewSnapshot["comments"]["items"][number]
+export type Anchor = NonNullable<Comment["anchor"]>
+export type Reply = Comment["replies"][number]
+export type RoundSummary = ReviewSnapshot["rounds"][number]
+export type ArtifactSummary = ReviewSnapshot["artifacts"][number]
 
 export const CRITIQUE_META: Record<CritiqueType, { label: string; short: string; tone: string }> = {
   fix_required: { label: "Fix required", short: "Fix", tone: "red" },
