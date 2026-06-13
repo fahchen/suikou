@@ -16,7 +16,6 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Musubi.Socket
   alias Suikou.Artifacts
   alias Suikou.Critique
-  alias Suikou.Critique.Anchor
   alias Suikou.Reads
   alias Suikou.Rounds
   alias Suikou.Schemas.Comment
@@ -191,7 +190,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   end
 
   defp render_comment(%Comment{} = comment, lines) do
-    {anchor, outdated} = Anchor.resolve(comment.anchor, lines)
+    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, lines)
 
     %{
       id: comment.id,

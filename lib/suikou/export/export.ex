@@ -10,7 +10,7 @@ defmodule Suikou.Export do
   import Ecto.Query
 
   alias Suikou.Artifacts
-  alias Suikou.Critique.Anchor
+  alias Suikou.Critique
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Anchor.LineRange
@@ -103,7 +103,7 @@ defmodule Suikou.Export do
   end
 
   defp comment_view(comment, lines) do
-    {anchor, outdated} = Anchor.resolve(comment.anchor, lines)
+    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, lines)
 
     %{
       id: comment.id,

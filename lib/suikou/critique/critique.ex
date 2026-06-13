@@ -8,6 +8,7 @@ defmodule Suikou.Critique do
   are reachable only from within the domain.
   """
 
+  alias Suikou.Critique.Anchor
   alias Suikou.Critique.CarryForward
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
@@ -116,4 +117,17 @@ defmodule Suikou.Critique do
 
   """
   defdelegate carry_forward(prev_round, new_round), to: CarryForward, as: :carry
+
+  @doc """
+  Resolves a stored line anchor against the live file's `content_lines`,
+  returning its current view and whether it is outdated. See
+  `Suikou.Critique.Anchor.resolve/2`.
+
+  ## Examples
+
+      Suikou.Critique.resolve_anchor(comment.anchor, ["x", "b", "c"])
+      #=> {%{start_line: 2, end_line: 2, quote: "b"}, false}
+
+  """
+  defdelegate resolve_anchor(anchor, content_lines), to: Anchor, as: :resolve
 end
