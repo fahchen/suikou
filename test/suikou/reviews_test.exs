@@ -7,6 +7,7 @@ defmodule Suikou.ReviewsTest do
   alias Suikou.Reviews
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.ReviewSource.GitDiff
 
   describe "create_review/2" do
     @tag :tmp_dir
@@ -237,5 +238,180 @@ defmodule Suikou.ReviewsTest do
     project = insert(:project, path: dir)
     {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: selections})
     %{review | project: project}
+  end
+
+  describe "create_diff_review/2" do
+    @tag :tmp_dir
+    test "creates a git-diff review with the given refs", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
+      project = insert(:project, path: dir)
+
+      assert {:ok, review} =
+               Reviews.create_diff_review(project, %{
+                 name: "Topic vs main",
+                 base_ref: "main",
+                 head_ref: "topic"
+               })
+
+      assert %GitDiff{base_ref: "main", head_ref: "topic"} = review.source
+    end
+
+    @tag :tmp_dir
+    test "defaults base_ref to the repo default branch", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
+      project = insert(:project, path: dir)
+
+      assert {:ok, review} =
+               Reviews.create_diff_review(project, %{name: "Topic", head_ref: "topic"})
+
+      assert %GitDiff{base_ref: "main", head_ref: "topic"} = review.source
+    end
+
+    @tag :tmp_dir
+    test "rejects a project whose path is not a git repo", %{tmp_dir: dir} do
+      project = insert(:project, path: dir)
+
+      assert {:error, :not_a_git_repo} =
+               Reviews.create_diff_review(project, %{name: "Topic", head_ref: "topic"})
+    end
+
+    @tag :tmp_dir
+    test "rejects a missing head_ref param", %{tmp_dir: dir} do
+      init_repo!(dir)
+      project = insert(:project, path: dir)
+
+      assert {:error, :missing_head_ref} =
+               Reviews.create_diff_review(project, %{name: "Topic", base_ref: "main"})
+    end
+
+    @tag :tmp_dir
+    test "rejects an unknown base_ref", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
+      project = insert(:project, path: dir)
+
+      assert {:error, :base_ref_not_found} =
+               Reviews.create_diff_review(project, %{
+                 name: "Topic",
+                 base_ref: "missing",
+                 head_ref: "topic"
+               })
+    end
+
+    @tag :tmp_dir
+    test "rejects an unknown head_ref", %{tmp_dir: dir} do
+      init_repo!(dir)
+      project = insert(:project, path: dir)
+
+      assert {:error, :head_ref_not_found} =
+               Reviews.create_diff_review(project, %{
+                 name: "Topic",
+                 base_ref: "main",
+                 head_ref: "ghost"
+               })
+    end
+
+    @tag :tmp_dir
+    test "rejects a blank name", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
+      project = insert(:project, path: dir)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Reviews.create_diff_review(project, %{
+                 name: "  ",
+                 base_ref: "main",
+                 head_ref: "topic"
+               })
+    end
+  end
+
+  describe "list_files/1 (git diff)" do
+    @tag :tmp_dir
+    test "lists the changed files between the review's refs", %{tmp_dir: dir} do
+      init_repo!(dir)
+
+      branch!(dir, "topic", fn ->
+        File.write!(Path.join(dir, "a.txt"), "x\n")
+        File.mkdir_p!(Path.join(dir, "docs"))
+        File.write!(Path.join([dir, "docs", "b.txt"]), "y\n")
+      end)
+
+      review = diff_review_with(dir, "main", "topic")
+
+      files = Reviews.list_files(Reviews.get_review(review.id))
+
+      assert [
+               %{path: "a.txt", artifact_id: nil, approved: false},
+               %{path: "docs/b.txt", artifact_id: nil, approved: false}
+             ] = files
+    end
+  end
+
+  describe "open_file/2 (git diff)" do
+    @tag :tmp_dir
+    test "mints a round-0 artifact for a changed path", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:ok, %Artifact{file_path: "a.txt"} = artifact} =
+               Reviews.open_file(review, "a.txt")
+
+      assert %{number: 0} = Rounds.latest(artifact.id)
+
+      assert {:ok, ^artifact} = Reviews.open_file(review, "a.txt")
+    end
+
+    @tag :tmp_dir
+    test "rejects a path not in the diff", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:error, :not_covered} = Reviews.open_file(review, "untouched.txt")
+    end
+  end
+
+  defp diff_review_with(dir, base, head) do
+    project = insert(:project, path: dir)
+
+    {:ok, review} =
+      Reviews.create_diff_review(project, %{name: "Diff", base_ref: base, head_ref: head})
+
+    %{review | project: project}
+  end
+
+  defp init_repo!(dir) do
+    File.mkdir_p!(dir)
+    git!(dir, ["init", "-q", "-b", "main", "."])
+    File.write!(Path.join(dir, "seed.txt"), "seed\n")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "seed"])
+  end
+
+  defp branch!(dir, name, edit) when is_function(edit, 0) do
+    git!(dir, ["checkout", "-q", "-b", name])
+    edit.()
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "topic"])
+  end
+
+  defp git!(dir, args) do
+    env = [
+      {"GIT_AUTHOR_NAME", "Test"},
+      {"GIT_AUTHOR_EMAIL", "test@example.com"},
+      {"GIT_COMMITTER_NAME", "Test"},
+      {"GIT_COMMITTER_EMAIL", "test@example.com"},
+      {"GIT_CONFIG_GLOBAL", "/dev/null"},
+      {"GIT_CONFIG_SYSTEM", "/dev/null"}
+    ]
+
+    {_out, 0} = System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true)
+    :ok
   end
 end

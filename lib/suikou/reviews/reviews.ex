@@ -16,12 +16,15 @@ defmodule Suikou.Reviews do
   import Ecto.Query
 
   alias Suikou.Artifacts
+  alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Repo
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
+  alias Suikou.Schemas.ReviewSource.GitDiff
+  alias Suikou.Schemas.Round
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
@@ -52,6 +55,46 @@ defmodule Suikou.Reviews do
       selections == [] -> {:error, :no_files}
       not changeset.valid? -> {:error, changeset}
       true -> Repo.insert(changeset)
+    end
+  end
+
+  @doc """
+  Creates a git-diff review under a project: its artifacts are the files
+  changed between `base_ref` and `head_ref` with three-dot merge-base
+  semantics. Refs are fixed at creation — changing branches means a new
+  review (see BDR-0020). When `base_ref` is omitted it defaults to the
+  repository's default branch.
+
+  ## Examples
+
+      Suikou.Reviews.create_diff_review(project, %{name: "Topic", base_ref: "main", head_ref: "topic"})
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+      Suikou.Reviews.create_diff_review(project, %{name: "Topic", head_ref: "missing"})
+      #=> {:error, :head_ref_not_found}
+
+  """
+  @spec create_diff_review(Project.t(), map()) ::
+          {:ok, Review.t()}
+          | {:error,
+             :not_a_git_repo
+             | :missing_head_ref
+             | :base_ref_not_found
+             | :head_ref_not_found
+             | Ecto.Changeset.t()}
+  def create_diff_review(%Project{} = project, params) do
+    with :ok <- ensure_git_repo(project),
+         {:ok, base} <- resolve_base_ref(project, params),
+         {:ok, head} <- fetch_head_ref(params),
+         :ok <- ensure_ref(project, base, :base_ref_not_found),
+         :ok <- ensure_ref(project, head, :head_ref_not_found) do
+      changeset =
+        Review.create_changeset(project, %{
+          name: Map.get(params, :name),
+          source: %{__type__: "git_diff", base_ref: base, head_ref: head}
+        })
+
+      if changeset.valid?, do: Repo.insert(changeset), else: {:error, changeset}
     end
   end
 
@@ -101,7 +144,9 @@ defmodule Suikou.Reviews do
 
   """
   @spec open_file(Review.t(), String.t()) ::
-          {:ok, Artifact.t()} | {:error, :not_covered | Artifacts.create_error()}
+          {:ok, Artifact.t()}
+          | {:error,
+             :not_covered | :not_a_git_repo | :git_error | Artifacts.create_error()}
   def open_file(%Review{source: %FileSelection{selection_paths: paths}} = review, path) do
     review = Repo.preload(review, :project)
 
@@ -109,6 +154,20 @@ defmodule Suikou.Reviews do
       mint_or_get(review, path)
     else
       {:error, :not_covered}
+    end
+  end
+
+  def open_file(%Review{source: %GitDiff{} = git_diff} = review, path) do
+    review = Repo.preload(review, :project)
+
+    case changed_paths(review.project, git_diff) do
+      {:ok, paths} ->
+        if path in paths,
+          do: diff_mint_or_get(review, git_diff, path),
+          else: {:error, :not_covered}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -198,6 +257,21 @@ defmodule Suikou.Reviews do
     |> Enum.map(&file_entry(&1, Map.get(active, &1)))
   end
 
+  def list_files(%Review{source: %GitDiff{} = git_diff} = review) do
+    review = Repo.preload(review, [:project, :artifacts], force: true)
+    active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
+
+    case changed_paths(review.project, git_diff) do
+      {:ok, paths} ->
+        paths
+        |> Enum.sort()
+        |> Enum.map(&file_entry(&1, Map.get(active, &1)))
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
   defp file_entry(path, nil), do: %{path: path, artifact_id: nil, approved: false}
 
   defp file_entry(path, %Artifact{} = artifact) do
@@ -266,4 +340,82 @@ defmodule Suikou.Reviews do
     active = from(a in Artifact, where: is_nil(a.removed_at), order_by: [asc: a.file_path])
     Repo.preload(reviews, [:project, artifacts: active])
   end
+
+  defp ensure_git_repo(%Project{path: path}) do
+    if Git.repo?(path), do: :ok, else: {:error, :not_a_git_repo}
+  end
+
+  defp resolve_base_ref(%Project{} = project, params) do
+    case Map.get(params, :base_ref) do
+      ref when is_binary(ref) and ref != "" ->
+        {:ok, ref}
+
+      _missing ->
+        case Git.default_branch(project.path) do
+          {:ok, ref} -> {:ok, ref}
+          {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+        end
+    end
+  end
+
+  defp fetch_head_ref(params) do
+    case Map.get(params, :head_ref) do
+      ref when is_binary(ref) and ref != "" -> {:ok, ref}
+      _missing -> {:error, :missing_head_ref}
+    end
+  end
+
+  defp ensure_ref(%Project{path: path}, ref, error) do
+    if Git.ref_exists?(path, ref), do: :ok, else: {:error, error}
+  end
+
+  defp changed_paths(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+    case Git.changed_files(path, base, head) do
+      {:ok, paths} -> {:ok, paths}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp diff_mint_or_get(%Review{} = review, %GitDiff{} = git_diff, path) do
+    case find_artifact(review.id, path) do
+      %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
+      %Artifact{} = artifact -> {:ok, restore!(artifact)}
+      nil -> mint_diff(review, git_diff, path)
+    end
+  end
+
+  defp mint_diff(%Review{} = review, %GitDiff{} = git_diff, path) do
+    %Project{path: repo} = review.project
+
+    case Git.file_diff(repo, git_diff.base_ref, git_diff.head_ref, path) do
+      {:ok, diff} -> {:ok, insert_diff_artifact(review, path, diff)}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  rescue
+    # Lost a concurrent-open race: the unique (review_id, file_path) index
+    # rejected the second insert. The winner's row already exists.
+    Ecto.InvalidChangesetError -> {:ok, find_artifact(review.id, path)}
+  end
+
+  defp insert_diff_artifact(review, path, diff) do
+    Repo.transaction(fn ->
+      artifact =
+        review
+        |> Artifact.create_from_file_changeset(%{title: path, file_path: path})
+        |> Repo.insert!()
+
+      %{artifact_id: artifact.id, number: 0, content_hash: hash_content(diff)}
+      |> Round.changeset()
+      |> Repo.insert!()
+
+      artifact
+    end)
+    |> case do
+      {:ok, artifact} -> artifact
+    end
+  end
+
+  defp hash_content(content), do: Base.encode16(:crypto.hash(:sha256, content))
 end
