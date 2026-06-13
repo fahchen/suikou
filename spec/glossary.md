@@ -12,7 +12,7 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Agent | An external system that edits the reviewed files on disk and reads structured critique. It only replies to published comments via the dedicated reply API; it never submits content and never advances a round (see BDR-0018). Not part of the Suikou runtime; never owns critique or approval state. |
 | Human reviewer | The person who reviews artifacts, leaves critique, and approves outputs. Holds final judgment. |
 | Server-authoritative | The local Suikou runtime owns review state; clients (agent CLI, browser) do not push authoritative state. |
-| Review | A batch of the reviewer's pending comments on a round, submitted together with one verdict. Submitting a review publishes its comments, records its verdict, and advances the round. Each round receives exactly one review — the one that advances it (see BDR-0018). |
+| Review | A batch submitted together with one verdict on a round. Submitting a review publishes every pending comment across the whole review — all files, not just the submitted one — while recording the verdict and advancing only the submitted round (see BDR-0018, BDR-0019). Each round receives exactly one review — the one that advances it. |
 | Verdict | A review's overall disposition: `approve` (the artifact is accepted), `request_changes` (the reviewer wants revisions), or `comment` (neutral feedback, no acceptance). Orthogonal to a comment's critique type — verdict is the per-review disposition, critique type is the per-comment expected action. |
 | Comment | A unit of structured human critique on a round, carrying a scope, a critique type, a body, and the round it attaches to. Authored as `pending`; becomes `published` when the review batching it is submitted. |
 | Scope | The granularity a comment attaches to: `line` (carries an anchor locating a span), `file` (a whole file), or `review` (the whole review). |
@@ -20,7 +20,7 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Line range | The anchor kind for text/markdown/code: a start line, an end line, and the quoted source of those lines, used to re-anchor across rounds. |
 | Critique type | The action a comment expects from the agent: `fix_required` (must change), `needs_answer` (must respond), or `note` (informational). Per-comment; distinct from a review's verdict. |
 | Quote | The source text of the lines a line-range anchor covers, captured at comment creation; retained for display and for rendering an outdated comment against the text it was about. |
-| Pending / Published | A comment's lifecycle state. `pending` comments are mutable and invisible to the agent; submitting a review freezes its pending comments' content as `published` and exposes them to the agent. |
+| Pending / Published | A comment's lifecycle state. `pending` comments are mutable and invisible to the agent; submitting a review freezes the whole review's pending comments — every file's, not just the submitted one's — as `published` and exposes them to the agent (see BDR-0019). |
 | Resolved | A published comment the human reviewer has marked addressed, recording the round it was resolved at (`resolved_round`). |
 | Thread | A comment together with its replies. The human reviewer authors comments and replies; the agent may only reply, via a dedicated reply API. |
 | Carry-forward | Bringing the prior round's unresolved published comments onto a new round when the artifact advances, so open feedback is not lost. |

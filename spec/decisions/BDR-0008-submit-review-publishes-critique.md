@@ -3,7 +3,7 @@ id: BDR-0008
 title: Submitting a review publishes a round's pending critique as a batch
 status: accepted
 date: 2026-06-07
-summary: Comments are pending (mutable, hidden) until the human submits a review, which publishes that round's pending comments together, freezes their content, and exposes them to the agent
+summary: Comments are pending (mutable, hidden) until the human submits a review, which publishes pending comments together, freezes their content, and exposes them to the agent (publish scope widened review-wide by BDR-0019)
 ---
 
 ## Scope
@@ -22,12 +22,16 @@ decision is only about the pending→published lifecycle.
 
 ## Behaviours Considered
 
-### Option A: Explicit submit-review, batched per round
+### Option A: Explicit submit-review, batched on submit
 A comment is `pending` (editable, deletable, invisible to the agent) until the
-human submits a review. Submitting a review is a round-level action: it
-transitions all of that round's pending comments to `published` at once.
-Published comments are frozen in content and cannot be deleted; the agent only
-ever exports the published set.
+human submits a review. Submitting a review transitions pending comments to
+`published` at once. Published comments are frozen in content and cannot be
+deleted; the agent only ever exports the published set.
+
+The publish batch's *scope* — the submitted round alone versus every file in the
+review — is revisited and widened to review-wide by
+[[BDR-0019-submit-publishes-review-wide-pending]]; this decision only
+establishes the human-controlled pending→published lifecycle.
 
 ### Option B: First export locks
 A comment is editable until the agent first exports it; the act of reading it
@@ -40,10 +44,10 @@ Every comment is final on creation.
 
 Option A. Control over when critique becomes final belongs to the human, not to
 whenever the agent happens to read. Submitting a review gives the reviewer a
-clean "I'm done with this round" moment and a coherent unit — the agent receives
-a whole round's critique at once rather than a trickle. Batching at the round
-level matches the iteration model (rounds are already the unit of versioning) and
-keeps the agent's view consistent.
+clean "I'm done" moment and a coherent unit — the agent receives a batch of
+critique at once rather than a trickle, keeping the agent's view consistent. (The
+batch's scope is widened from the submitted round to the whole review by
+[[BDR-0019-submit-publishes-review-wide-pending]].)
 
 The freeze covers content and deletion only: `body`, `type`, `scope`, and the
 line anchor become immutable. The `resolved` flag and `resolved_round` stay

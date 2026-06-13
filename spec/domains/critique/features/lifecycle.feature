@@ -27,15 +27,23 @@ Feature: Critique lifecycle
       When the reviewer deletes the comment
       Then the comment no longer exists
 
-  # Submitting a review is the round-level batch action: the human submits the
-  # round's pending comments together with one verdict, and they all transition to
-  # published at once. The agent only ever sees the published set (see BDR-0008).
-  Rule: Submitting a review publishes its pending comments
+  # Submitting a review publishes every pending comment across the whole review
+  # — all files at once, not just the submitted file. The verdict and the round
+  # advance stay per file: only the submitted round records a verdict and opens a
+  # next round. The agent only ever sees the published set (see BDR-0008,
+  # BDR-0019).
+  Rule: Submitting a review publishes the review's pending comments
 
     Scenario: Submitting a review publishes every pending comment on the round
       Given two pending comments on round 1
       When the reviewer submits a review of round 1 with verdict "comment"
       Then both comments become published
+
+    Scenario: Submitting one file publishes a sibling file's pending comments
+      Given a second markdown artifact in the same review with a pending comment
+      When the reviewer submits a review of round 1 with verdict "comment"
+      Then the sibling file's pending comment becomes published
+      And the sibling file stays on its current round
 
     Scenario: Pending comments are invisible to the agent until a review is submitted
       Given a pending comment on round 1
