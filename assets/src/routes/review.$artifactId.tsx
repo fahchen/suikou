@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react"
 import { createFileRoute, Outlet } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 
-import { useMusubiRoot, useMusubiSnapshot } from "../musubi"
+import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
 import { useContent } from "../review/use-content"
@@ -18,7 +18,6 @@ import { TopBar } from "../review/TopBar"
 import { CommentRail } from "../review/CommentRail"
 import { isPreviewable, isImagePath } from "../review/file-type"
 import { assetBase } from "../review/urls"
-import type { ReviewSnapshot } from "../review/types"
 
 export const Route = createFileRoute("/review/$artifactId")({
   component: ReviewLayout
@@ -30,7 +29,9 @@ function ReviewLayout() {
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: artifactId,
-    params: { artifact_id: artifactId }
+    params: { artifact_id: artifactId },
+    cache: storeCache,
+    keepPreviousData: true
   })
 
   if (root.status === "loading") return <Centered>Connecting…</Centered>
@@ -45,7 +46,7 @@ function ReviewLayout() {
 
 const ReviewShell = observer(function ReviewShell() {
   const store = useReviewStore()
-  const snapshot = useMusubiSnapshot(store) as ReviewSnapshot
+  const snapshot = useMusubiSnapshot(store)
   const ui = uiStore
 
   const wide = useMediaQuery(WIDE_QUERY)
