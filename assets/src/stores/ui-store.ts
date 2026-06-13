@@ -7,7 +7,7 @@ export type DocView = "rendered" | "raw"
 export type CommentMode = "inline" | "side"
 export type StatusFilter = "all" | "unresolved" | "resolved"
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
-export type CommentScope = "line" | "file" | "review"
+export type CommentScope = "review" | "artifact" | "located"
 export type Density = "tight" | "normal" | "loose"
 
 const THEME_KEY = "suikou-theme"
@@ -45,7 +45,7 @@ export class UiStore {
 
   selStart: number | null = null
   selEnd: number | null = null
-  composerScope: CommentScope = "line"
+  composerScope: CommentScope = "located"
   composerType: CritiqueType = "note"
   composerBody = ""
 

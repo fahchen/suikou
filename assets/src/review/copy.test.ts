@@ -6,7 +6,7 @@ import type { Comment } from "./types"
 function comment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: "c1",
-    scope: "line",
+    scope: "located",
     critique_type: "note",
     status: "published",
     body: "body",

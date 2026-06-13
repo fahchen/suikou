@@ -261,7 +261,7 @@ const LineRow = observer(function LineRow(props: {
             if (extend) {
               ui.extendSelection(startLine, endLine);
             } else {
-              ui.openComposer(startLine, endLine, "line");
+              ui.openComposer(startLine, endLine, "located");
             }
           }}
         >

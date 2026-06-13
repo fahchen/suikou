@@ -15,7 +15,7 @@ import { CommentCardHeader } from "./CommentCardHeader";
 function comment(overrides: Partial<Comment>): Comment {
   return {
     id: "c1",
-    scope: "line",
+    scope: "located",
     critique_type: "note",
     status: "pending",
     body: "body",
