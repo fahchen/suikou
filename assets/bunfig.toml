@@ -1,0 +1,6 @@
+[install]
+# Flat (hoisted) node_modules so Rollup can resolve transitive deps under
+# Vite's preserveSymlinks:true. The isolated linker hides transitive packages
+# (e.g. @tanstack/router-core, react/jsx-runtime via musubi's file: deps) behind
+# per-package .bun store dirs, breaking the production build.
+linker = "hoisted"
