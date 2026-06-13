@@ -19,6 +19,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Reads
   alias Suikou.Rounds
   alias Suikou.Schemas.Anchor.DiffHunk
+  alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
@@ -53,6 +54,11 @@ defmodule SuikouWeb.Stores.CommentsStore do
               end_line: integer(),
               quote: String.t()
             }
+          | %{
+              type: :element,
+              selector: String.t(),
+              quote: String.t()
+            }
           | nil,
         replies:
           list(%{
@@ -75,6 +81,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
         :anchor,
         %{type: :line_range, start_line: integer(), end_line: integer()}
         | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
+        | %{type: :element, selector: String.t(), quote: String.t()}
         | nil
       )
     end
@@ -121,6 +128,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
         :anchor,
         %{type: :line_range, start_line: integer(), end_line: integer()}
         | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
+        | %{type: :element, selector: String.t(), quote: String.t()}
       )
     end
   end
@@ -259,6 +267,10 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   defp tagged_anchor(%DiffHunk{}, resolved) when is_map(resolved) do
     Map.put(resolved, :type, :diff_hunk)
+  end
+
+  defp tagged_anchor(%Element{}, resolved) when is_map(resolved) do
+    Map.put(resolved, :type, :element)
   end
 
   defp render_reply(%Reply{} = reply) do

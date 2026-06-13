@@ -15,8 +15,9 @@ defmodule Suikou.Critique.Comments do
   @doc """
   Adds a pending critique to the latest round. A `:located` comment carries a
   tagged `anchor` payload whose `type` discriminator selects the capture
-  strategy (today only `"line_range"`); the server captures the live quote for
-  that kind before persisting. Rejects an unknown or non-latest round.
+  strategy (`"line_range"` / `"diff_hunk"` capture the quote from the live
+  artifact content; `"element"` packages the client-supplied selector + quote
+  verbatim — see BDR-0021). Rejects an unknown or non-latest round.
 
   ## Examples
 
@@ -217,6 +218,7 @@ defmodule Suikou.Critique.Comments do
     case anchor_type(anchor_params) do
       "line_range" -> build_line_range(anchor_params, round)
       "diff_hunk" -> build_diff_hunk(anchor_params, round)
+      "element" -> build_element(anchor_params)
       _other -> {:error, :unknown_anchor_type}
     end
   end
@@ -228,6 +230,16 @@ defmodule Suikou.Critique.Comments do
     with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
       {:ok, Anchor.capture(content, start_line, end_line)}
     end
+  end
+
+  # Element anchors are server-opaque: the client picks the selector against the
+  # live iframe DOM and ships the matching quote with it (see BDR-0021). The
+  # server never reads the HTML to validate or relocate — it just packages the
+  # supplied selector/quote into the polymorphic embed.
+  defp build_element(anchor_params) do
+    selector = anchor_field(anchor_params, :selector)
+    quote = anchor_field(anchor_params, :quote)
+    {:ok, Anchor.capture_element(selector, quote)}
   end
 
   defp build_diff_hunk(anchor_params, round) do

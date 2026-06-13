@@ -9,6 +9,7 @@ defmodule Suikou.Critique.Anchor do
   """
 
   alias Suikou.Schemas.Anchor.DiffHunk
+  alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
 
   @doc """
@@ -65,6 +66,28 @@ defmodule Suikou.Critique.Anchor do
       end_line: end_line,
       quote: quote_diff_side(diff_text, side, start_line, end_line)
     }
+  end
+
+  @doc """
+  Packages a client-supplied `selector` and `quote` into element-anchor params
+  ready for `cast_polymorphic_embed/3`. Unlike `capture/3` and
+  `capture_diff_hunk/4`, the server never inspects artifact content here — the
+  client already chose the selector by pointing at the rendered iframe DOM and
+  carries the matching text quote with it (see BDR-0021).
+
+  ## Examples
+
+      iex> Suikou.Critique.Anchor.capture_element("main > p:nth-of-type(2)", "Hello")
+      %{__type__: "element", selector: "main > p:nth-of-type(2)", quote: "Hello"}
+
+  """
+  @spec capture_element(String.t(), String.t()) :: %{
+          __type__: String.t(),
+          selector: String.t(),
+          quote: String.t()
+        }
+  def capture_element(selector, quote) do
+    %{__type__: "element", selector: selector, quote: quote}
   end
 
   @doc """
@@ -125,7 +148,11 @@ defmodule Suikou.Critique.Anchor do
           end_line: pos_integer(),
           quote: String.t()
         }
-  @type resolved() :: resolved_line() | resolved_diff()
+  @type resolved_element() :: %{
+          selector: String.t(),
+          quote: String.t()
+        }
+  @type resolved() :: resolved_line() | resolved_diff() | resolved_element()
 
   @doc """
   Resolves a stored anchor against the live content, returning its current view
@@ -133,8 +160,11 @@ defmodule Suikou.Critique.Anchor do
   (the live file split on newlines); a `%DiffHunk{}` resolves against the live
   unified diff text. A located quote yields its present range (not outdated);
   a quote that no longer appears, or content the resolver cannot read, leaves
-  the anchor at its last-known position and marks it outdated. A `nil` anchor
-  (`:artifact`- or `:review`-scoped comment) resolves to `{nil, false}`.
+  the anchor at its last-known position and marks it outdated. A `%Element{}`
+  resolves verbatim with `outdated = false` regardless of content — element
+  re-anchoring runs in the iframe DOM on the client and never touches the
+  server (see BDR-0021). A `nil` anchor (`:artifact`- or `:review`-scoped
+  comment) resolves to `{nil, false}`.
 
   ## Examples
 
@@ -148,10 +178,20 @@ defmodule Suikou.Critique.Anchor do
       iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.DiffHunk{side: :new, start_line: 2, end_line: 2, quote: "b"}, diff)
       {%{side: :new, start_line: 2, end_line: 2, quote: "b"}, false}
 
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.Element{selector: "main > p", quote: "Hello"}, nil)
+      {%{selector: "main > p", quote: "Hello"}, false}
+
   """
-  @spec resolve(LineRange.t() | DiffHunk.t() | nil, [String.t()] | binary() | nil) ::
+  @spec resolve(
+          LineRange.t() | DiffHunk.t() | Element.t() | nil,
+          [String.t()] | binary() | nil
+        ) ::
           {resolved() | nil, boolean()}
   def resolve(nil, _content), do: {nil, false}
+
+  def resolve(%Element{} = anchor, _content) do
+    {%{selector: anchor.selector, quote: anchor.quote}, false}
+  end
 
   def resolve(%LineRange{} = anchor, content_lines) when is_list(content_lines) do
     case locate(content_lines, anchor.quote, anchor.start_line) do

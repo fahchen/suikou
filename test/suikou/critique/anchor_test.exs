@@ -3,6 +3,7 @@ defmodule Suikou.Critique.AnchorTest do
 
   alias Suikou.Critique.Anchor
   alias Suikou.Schemas.Anchor.DiffHunk
+  alias Suikou.Schemas.Anchor.Element
 
   doctest Anchor
 
@@ -87,6 +88,28 @@ defmodule Suikou.Critique.AnchorTest do
       anchor = %DiffHunk{side: :new, start_line: 2, end_line: 2, quote: "two"}
 
       assert {%{quote: "two"}, true} = Anchor.resolve(anchor, nil)
+    end
+  end
+
+  describe "capture_element/2" do
+    test "packages the client-supplied selector and quote verbatim" do
+      assert %{__type__: "element", selector: "main > p", quote: "Hello"} =
+               Anchor.capture_element("main > p", "Hello")
+    end
+  end
+
+  describe "resolve/2 with %Element{}" do
+    test "echoes the stored selector and quote with outdated=false" do
+      anchor = %Element{selector: "main > p:nth-of-type(2)", quote: "Hello"}
+
+      assert {%{selector: "main > p:nth-of-type(2)", quote: "Hello"}, false} =
+               Anchor.resolve(anchor, "<irrelevant/>")
+    end
+
+    test "echoes verbatim even when content is nil — never marks outdated" do
+      anchor = %Element{selector: "main", quote: "Hi"}
+
+      assert {%{selector: "main", quote: "Hi"}, false} = Anchor.resolve(anchor, nil)
     end
   end
 end
