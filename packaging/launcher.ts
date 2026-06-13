@@ -127,22 +127,29 @@ async function acquireLock(lock: string, timeoutMs = 30_000): Promise<void> {
 // A lock is stale when its recorded PID is no longer running. If the owner file is
 // missing the holder either hasn't written it yet or died in the gap right after
 // mkdir; fall back to the lock dir's age so that rare crash window self-heals too.
+// A peer releasing the lock concurrently can make the dir/file vanish mid-check
+// (ENOENT) — treat that as stale so the caller just retries the mkdir.
 const STALE_OWNER_GRACE_MS = 30_000
 async function lockIsStale(lock: string, owner: string): Promise<boolean> {
-  const f = file(owner)
-  if (!(await f.exists())) {
-    const { mtimeMs } = await stat(lock)
-    return Date.now() - mtimeMs > STALE_OWNER_GRACE_MS
-  }
-
-  const pid = Number.parseInt((await f.text()).trim(), 10)
-  if (!Number.isInteger(pid)) return true
   try {
-    // Signal 0 probes liveness without delivering anything; ESRCH means gone.
-    process.kill(pid, 0)
-    return false
+    const f = file(owner)
+    if (!(await f.exists())) {
+      const { mtimeMs } = await stat(lock)
+      return Date.now() - mtimeMs > STALE_OWNER_GRACE_MS
+    }
+
+    const pid = Number.parseInt((await f.text()).trim(), 10)
+    if (!Number.isInteger(pid)) return true
+    try {
+      // Signal 0 probes liveness without delivering anything; ESRCH means gone.
+      process.kill(pid, 0)
+      return false
+    } catch (err) {
+      return (err as { code?: string }).code === "ESRCH"
+    }
   } catch (err) {
-    return (err as { code?: string }).code === "ESRCH"
+    if ((err as { code?: string }).code === "ENOENT") return true
+    throw err
   }
 }
 
