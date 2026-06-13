@@ -24,7 +24,6 @@ defmodule Suikou.Reviews do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
-  alias Suikou.Schemas.Round
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
@@ -145,13 +144,12 @@ defmodule Suikou.Reviews do
   """
   @spec open_file(Review.t(), String.t()) ::
           {:ok, Artifact.t()}
-          | {:error,
-             :not_covered | :not_a_git_repo | :git_error | Artifacts.create_error()}
+          | {:error, :not_covered | :not_a_git_repo | :git_error | Artifacts.create_error()}
   def open_file(%Review{source: %FileSelection{selection_paths: paths}} = review, path) do
     review = Repo.preload(review, :project)
 
     if path in expand(review.project, paths) do
-      mint_or_get(review, path)
+      mint_or_get(review, path, &Artifacts.create_from_file/2)
     else
       {:error, :not_covered}
     end
@@ -163,7 +161,7 @@ defmodule Suikou.Reviews do
     case changed_paths(review.project, git_diff) do
       {:ok, paths} ->
         if path in paths,
-          do: diff_mint_or_get(review, git_diff, path),
+          do: mint_or_get(review, path, &Artifacts.create_from_diff/2),
           else: {:error, :not_covered}
 
       {:error, reason} ->
@@ -291,16 +289,16 @@ defmodule Suikou.Reviews do
     |> Enum.uniq()
   end
 
-  defp mint_or_get(review, path) do
+  defp mint_or_get(review, path, create_fun) do
     case find_artifact(review.id, path) do
       %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
       %Artifact{} = artifact -> {:ok, restore!(artifact)}
-      nil -> mint(review, path)
+      nil -> mint(review, path, create_fun)
     end
   end
 
-  defp mint(review, path) do
-    case Artifacts.create_from_file(review, path) do
+  defp mint(review, path, create_fun) do
+    case create_fun.(review, path) do
       {:ok, %{artifact: artifact}} -> {:ok, artifact}
       {:error, reason} -> {:error, reason}
     end
@@ -376,46 +374,4 @@ defmodule Suikou.Reviews do
       {:error, _reason} -> {:error, :git_error}
     end
   end
-
-  defp diff_mint_or_get(%Review{} = review, %GitDiff{} = git_diff, path) do
-    case find_artifact(review.id, path) do
-      %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
-      %Artifact{} = artifact -> {:ok, restore!(artifact)}
-      nil -> mint_diff(review, git_diff, path)
-    end
-  end
-
-  defp mint_diff(%Review{} = review, %GitDiff{} = git_diff, path) do
-    %Project{path: repo} = review.project
-
-    case Git.file_diff(repo, git_diff.base_ref, git_diff.head_ref, path) do
-      {:ok, diff} -> {:ok, insert_diff_artifact(review, path, diff)}
-      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
-      {:error, _reason} -> {:error, :git_error}
-    end
-  rescue
-    # Lost a concurrent-open race: the unique (review_id, file_path) index
-    # rejected the second insert. The winner's row already exists.
-    Ecto.InvalidChangesetError -> {:ok, find_artifact(review.id, path)}
-  end
-
-  defp insert_diff_artifact(review, path, diff) do
-    Repo.transaction(fn ->
-      artifact =
-        review
-        |> Artifact.create_from_file_changeset(%{title: path, file_path: path})
-        |> Repo.insert!()
-
-      %{artifact_id: artifact.id, number: 0, content_hash: hash_content(diff)}
-      |> Round.changeset()
-      |> Repo.insert!()
-
-      artifact
-    end)
-    |> case do
-      {:ok, artifact} -> artifact
-    end
-  end
-
-  defp hash_content(content), do: Base.encode16(:crypto.hash(:sha256, content))
 end
