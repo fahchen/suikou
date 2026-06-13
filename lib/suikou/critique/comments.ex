@@ -13,8 +13,10 @@ defmodule Suikou.Critique.Comments do
   alias Suikou.Schemas.Comment
 
   @doc """
-  Adds a pending critique to the latest round. A `:located` comment captures
-  its quoted source. Rejects an unknown or non-latest round.
+  Adds a pending critique to the latest round. A `:located` comment carries a
+  tagged `anchor` payload whose `type` discriminator selects the capture
+  strategy (today only `"line_range"`); the server captures the live quote for
+  that kind before persisting. Rejects an unknown or non-latest round.
 
   ## Examples
 
@@ -31,6 +33,7 @@ defmodule Suikou.Critique.Comments do
              Ecto.Changeset.t()
              | :round_not_found
              | :not_latest_round
+             | :unknown_anchor_type
              | Artifacts.read_content_error()}
   def add(params) do
     round = Rounds.get(params[:round_id])
@@ -146,27 +149,30 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Relocates a `:located` comment to lines `start_line..end_line` of its file,
-  re-capturing the quoted source from the live file so live resolution finds it
-  again. Rejects a comment that carries no line anchor.
+  Relocates a `:located` comment to a fresh `anchor` payload, re-capturing the
+  quoted source from the live file so live resolution finds it again. The
+  `anchor` is tagged with the kind discriminator (`%{type: "line_range", ...}`
+  today) and the call dispatches on it. Rejects a comment that carries no
+  located anchor.
 
   ## Examples
 
-      Suikou.Critique.Comments.relocate(comment.id, 4, 5)
+      Suikou.Critique.Comments.relocate(comment.id, %{type: "line_range", start_line: 4, end_line: 5})
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
-      Suikou.Critique.Comments.relocate(review_comment.id, 4, 5)
+      Suikou.Critique.Comments.relocate(review_comment.id, %{type: "line_range", start_line: 4, end_line: 5})
       #=> {:error, :not_located}
 
   """
-  @spec relocate(Ecto.UUID.t(), pos_integer(), pos_integer()) ::
+  @spec relocate(Ecto.UUID.t(), map()) ::
           {:ok, Comment.t()}
           | {:error,
              Ecto.Changeset.t()
              | :comment_not_found
              | :not_located
+             | :unknown_anchor_type
              | Artifacts.read_content_error()}
-  def relocate(comment_id, start_line, end_line) do
+  def relocate(comment_id, anchor_params) do
     case Repo.get(Comment, comment_id) do
       nil ->
         {:error, :comment_not_found}
@@ -174,9 +180,7 @@ defmodule Suikou.Critique.Comments do
       %Comment{scope: :located} = comment ->
         round = Rounds.get(comment.round_id)
 
-        with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
-          anchor = Anchor.capture(content, start_line, end_line)
-
+        with {:ok, anchor} <- build_anchor(anchor_params, round) do
           comment
           |> Comment.relocate_changeset(%{anchor: anchor})
           |> Repo.update()
@@ -195,13 +199,8 @@ defmodule Suikou.Critique.Comments do
   end
 
   defp put_anchor(params, round) do
-    start_line = params[:start_line]
-    end_line = params[:end_line]
-
-    if located_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
-      with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
-        anchor = Anchor.capture(content, start_line, end_line)
-
+    if located_scope?(params[:scope]) do
+      with {:ok, anchor} <- build_anchor(params[:anchor], round) do
         {:ok,
          params
          |> Map.put(:anchor, anchor)
@@ -210,6 +209,30 @@ defmodule Suikou.Critique.Comments do
     else
       {:ok, params}
     end
+  end
+
+  defp build_anchor(anchor_params, round) do
+    case anchor_type(anchor_params) do
+      "line_range" -> build_line_range(anchor_params, round)
+      _other -> {:error, :unknown_anchor_type}
+    end
+  end
+
+  defp build_line_range(anchor_params, round) do
+    start_line = anchor_field(anchor_params, :start_line)
+    end_line = anchor_field(anchor_params, :end_line)
+
+    with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
+      {:ok, Anchor.capture(content, start_line, end_line)}
+    end
+  end
+
+  defp anchor_type(%{type: type}) when not is_nil(type), do: to_string(type)
+  defp anchor_type(%{"type" => type}) when not is_nil(type), do: to_string(type)
+  defp anchor_type(_other), do: nil
+
+  defp anchor_field(params, key) when is_map(params) do
+    Map.get(params, key) || Map.get(params, Atom.to_string(key))
   end
 
   defp located_scope?(scope), do: scope in [:located, "located"]

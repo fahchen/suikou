@@ -59,8 +59,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
             scope: :located,
             critique_type: :fix_required,
             body: "tighten this",
-            start_line: 1,
-            end_line: 1
+            anchor: %{type: :line_range, start_line: 1, end_line: 1}
           },
           ["comments"]
         )
@@ -166,13 +165,19 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
         Testing.dispatch_command(
           page,
           :relocate_comment,
-          %{comment_id: carried.id, start_line: 4, end_line: 4},
+          %{
+            comment_id: carried.id,
+            anchor: %{type: :line_range, start_line: 4, end_line: 4}
+          },
           ["comments"]
         )
 
       assert %{
                items: [
-                 %{outdated: false, anchor: %{start_line: 4, end_line: 4, quote: "EPSILON"}}
+                 %{
+                   outdated: false,
+                   anchor: %{type: :line_range, start_line: 4, end_line: 4, quote: "EPSILON"}
+                 }
                ]
              } =
                Testing.render(page, ["comments"])
@@ -192,7 +197,14 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       rewrite_source(round.artifact_id, "added\nalpha\nbeta\ngamma\n")
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
-      assert %{items: [%{outdated: false, anchor: %{start_line: 3, end_line: 3, quote: "beta"}}]} =
+      assert %{
+               items: [
+                 %{
+                   outdated: false,
+                   anchor: %{type: :line_range, start_line: 3, end_line: 3, quote: "beta"}
+                 }
+               ]
+             } =
                Testing.render(page, ["comments"])
     end
 

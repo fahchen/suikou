@@ -110,10 +110,24 @@ defmodule Suikou.Factories.ReviewFactory do
           :comment
           |> build(params)
           |> Map.put(:round_id, round_id)
+          |> tag_line_range_anchor()
           |> Critique.add_comment()
 
         comment
       end
+
+      # Test ergonomics: callers still pass `:start_line`/`:end_line` as flat
+      # fields to set up a line-range located comment, and the factory folds
+      # them into the tagged `:anchor` payload the authoring contract now
+      # requires.
+      defp tag_line_range_anchor(%{start_line: start_line, end_line: end_line} = params)
+           when is_integer(start_line) and is_integer(end_line) do
+        params
+        |> Map.put(:anchor, %{type: "line_range", start_line: start_line, end_line: end_line})
+        |> Map.drop([:start_line, :end_line])
+      end
+
+      defp tag_line_range_anchor(params), do: params
 
       def published_comment(round_id, params \\ %{}) do
         round_id

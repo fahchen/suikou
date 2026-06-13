@@ -18,6 +18,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Rounds
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
   alias SuikouWeb.Iso8601
@@ -37,7 +38,14 @@ defmodule SuikouWeb.Stores.CommentsStore do
         original_round: integer() | nil,
         carried: boolean(),
         inserted_at: String.t(),
-        anchor: %{start_line: integer(), end_line: integer(), quote: String.t()} | nil,
+        anchor:
+          %{
+            type: :line_range,
+            start_line: integer(),
+            end_line: integer(),
+            quote: String.t()
+          }
+          | nil,
         replies:
           list(%{
             id: String.t(),
@@ -54,8 +62,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       field(:scope, :review | :artifact | :located)
       field(:critique_type, :fix_required | :needs_answer | :note)
       field(:body, String.t())
-      field(:start_line, integer() | nil)
-      field(:end_line, integer() | nil)
+      field(:anchor, %{type: :line_range, start_line: integer(), end_line: integer()} | nil)
     end
   end
 
@@ -95,8 +102,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   command :relocate_comment do
     payload do
       field(:comment_id, String.t())
-      field(:start_line, integer())
-      field(:end_line, integer())
+      field(:anchor, %{type: :line_range, start_line: integer(), end_line: integer()})
     end
   end
 
@@ -132,8 +138,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
           scope: payload["scope"],
           critique_type: payload["critique_type"],
           body: payload["body"],
-          start_line: payload["start_line"],
-          end_line: payload["end_line"]
+          anchor: payload["anchor"]
         })
 
       nil ->
@@ -173,7 +178,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   end
 
   def handle_command(:relocate_comment, payload, socket) do
-    Critique.relocate_comment(payload["comment_id"], payload["start_line"], payload["end_line"])
+    Critique.relocate_comment(payload["comment_id"], payload["anchor"])
     {:noreply, reload(socket)}
   end
 
@@ -204,9 +209,18 @@ defmodule SuikouWeb.Stores.CommentsStore do
       original_round: comment.original_round,
       carried: not is_nil(comment.origin_id),
       inserted_at: Iso8601.utc(comment.inserted_at),
-      anchor: anchor,
+      anchor: tagged_anchor(comment.anchor, anchor),
       replies: Enum.map(comment.replies, &render_reply/1)
     }
+  end
+
+  # Wrap the resolved anchor view with the kind discriminator that drives the
+  # client tagged-union narrowing. Today only `:line_range` exists; future kinds
+  # add a clause without reshaping the read contract.
+  defp tagged_anchor(nil, _resolved), do: nil
+
+  defp tagged_anchor(%LineRange{}, resolved) when is_map(resolved) do
+    Map.put(resolved, :type, :line_range)
   end
 
   defp render_reply(%Reply{} = reply) do

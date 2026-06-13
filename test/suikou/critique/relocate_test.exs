@@ -23,7 +23,13 @@ defmodule Suikou.Critique.RelocateTest do
     %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nEPSILON\n")
     [carried] = Reads.list_comments(round2.id)
 
-    assert {:ok, relocated} = Critique.relocate_comment(carried.id, 4, 4)
+    assert {:ok, relocated} =
+             Critique.relocate_comment(carried.id, %{
+               type: "line_range",
+               start_line: 4,
+               end_line: 4
+             })
+
     assert %{start_line: 4, end_line: 4, quote: "EPSILON"} = relocated.anchor
   end
 
@@ -31,10 +37,20 @@ defmodule Suikou.Critique.RelocateTest do
     round = insert(:round)
     comment = published_comment(round.id, %{scope: :review, body: "no anchor"})
 
-    assert {:error, :not_located} = Critique.relocate_comment(comment.id, 1, 1)
+    assert {:error, :not_located} =
+             Critique.relocate_comment(comment.id, %{
+               type: "line_range",
+               start_line: 1,
+               end_line: 1
+             })
   end
 
   test "relocate returns an error for an unknown comment" do
-    assert {:error, :comment_not_found} = Critique.relocate_comment(Ecto.UUID.generate(), 1, 1)
+    assert {:error, :comment_not_found} =
+             Critique.relocate_comment(Ecto.UUID.generate(), %{
+               type: "line_range",
+               start_line: 1,
+               end_line: 1
+             })
   end
 end
