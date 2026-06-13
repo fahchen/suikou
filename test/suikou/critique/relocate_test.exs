@@ -11,7 +11,7 @@ defmodule Suikou.Critique.RelocateTest do
     artifact = round1.artifact
 
     published_comment(round1.id, %{
-      scope: :line,
+      scope: :located,
       critique_type: :needs_answer,
       body: "what about beta?",
       start_line: 2,
@@ -31,7 +31,7 @@ defmodule Suikou.Critique.RelocateTest do
     round = insert(:round)
     comment = published_comment(round.id, %{scope: :review, body: "no anchor"})
 
-    assert {:error, :not_line_scoped} = Critique.relocate_comment(comment.id, 1, 1)
+    assert {:error, :not_located} = Critique.relocate_comment(comment.id, 1, 1)
   end
 
   test "relocate returns an error for an unknown comment" do

@@ -40,7 +40,6 @@ defmodule Suikou.Critique.CarryForward do
       origin_id: comment.id,
       scope: comment.scope,
       anchor: comment.anchor,
-      original_anchor: comment.original_anchor,
       original_round: comment.original_round,
       critique_type: comment.critique_type,
       body: comment.body,

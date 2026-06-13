@@ -56,7 +56,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
           page,
           :add_comment,
           %{
-            scope: :line,
+            scope: :located,
             critique_type: :fix_required,
             body: "tighten this",
             start_line: 1,
@@ -65,7 +65,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
           ["comments"]
         )
 
-      assert %{items: [%{body: "tighten this", status: :pending, scope: :line}]} =
+      assert %{items: [%{body: "tighten this", status: :pending, scope: :located}]} =
                Testing.render(page, ["comments"])
     end
 
@@ -73,7 +73,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       round = source_round("line 1\nline 2\nline 3\n")
 
       published_comment(round.id, %{
-        scope: :line,
+        scope: :located,
         critique_type: :fix_required,
         body: "x",
         start_line: 1,
@@ -93,7 +93,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       round = source_round("line 1\nline 2\nline 3\n")
 
       published_comment(round.id, %{
-        scope: :line,
+        scope: :located,
         critique_type: :fix_required,
         body: "x",
         start_line: 1,
@@ -147,7 +147,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       artifact = round1.artifact
 
       published_comment(round1.id, %{
-        scope: :line,
+        scope: :located,
         critique_type: :needs_answer,
         body: "what about beta?",
         start_line: 2,
@@ -182,7 +182,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       round = source_round("alpha\nbeta\ngamma\n")
 
       published_comment(round.id, %{
-        scope: :line,
+        scope: :located,
         critique_type: :note,
         body: "re: beta",
         start_line: 2,
@@ -200,7 +200,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       round = source_round("alpha\nbeta\ngamma\n")
 
       published_comment(round.id, %{
-        scope: :line,
+        scope: :located,
         critique_type: :note,
         body: "re: beta",
         start_line: 2,

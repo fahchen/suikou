@@ -70,7 +70,7 @@ defmodule Suikou.Critique do
   defdelegate unresolve_comment(comment_id), to: Comments, as: :unresolve
 
   @doc """
-  Relocates a line-scoped comment to a fresh line range, re-capturing its quote
+  Relocates a `:located` comment to a fresh line range, re-capturing its quote
   from the live file. See `Suikou.Critique.Comments.relocate/3`.
 
   ## Examples

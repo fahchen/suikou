@@ -8,13 +8,13 @@ defmodule Suikou.Critique.CommentsTest do
   alias Suikou.Schemas.Comment
 
   describe "authoring scope" do
-    test "a line-scoped comment anchors to a range and captures the quoted source" do
+    test "a located comment anchors to a range and captures the quoted source" do
       round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
+                 scope: :located,
                  start_line: 10,
                  end_line: 12,
                  critique_type: :note,
@@ -31,27 +31,20 @@ defmodule Suikou.Critique.CommentsTest do
                comment
     end
 
-    test "a line-scoped comment freezes its original anchor and authoring round" do
+    test "a located comment records its authoring round" do
       round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
+                 scope: :located,
                  start_line: 10,
                  end_line: 12,
                  critique_type: :note,
                  body: "fix this"
                })
 
-      assert %{
-               original_round: 0,
-               original_anchor: %LineRange{
-                 start_line: 10,
-                 end_line: 12,
-                 quote: "line 10\nline 11\nline 12"
-               }
-             } = comment
+      assert %{original_round: 0} = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
@@ -60,7 +53,7 @@ defmodule Suikou.Critique.CommentsTest do
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
+                 scope: :located,
                  start_line: 7,
                  end_line: 7,
                  critique_type: :note,
@@ -81,7 +74,7 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "overall"
                })
 
-      assert %{scope: :review, anchor: nil, original_anchor: nil} = comment
+      assert %{scope: :review, anchor: nil} = comment
     end
   end
 

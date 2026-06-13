@@ -1,7 +1,7 @@
 defmodule Suikou.Critique.Comments do
   @moduledoc """
   Authoring and lifecycle of human critique. New comments attach to the latest
-  round only; a line-scoped comment captures its quoted source on creation.
+  round only; a `:located` comment captures its quoted source on creation.
   Comments stay editable and deletable regardless of status; only `resolve` and
   `unresolve` require a published comment.
   """
@@ -13,7 +13,7 @@ defmodule Suikou.Critique.Comments do
   alias Suikou.Schemas.Comment
 
   @doc """
-  Adds a pending critique to the latest round. A line-scoped comment captures
+  Adds a pending critique to the latest round. A `:located` comment captures
   its quoted source. Rejects an unknown or non-latest round.
 
   ## Examples
@@ -146,7 +146,7 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Relocates a line-scoped comment to lines `start_line..end_line` of its file,
+  Relocates a `:located` comment to lines `start_line..end_line` of its file,
   re-capturing the quoted source from the live file so live resolution finds it
   again. Rejects a comment that carries no line anchor.
 
@@ -156,7 +156,7 @@ defmodule Suikou.Critique.Comments do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
       Suikou.Critique.Comments.relocate(review_comment.id, 4, 5)
-      #=> {:error, :not_line_scoped}
+      #=> {:error, :not_located}
 
   """
   @spec relocate(Ecto.UUID.t(), pos_integer(), pos_integer()) ::
@@ -164,14 +164,14 @@ defmodule Suikou.Critique.Comments do
           | {:error,
              Ecto.Changeset.t()
              | :comment_not_found
-             | :not_line_scoped
+             | :not_located
              | Artifacts.read_content_error()}
   def relocate(comment_id, start_line, end_line) do
     case Repo.get(Comment, comment_id) do
       nil ->
         {:error, :comment_not_found}
 
-      %Comment{scope: :line} = comment ->
+      %Comment{scope: :located} = comment ->
         round = Rounds.get(comment.round_id)
 
         with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
@@ -183,7 +183,7 @@ defmodule Suikou.Critique.Comments do
         end
 
       %Comment{} ->
-        {:error, :not_line_scoped}
+        {:error, :not_located}
     end
   end
 
@@ -198,14 +198,13 @@ defmodule Suikou.Critique.Comments do
     start_line = params[:start_line]
     end_line = params[:end_line]
 
-    if line_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
+    if located_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
       with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
         anchor = Anchor.capture(content, start_line, end_line)
 
         {:ok,
          params
          |> Map.put(:anchor, anchor)
-         |> Map.put(:original_anchor, anchor)
          |> Map.put(:original_round, round.number)}
       end
     else
@@ -213,5 +212,5 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp line_scope?(scope), do: scope in [:line, "line"]
+  defp located_scope?(scope), do: scope in [:located, "located"]
 end

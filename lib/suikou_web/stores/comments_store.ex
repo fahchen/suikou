@@ -27,7 +27,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       :items,
       list(%{
         id: String.t(),
-        scope: :line | :file | :review,
+        scope: :review | :artifact | :located,
         critique_type: :fix_required | :needs_answer | :note,
         status: :pending | :published,
         body: String.t(),
@@ -51,7 +51,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   command :add_comment do
     payload do
-      field(:scope, :line | :file | :review)
+      field(:scope, :review | :artifact | :located)
       field(:critique_type, :fix_required | :needs_answer | :note)
       field(:body, String.t())
       field(:start_line, integer() | nil)

@@ -91,7 +91,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, overview} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :line,
+    scope: :located,
     start_line: 7,
     end_line: 9,
     critique_type: :fix_required,
@@ -101,7 +101,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, _deadletter} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :line,
+    scope: :located,
     start_line: 18,
     end_line: 18,
     critique_type: :note,
@@ -111,7 +111,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, uuid} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :line,
+    scope: :located,
     start_line: 25,
     end_line: 25,
     critique_type: :fix_required,
@@ -121,7 +121,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, _writer} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :line,
+    scope: :located,
     start_line: 34,
     end_line: 39,
     critique_type: :needs_answer,
@@ -134,7 +134,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, commit_interval} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :line,
+    scope: :located,
     start_line: 31,
     end_line: 31,
     critique_type: :needs_answer,
@@ -144,7 +144,7 @@ r1 = Rounds.latest(artifact.id)
 {:ok, _backpressure} =
   Critique.add_comment(%{
     round_id: r1.id,
-    scope: :file,
+    scope: :artifact,
     critique_type: :note,
     body: "Add a section on backpressure between the queue and the writer."
   })
@@ -188,7 +188,7 @@ File.write!(Path.join(seed_dir, file_path), round_two)
 {:ok, _} =
   Critique.add_comment(%{
     round_id: r2.id,
-    scope: :line,
+    scope: :located,
     start_line: 14,
     end_line: 19,
     critique_type: :needs_answer,
@@ -202,7 +202,7 @@ carried_note =
     from(c in Comment,
       where:
         c.round_id == ^r2.id and c.status == :published and c.critique_type == :note and
-          c.scope == :line,
+          c.scope == :located,
       order_by: c.inserted_at,
       limit: 1
     )
