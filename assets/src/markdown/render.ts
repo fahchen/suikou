@@ -6,7 +6,7 @@ import sub from "markdown-it-sub"
 import sup from "markdown-it-sup"
 
 import { THEME_CODE, type ThemeName } from "../themes"
-import { getHighlighter, resolveLang } from "./highlighter"
+import { ensureLang, getHighlighter, resolveLang } from "./highlighter"
 import { renderMermaid } from "./mermaid"
 
 export type BlockKind = "markdown" | "code" | "mermaid"
@@ -81,7 +81,8 @@ export async function renderMarkdown(
       }
 
       if (fence) {
-        const lang = resolveLang(highlighter, fence.info)
+        const lang = resolveLang(fence.info)
+        await ensureLang(highlighter, lang)
         const html = highlighter.codeToHtml(fence.content.replace(/\n$/, ""), { lang, theme: shiki })
         return { startLine, endLine, kind: "code", tag: "", lang, html }
       }

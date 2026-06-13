@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import type { BundledLanguage, ThemedToken } from "shiki"
 
 import { THEME_CODE, type ThemeName } from "../themes"
-import { getHighlighter, shikiLangForPath } from "../markdown/highlighter"
+import { ensureLang, getHighlighter, shikiLangForPath } from "../markdown/highlighter"
 
 /**
  * Syntax-highlighted tokens for the raw file view, one entry per source line, or
@@ -28,7 +28,8 @@ export function useRawHighlight(
     setLines(null)
 
     getHighlighter()
-      .then((highlighter) => {
+      .then(async (highlighter) => {
+        await ensureLang(highlighter, lang)
         const { shiki } = THEME_CODE[theme]
         const loaded = highlighter.getLoadedLanguages().includes(lang) ? lang : "text"
         return highlighter.codeToTokens(content, { lang: loaded as BundledLanguage, theme: shiki })
