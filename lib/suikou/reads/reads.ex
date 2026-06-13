@@ -100,6 +100,22 @@ defmodule Suikou.Reads do
   end
 
   @doc """
+  Counts a round's comments without loading them, for the round summary badge.
+
+  ## Examples
+
+      Suikou.Reads.count_comments(round.id)
+      #=> 3
+
+  """
+  @spec count_comments(Ecto.UUID.t()) :: non_neg_integer()
+  def count_comments(round_id) do
+    from(c in Comment, as: :comment)
+    |> where([comment: c], c.round_id == ^round_id)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Fetches a comment by id with its thread replies preloaded in order, or `nil`
   when none exists.
 

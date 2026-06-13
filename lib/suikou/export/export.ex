@@ -75,6 +75,7 @@ defmodule Suikou.Export do
   defp build(artifact) do
     round = Rounds.latest(artifact.id)
     content = Artifacts.read_content_or_nil(artifact.id)
+    lines = content && String.split(content, "\n")
 
     %{
       artifact_id: artifact.id,
@@ -84,25 +85,25 @@ defmodule Suikou.Export do
       verdict: Suikou.Submissions.latest_verdict_for_artifact(artifact.id),
       approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
-      comments: published_comments(round.id, content)
+      comments: published_comments(round.id, lines)
     }
   end
 
-  defp published_comments(round_id, content) do
+  defp published_comments(round_id, lines) do
     from(c in Comment, as: :comment)
     |> where([comment: c], c.round_id == ^round_id and c.status == :published)
     |> order_by([comment: c], asc: c.id)
     |> preload(replies: ^reply_thread())
     |> Repo.all()
-    |> Enum.map(&comment_view(&1, content))
+    |> Enum.map(&comment_view(&1, lines))
   end
 
   defp reply_thread do
     order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
   end
 
-  defp comment_view(comment, content) do
-    {anchor, outdated} = Anchor.resolve(comment.anchor, content)
+  defp comment_view(comment, lines) do
+    {anchor, outdated} = Anchor.resolve(comment.anchor, lines)
 
     %{
       id: comment.id,

@@ -35,9 +35,10 @@ defmodule Suikou.Critique.Anchor do
   end
 
   @doc """
-  Locates a comment's captured `quote` in `content`, returning the 1-based
-  inclusive line range it now occupies. Content is read live rather than stored,
-  so a comment's line numbers are resolved by finding its quote each render.
+  Locates a comment's captured `quote` among `content_lines` (the live file
+  already split on newlines), returning the 1-based inclusive line range it now
+  occupies. The caller splits once and resolves every comment against the same
+  lines, so a file is split once per render rather than once per comment.
 
   Returns `{:ok, {start_line, end_line}}` for the contiguous run of lines equal
   to the quote, choosing the occurrence nearest `hint_start` (the comment's
@@ -46,17 +47,16 @@ defmodule Suikou.Critique.Anchor do
 
   ## Examples
 
-      iex> Suikou.Critique.Anchor.locate("a\\nb\\nc", "b", 2)
+      iex> Suikou.Critique.Anchor.locate(["a", "b", "c"], "b", 2)
       {:ok, {2, 2}}
 
-      iex> Suikou.Critique.Anchor.locate("a\\nb\\nc", "x", 2)
+      iex> Suikou.Critique.Anchor.locate(["a", "b", "c"], "x", 2)
       :not_found
 
   """
-  @spec locate(String.t(), String.t(), pos_integer()) ::
+  @spec locate([String.t()], String.t(), pos_integer()) ::
           {:ok, {pos_integer(), pos_integer()}} | :not_found
-  def locate(content, quote, hint_start) do
-    content_lines = String.split(content, "\n")
+  def locate(content_lines, quote, hint_start) do
     quote_lines = String.split(quote, "\n")
     span = length(quote_lines)
     total = length(content_lines)
@@ -84,26 +84,27 @@ defmodule Suikou.Critique.Anchor do
   @type resolved() :: %{start_line: pos_integer(), end_line: pos_integer(), quote: String.t()}
 
   @doc """
-  Resolves a stored line anchor against live `content`, returning its current
-  view and whether it is outdated. A located quote yields its present line range
-  (not outdated); a quote that no longer appears, or unreadable content, leaves
-  the anchor at its last-known lines and marks it outdated. A `nil` anchor (a
-  file- or review-scoped comment) resolves to `{nil, false}`.
+  Resolves a stored line anchor against the live file's `content_lines`,
+  returning its current view and whether it is outdated. A located quote yields
+  its present line range (not outdated); a quote that no longer appears, or `nil`
+  lines (unreadable content), leaves the anchor at its last-known lines and marks
+  it outdated. A `nil` anchor (file- or review-scoped comment) resolves to
+  `{nil, false}`.
 
   ## Examples
 
-      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, "x\\nb\\nc")
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, ["x", "b", "c"])
       {%{start_line: 2, end_line: 2, quote: "b"}, false}
 
-      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, "gone\\n")
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, ["gone"])
       {%{start_line: 2, end_line: 2, quote: "b"}, true}
 
   """
-  @spec resolve(LineRange.t() | nil, String.t() | nil) :: {resolved() | nil, boolean()}
-  def resolve(nil, _content), do: {nil, false}
+  @spec resolve(LineRange.t() | nil, [String.t()] | nil) :: {resolved() | nil, boolean()}
+  def resolve(nil, _content_lines), do: {nil, false}
 
-  def resolve(%LineRange{} = anchor, content) when is_binary(content) do
-    case locate(content, anchor.quote, anchor.start_line) do
+  def resolve(%LineRange{} = anchor, content_lines) when is_list(content_lines) do
+    case locate(content_lines, anchor.quote, anchor.start_line) do
       {:ok, {start_line, end_line}} ->
         {%{start_line: start_line, end_line: end_line, quote: anchor.quote}, false}
 

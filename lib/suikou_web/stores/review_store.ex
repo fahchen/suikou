@@ -198,7 +198,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       number: round.number,
       content_hash: round.content_hash,
       verdict: Submissions.latest_verdict(round.id),
-      comment_count: length(Reads.list_comments(round.id))
+      comment_count: Reads.count_comments(round.id)
     }
   end
 

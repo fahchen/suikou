@@ -112,8 +112,15 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    content = Artifacts.read_content_or_nil(socket.assigns[:artifact_id])
-    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, content))}
+    lines = live_lines(socket.assigns[:artifact_id])
+    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, lines))}
+  end
+
+  defp live_lines(artifact_id) do
+    case Artifacts.read_content_or_nil(artifact_id) do
+      nil -> nil
+      content -> String.split(content, "\n")
+    end
   end
 
   @impl Musubi.Store
@@ -183,8 +190,8 @@ defmodule SuikouWeb.Stores.CommentsStore do
     Socket.assign(socket, :comments, comments)
   end
 
-  defp render_comment(%Comment{} = comment, content) do
-    {anchor, outdated} = Anchor.resolve(comment.anchor, content)
+  defp render_comment(%Comment{} = comment, lines) do
+    {anchor, outdated} = Anchor.resolve(comment.anchor, lines)
 
     %{
       id: comment.id,
