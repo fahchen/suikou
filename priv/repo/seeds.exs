@@ -81,9 +81,10 @@ File.write!(Path.join(seed_dir, file_path), round_one)
 {:ok, project} = Projects.register_project(%{name: "Data Platform", path: seed_dir})
 
 {:ok, review} =
-  Reviews.create_review(project, %{name: "Ingest pipeline review", file_paths: [file_path]})
+  Reviews.create_review(project, %{name: "Ingest pipeline review", selections: [file_path]})
 
-[artifact] = Reviews.get_review(review.id).artifacts
+# Artifacts mint lazily on first open (BDR-0018); open the file to create round 0.
+{:ok, artifact} = Reviews.open_file(review, file_path)
 r1 = Rounds.latest(artifact.id)
 
 # Round 0 critique: pending until the review is submitted.
