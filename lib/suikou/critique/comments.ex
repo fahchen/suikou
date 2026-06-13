@@ -34,7 +34,8 @@ defmodule Suikou.Critique.Comments do
              | :round_not_found
              | :not_latest_round
              | :unknown_anchor_type
-             | Artifacts.read_content_error()}
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
   def add(params) do
     round = Rounds.get(params[:round_id])
 
@@ -171,7 +172,8 @@ defmodule Suikou.Critique.Comments do
              | :comment_not_found
              | :not_located
              | :unknown_anchor_type
-             | Artifacts.read_content_error()}
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
   def relocate(comment_id, anchor_params) do
     case Repo.get(Comment, comment_id) do
       nil ->
@@ -214,6 +216,7 @@ defmodule Suikou.Critique.Comments do
   defp build_anchor(anchor_params, round) do
     case anchor_type(anchor_params) do
       "line_range" -> build_line_range(anchor_params, round)
+      "diff_hunk" -> build_diff_hunk(anchor_params, round)
       _other -> {:error, :unknown_anchor_type}
     end
   end
@@ -227,12 +230,40 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp anchor_type(%{type: type}) when not is_nil(type), do: to_string(type)
-  defp anchor_type(%{"type" => type}) when not is_nil(type), do: to_string(type)
+  defp build_diff_hunk(anchor_params, round) do
+    side = side_field(anchor_params)
+    start_line = anchor_field(anchor_params, :start_line)
+    end_line = anchor_field(anchor_params, :end_line)
+
+    case Artifacts.content_source(round.artifact_id) do
+      {:ok, {:inline, diff, "text/x-diff"}} ->
+        {:ok, Anchor.capture_diff_hunk(diff, side, start_line, end_line)}
+
+      {:ok, {:file, _path}} ->
+        {:error, :unknown_anchor_type}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp anchor_type(%{type: nil}), do: nil
+  defp anchor_type(%{type: type}), do: to_string(type)
+  defp anchor_type(%{"type" => nil}), do: nil
+  defp anchor_type(%{"type" => type}), do: to_string(type)
   defp anchor_type(_other), do: nil
 
   defp anchor_field(params, key) when is_map(params) do
     Map.get(params, key) || Map.get(params, Atom.to_string(key))
+  end
+
+  defp side_field(params) do
+    case anchor_field(params, :side) do
+      side when side in [:old, :new] -> side
+      "old" -> :old
+      "new" -> :new
+      _other -> nil
+    end
   end
 
   defp located_scope?(scope), do: scope in [:located, "located"]
