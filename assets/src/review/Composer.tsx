@@ -40,8 +40,7 @@ export const Composer = observer(function Composer(props: {
       scope: ui.composerScope,
       critique_type: ui.composerType,
       body: ui.composerBody.trim(),
-      start_line: props.startLine,
-      end_line: props.endLine,
+      anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
     });
     ui.closeComposer();
   }

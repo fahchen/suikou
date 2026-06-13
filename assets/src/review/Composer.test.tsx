@@ -50,8 +50,7 @@ describe("Composer", () => {
       scope: "located",
       critique_type: "fix_required",
       body: "needs a fix",
-      start_line: 3,
-      end_line: 5,
+      anchor: { type: "line_range", start_line: 3, end_line: 5 },
     });
     expect(uiStore.selStart).toBeNull();
   });

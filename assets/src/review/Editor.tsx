@@ -232,7 +232,10 @@ const LineRow = observer(function LineRow(props: {
   const label = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
   const inlineComments = props.inline
     ? props.comments.filter(
-        (c) => c.anchor && c.anchor.start_line >= startLine && c.anchor.start_line <= endLine,
+        (c) =>
+          c.anchor?.type === "line_range" &&
+          c.anchor.start_line >= startLine &&
+          c.anchor.start_line <= endLine,
       )
     : [];
 

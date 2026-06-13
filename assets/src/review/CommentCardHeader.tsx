@@ -50,15 +50,16 @@ export function CommentCardHeader(props: {
   const { comment, inline, open, onEdit } = props;
   const commands = useReviewCommands();
   const meta = CRITIQUE_META[comment.critique_type];
-  const anchorLabel = comment.anchor
-    ? comment.anchor.start_line === comment.anchor.end_line
-      ? `L${comment.anchor.start_line}`
-      : `L${comment.anchor.start_line}–${comment.anchor.end_line}`
+  const lineRange = comment.anchor?.type === "line_range" ? comment.anchor : null;
+  const anchorLabel = lineRange
+    ? lineRange.start_line === lineRange.end_line
+      ? `L${lineRange.start_line}`
+      : `L${lineRange.start_line}–${lineRange.end_line}`
     : "";
 
   function locateLine() {
-    if (!comment.anchor) return;
-    const hits = rangeElements(comment.anchor.start_line, comment.anchor.end_line);
+    if (!lineRange) return;
+    const hits = rangeElements(lineRange.start_line, lineRange.end_line);
     if (hits.length === 0) return;
     hits[0].scrollIntoView({ behavior: "smooth", block: "center" });
     for (const el of hits) {
@@ -88,7 +89,7 @@ export function CommentCardHeader(props: {
       </CollapsibleTrigger>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {comment.anchor
+        {lineRange
           ? !inline && (
               <button
                 type="button"

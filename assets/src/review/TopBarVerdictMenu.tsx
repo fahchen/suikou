@@ -63,8 +63,7 @@ export function TopBarVerdictMenu(props: {
         scope: "review",
         critique_type: reviewType,
         body: text,
-        start_line: null,
-        end_line: null,
+        anchor: null,
       });
     }
   }
