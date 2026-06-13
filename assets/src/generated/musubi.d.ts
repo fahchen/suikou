@@ -101,7 +101,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.CommentsStore": StoreDef<
       "SuikouWeb.Stores.CommentsStore",
       {
-        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string; inserted_at: string }> }>
+        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; original_round: number | null; carried: boolean; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; body: string; inserted_at: string }> }>
       },
       {
         add_comment: {
@@ -109,7 +109,7 @@ declare namespace Musubi {
             scope: "review" | "artifact" | "located"
             critique_type: "fix_required" | "needs_answer" | "note"
             body: string
-            anchor: { type: "line_range"; start_line: number; end_line: number } | null
+            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | null
           }
           reply: never
         }
@@ -149,7 +149,7 @@ declare namespace Musubi {
         relocate_comment: {
           payload: {
             comment_id: string
-            anchor: { type: "line_range"; start_line: number; end_line: number }
+            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number }
           }
           reply: never
         }
@@ -195,6 +195,28 @@ declare namespace Musubi {
           }
           reply: {
             review_id: string | null
+            error: string | null
+          }
+        }
+        create_diff_review: {
+          payload: {
+            project_id: string
+            name: string
+            base_ref: string | null
+            head_ref: string
+          }
+          reply: {
+            review_id: string | null
+            error: string | null
+          }
+        }
+        list_branches: {
+          payload: {
+            project_id: string
+          }
+          reply: {
+            branches: string[]
+            default: string | null
             error: string | null
           }
         }
@@ -258,7 +280,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ReviewStore": StoreDef<
       "SuikouWeb.Stores.ReviewStore",
       {
-        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+        artifact: { id: string; title: string; kind: "file" | "diff"; approved: boolean; approved_round: number | null }
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
         rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
         current_round: { number: number; content_hash: string; is_latest: boolean }

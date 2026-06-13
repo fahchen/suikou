@@ -17,6 +17,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Reads
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.Review
+  alias Suikou.Schemas.ReviewSource.FileSelection
+  alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentsStore
@@ -25,6 +28,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     field(:artifact, %{
       id: String.t(),
       title: String.t(),
+      kind: :file | :diff,
       approved: boolean(),
       approved_round: integer() | nil
     })
@@ -128,7 +132,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   # not-found notice — rather than crashing the store on a nil artifact.
   defp missing_snapshot(artifact_id) do
     %{
-      artifact: %{id: "", title: "", approved: false, approved_round: nil},
+      artifact: %{id: "", title: "", kind: :file, approved: false, approved_round: nil},
       artifacts: [],
       rounds: [],
       current_round: current_round(0, "", true),
@@ -201,10 +205,18 @@ defmodule SuikouWeb.Stores.ReviewStore do
     %{
       id: artifact.id,
       title: artifact.title,
+      kind: artifact_kind(artifact),
       approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round
     }
   end
+
+  # A diff review's artifacts hold a unified diff in their content stream; the
+  # client routes by `kind` rather than by `file_path`'s extension so opening
+  # `lib/foo.ex` under a diff review still picks the diff renderer.
+  defp artifact_kind(%Artifact{review: %Review{source: %GitDiff{}}}), do: :diff
+  defp artifact_kind(%Artifact{review: %Review{source: %FileSelection{}}}), do: :file
+  defp artifact_kind(_other), do: :file
 
   defp render_artifact_summary(%Artifact{} = artifact) do
     %{

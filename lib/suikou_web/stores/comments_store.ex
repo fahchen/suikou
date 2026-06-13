@@ -18,6 +18,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Rounds
+  alias Suikou.Schemas.Anchor.DiffHunk
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
@@ -45,6 +46,13 @@ defmodule SuikouWeb.Stores.CommentsStore do
             end_line: integer(),
             quote: String.t()
           }
+          | %{
+              type: :diff_hunk,
+              side: :old | :new,
+              start_line: integer(),
+              end_line: integer(),
+              quote: String.t()
+            }
           | nil,
         replies:
           list(%{
@@ -62,7 +70,13 @@ defmodule SuikouWeb.Stores.CommentsStore do
       field(:scope, :review | :artifact | :located)
       field(:critique_type, :fix_required | :needs_answer | :note)
       field(:body, String.t())
-      field(:anchor, %{type: :line_range, start_line: integer(), end_line: integer()} | nil)
+
+      field(
+        :anchor,
+        %{type: :line_range, start_line: integer(), end_line: integer()}
+        | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
+        | nil
+      )
     end
   end
 
@@ -102,7 +116,12 @@ defmodule SuikouWeb.Stores.CommentsStore do
   command :relocate_comment do
     payload do
       field(:comment_id, String.t())
-      field(:anchor, %{type: :line_range, start_line: integer(), end_line: integer()})
+
+      field(
+        :anchor,
+        %{type: :line_range, start_line: integer(), end_line: integer()}
+        | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
+      )
     end
   end
 
@@ -117,14 +136,29 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    lines = live_lines(socket.assigns[:artifact_id])
-    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, lines))}
+    content = live_content(socket.assigns[:artifact_id])
+    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, content))}
   end
 
-  defp live_lines(artifact_id) do
-    case Artifacts.read_content_or_nil(artifact_id) do
-      nil -> nil
-      content -> String.split(content, "\n")
+  # File-selection artifacts resolve line_range anchors against the file split
+  # on newlines; git-diff artifacts resolve diff_hunk anchors against the live
+  # unified diff text. The render pre-computes whichever shape this artifact
+  # needs so every comment is resolved against the same value.
+  defp live_content(nil), do: nil
+
+  defp live_content(artifact_id) do
+    case Artifacts.content_source(artifact_id) do
+      {:ok, {:file, path}} ->
+        case File.read(path) do
+          {:ok, bytes} -> String.split(bytes, "\n")
+          {:error, _posix} -> nil
+        end
+
+      {:ok, {:inline, diff, "text/x-diff"}} ->
+        diff
+
+      {:error, _reason} ->
+        nil
     end
   end
 
@@ -194,8 +228,8 @@ defmodule SuikouWeb.Stores.CommentsStore do
     Socket.assign(socket, :comments, comments)
   end
 
-  defp render_comment(%Comment{} = comment, lines) do
-    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, lines)
+  defp render_comment(%Comment{} = comment, content) do
+    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, content)
 
     %{
       id: comment.id,
@@ -221,6 +255,10 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   defp tagged_anchor(%LineRange{}, resolved) when is_map(resolved) do
     Map.put(resolved, :type, :line_range)
+  end
+
+  defp tagged_anchor(%DiffHunk{}, resolved) when is_map(resolved) do
+    Map.put(resolved, :type, :diff_hunk)
   end
 
   defp render_reply(%Reply{} = reply) do

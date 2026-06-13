@@ -18,6 +18,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
+  alias Suikou.Schemas.ReviewSource.GitDiff
   alias SuikouWeb.Iso8601
 
   state do
@@ -60,6 +61,32 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
     reply do
       field(:review_id, String.t() | nil)
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :create_diff_review do
+    payload do
+      field(:project_id, String.t())
+      field(:name, String.t())
+      field(:base_ref, String.t() | nil)
+      field(:head_ref, String.t())
+    end
+
+    reply do
+      field(:review_id, String.t() | nil)
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :list_branches do
+    payload do
+      field(:project_id, String.t())
+    end
+
+    reply do
+      field(:branches, list(String.t()))
+      field(:default, String.t() | nil)
       field(:error, String.t() | nil)
     end
   end
@@ -162,6 +189,26 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
+  def handle_command(:create_diff_review, payload, socket) do
+    reply =
+      case Projects.get_project(payload["project_id"]) do
+        %Project{} = project -> create_diff_review(project, payload)
+        nil -> %{review_id: nil, error: "project_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
+  def handle_command(:list_branches, payload, socket) do
+    reply =
+      case Projects.get_project(payload["project_id"]) do
+        %Project{} = project -> list_branches(project)
+        nil -> branches_reply([], nil, "project_not_found")
+      end
+
+    {:reply, reply, socket}
+  end
+
   def handle_command(:update_review_files, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
@@ -242,6 +289,30 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  defp create_diff_review(project, payload) do
+    params = %{
+      name: payload["name"],
+      base_ref: payload["base_ref"],
+      head_ref: payload["head_ref"]
+    }
+
+    case Reviews.create_diff_review(project, params) do
+      {:ok, %Review{} = review} -> %{review_id: review.id, error: nil}
+      {:error, reason} -> %{review_id: nil, error: review_error(reason)}
+    end
+  end
+
+  defp list_branches(project) do
+    case Reviews.list_branches(project) do
+      {:ok, %{branches: branches, default: default}} -> branches_reply(branches, default, nil)
+      {:error, reason} -> branches_reply([], nil, review_error(reason))
+    end
+  end
+
+  defp branches_reply(branches, default, error) do
+    %{branches: branches, default: default, error: error}
+  end
+
   defp update_review_files(review, selections) do
     {:ok, %Review{}} = Reviews.set_selection(review, selections)
     %{error: nil}
@@ -296,6 +367,19 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       inserted_at: Iso8601.utc(review.inserted_at),
       selections: paths,
       selection_count: length(paths)
+    }
+  end
+
+  # A git-diff review's reviewer-facing "selection" is the diff between two
+  # refs, not a path list. The board only needs the review id/name/inserted_at
+  # to render a card; Phase 10 will add refs + kind to the picker view.
+  defp render_review(%Review{source: %GitDiff{}} = review) do
+    %{
+      id: review.id,
+      name: review.name,
+      inserted_at: Iso8601.utc(review.inserted_at),
+      selections: [],
+      selection_count: 0
     }
   end
 end
