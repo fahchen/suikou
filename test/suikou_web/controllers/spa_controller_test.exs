@@ -58,6 +58,8 @@ defmodule SuikouWeb.SpaControllerTest do
     backup = @shell <> ".bak"
 
     if File.exists?(@shell) do
+      # Clear any leftover backup from an interrupted run so the rename can't clash.
+      File.rm(backup)
       File.rename!(@shell, backup)
       on_exit(fn -> File.rename!(backup, @shell) end)
     end
