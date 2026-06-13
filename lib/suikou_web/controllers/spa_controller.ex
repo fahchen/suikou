@@ -10,8 +10,9 @@ defmodule SuikouWeb.SpaController do
 
   @doc """
   Sends the SPA shell `priv/static/index.html` for client routes; returns 404 for
-  requests whose first path segment names a static root, so a missing asset (e.g.
-  a stale hashed bundle) fails honestly instead of returning HTML with a 200.
+  requests under a reserved prefix (`/api` or a static root). A missing asset or an
+  unknown API path then fails honestly instead of returning HTML with a 200 — the
+  SPA shell is only ever served for genuine browser routes.
 
   ## Examples
 
@@ -21,10 +22,13 @@ defmodule SuikouWeb.SpaController do
       get(conn, "/assets/missing.js")
       #=> 404
 
+      get(conn, "/api/unknown")
+      #=> 404
+
   """
   @spec index(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def index(conn, _params) do
-    if static_path?(conn) do
+    if reserved_path?(conn) do
       send_resp(conn, 404, "")
     else
       conn
@@ -33,9 +37,9 @@ defmodule SuikouWeb.SpaController do
     end
   end
 
-  defp static_path?(conn) do
+  defp reserved_path?(conn) do
     case conn.path_info do
-      [first | _rest] -> first in SuikouWeb.static_paths()
+      [first | _rest] -> first == "api" or first in SuikouWeb.static_paths()
       [] -> false
     end
   end
