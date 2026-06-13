@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 
 const dispatch = vi.fn()
+const listBranches = vi.fn()
+const createDiffReview = vi.fn()
 let snapshot: unknown
 let rootEntries: { path: string; dir: boolean }[]
 let reviewFiles: { path: string; artifact_id: string | null; approved: boolean }[]
@@ -21,14 +23,32 @@ vi.mock("../musubi", () => ({
       return { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
     if (name === "list_review_files")
       return { dispatch: () => Promise.resolve({ files: reviewFiles, error: null }), isPending: false }
+    if (name === "list_branches")
+      return { dispatch: listBranches, isPending: false }
+    if (name === "create_diff_review")
+      return { dispatch: createDiffReview, isPending: false }
     return { dispatch, isPending: false }
   }
 }))
 
 import { ProjectBoard } from "./ProjectBoard"
 
+function pick(el: HTMLElement) {
+  fireEvent.pointerDown(el)
+  fireEvent.pointerUp(el)
+  fireEvent.click(el)
+}
+
 beforeEach(() => {
   dispatch.mockReset()
+  listBranches.mockReset()
+  createDiffReview.mockReset()
+  listBranches.mockResolvedValue({
+    branches: ["main", "feature/x", "release"],
+    default: "main",
+    error: null
+  })
+  createDiffReview.mockResolvedValue({ review_id: "r-diff", error: null })
   rootEntries = [
     { path: "design.md", dir: false },
     { path: "draft.md", dir: false }
@@ -126,7 +146,8 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ review_id: "r-new", error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByText("New review"))
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review files"))
     fireEvent.change(screen.getByPlaceholderText("e.g. Launch docs"), {
       target: { value: "Spec pass" }
     })
@@ -189,6 +210,75 @@ describe("ProjectBoard", () => {
     await waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith({ name: "Docs", path: "/tmp/docs" })
     )
+  })
+
+  it("loads branches and preselects the default base when opening diff-review composer", async () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    await waitFor(() => expect(listBranches).toHaveBeenCalledWith({ project_id: "p1" }))
+    const baseTrigger = await screen.findByLabelText("Base branch")
+    await waitFor(() => expect(baseTrigger.textContent).toContain("main"))
+  })
+
+  it("creates a diff review with the chosen base and head refs", async () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {
+      target: { value: "Auth rewrite" }
+    })
+
+    await waitFor(() => expect(listBranches).toHaveBeenCalled())
+
+    pick(await screen.findByLabelText("Head branch"))
+    pick(await screen.findByRole("option", { name: "feature/x" }))
+
+    fireEvent.click(screen.getByText("Create diff review"))
+
+    await waitFor(() =>
+      expect(createDiffReview).toHaveBeenCalledWith({
+        project_id: "p1",
+        name: "Auth rewrite",
+        base_ref: "main",
+        head_ref: "feature/x"
+      })
+    )
+  })
+
+  it("surfaces a list_branches error inside the diff-review composer", async () => {
+    listBranches.mockResolvedValueOnce({ branches: [], default: null, error: "not_a_git_repo" })
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    await waitFor(() => expect(screen.getByText("not_a_git_repo")).toBeInTheDocument())
+  })
+
+  it("surfaces a create_diff_review error", async () => {
+    createDiffReview.mockResolvedValueOnce({ review_id: null, error: "head_missing" })
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {
+      target: { value: "Auth rewrite" }
+    })
+
+    await waitFor(() => expect(listBranches).toHaveBeenCalled())
+
+    pick(await screen.findByLabelText("Head branch"))
+    pick(await screen.findByRole("option", { name: "release" }))
+
+    fireEvent.click(screen.getByText("Create diff review"))
+
+    await waitFor(() => expect(screen.getByText("head_missing")).toBeInTheDocument())
   })
 
   it("surfaces a create-project error", async () => {
