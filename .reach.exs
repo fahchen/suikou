@@ -46,5 +46,13 @@
       {"Suikou.Export.*", ["Suikou.Export", "Suikou.Export.*"]},
       {"Suikou.Reads.*", ["Suikou.Reads", "Suikou.Reads.*"]}
     ]
+  ],
+  smells: [
+    # Every Musubi root store implements the same framework contract —
+    # `Musubi.Store`'s three callbacks (mount/2, handle_command/3, render/1) —
+    # so the behaviour already exists and the stores are not interchangeable
+    # implementations. Only flag modules that share callbacks *beyond* that
+    # framework contract.
+    behaviour_candidate: [min_callbacks: 4]
   ]
 ]
