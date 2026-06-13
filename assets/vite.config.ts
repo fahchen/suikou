@@ -27,8 +27,13 @@ export default defineConfig({
     include: ["use-sync-external-store/shim/with-selector", "use-sync-external-store/shim"]
   },
   build: {
-    outDir: "../priv/static/assets",
-    emptyOutDir: true,
+    // index.html -> priv/static/index.html, hashed JS/CSS -> priv/static/assets/.
+    // emptyOutDir is false because priv/static also holds committed static files
+    // (favicon.ico, robots.txt, fonts/, images/); the package task clears stale
+    // hashed bundles before building.
+    outDir: "../priv/static",
+    assetsDir: "assets",
+    emptyOutDir: false,
     manifest: true
   },
   server: {
