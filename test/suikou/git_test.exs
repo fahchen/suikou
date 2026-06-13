@@ -163,6 +163,38 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "trap_exit isolation" do
+    @tag :tmp_dir
+    test "git subprocess Port exit never leaks into a trap_exit caller", %{tmp_dir: dir} do
+      # Regression: when `Suikou.Git` ran `System.cmd` inline, the OS-process
+      # Port was linked to the caller. A `trap_exit` GenServer (like
+      # `Musubi.Page.Server`) received `{:EXIT, port, :normal}` and crashed
+      # Musubi 0.8.0's port-unaware exit logger, disconnecting the store.
+      init_repo!(dir, branch: "main")
+      parent = self()
+
+      worker =
+        spawn(fn ->
+          Process.flag(:trap_exit, true)
+          result = Git.list_branches(dir)
+
+          leaked =
+            receive do
+              {:EXIT, _from, _reason} = msg -> msg
+            after
+              200 -> :none
+            end
+
+          send(parent, {:done, result, leaked, Process.alive?(self())})
+        end)
+
+      ref = Process.monitor(worker)
+
+      assert_receive {:done, {:ok, ["main"]}, :none, true}, 5_000
+      assert_receive {:DOWN, ^ref, :process, ^worker, :normal}, 1_000
+    end
+  end
+
   describe "env/0" do
     test "neutralizes config + GIT_DIR/work-tree/index/object-dir overrides" do
       env = Map.new(Git.env())

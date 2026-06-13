@@ -213,12 +213,49 @@ defmodule Suikou.Git do
 
   defp run(dir, args) do
     if File.dir?(dir) do
-      case System.cmd("git", args, cd: dir, stderr_to_stdout: true, env: env()) do
-        {out, 0} -> {:ok, out}
-        {_out, _code} -> {:error, :git_error}
-      end
+      # Run `System.cmd` in an unlinked, monitored worker so the git
+      # subprocess Port is linked to the worker — not the caller. Inside a
+      # `trap_exit` GenServer (e.g. `Musubi.Page.Server`) the Port's normal
+      # termination would otherwise leak `{:EXIT, port, :normal}` into the
+      # caller's mailbox and crash Musubi 0.8.0's port-unaware exit logger.
+      run_in_worker(dir, args)
     else
       {:error, :git_error}
+    end
+  end
+
+  defp run_in_worker(dir, args) do
+    parent = self()
+    ref = make_ref()
+    cmd_env = env()
+
+    {pid, mon} =
+      spawn_monitor(fn ->
+        result = System.cmd("git", args, cd: dir, stderr_to_stdout: true, env: cmd_env)
+        send(parent, {ref, result})
+      end)
+
+    receive do
+      {^ref, {out, 0}} ->
+        consume_down(mon, pid)
+        {:ok, out}
+
+      {^ref, {_out, _code}} ->
+        consume_down(mon, pid)
+        {:error, :git_error}
+
+      {:DOWN, ^mon, :process, ^pid, _reason} ->
+        {:error, :git_error}
+    end
+  end
+
+  defp consume_down(mon, pid) do
+    receive do
+      {:DOWN, ^mon, :process, ^pid, _reason} -> :ok
+    after
+      0 ->
+        Process.demonitor(mon, [:flush])
+        :ok
     end
   end
 
