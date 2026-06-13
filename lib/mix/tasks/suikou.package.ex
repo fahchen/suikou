@@ -56,7 +56,10 @@ defmodule Mix.Tasks.Suikou.Package do
     File.rm_rf!("priv/static/assets")
     File.rm_rf!("priv/static/index.html")
 
-    cmd("bun", ["install"], cd: "assets")
+    # --no-save so packaging can't rewrite assets/bun.lock, keeping the working
+    # tree clean. (--frozen-lockfile is unusable here: the `file:` musubi deps
+    # make bun re-resolve and report changes on every run.)
+    cmd("bun", ["install", "--no-save"], cd: "assets")
     cmd("bun", ["run", "build"], cd: "assets")
   end
 
