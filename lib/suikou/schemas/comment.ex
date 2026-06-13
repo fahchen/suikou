@@ -13,6 +13,7 @@ defmodule Suikou.Schemas.Comment do
   import PolymorphicEmbed
 
   alias Suikou.Schemas.Anchor.DiffHunk
+  alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
@@ -21,7 +22,7 @@ defmodule Suikou.Schemas.Comment do
   @critique_types [:fix_required, :needs_answer, :note]
   @statuses [:pending, :published]
 
-  @anchor_types [line_range: LineRange, diff_hunk: DiffHunk]
+  @anchor_types [line_range: LineRange, diff_hunk: DiffHunk, element: Element]
 
   @type scope() :: :review | :artifact | :located
   @type critique_type() :: :fix_required | :needs_answer | :note
