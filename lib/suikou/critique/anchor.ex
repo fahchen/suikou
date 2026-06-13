@@ -106,7 +106,7 @@ defmodule Suikou.Critique.Anchor do
   def resolve(%LineRange{} = anchor, content_lines) when is_list(content_lines) do
     case locate(content_lines, anchor.quote, anchor.start_line) do
       {:ok, {start_line, end_line}} ->
-        {%{start_line: start_line, end_line: end_line, quote: anchor.quote}, false}
+        {view(start_line, end_line, anchor.quote), false}
 
       :not_found ->
         {stale(anchor), true}
@@ -116,7 +116,11 @@ defmodule Suikou.Critique.Anchor do
   def resolve(%LineRange{} = anchor, nil), do: {stale(anchor), true}
 
   defp stale(%LineRange{} = anchor) do
-    %{start_line: anchor.start_line, end_line: anchor.end_line, quote: anchor.quote}
+    view(anchor.start_line, anchor.end_line, anchor.quote)
+  end
+
+  defp view(start_line, end_line, quote) do
+    %{start_line: start_line, end_line: end_line, quote: quote}
   end
 
   defp quote_lines(content, start_line, end_line) do

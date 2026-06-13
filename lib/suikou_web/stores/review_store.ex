@@ -131,7 +131,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       artifact: %{id: "", title: "", approved: false, approved_round: nil},
       artifacts: [],
       rounds: [],
-      current_round: %{number: 0, content_hash: "", is_latest: true},
+      current_round: current_round(0, "", true),
       comments: comments_child(artifact_id, nil),
       latest_verdict: nil,
       draft_verdict: nil
@@ -225,14 +225,14 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   defp render_current_round(nil, _latest_number) do
-    %{number: 0, content_hash: "", is_latest: true}
+    current_round(0, "", true)
   end
 
   defp render_current_round(%Round{} = round, latest_number) do
-    %{
-      number: round.number,
-      content_hash: round.content_hash,
-      is_latest: round.number == latest_number
-    }
+    current_round(round.number, round.content_hash, round.number == latest_number)
+  end
+
+  defp current_round(number, content_hash, is_latest) do
+    %{number: number, content_hash: content_hash, is_latest: is_latest}
   end
 end
