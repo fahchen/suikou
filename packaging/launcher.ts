@@ -90,8 +90,9 @@ async function ensureSecret(): Promise<string> {
   if (await f.exists()) {
     const existing = (await f.text()).trim()
     // Phoenix demands >= 64 bytes; a truncated/corrupt file would crash the boot,
-    // so regenerate rather than hand back something too short.
-    if (existing.length >= 64) return existing
+    // so regenerate rather than hand back something too short. Measure bytes, not
+    // characters, to match what Phoenix actually checks.
+    if (Buffer.byteLength(existing, "utf8") >= 64) return existing
   }
 
   const secret = randomBytes(64).toString("hex")
