@@ -1,20 +1,12 @@
 defmodule SuikouWeb.Router do
   use SuikouWeb, :router
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   # No content negotiation: asset responses carry the file's own media type.
   pipeline :asset do
   end
 
   pipeline :browser do
     plug :accepts, ["html"]
-  end
-
-  scope "/api", SuikouWeb do
-    pipe_through :api
   end
 
   scope "/api", SuikouWeb do
