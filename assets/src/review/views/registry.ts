@@ -4,6 +4,7 @@ import type { ReviewView } from "../store-context"
 import type { ViewKind } from "../view-kind"
 import { DiffView } from "./DiffView"
 import { FileView } from "./FileView"
+import { HtmlView } from "./HtmlView"
 
 /** Props every registered view receives. */
 export interface ViewProps {
@@ -16,16 +17,11 @@ export interface ViewProps {
 
 export type ViewComponent = ComponentType<ViewProps>
 
-/**
- * Single source of truth for which component renders each view kind. The html
- * kind currently falls through to `FileView`; Phase 12 swaps the `html` entry
- * to a sandboxed iframe view — a localized edit that does not touch the
- * routes.
- */
+/** Single source of truth for which component renders each view kind. */
 const VIEWS: Record<ViewKind, ViewComponent> = {
   file: FileView,
   diff: DiffView,
-  html: FileView
+  html: HtmlView
 }
 
 /** Look up the view component for a resolved kind. */
