@@ -18,7 +18,7 @@ defmodule SuikouWeb do
   """
 
   @spec static_paths() :: [String.t()]
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt index.html)
 
   @spec router() :: Macro.t()
   def router do

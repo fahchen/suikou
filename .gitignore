@@ -36,6 +36,12 @@ suikou-*.tar
 /assets/node_modules/
 /assets/dist/
 /priv/static/assets/
+/priv/static/index.html
+/priv/static/.vite/
+
+# Single-file packaging (mix suikou.package)
+/dist/
+/packaging/embed/server.tar.gz
 
 # Local design assets (not tracked)
 /mockups/

@@ -10,6 +10,7 @@ defmodule Suikou.MixProject do
       compilers: Mix.compilers() ++ [:musubi_ts],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
+      releases: releases(),
       deps: deps(),
       listeners: [Phoenix.CodeReloader],
       dialyzer: [
@@ -34,6 +35,18 @@ defmodule Suikou.MixProject do
   def cli do
     [
       preferred_envs: [precommit: :test, ci: :test]
+    ]
+  end
+
+  # Self-contained release bundling ERTS, embedded into the single-file
+  # executable by `mix suikou.package`.
+  defp releases do
+    [
+      suikou: [
+        include_executables_for: [:unix],
+        include_erts: true,
+        strip_beams: true
+      ]
     ]
   end
 
