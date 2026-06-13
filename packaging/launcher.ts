@@ -61,24 +61,57 @@ async function ensureExtracted(): Promise<string> {
   // bun inserts a content hash before the final extension (server.tar-<hash>.gz),
   // so the whole basename is build-unique; sanitize it into a tidy dir name.
   const key = basename(serverTarball).replace(/[^a-zA-Z0-9]+/g, "-")
-  const dest = join(base, "runtime", key)
+  const runtime = join(base, "runtime")
+  const dest = join(runtime, key)
+  const binPath = join(dest, "suikou", "bin", "suikou")
 
-  if (await file(join(dest, "suikou", "bin", "suikou")).exists()) return dest
+  if (await file(binPath).exists()) return dest
 
-  await mkdir(dest, { recursive: true })
-  const tmp = await mkdtemp(join(base, "runtime", ".extract-"))
+  await mkdir(runtime, { recursive: true })
+
+  // Serialize concurrent first-runs of the same version. mkdir is atomic, so only
+  // one instance wins the lock and extracts; peers wait, then find the binary
+  // already promoted. Without this, a second instance's pre-rename `rm(dest/suikou)`
+  // could delete the files a first instance is already running.
+  const lock = `${dest}.lock`
+  await acquireLock(lock)
   try {
-    const tarPath = join(tmp, "server.tar.gz")
-    await write(tarPath, file(serverTarball))
-    const tar = spawn(["tar", "-xzf", tarPath, "-C", tmp])
-    if ((await tar.exited) !== 0) throw new Error("failed to extract embedded release")
-    // tar archive root is `suikou/`; promote it into the versioned cache dir.
-    // Clear any stale partial promotion first so rename lands on a clean target.
-    await rm(join(dest, "suikou"), { recursive: true, force: true })
-    await rename(join(tmp, "suikou"), join(dest, "suikou"))
-    return dest
+    if (await file(binPath).exists()) return dest
+
+    await mkdir(dest, { recursive: true })
+    const tmp = await mkdtemp(join(runtime, ".extract-"))
+    try {
+      const tarPath = join(tmp, "server.tar.gz")
+      await write(tarPath, file(serverTarball))
+      const tar = spawn(["tar", "-xzf", tarPath, "-C", tmp])
+      if ((await tar.exited) !== 0) throw new Error("failed to extract embedded release")
+      // tar archive root is `suikou/`; promote it into the versioned cache dir.
+      // Clear any stale partial promotion first so rename lands on a clean target.
+      await rm(join(dest, "suikou"), { recursive: true, force: true })
+      await rename(join(tmp, "suikou"), join(dest, "suikou"))
+      return dest
+    } finally {
+      await rm(tmp, { recursive: true, force: true })
+    }
   } finally {
-    await rm(tmp, { recursive: true, force: true })
+    await rm(lock, { recursive: true, force: true })
+  }
+}
+
+// Acquire an exclusive lock by atomically creating a directory; retry while a peer
+// holds it. mkdir without `recursive` fails with EEXIST if the dir exists — the
+// atomic test-and-set we need.
+async function acquireLock(lock: string, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    try {
+      await mkdir(lock)
+      return
+    } catch (err) {
+      if ((err as { code?: string }).code !== "EEXIST") throw err
+      if (Date.now() >= deadline) throw new Error(`timed out waiting for extraction lock ${lock}`)
+      await Bun.sleep(100)
+    }
   }
 }
 
