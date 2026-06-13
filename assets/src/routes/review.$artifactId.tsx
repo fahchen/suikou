@@ -88,6 +88,18 @@ const ReviewShell = observer(function ReviewShell() {
     : visible
   const sideMode = ui.commentMode === "side" && wide && !ui.hideComments
 
+  // The artifact was deleted out from under this tab (its review was removed).
+  if (!snapshot.artifact.id) {
+    return (
+      <Centered tone="error">
+        This review no longer exists.{" "}
+        <a href="/" className="underline">
+          Back to board
+        </a>
+      </Centered>
+    )
+  }
+
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
       <TopBar snapshot={snapshot} previewable={previewable} content={content} />

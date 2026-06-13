@@ -99,7 +99,14 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @spec render(Socket.t()) :: map()
   def render(socket) do
     artifact_id = socket.assigns.artifact_id
-    artifact = Reads.get_artifact(artifact_id)
+
+    case Reads.get_artifact(artifact_id) do
+      nil -> missing_snapshot(artifact_id)
+      %Artifact{} = artifact -> present_snapshot(artifact, artifact_id, socket)
+    end
+  end
+
+  defp present_snapshot(%Artifact{} = artifact, artifact_id, socket) do
     rounds = Reads.list_rounds(artifact_id)
     viewed = viewed_round(rounds, Map.get(socket.assigns, :round_number))
     latest_number = latest_round_number(rounds)
@@ -113,6 +120,21 @@ defmodule SuikouWeb.Stores.ReviewStore do
       comments: comments_child(artifact_id, viewed),
       latest_verdict: viewed && Submissions.latest_verdict(viewed.id),
       draft_verdict: draft_verdict(rounds)
+    }
+  end
+
+  # An artifact deleted out from under an open tab (its review was removed)
+  # renders an empty snapshot — the frontend turns the blank id into a
+  # not-found notice — rather than crashing the store on a nil artifact.
+  defp missing_snapshot(artifact_id) do
+    %{
+      artifact: %{id: "", title: "", approved: false, approved_round: nil},
+      artifacts: [],
+      rounds: [],
+      current_round: %{number: 0, content_hash: "", is_latest: true},
+      comments: comments_child(artifact_id, nil),
+      latest_verdict: nil,
+      draft_verdict: nil
     }
   end
 

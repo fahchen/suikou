@@ -8,6 +8,16 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Submissions
   alias SuikouWeb.Stores.ReviewStore
 
+  describe "missing artifact" do
+    test "renders an empty snapshot instead of crashing when the artifact is gone" do
+      page =
+        Testing.mount(ReviewStore, %{"artifact_id" => "00000000-0000-7000-8000-000000000000"})
+
+      assert %{artifact: %{id: ""}, rounds: [], current_round: %{number: 0}} =
+               Testing.render(page)
+    end
+  end
+
   describe "draft verdict" do
     test "mount renders the latest round's stored draft verdict" do
       round = insert(:round)
