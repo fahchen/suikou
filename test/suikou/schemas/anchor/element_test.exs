@@ -18,7 +18,7 @@ defmodule Suikou.Schemas.Anchor.ElementTest do
       assert %Ecto.Changeset{valid?: false, errors: errors} =
                Element.changeset(%Element{}, params)
 
-      assert {"can't be blank", _} = errors[:selector]
+      assert {"can't be blank", _opts} = errors[:selector]
     end
 
     test "rejects a missing quote" do
@@ -27,7 +27,7 @@ defmodule Suikou.Schemas.Anchor.ElementTest do
       assert %Ecto.Changeset{valid?: false, errors: errors} =
                Element.changeset(%Element{}, params)
 
-      assert {"can't be blank", _} = errors[:quote]
+      assert {"can't be blank", _opts} = errors[:quote]
     end
   end
 end

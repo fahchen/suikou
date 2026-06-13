@@ -18,7 +18,7 @@ defmodule Suikou.Schemas.Anchor.DiffHunkTest do
       assert %Ecto.Changeset{valid?: false, errors: errors} =
                DiffHunk.changeset(%DiffHunk{}, params)
 
-      assert {"must be greater than or equal to start line", _} = errors[:end_line]
+      assert {"must be greater than or equal to start line", _opts} = errors[:end_line]
     end
 
     test "rejects a non-positive start line" do
