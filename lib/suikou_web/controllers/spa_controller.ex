@@ -10,11 +10,10 @@ defmodule SuikouWeb.SpaController do
 
   @doc """
   Sends the SPA shell `priv/static/index.html` for client routes; returns 404 for
-  requests under a reserved prefix (`/api` or a static root). A missing asset or an
-  unknown API path then fails honestly instead of returning HTML with a 200 — the
-  SPA shell is only ever served for genuine browser routes. When the shell hasn't
-  been built yet (e.g. a fresh checkout), responds 500 with a build hint instead
-  of crashing on the missing file.
+  requests under a static root. A missing asset then fails honestly instead of
+  returning HTML with a 200 — the SPA shell is only ever served for genuine browser
+  routes. When the shell hasn't been built yet (e.g. a fresh checkout), responds 500
+  with a build hint instead of crashing on the missing file.
 
   ## Examples
 
@@ -22,9 +21,6 @@ defmodule SuikouWeb.SpaController do
       #=> 200, text/html
 
       get(conn, "/assets/missing.js")
-      #=> 404
-
-      get(conn, "/api/unknown")
       #=> 404
 
   """
@@ -51,9 +47,25 @@ defmodule SuikouWeb.SpaController do
     end
   end
 
+  @doc """
+  Returns 404 for any unmatched `/api` path. Routed under the `:asset` pipeline so a
+  JSON client gets a 404 instead of the 406 the `:browser` pipeline's `plug :accepts`
+  would raise on an `application/json` Accept header.
+
+  ## Examples
+
+      get(conn, "/api/unknown")
+      #=> 404
+
+  """
+  @spec not_found(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def not_found(conn, _params) do
+    send_resp(conn, 404, "")
+  end
+
   defp reserved_path?(conn) do
     case conn.path_info do
-      [first | _rest] -> first == "api" or first in SuikouWeb.static_paths()
+      [first | _rest] -> first in SuikouWeb.static_paths()
       [] -> false
     end
   end
