@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { chmod, mkdir, mkdtemp, rename, rm } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
 import { connect as netConnect } from "node:net"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
@@ -98,20 +98,51 @@ async function ensureExtracted(): Promise<string> {
   }
 }
 
-// Acquire an exclusive lock by atomically creating a directory; retry while a peer
-// holds it. mkdir without `recursive` fails with EEXIST if the dir exists — the
-// atomic test-and-set we need.
+// Acquire an exclusive lock by atomically creating a directory, recording our PID
+// inside so peers can tell a live holder from a dead one. mkdir without `recursive`
+// fails with EEXIST if the dir exists — the atomic test-and-set we need. On EEXIST,
+// reclaim the lock if its holder has died (crash/SIGKILL) so one interrupted run
+// can't brick every future launch; otherwise wait for the live holder to finish.
 async function acquireLock(lock: string, timeoutMs = 30_000): Promise<void> {
+  const owner = join(lock, "owner")
   const deadline = Date.now() + timeoutMs
   for (;;) {
     try {
       await mkdir(lock)
+      await write(owner, String(process.pid))
       return
     } catch (err) {
       if ((err as { code?: string }).code !== "EEXIST") throw err
+      if (await lockIsStale(lock, owner)) {
+        // Best-effort reclaim; a racing peer may win the next mkdir, which is fine.
+        await rm(lock, { recursive: true, force: true })
+        continue
+      }
       if (Date.now() >= deadline) throw new Error(`timed out waiting for extraction lock ${lock}`)
       await Bun.sleep(100)
     }
+  }
+}
+
+// A lock is stale when its recorded PID is no longer running. If the owner file is
+// missing the holder either hasn't written it yet or died in the gap right after
+// mkdir; fall back to the lock dir's age so that rare crash window self-heals too.
+const STALE_OWNER_GRACE_MS = 30_000
+async function lockIsStale(lock: string, owner: string): Promise<boolean> {
+  const f = file(owner)
+  if (!(await f.exists())) {
+    const { mtimeMs } = await stat(lock)
+    return Date.now() - mtimeMs > STALE_OWNER_GRACE_MS
+  }
+
+  const pid = Number.parseInt((await f.text()).trim(), 10)
+  if (!Number.isInteger(pid)) return true
+  try {
+    // Signal 0 probes liveness without delivering anything; ESRCH means gone.
+    process.kill(pid, 0)
+    return false
+  } catch (err) {
+    return (err as { code?: string }).code === "ESRCH"
   }
 }
 
