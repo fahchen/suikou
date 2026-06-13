@@ -27,6 +27,13 @@ export const CommentCard = observer(function CommentCard(props: {
 }) {
   const { comment, context = "rail", selected = false, onSelect } = props;
   const inline = context === "inline";
+  // Element anchors re-resolve client-side (Plan B): HtmlView publishes the
+  // current misses into ui-store, and both inline + rail render paths read
+  // that override here so a selector miss shows the outdated badge identically.
+  const outdated =
+    comment.outdated ||
+    (comment.anchor?.type === "element" &&
+      uiStore.outdatedElementCommentIds.has(comment.id));
   const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
 
@@ -64,7 +71,7 @@ export const CommentCard = observer(function CommentCard(props: {
 
         <CollapsibleContent>
           <div className="flex flex-col gap-2 px-3 py-2.5">
-            {comment.outdated && (
+            {outdated && (
               <p className="text-[12px] text-amber">
                 Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
               </p>

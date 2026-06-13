@@ -6,10 +6,9 @@ import { SquarePlus } from "lucide-react"
 import { CommentCard } from "../CommentCard"
 import { useReviewCommands } from "../commands"
 import { isOutdated, locate, selectorFor } from "../element-selector"
-import type { Comment } from "../types"
 import { CRITIQUE_META } from "../types"
 import { assetBase } from "../urls"
-import type { CritiqueType } from "../../stores/ui-store"
+import { uiStore, type CritiqueType } from "../../stores/ui-store"
 import { Button } from "@/components/ui/button"
 import type { ViewProps } from "./registry"
 
@@ -78,22 +77,33 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
     [comments]
   )
 
-  const decorated = useMemo<DecoratedComment[]>(() => {
-    if (docVersion === 0) return []
+  useEffect(() => {
+    if (docVersion === 0) {
+      uiStore.setOutdatedElementCommentIds(new Set())
+      return
+    }
     const doc = iframeRef.current?.contentDocument
-    if (!doc) return []
+    if (!doc) return
     clearHighlights(doc)
-    return elementComments.map((comment) => {
-      const anchor = comment.anchor!
-      if (anchor.type !== "element") return { comment, outdated: false }
-      const outdated = isOutdated(doc, { selector: anchor.selector, quote: anchor.quote })
-      if (!outdated) {
-        const el = locate(doc, anchor.selector)
-        el?.classList.add(HIGHLIGHT_CLASS)
+    const misses = new Set<string>()
+    for (const comment of elementComments) {
+      const anchor = comment.anchor
+      if (anchor?.type !== "element") continue
+      if (isOutdated(doc, { selector: anchor.selector, quote: anchor.quote })) {
+        misses.add(comment.id)
+      } else {
+        locate(doc, anchor.selector)?.classList.add(HIGHLIGHT_CLASS)
       }
-      return { comment, outdated }
-    })
+    }
+    uiStore.setOutdatedElementCommentIds(misses)
   }, [elementComments, docVersion])
+
+  // Clear the published set on unmount so a later view doesn't see stale misses.
+  useEffect(() => {
+    return () => {
+      uiStore.setOutdatedElementCommentIds(new Set())
+    }
+  }, [])
 
   if (contentError) return <Notice title="Can't load this HTML" message={contentError} />
   if (loading && content === "")
@@ -126,12 +136,8 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
             <CommentCard key={comment.id} comment={comment} context="inline" />
           ))}
           <AnimatePresence initial={false}>
-            {decorated.map(({ comment, outdated }) => (
-              <CommentCard
-                key={comment.id}
-                comment={outdated ? withOutdated(comment) : comment}
-                context="inline"
-              />
+            {elementComments.map((comment) => (
+              <CommentCard key={comment.id} comment={comment} context="inline" />
             ))}
           </AnimatePresence>
         </section>
@@ -139,16 +145,6 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
     </div>
   )
 })
-
-interface DecoratedComment {
-  comment: Comment
-  outdated: boolean
-}
-
-function withOutdated(comment: Comment): Comment {
-  if (comment.outdated) return comment
-  return { ...comment, outdated: true }
-}
 
 const HtmlComposer = observer(function HtmlComposer(props: {
   selector: string
@@ -297,7 +293,11 @@ function composeSrcdoc(html: string, base: string): string {
 }
 
 function escapeAttr(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
 }
 
 function elementForRange(range: Range): Element | null {

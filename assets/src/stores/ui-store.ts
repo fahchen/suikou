@@ -49,6 +49,13 @@ export class UiStore {
   composerType: CritiqueType = "note"
   composerBody = ""
 
+  // Client-computed outdated state for element-anchored comments. The server
+  // never relocates element anchors (Plan B: re-anchoring is client-only), so
+  // HtmlView resolves them against the live iframe DOM and publishes the
+  // misses here. Scoped to element anchors so the file/diff views are
+  // unaffected; CommentCard reads it through `isCommentOutdated/1`.
+  outdatedElementCommentIds: Set<string> = new Set()
+
   constructor() {
     makeAutoObservable(this)
 
@@ -166,9 +173,23 @@ export class UiStore {
     this.composerBody = body
   }
 
+  // Replace the set in one shot so observers see a single change. Identity-
+  // equal sets short-circuit to avoid spurious renders when nothing moved.
+  setOutdatedElementCommentIds(ids: Set<string>): void {
+    if (sameSet(this.outdatedElementCommentIds, ids)) return
+    this.outdatedElementCommentIds = ids
+  }
+
   private applyTheme(): void {
     document.documentElement.dataset.theme = this.theme
   }
+}
+
+function sameSet(a: Set<string>, b: Set<string>): boolean {
+  if (a === b) return true
+  if (a.size !== b.size) return false
+  for (const v of a) if (!b.has(v)) return false
+  return true
 }
 
 export const uiStore = new UiStore()

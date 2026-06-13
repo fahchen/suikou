@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 
 import type { Comment } from "../types"
 import type { ReviewView } from "../store-context"
+import { uiStore } from "../../stores/ui-store"
+import { CommentCard } from "../CommentCard"
 
 beforeAll(() => {
   if (!window.matchMedia) {
@@ -88,6 +90,7 @@ async function flushMicrotasks(): Promise<void> {
 
 beforeEach(() => {
   dispatch.mockReset()
+  uiStore.setOutdatedElementCommentIds(new Set())
 })
 
 describe("HtmlView", () => {
@@ -175,6 +178,41 @@ describe("HtmlView", () => {
     await waitFor(() =>
       expect(screen.getByText(/Lost its anchor/)).toBeInTheDocument()
     )
+  })
+
+  it("publishes outdated element-comment ids so the rail badge matches inline", async () => {
+    const carried: Comment = {
+      id: "c-outdated-rail",
+      anchor: { type: "element", selector: "#gone", quote: "missing" },
+      body: "this no longer applies",
+      critique_type: "note",
+      status: "published",
+      resolved: false,
+      outdated: false,
+      carried: true,
+      original_round: 1,
+      resolved_round: null,
+      inserted_at: "2026-06-14T00:00:00Z",
+      scope: "located",
+      replies: []
+    } as unknown as Comment
+
+    render(
+      <>
+        <HtmlView
+          view={makeView(`<p id="kept">still here</p>`, [carried])}
+          forceRaw={false}
+          inline={false}
+        />
+        <CommentCard comment={carried} context="rail" />
+      </>
+    )
+
+    await loadedIframe(`<p id="kept">still here</p>`)
+    await waitFor(() =>
+      expect(uiStore.outdatedElementCommentIds.has("c-outdated-rail")).toBe(true)
+    )
+    expect(screen.getByText(/Lost its anchor/)).toBeInTheDocument()
   })
 
   it("does NOT render anchored element comments inline when inline=false", async () => {
