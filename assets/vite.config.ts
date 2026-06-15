@@ -41,11 +41,11 @@ export default defineConfig({
     allowedHosts: [".ts.net"],
     proxy: {
       "/socket": {
-        target: "ws://localhost:4000",
+        target: "ws://localhost:4710",
         ws: true
       },
       "/api": {
-        target: "http://localhost:4000"
+        target: "http://localhost:4710"
       }
     }
   }
