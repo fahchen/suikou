@@ -99,10 +99,10 @@ defmodule Suikou.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
-        "dialyzer",
-        "test",
         "ex_dna --max-clones 0",
-        "reach.check --arch --smells --strict"
+        "reach.check --arch --smells --strict",
+        "dialyzer",
+        "test"
       ],
       ci: [
         "compile --warnings-as-errors",
