@@ -1,5 +1,3 @@
-import { spawn as spawnDetached } from "node:child_process"
-import { openSync } from "node:fs"
 import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
@@ -19,12 +17,18 @@ const BASE_PORT = 47100
 const PORT_PROBE_LIMIT = 16
 
 const base = join(homedir(), "Library", "Application Support", APP_NAME)
-// PID/log files live at the base dir (NOT the versioned runtime dir) so stop and
-// status keep working across version upgrades, which swap the runtime hash.
-const pidfilePath = join(base, "suikou.pid")
-const logPath = join(base, "suikou.log")
-
-type Daemon = { pid: number; port: number }
+// Background lifecycle is delegated to the release's own OTP-native commands
+// (`bin/suikou daemon`/`stop`/`pid`). We pin the release's runtime identity to
+// STABLE locations in the base dir — not the per-build runtime/<hash> dir — so a
+// `stop`/`pid` from a newer binary can still reach a daemon an older one started:
+//   * RELEASE_TMP holds run_erl's pipes (reach the node) and logs.
+//   * RELEASE_COOKIE + RELEASE_NODE + RELEASE_DISTRIBUTION fix the distributed
+//     identity the `stop`/`pid` rpc connects to.
+const releaseTmp = join(base, "tmp")
+const logDir = join(releaseTmp, "log")
+// run_erl writes its piped output here.
+const daemonFile = join(base, "daemon.json")
+const RELEASE_NODE = "suikou@127.0.0.1"
 
 // Dispatch on the first positional arg. Bare invocation stays a foreground
 // server (the original behavior); subcommands add background daemon control.
@@ -36,8 +40,8 @@ async function dispatch(command: string | undefined): Promise<void> {
       // Bare invocation: foreground server that opens the browser. Never returns.
       return runServer({ openBrowser: true })
     case "run":
-      // Internal: what `start` execs detached. The parent opens the browser, so
-      // this child does not. Never returns.
+      // Internal alias for the foreground server, without opening the browser.
+      // Never returns.
       return runServer({ openBrowser: false })
     case "start":
       return process.exit(await start())
@@ -51,32 +55,22 @@ async function dispatch(command: string | undefined): Promise<void> {
   }
 }
 
-// Foreground server body shared by bare invocation and the detached `run` child:
-// extract the release, spawn it inheriting our stdio, forward signals for a
-// graceful drain, and exit with the child's code. Never returns.
+// Foreground server body shared by bare invocation and `run`: extract the release,
+// spawn it inheriting our stdio, forward signals for a graceful drain, and exit
+// with the child's code. Never returns.
 async function runServer({ openBrowser }: { openBrowser: boolean }): Promise<never> {
   const releaseRoot = await ensureExtracted()
   const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  await mkdir(releaseTmp, { recursive: true })
   const port = await pickPort()
 
   const proc = spawn([bin, "start"], {
-    // Inherit our stdio. Bare invocation inherits the terminal; the detached
-    // `run` child inherits the logfile fds the parent `start` handed it.
+    // Inherit the terminal: this process *is* the server, so its logs go straight
+    // to the user's console.
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
-    env: {
-      ...process.env,
-      PHX_SERVER: "true",
-      // Pass through PHX_HOST so a Tailscale MagicDNS name / tailnet IP can be set
-      // at launch (PHX_HOST=mybox.tailnet.ts.net suikou). It drives URL generation
-      // and is allow-listed for websocket origin checks in config/runtime.exs.
-      // Defaults to localhost. The server itself already binds all interfaces.
-      PHX_HOST: process.env.PHX_HOST || "localhost",
-      PORT: String(port),
-      DATABASE_PATH: join(base, "suikou.db"),
-      SECRET_KEY_BASE: await ensureSecret()
-    }
+    env: await releaseEnv({ PORT: String(port) })
   })
 
   // SIGTERM lets the release drain gracefully (it traps it). Forward both signals,
@@ -96,150 +90,164 @@ async function runServer({ openBrowser }: { openBrowser: boolean }): Promise<nev
   process.exit(await proc.exited)
 }
 
-// `suikou start`: launch a detached background daemon and return promptly.
+// `suikou start`: start the release as an OTP daemon (run_erl), then open the
+// browser once it is serving. Returns promptly — `daemon` backgrounds itself.
 async function start(): Promise<number> {
-  const existing = await loadPidfile()
-  if (existing && alive(existing.pid)) {
-    console.log(`already running (pid ${existing.pid}) at ${urlForPort(existing.port)}`)
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  await mkdir(releaseTmp, { recursive: true })
+  const env = await releaseEnv()
+
+  const runningPid = await daemonPid(bin, env)
+  if (runningPid !== null) {
+    const url = urlForPort((await loadDaemonPort()) ?? BASE_PORT)
+    spawn(["open", url])
+    console.log(`already running (pid ${runningPid}) at ${url}`)
     return 0
   }
 
-  // The parent picks the port so it can record it and open the right URL, then
-  // hands it to the detached child via PORT so they agree on the binding.
   const port = await pickPort()
-  await mkdir(base, { recursive: true })
-  const logFd = openSync(logPath, "a")
+  await write(daemonFile, JSON.stringify({ port }))
 
-  // node:child_process `detached: true` is Bun-native (setsid/new session), so the
-  // daemon survives both this parent exiting and the terminal closing. unref drops
-  // it from the parent's event loop so we can exit.
-  const child = spawnDetached(process.execPath, ["run"], {
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-    env: { ...process.env, PORT: String(port) }
+  // Do NOT pipe the daemon's stdio: run_erl backgrounds itself but inherits these
+  // fds, so a piped stdout would stay open and a read would hang forever. run_erl
+  // writes the real output to logDir; we only care about the exit code.
+  const daemon = spawn([bin, "daemon"], {
+    env: { ...env, PORT: String(port) },
+    stdout: "ignore",
+    stderr: "ignore"
   })
-  child.unref()
-
-  if (child.pid === undefined) {
-    console.error(`failed to spawn daemon; see ${logPath}`)
+  const exitCode = await daemon.exited
+  if (exitCode !== 0) {
+    console.error(`failed to start daemon (exit ${exitCode}); see logs in ${logDir}`)
     return 1
   }
-
-  await write(pidfilePath, JSON.stringify({ pid: child.pid, port }))
 
   const url = urlForPort(port)
   if (await waitForReady(port)) {
     spawn(["open", url])
-    console.log(`started (pid ${child.pid}) at ${url}`)
+    console.log(`started at ${url}`)
   } else {
-    console.error(`started (pid ${child.pid}) but not ready yet at ${url}; see ${logPath}`)
+    console.error(`started but not ready yet at ${url}; see logs in ${logDir}`)
   }
   return 0
 }
 
-// `suikou stop`: SIGTERM the daemon for a graceful drain, escalate to SIGKILL if
-// it overstays, then clear the pidfile.
+// `suikou stop`: ask the running node to stop via the release rpc. A downed node
+// reports `:noconnection`, which we surface as "not running".
 async function stop(): Promise<number> {
-  if (!(await file(pidfilePath).exists())) {
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const env = await releaseEnv()
+
+  const { exitCode, stderr } = await releaseCommand(bin, ["stop"], env)
+  if (exitCode === 0) {
+    // System.stop() is async: the rpc returns while the node is still draining and
+    // briefly keeps answering. Wait for it to actually vanish so a follow-up
+    // start/status sees a clean state.
+    const deadline = Date.now() + 10_000
+    while (Date.now() < deadline && (await daemonPid(bin, env)) !== null) {
+      await Bun.sleep(150)
+    }
+    await rm(daemonFile, { force: true })
+    console.log("stopped")
+    return 0
+  }
+
+  if (notRunning(stderr)) {
+    await rm(daemonFile, { force: true })
     console.log("not running")
     return 0
   }
 
-  const info = await loadPidfile()
-  if (!info || !alive(info.pid)) {
-    await rm(pidfilePath, { force: true })
-    console.log("not running (removed stale pidfile)")
-    return 0
-  }
-
-  const term = signal(info.pid, "SIGTERM")
-  if (term.code === "ESRCH") {
-    // Raced with the process exiting between the liveness check and the signal.
-    await rm(pidfilePath, { force: true })
-    console.log("not running (removed stale pidfile)")
-    return 0
-  }
-  if (!term.ok) {
-    console.error(`cannot signal pid ${info.pid}: ${term.code ?? "unknown error"}`)
-    return 1
-  }
-
-  const deadline = Date.now() + 10_000
-  while (Date.now() < deadline && alive(info.pid)) {
-    await Bun.sleep(150)
-  }
-
-  let forced = ""
-  if (alive(info.pid)) {
-    const kill = signal(info.pid, "SIGKILL")
-    if (!kill.ok && kill.code !== "ESRCH") {
-      console.error(`cannot signal pid ${info.pid}: ${kill.code ?? "unknown error"}`)
-      return 1
-    }
-    forced = " (forced)"
-  }
-
-  await rm(pidfilePath, { force: true })
-  console.log(`stopped${forced}`)
-  return 0
+  console.error(`stop failed (exit ${exitCode}): ${stderr.trim()}`)
+  return 1
 }
 
-// `suikou status`: report liveness, pruning a stale pidfile if its holder is gone.
-// A live pid whose port is not yet accepting reads as "starting", since the
-// daemon can be up before Phoenix finishes binding.
+// `suikou status`: ask the release for the daemon's OS pid, then check the port.
+// A live node whose port is not yet accepting reads as "starting".
 async function status(): Promise<number> {
-  const info = await loadPidfile()
-  if (info && alive(info.pid)) {
-    if (await tcpUp(info.port)) {
-      console.log(`running (pid ${info.pid}) at ${urlForPort(info.port)}  logs: ${logPath}`)
-    } else {
-      console.log(
-        `starting (pid ${info.pid}), port ${info.port} not yet reachable  logs: ${logPath}`
-      )
-    }
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const env = await releaseEnv()
+
+  const pid = await daemonPid(bin, env)
+  if (pid === null) {
+    await rm(daemonFile, { force: true })
+    console.log("not running")
     return 0
   }
 
-  if (await file(pidfilePath).exists()) await rm(pidfilePath, { force: true })
-  console.log("not running")
+  const port = (await loadDaemonPort()) ?? BASE_PORT
+  if (await tcpUp(port)) {
+    console.log(`running (pid ${pid}) at ${urlForPort(port)}  logs: ${logDir}`)
+  } else {
+    console.log(`starting (pid ${pid}), port ${port} not yet reachable  logs: ${logDir}`)
+  }
   return 0
 }
 
-// Read and validate the daemon pidfile. Returns null when absent or corrupt.
-async function loadPidfile(): Promise<Daemon | null> {
-  const f = file(pidfilePath)
+// Shared environment for every release invocation. Pins the runtime identity to
+// stable base-dir locations so daemon/stop/pid are version-independent.
+async function releaseEnv(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  return {
+    ...(process.env as Record<string, string>),
+    PHX_SERVER: "true",
+    // Pass through PHX_HOST so a Tailscale MagicDNS name / tailnet IP can be set
+    // at launch (PHX_HOST=mybox.tailnet.ts.net suikou). It drives URL generation
+    // and is allow-listed for websocket origin checks in config/runtime.exs.
+    // Defaults to localhost. The server itself already binds all interfaces.
+    PHX_HOST: process.env.PHX_HOST || "localhost",
+    DATABASE_PATH: join(base, "suikou.db"),
+    SECRET_KEY_BASE: await ensureSecret(),
+    RELEASE_TMP: releaseTmp,
+    RELEASE_COOKIE: await ensureCookie(),
+    RELEASE_NODE,
+    RELEASE_DISTRIBUTION: "name",
+    ...extra
+  }
+}
+
+// Run a release subcommand to completion, capturing its output. Used for the
+// quick rpc-style commands (daemon/stop/pid) — never the long-lived foreground.
+async function releaseCommand(
+  bin: string,
+  args: string[],
+  env: Record<string, string>
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const proc = spawn([bin, ...args], { env, stdout: "pipe", stderr: "pipe" })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text()
+  ])
+  return { exitCode: await proc.exited, stdout, stderr }
+}
+
+// Ask the running node for its OS pid via `bin/suikou pid`. Returns null when no
+// node answers (the rpc exits non-zero with `:noconnection`).
+async function daemonPid(bin: string, env: Record<string, string>): Promise<number | null> {
+  const { exitCode, stdout } = await releaseCommand(bin, ["pid"], env)
+  if (exitCode !== 0) return null
+  const pid = Number.parseInt(stdout.trim(), 10)
+  return Number.isInteger(pid) ? pid : null
+}
+
+// The release rpc reports an unreachable node as `:noconnection` (or `:nodedown`);
+// for a single-user desktop daemon that just means nothing is running.
+function notRunning(stderr: string): boolean {
+  return /noconnection|nodedown/.test(stderr)
+}
+
+async function loadDaemonPort(): Promise<number | null> {
+  const f = file(daemonFile)
   if (!(await f.exists())) return null
   try {
     const data = JSON.parse(await f.text())
-    if (typeof data?.pid === "number" && typeof data?.port === "number") {
-      return { pid: data.pid, port: data.port }
-    }
+    if (typeof data?.port === "number") return data.port
   } catch {
-    // fall through to null for a truncated/corrupt pidfile
+    // fall through to null for a truncated/corrupt file
   }
   return null
-}
-
-// Send a signal without letting a kill error (ESRCH, EPERM, ...) crash the
-// launcher. Returns whether it landed plus the errno code for the caller to act on.
-function signal(pid: number, sig: "SIGTERM" | "SIGKILL"): { ok: boolean; code?: string } {
-  try {
-    process.kill(pid, sig)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, code: (err as { code?: string }).code }
-  }
-}
-
-// Probe liveness without delivering a signal. ESRCH means the process is gone;
-// EPERM (alive but not ours) still counts as alive.
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (err) {
-    return (err as { code?: string }).code !== "ESRCH"
-  }
 }
 
 function urlForPort(p: number): string {
@@ -366,6 +374,24 @@ async function ensureSecret(): Promise<string> {
   await write(path, secret)
   await chmod(path, 0o600)
   return secret
+}
+
+// Persist a stable Erlang distribution cookie on first run, reused across every
+// version. A per-version cookie would leave a newer binary unable to authenticate
+// against (and so stop) a daemon an older one started.
+async function ensureCookie(): Promise<string> {
+  const path = join(base, "cookie")
+  const f = file(path)
+  if (await f.exists()) {
+    const existing = (await f.text()).trim()
+    if (existing.length > 0) return existing
+  }
+
+  const bytes = crypto.getRandomValues(new Uint8Array(64))
+  const cookie = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+  await write(path, cookie)
+  await chmod(path, 0o600)
+  return cookie
 }
 
 // Honor an explicit PORT; otherwise probe BASE_PORT upward until one is free,
