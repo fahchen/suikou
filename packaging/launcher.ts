@@ -7,7 +7,7 @@ import { file, spawn, write } from "bun"
 // embeds the bytes into the compiled binary and rewrites this import to a
 // `$bunfs/...` path whose basename carries a content hash — we reuse that hash
 // as the cache key.
-import serverPack from "./embed/server.tar.gz" with { type: "file" }
+import serverTarball from "./embed/server.tar.gz" with { type: "file" }
 
 const APP_NAME = "Suikou"
 // Fixed high base port (registered range, away from common dev ports and the
@@ -61,9 +61,9 @@ process.exit(await proc.exited)
 // binary extracts fresh while the persisted DB and secret (kept at the base dir)
 // survive across versions.
 async function ensureExtracted(): Promise<string> {
-  // bun inserts a content hash before the final extension (server.pack-<hash>.gz),
+  // bun inserts a content hash before the final extension (server.tar-<hash>.gz),
   // so the whole basename is build-unique; sanitize it into a tidy dir name.
-  const key = basename(serverPack).replace(/[^a-zA-Z0-9]+/g, "-")
+  const key = basename(serverTarball).replace(/[^a-zA-Z0-9]+/g, "-")
   const runtime = join(base, "runtime")
   const dest = join(runtime, key)
   const binPath = join(dest, "suikou", "bin", "suikou")
@@ -88,7 +88,7 @@ async function ensureExtracted(): Promise<string> {
       // erts-*/) at its root, so extract into a `suikou` subdir to reconstruct
       // the `suikou/bin/suikou` layout the promotion below expects. Bun.Archive
       // (libarchive) restores exec bits and symlinks with no external `tar`.
-      const bytes = new Uint8Array(await file(serverPack).arrayBuffer())
+      const bytes = new Uint8Array(await file(serverTarball).arrayBuffer())
       await new Bun.Archive(bytes).extract(join(tmp, "suikou"))
       // Promote the extracted release into the versioned cache dir. Clear any
       // stale partial promotion first so rename lands on a clean target.
