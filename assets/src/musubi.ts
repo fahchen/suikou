@@ -8,7 +8,7 @@ import { createMusubi } from "@musubi/react"
 // the host from the page so remote clients (e.g. over Tailscale) reach the dev
 // machine instead of resolving "localhost" to themselves.
 const socketUrl = import.meta.env.DEV
-  ? `ws://${window.location.hostname}:4010/socket`
+  ? `ws://${window.location.hostname}:4710/socket`
   : "/socket"
 
 export const socket = new Socket(socketUrl)
