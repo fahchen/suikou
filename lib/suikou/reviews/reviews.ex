@@ -24,6 +24,7 @@ defmodule Suikou.Reviews do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
+  alias Suikou.Submissions
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
@@ -59,9 +60,12 @@ defmodule Suikou.Reviews do
 
   @doc """
   Lists `project`'s candidate branches together with its resolved default
-  branch, for the board's diff-review creation picker (see BDR-0020). The
-  branches are sorted by descending commit date; `default` is the repository
-  default branch via `Suikou.Git.default_branch/1` and is the suggested base.
+  branch, for the board's diff-review creation picker (see BDR-0020).
+  Returns local branches under `:branches` and `origin/*` remote-tracking
+  branches under `:remote_branches`, each sorted by descending commit date.
+  `:default` is the repository default branch via `Suikou.Git.default_branch/1`
+  and is the suggested base. `:remote_branches` is `[]` when no `origin`
+  remote is configured.
 
   Returns `{:error, :not_a_git_repo}` when `project.path` is not a git working
   tree, and `{:error, :git_error}` when git fails.
@@ -69,21 +73,30 @@ defmodule Suikou.Reviews do
   ## Examples
 
       Suikou.Reviews.list_branches(project)
-      #=> {:ok, %{branches: ["topic", "main"], default: "main"}}
+      #=> {:ok, %{branches: ["topic", "main"], remote_branches: ["origin/main"], default: "main"}}
 
   """
   @spec list_branches(Project.t()) ::
-          {:ok, %{branches: [String.t()], default: String.t()}}
+          {:ok, %{branches: [String.t()], remote_branches: [String.t()], default: String.t()}}
           | {:error, :not_a_git_repo | :git_error}
   def list_branches(%Project{path: path}) do
-    with {:ok, branches} <- branches_or_error(path),
+    with {:ok, branches} <- local_or_error(path),
+         {:ok, remote_branches} <- remote_or_error(path),
          {:ok, default} <- default_or_error(path) do
-      {:ok, %{branches: branches, default: default}}
+      {:ok, %{branches: branches, remote_branches: remote_branches, default: default}}
     end
   end
 
-  defp branches_or_error(path) do
+  defp local_or_error(path) do
     case Git.list_branches(path) do
+      {:ok, branches} -> {:ok, branches}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, :git_error} -> {:error, :git_error}
+    end
+  end
+
+  defp remote_or_error(path) do
+    case Git.list_remote_branches(path) do
       {:ok, branches} -> {:ok, branches}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, :git_error} -> {:error, :git_error}
@@ -121,6 +134,7 @@ defmodule Suikou.Reviews do
              | :base_ref_not_found
              | :head_ref_not_found
              | :no_changes
+             | :git_error
              | Ecto.Changeset.t()}
   def create_diff_review(%Project{} = project, params) do
     with :ok <- ensure_git_repo(project),
@@ -128,14 +142,29 @@ defmodule Suikou.Reviews do
          {:ok, head} <- fetch_head_ref(params),
          :ok <- ensure_ref(project, base, :base_ref_not_found),
          :ok <- ensure_ref(project, head, :head_ref_not_found),
-         :ok <- ensure_changes(project, base, head) do
+         :ok <- ensure_changes(project, base, head),
+         {:ok, base_sha} <- pin_sha(project, base),
+         {:ok, head_sha} <- pin_sha(project, head) do
       changeset =
         Review.create_changeset(project, %{
           name: Map.get(params, :name),
-          source: %{__type__: "git_diff", base_ref: base, head_ref: head}
+          source: %{
+            __type__: "git_diff",
+            base_ref: base,
+            head_ref: head,
+            base_sha: base_sha,
+            head_sha: head_sha
+          }
         })
 
       if changeset.valid?, do: Repo.insert(changeset), else: {:error, changeset}
+    end
+  end
+
+  defp pin_sha(%Project{path: path}, ref) do
+    case Git.rev_parse(path, ref) do
+      {:ok, sha} -> {:ok, sha}
+      {:error, _reason} -> {:error, :git_error}
     end
   end
 
@@ -276,46 +305,237 @@ defmodule Suikou.Reviews do
 
   @doc """
   Lists a review's current files by expanding its selection against disk. Each
-  entry carries the file path, the id of its already-minted active artifact (or
-  `nil` when the file has not been opened yet), and whether it is approved.
-  Walked on demand, never on the board render.
+  entry carries the file path, the id of its already-minted active artifact
+  (or `nil` when the file has not been opened yet), whether it is approved,
+  `content_hash` — a stable cache key for the file's current bytes (SHA-256
+  hex of the on-disk file for a selection review; the head ref's git blob hash
+  for a diff review) — and `change_status`, the file's diff modification kind
+  for a diff review (`:added | :modified | :deleted | :renamed | :copied |
+  :type_changed`) or `nil` for a selection review. `content_hash` is `nil`
+  when the file cannot be read at the source (deleted-at-head, unreadable,
+  etc.). Walked on demand, never on the board render.
 
   ## Examples
 
       Suikou.Reviews.list_files(review)
-      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false}]
+      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false, content_hash: "AB12...", change_status: nil}]
 
   """
-  @spec list_files(Review.t()) ::
-          [%{path: String.t(), artifact_id: Ecto.UUID.t() | nil, approved: boolean()}]
+  @spec list_files(Review.t()) :: [file_entry()]
   def list_files(%Review{source: %FileSelection{selection_paths: paths}} = review) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
 
     review.project
     |> expand(paths)
-    |> Enum.map(&file_entry(&1, Map.get(active, &1)))
+    |> Enum.map(&file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil))
   end
 
   def list_files(%Review{source: %GitDiff{} = git_diff} = review) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
 
-    case changed_paths(review.project, git_diff) do
-      {:ok, paths} ->
-        paths
-        |> Enum.sort()
-        |> Enum.map(&file_entry(&1, Map.get(active, &1)))
+    case changed_with_status(review.project, git_diff) do
+      {:ok, entries} ->
+        sorted = Enum.sort_by(entries, & &1.path)
+        paths = Enum.map(sorted, & &1.path)
+        blobs = head_blob_ids(review.project, git_diff, paths)
+
+        Enum.map(sorted, fn %{path: path, status: status} ->
+          file_entry(path, Map.get(active, path), Map.get(blobs, path), status)
+        end)
 
       {:error, _reason} ->
         []
     end
   end
 
-  defp file_entry(path, nil), do: %{path: path, artifact_id: nil, approved: false}
+  @typep file_entry() :: %{
+           path: String.t(),
+           artifact_id: Ecto.UUID.t() | nil,
+           approved: boolean(),
+           verdict: :approve | :request_changes | :comment | nil,
+           content_hash: String.t() | nil,
+           change_status: Git.change_status() | nil
+         }
 
-  defp file_entry(path, %Artifact{} = artifact) do
-    %{path: path, artifact_id: artifact.id, approved: not is_nil(artifact.approved_round)}
+  defp file_entry(path, nil, content_hash, change_status) do
+    %{
+      path: path,
+      artifact_id: nil,
+      approved: false,
+      verdict: nil,
+      content_hash: content_hash,
+      change_status: change_status
+    }
+  end
+
+  defp file_entry(path, %Artifact{} = artifact, content_hash, change_status) do
+    %{
+      path: path,
+      artifact_id: artifact.id,
+      approved: not is_nil(artifact.approved_round),
+      verdict: file_verdict(artifact),
+      content_hash: content_hash,
+      change_status: change_status
+    }
+  end
+
+  # Per-file verdict: the reviewer's explicit choice on this file. Prefer the
+  # latest submitted verdict (a closed round's recorded outcome); fall back to
+  # the latest round's `draft_verdict` so an in-progress choice still surfaces
+  # as "reviewed" before submission. `nil` means the reviewer has not touched
+  # this file's verdict yet — distinct from `:comment`.
+  defp file_verdict(%Artifact{} = artifact) do
+    case Submissions.latest_verdict_for_artifact(artifact.id) do
+      nil -> Submissions.draft_verdict_for_artifact(artifact.id)
+      verdict -> verdict
+    end
+  end
+
+  @type content_source() ::
+          {:file, String.t()} | {:inline, binary(), String.t()}
+  @type content_by_path_error() ::
+          :path_not_in_review
+          | :unsafe_path
+          | :not_a_file
+          | :not_a_git_repo
+          | :git_error
+          | :not_changed
+  @type raw_by_path_error() ::
+          :path_not_in_review
+          | :unsafe_path
+          | :not_a_file
+          | :not_a_git_repo
+          | :git_error
+
+  @doc """
+  Returns how to serve the live content for `path` inside `review` without
+  minting an artifact, dispatched by review source: a file-selection review
+  answers `{:file, absolute_path}` so the caller can `send_file`; a git-diff
+  review answers `{:inline, diff_text, "text/x-diff"}` with the live diff
+  re-run from git. Mirrors `Suikou.Artifacts.content_source/1`'s contract so
+  the controller can render either branch the same way.
+
+  Security: `path` is whitelisted against the review's current `list_files/1`
+  set. Anything outside that set (arbitrary filesystem path, `../` traversal,
+  unrelated repo entries) is rejected as `:path_not_in_review`.
+
+  ## Examples
+
+      Suikou.Reviews.fetch_content_by_path(review, "docs/plan.md")
+      #=> {:ok, {:file, "/projects/app/docs/plan.md"}}
+
+      Suikou.Reviews.fetch_content_by_path(review, "../secret")
+      #=> {:error, :path_not_in_review}
+
+  """
+  @spec fetch_content_by_path(Review.t(), String.t()) ::
+          {:ok, content_source()} | {:error, content_by_path_error()}
+  def fetch_content_by_path(%Review{} = review, path) when is_binary(path) do
+    review = Repo.preload(review, [:project])
+
+    if path_in_review?(review, path),
+      do: read_content_by_path(review, path),
+      else: {:error, :path_not_in_review}
+  end
+
+  defp path_in_review?(%Review{} = review, path) do
+    Enum.any?(list_files(review), &(&1.path == path))
+  end
+
+  defp read_content_by_path(%Review{source: %FileSelection{}, project: project}, path) do
+    case Path.safe_relative(path, project.path) do
+      {:ok, relative} ->
+        absolute = Path.join(project.path, relative)
+        if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
+
+      :error ->
+        {:error, :unsafe_path}
+    end
+  end
+
+  defp read_content_by_path(
+         %Review{source: %GitDiff{} = git_diff, project: project},
+         path
+       ) do
+    case Git.file_diff(project.path, git_diff.base_ref, git_diff.head_ref, path) do
+      {:ok, ""} -> {:error, :not_changed}
+      {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  @doc """
+  Returns how to serve the raw file bytes for `path` inside `review` without
+  minting an artifact: a file-selection review answers `{:file, absolute_path}`
+  so the caller can `send_file` (same shape as `fetch_content_by_path/2`); a
+  git-diff review answers `{:inline, blob_bytes, content_type}` with the
+  file's bytes at the head ref and a media type derived from the path's
+  extension. Used by the review surface to preview images and other binary
+  files in "all files" mode regardless of review source, where
+  `fetch_content_by_path/2` would otherwise return the unified diff text for
+  a git-diff review.
+
+  Security: same whitelist as `fetch_content_by_path/2` — `path` must appear
+  in `list_files/1`. Anything outside that set is rejected as
+  `:path_not_in_review`.
+
+  ## Examples
+
+      Suikou.Reviews.fetch_raw_by_path(review, "img/logo.png")
+      #=> {:ok, {:inline, <<...png bytes...>>, "image/png"}}
+
+      Suikou.Reviews.fetch_raw_by_path(review, "../secret")
+      #=> {:error, :path_not_in_review}
+
+  """
+  @spec fetch_raw_by_path(Review.t(), String.t()) ::
+          {:ok, content_source()} | {:error, raw_by_path_error()}
+  def fetch_raw_by_path(%Review{} = review, path) when is_binary(path) do
+    review = Repo.preload(review, [:project])
+
+    if path_in_review?(review, path),
+      do: read_raw_by_path(review, path),
+      else: {:error, :path_not_in_review}
+  end
+
+  defp read_raw_by_path(%Review{source: %FileSelection{}, project: project}, path) do
+    case Path.safe_relative(path, project.path) do
+      {:ok, relative} ->
+        absolute = Path.join(project.path, relative)
+        if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
+
+      :error ->
+        {:error, :unsafe_path}
+    end
+  end
+
+  defp read_raw_by_path(%Review{source: %GitDiff{} = git_diff, project: project}, path) do
+    case Git.show_blob(project.path, git_diff.head_ref, path) do
+      {:ok, bytes} -> {:ok, {:inline, bytes, MIME.from_path(path)}}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp file_content_hash(%Project{path: project_path}, rel_path) do
+    absolute = Path.join(project_path, rel_path)
+
+    with true <- File.regular?(absolute),
+         {:ok, bytes} <- File.read(absolute) do
+      Base.encode16(:crypto.hash(:sha256, bytes))
+    else
+      _missing_or_unreadable -> nil
+    end
+  end
+
+  defp head_blob_ids(%Project{path: project_path}, %GitDiff{head_ref: head_ref}, paths) do
+    case Git.blob_ids(project_path, head_ref, paths) do
+      {:ok, map} -> map
+      {:error, _reason} -> %{}
+    end
   end
 
   # A selected directory stands for every file beneath it; a selected file is
@@ -424,6 +644,14 @@ defmodule Suikou.Reviews do
   defp changed_paths(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
     case Git.changed_files(path, base, head) do
       {:ok, paths} -> {:ok, paths}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp changed_with_status(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+    case Git.changed_files_with_status(path, base, head) do
+      {:ok, entries} -> {:ok, entries}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
     end

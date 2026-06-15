@@ -14,6 +14,8 @@ defmodule SuikouWeb.Router do
 
     get "/review/:artifact_id/content", AssetController, :content
     get "/review/:artifact_id/asset/*path", AssetController, :show
+    get "/review/:review_id/files/content", AssetController, :file_content
+    get "/review/:review_id/files/raw", AssetController, :file_raw
 
     # Unmatched API paths 404 here under :asset (no :accepts), so a JSON client
     # gets 404 instead of the 406 the :browser pipeline would raise on Accept.

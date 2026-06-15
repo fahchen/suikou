@@ -12,7 +12,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   use Musubi.Store, root: true
 
+  alias Musubi.AsyncResult
   alias Musubi.Socket
+  alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
@@ -33,10 +35,39 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
             id: String.t(),
             name: String.t(),
             inserted_at: String.t(),
+            kind: :file_selection | :git_diff,
             selections: list(String.t()),
-            selection_count: integer()
+            base_ref: String.t() | nil,
+            head_ref: String.t() | nil,
+            base_sha: String.t() | nil,
+            head_sha: String.t() | nil,
+            creation_base_sha: String.t() | nil,
+            creation_head_sha: String.t() | nil,
+            refs_moved: boolean()
           })
       })
+    )
+
+    # Async map of `review_id => expanded file list`, derived from
+    # `Reviews.list_files/1`. Carries the authoritative file count for every
+    # card — including git-diff reviews, whose card was previously stuck at 0
+    # and unopenable.
+    field(
+      :review_files,
+      Musubi.AsyncResult.of(
+        list(%{
+          review_id: String.t(),
+          files:
+            list(%{
+              path: String.t(),
+              artifact_id: String.t() | nil,
+              approved: boolean(),
+              content_hash: String.t() | nil,
+              change_status:
+                :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
+            })
+        })
+      )
     )
   end
 
@@ -86,6 +117,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
     reply do
       field(:branches, list(String.t()))
+      field(:remote_branches, list(String.t()))
       field(:default, String.t() | nil)
       field(:error, String.t() | nil)
     end
@@ -140,7 +172,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
 
     reply do
-      field(:files, list(%{path: String.t(), artifact_id: String.t() | nil, approved: boolean()}))
+      field(
+        :files,
+        list(%{
+          path: String.t(),
+          artifact_id: String.t() | nil,
+          approved: boolean(),
+          content_hash: String.t() | nil,
+          change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
+        })
+      )
+
       field(:error, String.t() | nil)
     end
   end
@@ -159,12 +201,15 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   @impl Musubi.Store
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
-  def mount(_params, socket), do: {:ok, socket}
+  def mount(_params, socket), do: {:ok, refresh_review_files(socket)}
 
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
-  def render(_socket) do
-    %{projects: Enum.map(Projects.list_projects(), &render_project/1)}
+  def render(socket) do
+    %{
+      projects: Enum.map(Projects.list_projects(), &render_project/1),
+      review_files: Map.get(socket.assigns, :review_files, AsyncResult.loading())
+    }
   end
 
   @impl Musubi.Store
@@ -180,20 +225,32 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   def handle_command(:create_review, payload, socket) do
-    reply =
+    {reply, socket} =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> create_review(project, payload)
-        nil -> %{review_id: nil, error: "project_not_found"}
+        %Project{} = project ->
+          case create_review(project, payload) do
+            {reply, %Review{id: id}} -> {reply, upsert_review_files(socket, id)}
+            {reply, nil} -> {reply, socket}
+          end
+
+        nil ->
+          {%{review_id: nil, error: "project_not_found"}, socket}
       end
 
     {:reply, reply, touch(socket)}
   end
 
   def handle_command(:create_diff_review, payload, socket) do
-    reply =
+    {reply, socket} =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> create_diff_review(project, payload)
-        nil -> %{review_id: nil, error: "project_not_found"}
+        %Project{} = project ->
+          case create_diff_review(project, payload) do
+            {reply, %Review{id: id}} -> {reply, upsert_review_files(socket, id)}
+            {reply, nil} -> {reply, socket}
+          end
+
+        nil ->
+          {%{review_id: nil, error: "project_not_found"}, socket}
       end
 
     {:reply, reply, touch(socket)}
@@ -203,17 +260,23 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     reply =
       case Projects.get_project(payload["project_id"]) do
         %Project{} = project -> list_branches(project)
-        nil -> branches_reply([], nil, "project_not_found")
+        nil -> branches_reply([], [], nil, "project_not_found")
       end
 
     {:reply, reply, socket}
   end
 
   def handle_command(:update_review_files, payload, socket) do
-    reply =
-      case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review -> update_review_files(review, payload["selections"])
-        nil -> %{error: "review_not_found"}
+    review_id = payload["review_id"]
+
+    {reply, socket} =
+      case Reviews.get_review(review_id) do
+        %Review{} = review ->
+          {update_review_files(review, payload["selections"]),
+           upsert_review_files(socket, review_id)}
+
+        nil ->
+          {%{error: "review_not_found"}, socket}
       end
 
     {:reply, reply, touch(socket)}
@@ -230,10 +293,15 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   def handle_command(:delete_review, payload, socket) do
-    reply =
-      case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review -> delete_review(review)
-        nil -> %{error: "review_not_found"}
+    review_id = payload["review_id"]
+
+    {reply, socket} =
+      case Reviews.get_review(review_id) do
+        %Review{} = review ->
+          {delete_review(review), remove_review_files(socket, review_id)}
+
+        nil ->
+          {%{error: "review_not_found"}, socket}
       end
 
     {:reply, reply, touch(socket)}
@@ -265,10 +333,15 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   def handle_command(:open_review_file, payload, socket) do
-    reply =
-      case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review -> open_review_file(review, payload["path"])
-        nil -> %{artifact_id: nil, error: "review_not_found"}
+    review_id = payload["review_id"]
+
+    {reply, socket} =
+      case Reviews.get_review(review_id) do
+        %Review{} = review ->
+          {open_review_file(review, payload["path"]), upsert_review_files(socket, review_id)}
+
+        nil ->
+          {%{artifact_id: nil, error: "review_not_found"}, socket}
       end
 
     {:reply, reply, touch(socket)}
@@ -284,8 +357,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     params = %{name: payload["name"], selections: payload["selections"]}
 
     case Reviews.create_review(project, params) do
-      {:ok, %Review{} = review} -> %{review_id: review.id, error: nil}
-      {:error, reason} -> %{review_id: nil, error: review_error(reason)}
+      {:ok, %Review{} = review} -> {%{review_id: review.id, error: nil}, review}
+      {:error, reason} -> {%{review_id: nil, error: review_error(reason)}, nil}
     end
   end
 
@@ -297,20 +370,23 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     }
 
     case Reviews.create_diff_review(project, params) do
-      {:ok, %Review{} = review} -> %{review_id: review.id, error: nil}
-      {:error, reason} -> %{review_id: nil, error: review_error(reason)}
+      {:ok, %Review{} = review} -> {%{review_id: review.id, error: nil}, review}
+      {:error, reason} -> {%{review_id: nil, error: review_error(reason)}, nil}
     end
   end
 
   defp list_branches(project) do
     case Reviews.list_branches(project) do
-      {:ok, %{branches: branches, default: default}} -> branches_reply(branches, default, nil)
-      {:error, reason} -> branches_reply([], nil, review_error(reason))
+      {:ok, %{branches: branches, remote_branches: remote, default: default}} ->
+        branches_reply(branches, remote, default, nil)
+
+      {:error, reason} ->
+        branches_reply([], [], nil, review_error(reason))
     end
   end
 
-  defp branches_reply(branches, default, error) do
-    %{branches: branches, default: default, error: error}
+  defp branches_reply(branches, remote_branches, default, error) do
+    %{branches: branches, remote_branches: remote_branches, default: default, error: error}
   end
 
   defp update_review_files(review, selections) do
@@ -365,21 +441,132 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       id: review.id,
       name: review.name,
       inserted_at: Iso8601.utc(review.inserted_at),
+      kind: :file_selection,
       selections: paths,
-      selection_count: length(paths)
+      base_ref: nil,
+      head_ref: nil,
+      base_sha: nil,
+      head_sha: nil,
+      creation_base_sha: nil,
+      creation_head_sha: nil,
+      refs_moved: false
     }
   end
 
   # A git-diff review's reviewer-facing "selection" is the diff between two
-  # refs, not a path list. The board only needs the review id/name/inserted_at
-  # to render a card; Phase 10 will add refs + kind to the picker view.
-  defp render_review(%Review{source: %GitDiff{}} = review) do
+  # refs, not a path list. The card surfaces its file count + list through the
+  # async `review_files` field; `selections` stays empty. `base_ref`/`head_ref`
+  # let the card display the compared refs (e.g. `main..topic`) independently
+  # of the review's chosen name. `base_sha`/`head_sha` are the refs' CURRENT
+  # commit SHAs (40-char hex) so the reviewer can tell which commits the diff
+  # actually reflects right now; both are `nil` when the ref no longer
+  # resolves (deleted branch, detached state). `creation_base_sha` /
+  # `creation_head_sha` are the SHAs pinned when the review was created (or
+  # backfilled from the then-current SHA for legacy rows), and `refs_moved`
+  # is true iff at least one side's current SHA differs from its creation
+  # SHA. A vanished current SHA does not flag a move (`refs_moved: false` on
+  # the unknown side), so the reviewer is not warned about a phantom move
+  # just because a branch was deleted.
+  defp render_review(%Review{source: %GitDiff{} = git_diff, project: project} = review) do
+    current_base = resolve_sha(project, git_diff.base_ref)
+    current_head = resolve_sha(project, git_diff.head_ref)
+
     %{
       id: review.id,
       name: review.name,
       inserted_at: Iso8601.utc(review.inserted_at),
+      kind: :git_diff,
       selections: [],
-      selection_count: 0
+      base_ref: git_diff.base_ref,
+      head_ref: git_diff.head_ref,
+      base_sha: current_base,
+      head_sha: current_head,
+      creation_base_sha: git_diff.base_sha,
+      creation_head_sha: git_diff.head_sha,
+      refs_moved:
+        side_moved?(git_diff.base_sha, current_base) or
+          side_moved?(git_diff.head_sha, current_head)
     }
+  end
+
+  defp resolve_sha(%Project{path: path}, ref) do
+    case Git.rev_parse(path, ref) do
+      {:ok, sha} -> sha
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp side_moved?(creation_sha, current_sha)
+       when is_binary(creation_sha) and is_binary(current_sha),
+       do: creation_sha != current_sha
+
+  defp side_moved?(_creation_sha, _current_sha), do: false
+
+  # Walks every project's reviews on first mount, populating the async
+  # `review_files` field off-render so the board's first snapshot does not
+  # block on disk or git. Subsequent mutations patch a single review's entry
+  # in place (`upsert_review_files/2` / `remove_review_files/2`), so the
+  # board's hot path no longer rebuilds the full index per mutation.
+  defp refresh_review_files(socket) do
+    assign_async(
+      socket,
+      :review_files,
+      fn -> {:ok, compute_review_files()} end,
+      reset: true
+    )
+  end
+
+  defp compute_review_files do
+    for project <- Projects.list_projects(),
+        review <- Reviews.list_for_project(project) do
+      %{review_id: review.id, files: Reviews.list_files(review)}
+    end
+  end
+
+  # Recomputes a single review's `:files` entry and merges it into the async
+  # list off-render. Runs through `assign_async/3` so the prior mount task
+  # (if still in flight) is cancelled before our patch lands — no stale
+  # overwrite race. If the prior snapshot is empty (mount async was cancelled
+  # before resolving), we fall back to a full compute so unrelated reviews
+  # still appear; otherwise we patch one entry in place.
+  defp upsert_review_files(socket, review_id) do
+    patch_review_files(socket, fn prior ->
+      case Reviews.get_review(review_id) do
+        %Review{} = review ->
+          entry = %{review_id: review.id, files: Reviews.list_files(review)}
+          merge_or_full_compute(prior, entry)
+
+        nil ->
+          Enum.reject(prior, &(&1.review_id == review_id))
+      end
+    end)
+  end
+
+  defp remove_review_files(socket, review_id) do
+    patch_review_files(socket, fn prior ->
+      Enum.reject(prior, &(&1.review_id == review_id))
+    end)
+  end
+
+  defp patch_review_files(socket, fun) when is_function(fun, 1) do
+    prior = current_review_files(socket)
+    assign_async(socket, :review_files, fn -> {:ok, fun.(prior)} end)
+  end
+
+  defp current_review_files(socket) do
+    case Map.get(socket.assigns, :review_files) do
+      %AsyncResult{result: list} when is_list(list) -> list
+      _other -> []
+    end
+  end
+
+  defp merge_or_full_compute([], entry), do: upsert_entry(compute_review_files(), entry)
+  defp merge_or_full_compute(prior, entry), do: upsert_entry(prior, entry)
+
+  defp upsert_entry(entries, %{review_id: id} = entry) do
+    case Enum.find_index(entries, &(&1.review_id == id)) do
+      nil -> [entry | entries]
+      index -> List.replace_at(entries, index, entry)
+    end
   end
 end

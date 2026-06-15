@@ -14,16 +14,18 @@ defmodule SuikouWeb.Stores.CommentsStore do
   use Musubi.Store
 
   alias Musubi.Socket
-  alias Suikou.Artifacts
   alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Rounds
-  alias Suikou.Schemas.Anchor.DiffHunk
-  alias Suikou.Schemas.Anchor.Element
-  alias Suikou.Schemas.Anchor.LineRange
-  alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.Reply
-  alias SuikouWeb.Iso8601
+  alias Suikou.Schemas.Artifact
+  alias SuikouWeb.Stores.CommentBroadcast
+  alias SuikouWeb.Stores.CommentRendering
+
+  # The comment shape literal is the contract the client narrows against and
+  # is repeated in `ReviewStore.files_comments`; both must move together, and
+  # extracting it would force a generated-d.ts indirection without making the
+  # contract any clearer.
+  # credo:disable-for-this-file Credo.Check.Design.DuplicatedCode
 
   state do
     field(
@@ -144,30 +146,8 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    content = live_content(socket.assigns[:artifact_id])
-    %{items: Enum.map(socket.assigns.comments, &render_comment(&1, content))}
-  end
-
-  # File-selection artifacts resolve line_range anchors against the file split
-  # on newlines; git-diff artifacts resolve diff_hunk anchors against the live
-  # unified diff text. The render pre-computes whichever shape this artifact
-  # needs so every comment is resolved against the same value.
-  defp live_content(nil), do: nil
-
-  defp live_content(artifact_id) do
-    case Artifacts.content_source(artifact_id) do
-      {:ok, {:file, path}} ->
-        case File.read(path) do
-          {:ok, bytes} -> String.split(bytes, "\n")
-          {:error, _posix} -> nil
-        end
-
-      {:ok, {:inline, diff, "text/x-diff"}} ->
-        diff
-
-      {:error, _reason} ->
-        nil
-    end
+    content = CommentRendering.live_content(socket.assigns[:artifact_id])
+    %{items: Enum.map(socket.assigns.comments, &CommentRendering.render_comment(&1, content))}
   end
 
   @impl Musubi.Store
@@ -187,7 +167,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
         :noop
     end
 
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:edit_comment, payload, socket) do
@@ -196,32 +176,32 @@ defmodule SuikouWeb.Stores.CommentsStore do
       critique_type: payload["critique_type"]
     })
 
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:delete_comment, payload, socket) do
     Critique.delete_comment(payload["comment_id"])
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:resolve_comment, payload, socket) do
     Critique.resolve_comment(payload["comment_id"])
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:unresolve_comment, payload, socket) do
     Critique.unresolve_comment(payload["comment_id"])
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:reply, payload, socket) do
     Critique.reply_as_human(payload["comment_id"], payload["body"])
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   def handle_command(:relocate_comment, payload, socket) do
     Critique.relocate_comment(payload["comment_id"], payload["anchor"])
-    {:noreply, reload(socket)}
+    {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
   # Re-derive the comment list into an assign so the render cycle sees a content
@@ -236,49 +216,15 @@ defmodule SuikouWeb.Stores.CommentsStore do
     Socket.assign(socket, :comments, comments)
   end
 
-  defp render_comment(%Comment{} = comment, content) do
-    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, content)
+  # Notify the parent `ReviewStore` (and any sibling-artifact tabs of the same
+  # review) so its all-files `files_comments` fan-out refreshes — the child
+  # reload above only re-derives this round's thread.
+  defp broadcast_changed(socket) do
+    with artifact_id when is_binary(artifact_id) <- socket.assigns[:artifact_id],
+         %Artifact{review_id: review_id} <- Reads.get_artifact(artifact_id) do
+      CommentBroadcast.broadcast(review_id)
+    end
 
-    %{
-      id: comment.id,
-      scope: comment.scope,
-      critique_type: comment.critique_type,
-      status: comment.status,
-      body: comment.body,
-      resolved: not is_nil(comment.resolved_round),
-      resolved_round: comment.resolved_round,
-      outdated: outdated,
-      original_round: comment.original_round,
-      carried: not is_nil(comment.origin_id),
-      inserted_at: Iso8601.utc(comment.inserted_at),
-      anchor: tagged_anchor(comment.anchor, anchor),
-      replies: Enum.map(comment.replies, &render_reply/1)
-    }
-  end
-
-  # Wrap the resolved anchor view with the kind discriminator that drives the
-  # client tagged-union narrowing. Today only `:line_range` exists; future kinds
-  # add a clause without reshaping the read contract.
-  defp tagged_anchor(nil, _resolved), do: nil
-
-  defp tagged_anchor(%LineRange{}, resolved) when is_map(resolved) do
-    Map.put(resolved, :type, :line_range)
-  end
-
-  defp tagged_anchor(%DiffHunk{}, resolved) when is_map(resolved) do
-    Map.put(resolved, :type, :diff_hunk)
-  end
-
-  defp tagged_anchor(%Element{}, resolved) when is_map(resolved) do
-    Map.put(resolved, :type, :element)
-  end
-
-  defp render_reply(%Reply{} = reply) do
-    %{
-      id: reply.id,
-      author: reply.author,
-      body: reply.body,
-      inserted_at: Iso8601.utc(reply.inserted_at)
-    }
+    socket
   end
 end

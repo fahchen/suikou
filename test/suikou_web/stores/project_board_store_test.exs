@@ -26,7 +26,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       assert %{
                projects: [
-                 %{reviews: [%{name: "Launch", selections: ["plan.md"], selection_count: 1}]}
+                 %{
+                   reviews: [
+                     %{name: "Launch", kind: :file_selection, selections: ["plan.md"]}
+                   ]
+                 }
                ]
              } =
                Testing.render(page)
@@ -35,6 +39,241 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "renders an empty list when no project is registered" do
       page = Testing.mount(ProjectBoardStore)
       assert %{projects: []} = Testing.render(page)
+    end
+
+    @tag :tmp_dir
+    test "exposes a git-diff review's base/head refs and current commit SHAs on the card",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{
+               projects: [
+                 %{
+                   reviews: [
+                     %{
+                       kind: :git_diff,
+                       selections: [],
+                       base_ref: "main",
+                       head_ref: "topic",
+                       base_sha: base_sha,
+                       head_sha: head_sha,
+                       creation_base_sha: creation_base_sha,
+                       creation_head_sha: creation_head_sha,
+                       refs_moved: false
+                     }
+                   ]
+                 }
+               ]
+             } = Testing.render(page)
+
+      assert is_binary(base_sha)
+      assert is_binary(head_sha)
+      assert byte_size(base_sha) == 40
+      assert byte_size(head_sha) == 40
+      refute base_sha == head_sha
+      # Just created: creation SHAs match current resolution.
+      assert creation_base_sha == base_sha
+      assert creation_head_sha == head_sha
+    end
+
+    @tag :tmp_dir
+    test "git-diff card flags refs_moved once a pinned ref advances",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic v1"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      page = Testing.mount(ProjectBoardStore)
+
+      %{projects: [%{reviews: [%{refs_moved: false, creation_head_sha: pinned_head}]}]} =
+        Testing.render(page)
+
+      assert is_binary(pinned_head)
+
+      File.write!(Path.join(dir, "a.txt"), "y\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic v2"])
+
+      %{
+        projects: [
+          %{
+            reviews: [
+              %{
+                refs_moved: true,
+                head_sha: current_head,
+                creation_head_sha: ^pinned_head
+              }
+            ]
+          }
+        ]
+      } = Testing.render(page)
+
+      refute current_head == pinned_head
+    end
+
+    @tag :tmp_dir
+    test "git-diff card refs_moved stays false when a ref vanishes",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      git!(dir, ["checkout", "-q", "main"])
+      git!(dir, ["branch", "-q", "-D", "topic"])
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{
+               projects: [
+                 %{
+                   reviews: [
+                     %{
+                       kind: :git_diff,
+                       head_sha: nil,
+                       creation_head_sha: creation_head,
+                       refs_moved: false
+                     }
+                   ]
+                 }
+               ]
+             } = Testing.render(page)
+
+      # The pinned creation SHA is still there; only the current resolution
+      # vanished. The reviewer must not be told the ref "moved".
+      assert is_binary(creation_head)
+    end
+
+    @tag :tmp_dir
+    test "git-diff card head_sha follows the head ref when it advances",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic v1"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      page = Testing.mount(ProjectBoardStore)
+      %{projects: [%{reviews: [%{head_sha: before_sha}]}]} = Testing.render(page)
+
+      File.write!(Path.join(dir, "a.txt"), "y\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic v2"])
+
+      # render/1 re-resolves the ref on each call, so the second snapshot
+      # reflects the advanced branch without re-mounting.
+      %{projects: [%{reviews: [%{head_sha: after_sha}]}]} = Testing.render(page)
+
+      assert is_binary(before_sha)
+      assert is_binary(after_sha)
+      refute before_sha == after_sha
+    end
+
+    @tag :tmp_dir
+    test "git-diff card SHAs are nil when a ref no longer resolves",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      # Branch ref disappears (e.g. deleted upstream). Card render must not
+      # blow up; SHA fields stay null.
+      git!(dir, ["checkout", "-q", "main"])
+      git!(dir, ["branch", "-q", "-D", "topic"])
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{
+               projects: [
+                 %{
+                   reviews: [
+                     %{
+                       kind: :git_diff,
+                       base_ref: "main",
+                       head_ref: "topic",
+                       base_sha: base_sha,
+                       head_sha: nil
+                     }
+                   ]
+                 }
+               ]
+             } = Testing.render(page)
+
+      assert is_binary(base_sha)
+    end
+
+    @tag :tmp_dir
+    test "file-selection card carries nil SHA fields", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{
+               projects: [
+                 %{
+                   reviews: [
+                     %{
+                       kind: :file_selection,
+                       base_sha: nil,
+                       head_sha: nil
+                     }
+                   ]
+                 }
+               ]
+             } = Testing.render(page)
     end
   end
 
@@ -173,6 +412,55 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: "00000000-0000-7000-8000-000000000000",
                  path: ""
+               })
+    end
+  end
+
+  describe "list_branches" do
+    @tag :tmp_dir
+    test "replies with the project's real branches and resolved default", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic"])
+
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{branches: branches, remote_branches: [], default: "main", error: nil}} =
+               Testing.dispatch_command(page, :list_branches, %{project_id: project.id})
+
+      assert Enum.sort(branches) == ["main", "topic"]
+    end
+
+    @tag :tmp_dir
+    test "errors when the project path is not a git repo", %{tmp_dir: dir} do
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok,
+              %{
+                branches: [],
+                remote_branches: [],
+                default: nil,
+                error: "not_a_git_repo"
+              }} =
+               Testing.dispatch_command(page, :list_branches, %{project_id: project.id})
+    end
+
+    test "errors when the project id is unknown" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok,
+              %{
+                branches: [],
+                remote_branches: [],
+                default: nil,
+                error: "project_not_found"
+              }} =
+               Testing.dispatch_command(page, :list_branches, %{
+                 project_id: "00000000-0000-7000-8000-000000000000"
                })
     end
   end
@@ -323,6 +611,30 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                  review_id: review.id,
                  path: "other.md"
                })
+    end
+  end
+
+  defp init_repo!(dir) do
+    File.mkdir_p!(dir)
+    git!(dir, ["init", "-q", "-b", "main", "."])
+    File.write!(Path.join(dir, "seed.txt"), "seed\n")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "seed"])
+  end
+
+  defp git!(dir, args) do
+    env = [
+      {"GIT_AUTHOR_NAME", "Test"},
+      {"GIT_AUTHOR_EMAIL", "test@example.com"},
+      {"GIT_COMMITTER_NAME", "Test"},
+      {"GIT_COMMITTER_EMAIL", "test@example.com"},
+      {"GIT_CONFIG_GLOBAL", "/dev/null"},
+      {"GIT_CONFIG_SYSTEM", "/dev/null"}
+    ]
+
+    case System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true) do
+      {_out, 0} -> :ok
+      {out, code} -> raise "git #{Enum.join(args, " ")} failed (#{code}): #{out}"
     end
   end
 end

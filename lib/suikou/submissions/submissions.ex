@@ -130,6 +130,31 @@ defmodule Suikou.Submissions do
   end
 
   @doc """
+  Returns the in-progress `draft_verdict` on an artifact's latest round, or
+  `nil` when no round exists yet or the draft is empty. A draft is the
+  reviewer's pre-submission choice; it disappears the moment the round is
+  submitted and a fresh draft round opens.
+
+  ## Examples
+
+      Suikou.Submissions.draft_verdict_for_artifact(artifact.id)
+      #=> :request_changes
+
+      Suikou.Submissions.draft_verdict_for_artifact(untouched_artifact.id)
+      #=> nil
+
+  """
+  @spec draft_verdict_for_artifact(Ecto.UUID.t()) :: Submission.verdict() | nil
+  def draft_verdict_for_artifact(artifact_id) do
+    from(r in Round, as: :round)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> order_by([round: r], desc: r.number)
+    |> limit(1)
+    |> select([round: r], r.draft_verdict)
+    |> Repo.one()
+  end
+
+  @doc """
   Reverses approval by clearing an artifact's approved round.
 
   ## Examples
