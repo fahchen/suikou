@@ -95,9 +95,12 @@ defmodule Suikou.MixProject do
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: [
         "compile --warnings-as-errors",
+        "compile.musubi_ts --check",
         "deps.unlock --unused",
         "format",
         "credo --strict",
+        "ex_dna --max-clones 0",
+        "reach.check --arch --smells --strict",
         "dialyzer",
         "test"
       ],
