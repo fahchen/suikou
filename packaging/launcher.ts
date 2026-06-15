@@ -28,25 +28,27 @@ type Daemon = { pid: number; port: number }
 
 // Dispatch on the first positional arg. Bare invocation stays a foreground
 // server (the original behavior); subcommands add background daemon control.
-const command = process.argv[2]
-switch (command) {
-  case undefined:
-    await runServer({ openBrowser: true })
-    break
-  case "run":
-    // Internal: what `start` execs detached. The parent opens the browser, so
-    // this child does not.
-    await runServer({ openBrowser: false })
-    break
-  case "start":
-    process.exit(await start())
-  case "stop":
-    process.exit(await stop())
-  case "status":
-    process.exit(await status())
-  default:
-    console.error("usage: suikou [start|stop|status|run]")
-    process.exit(1)
+await dispatch(process.argv[2])
+
+async function dispatch(command: string | undefined): Promise<void> {
+  switch (command) {
+    case undefined:
+      // Bare invocation: foreground server that opens the browser. Never returns.
+      return runServer({ openBrowser: true })
+    case "run":
+      // Internal: what `start` execs detached. The parent opens the browser, so
+      // this child does not. Never returns.
+      return runServer({ openBrowser: false })
+    case "start":
+      return process.exit(await start())
+    case "stop":
+      return process.exit(await stop())
+    case "status":
+      return process.exit(await status())
+    default:
+      console.error("usage: suikou [start|stop|status|run]")
+      return process.exit(1)
+  }
 }
 
 // Foreground server body shared by bare invocation and the detached `run` child:
@@ -150,7 +152,17 @@ async function stop(): Promise<number> {
     return 0
   }
 
-  process.kill(info.pid, "SIGTERM")
+  const term = signal(info.pid, "SIGTERM")
+  if (term.code === "ESRCH") {
+    // Raced with the process exiting between the liveness check and the signal.
+    await rm(pidfilePath, { force: true })
+    console.log("not running (removed stale pidfile)")
+    return 0
+  }
+  if (!term.ok) {
+    console.error(`cannot signal pid ${info.pid}: ${term.code ?? "unknown error"}`)
+    return 1
+  }
 
   const deadline = Date.now() + 10_000
   while (Date.now() < deadline && alive(info.pid)) {
@@ -159,7 +171,11 @@ async function stop(): Promise<number> {
 
   let forced = ""
   if (alive(info.pid)) {
-    process.kill(info.pid, "SIGKILL")
+    const kill = signal(info.pid, "SIGKILL")
+    if (!kill.ok && kill.code !== "ESRCH") {
+      console.error(`cannot signal pid ${info.pid}: ${kill.code ?? "unknown error"}`)
+      return 1
+    }
     forced = " (forced)"
   }
 
@@ -169,10 +185,18 @@ async function stop(): Promise<number> {
 }
 
 // `suikou status`: report liveness, pruning a stale pidfile if its holder is gone.
+// A live pid whose port is not yet accepting reads as "starting", since the
+// daemon can be up before Phoenix finishes binding.
 async function status(): Promise<number> {
   const info = await loadPidfile()
   if (info && alive(info.pid)) {
-    console.log(`running (pid ${info.pid}) at ${urlForPort(info.port)}  logs: ${logPath}`)
+    if (await tcpUp(info.port)) {
+      console.log(`running (pid ${info.pid}) at ${urlForPort(info.port)}  logs: ${logPath}`)
+    } else {
+      console.log(
+        `starting (pid ${info.pid}), port ${info.port} not yet reachable  logs: ${logPath}`
+      )
+    }
     return 0
   }
 
@@ -194,6 +218,17 @@ async function loadPidfile(): Promise<Daemon | null> {
     // fall through to null for a truncated/corrupt pidfile
   }
   return null
+}
+
+// Send a signal without letting a kill error (ESRCH, EPERM, ...) crash the
+// launcher. Returns whether it landed plus the errno code for the caller to act on.
+function signal(pid: number, sig: "SIGTERM" | "SIGKILL"): { ok: boolean; code?: string } {
+  try {
+    process.kill(pid, sig)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, code: (err as { code?: string }).code }
+  }
 }
 
 // Probe liveness without delivering a signal. ESRCH means the process is gone;
