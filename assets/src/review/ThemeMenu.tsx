@@ -21,7 +21,7 @@ export const ThemeMenu = observer(function ThemeMenu() {
       <DropdownMenuTrigger
         render={
           <Button variant="pill" size="icon-xs" title="Theme">
-            <Palette className="size-4 text-muted-foreground" />
+            <Palette className="text-muted-foreground" />
           </Button>
         }
       />

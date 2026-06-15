@@ -27,6 +27,13 @@ export const CommentCard = observer(function CommentCard(props: {
 }) {
   const { comment, context = "rail", selected = false, onSelect } = props;
   const inline = context === "inline";
+  // Element anchors re-resolve client-side (Plan B): HtmlView publishes the
+  // current misses into ui-store, and both inline + rail render paths read
+  // that override here so a selector miss shows the outdated badge identically.
+  const outdated =
+    comment.outdated ||
+    (comment.anchor?.type === "element" &&
+      uiStore.outdatedElementCommentIds.has(comment.id));
   const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
 
@@ -39,6 +46,15 @@ export const CommentCard = observer(function CommentCard(props: {
     setOpen(!uiStore.commentsCollapsed);
   }, [uiStore.collapseNonce, uiStore.commentsCollapsed]);
 
+  // Auto-collapse on a live resolve so the card visibly reacts without a
+  // remount. Don't auto-expand on unresolve — that would override the user's
+  // own collapsed choice.
+  const wasResolved = useRef(comment.resolved);
+  useEffect(() => {
+    if (!wasResolved.current && comment.resolved) setOpen(false);
+    wasResolved.current = comment.resolved;
+  }, [comment.resolved]);
+
   // Rail cards reveal the reply composer only when selected; inline cards
   // (next to their own line) always show it.
   const showComposer = inline || selected;
@@ -50,9 +66,11 @@ export const CommentCard = observer(function CommentCard(props: {
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       onClick={onSelect}
-      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] ${
+      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] transition-opacity ${
         onSelect && !selected ? "cursor-pointer" : ""
-      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"}`}
+      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"} ${
+        comment.resolved ? "opacity-70" : ""
+      }`}
     >
       <Collapsible open={open} onOpenChange={setOpen}>
         <CommentCardHeader
@@ -64,7 +82,7 @@ export const CommentCard = observer(function CommentCard(props: {
 
         <CollapsibleContent>
           <div className="flex flex-col gap-2 px-3 py-2.5">
-            {comment.outdated && (
+            {outdated && (
               <p className="text-[12px] text-amber">
                 Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
               </p>

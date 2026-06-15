@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { ChevronRight, Folder } from "lucide-react"
 
 import { FileIcon } from "./FileIcon"
+import { FILE_TREE_SCROLL } from "./file-tree-scroll"
 
 export interface DirEntry {
   path: string
@@ -82,7 +83,7 @@ export function FileTree({
   if (root.length === 0) return <Notice>No files in this directory.</Notice>
 
   return (
-    <ul className="max-h-72 overflow-y-auto rounded-md border border-line bg-control py-1">
+    <ul className={`${FILE_TREE_SCROLL} rounded-md border border-line bg-control py-1`}>
       {root.map((entry) => (
         <Row
           key={entry.path}
@@ -124,7 +125,7 @@ function FileRow({
     <li>
       <label
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        className="flex cursor-pointer items-center gap-2 py-1 pr-2.5 transition-colors hover:bg-hover pointer-coarse:min-h-9"
+        className="flex cursor-pointer items-center gap-2 py-1 pr-2.5 transition-colors hover:bg-hover"
       >
         <Box
           state={checked ? "checked" : "unchecked"}
@@ -179,13 +180,13 @@ function FolderRow({
     <li>
       <div
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        className="flex items-center gap-2 py-1 pr-2.5 transition-colors hover:bg-hover pointer-coarse:min-h-9"
+        className="flex items-center gap-2 py-1 pr-2.5 transition-colors hover:bg-hover"
       >
         <Box state={state} disabled={covered} onClick={() => onToggle(entry.path, true)} />
         <button
           type="button"
           onClick={expand}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
         >
           <ChevronRight
             size={13}
@@ -249,7 +250,7 @@ function Box({
       aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors disabled:opacity-60 ${
+      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors disabled:opacity-60 ${
         filled ? "border-blue bg-blue text-on-accent" : "border-line bg-surface hover:border-focus"
       }`}
     >

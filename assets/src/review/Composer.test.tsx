@@ -15,7 +15,7 @@ import { Composer } from "./Composer";
 
 beforeEach(() => {
   dispatch.mockReset();
-  uiStore.openComposer(3, 5, "line");
+  uiStore.openComposer(3, 5, "located");
 });
 
 describe("Composer", () => {
@@ -47,11 +47,10 @@ describe("Composer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add comment" }));
 
     expect(dispatch).toHaveBeenCalledWith({
-      scope: "line",
+      scope: "located",
       critique_type: "fix_required",
       body: "needs a fix",
-      start_line: 3,
-      end_line: 5,
+      anchor: { type: "line_range", start_line: 3, end_line: 5 },
     });
     expect(uiStore.selStart).toBeNull();
   });

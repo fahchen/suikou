@@ -20,7 +20,7 @@ export function TopBarTocMenu(props: { content: string; path: string }) {
             size="icon-xs"
             title="Table of contents"
           >
-            <List className="size-4 text-muted-foreground" />
+            <List className="text-muted-foreground" />
           </Button>
         }
       />

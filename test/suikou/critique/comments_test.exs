@@ -8,15 +8,14 @@ defmodule Suikou.Critique.CommentsTest do
   alias Suikou.Schemas.Comment
 
   describe "authoring scope" do
-    test "a line-scoped comment anchors to a range and captures the quoted source" do
+    test "a located comment anchors to a range and captures the quoted source" do
       round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
-                 start_line: 10,
-                 end_line: 12,
+                 scope: :located,
+                 anchor: %{type: "line_range", start_line: 10, end_line: 12},
                  critique_type: :note,
                  body: "fix this"
                })
@@ -31,27 +30,19 @@ defmodule Suikou.Critique.CommentsTest do
                comment
     end
 
-    test "a line-scoped comment freezes its original anchor and authoring round" do
+    test "a located comment records its authoring round" do
       round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
-                 start_line: 10,
-                 end_line: 12,
+                 scope: :located,
+                 anchor: %{type: "line_range", start_line: 10, end_line: 12},
                  critique_type: :note,
                  body: "fix this"
                })
 
-      assert %{
-               original_round: 0,
-               original_anchor: %LineRange{
-                 start_line: 10,
-                 end_line: 12,
-                 quote: "line 10\nline 11\nline 12"
-               }
-             } = comment
+      assert %{original_round: 0} = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
@@ -60,14 +51,26 @@ defmodule Suikou.Critique.CommentsTest do
       assert {:ok, comment} =
                Critique.add_comment(%{
                  round_id: round.id,
-                 scope: :line,
-                 start_line: 7,
-                 end_line: 7,
+                 scope: :located,
+                 anchor: %{type: "line_range", start_line: 7, end_line: 7},
                  critique_type: :note,
                  body: "x"
                })
 
       assert %{anchor: %LineRange{start_line: 7, end_line: 7}} = comment
+    end
+
+    test "a located comment with an unknown anchor type is rejected" do
+      round = source_round("line 1\nline 2\n")
+
+      assert {:error, :unknown_anchor_type} =
+               Critique.add_comment(%{
+                 round_id: round.id,
+                 scope: :located,
+                 anchor: %{type: "diff_hunk", start_line: 1, end_line: 1},
+                 critique_type: :note,
+                 body: "x"
+               })
     end
 
     test "a review-scoped comment carries no line anchor" do
@@ -81,7 +84,7 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "overall"
                })
 
-      assert %{scope: :review, anchor: nil, original_anchor: nil} = comment
+      assert %{scope: :review, anchor: nil} = comment
     end
   end
 

@@ -70,16 +70,16 @@ defmodule Suikou.Critique do
   defdelegate unresolve_comment(comment_id), to: Comments, as: :unresolve
 
   @doc """
-  Relocates a line-scoped comment to a fresh line range, re-capturing its quote
-  from the live file. See `Suikou.Critique.Comments.relocate/3`.
+  Relocates a `:located` comment to a fresh tagged `anchor` payload, re-capturing
+  its quote from the live file. See `Suikou.Critique.Comments.relocate/2`.
 
   ## Examples
 
-      Suikou.Critique.relocate_comment(comment.id, 4, 5)
+      Suikou.Critique.relocate_comment(comment.id, %{type: "line_range", start_line: 4, end_line: 5})
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
-  defdelegate relocate_comment(comment_id, start_line, end_line), to: Comments, as: :relocate
+  defdelegate relocate_comment(comment_id, anchor_params), to: Comments, as: :relocate
 
   @doc """
   Appends a human reply to a comment thread. See

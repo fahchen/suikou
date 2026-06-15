@@ -3,8 +3,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
-import { THEMES, THEME_LABELS } from "../themes";
-import type { CritiqueType, Density, StatusFilter } from "../stores/ui-store";
+import { THEMES, THEME_LABELS, type ThemeName } from "../themes";
+import type {
+  CritiqueType,
+  Density,
+  DiffLayout,
+  FileDisplayMode,
+  StatusFilter,
+} from "../stores/ui-store";
+import { CRITIQUE_META } from "./types";
+import type { ViewCapabilities, ViewKind } from "./view-kind";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -28,13 +36,27 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
   { value: "loose", label: "Loose" },
 ];
 
-/** View preferences and comment filters: layout, markdown mode, theme, status, type. */
+/**
+ * View preferences and comment filters. Each row is gated by `capabilities` so
+ * a setting only appears when it is meaningful for the current file (no markdown
+ * flavor for diffs, no diff layout for files, no wrap for images, etc).
+ */
 export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
   artifactId: string;
   rawView: boolean;
-  previewable: boolean;
+  capabilities: ViewCapabilities;
+  viewKind: ViewKind;
+  /** Side-by-side diff fits only on wide screens; narrow forces unified. */
+  diffLayoutAllowed: boolean;
+  /**
+   * The side comment rail only earns a column on wide screens; below that the
+   * layout forces inline, so the "Side" toggle is hidden to avoid a dead control.
+   */
+  sideCommentsAllowed: boolean;
 }) {
-  const { artifactId, rawView, previewable } = props;
+  const { artifactId, rawView, capabilities, viewKind, diffLayoutAllowed, sideCommentsAllowed } =
+    props;
+  const sourceLabel = viewKind === "html" ? "HTML" : "Markdown";
   const ui = uiStore;
   const navigate = useNavigate();
 
@@ -47,35 +69,90 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             size="icon-xs"
             title="Display settings"
           >
-            <SlidersHorizontal className="size-4 text-muted-foreground" />
+            <SlidersHorizontal className="text-muted-foreground" />
           </Button>
         }
       />
       <PopoverContent align="end" className="w-64 p-3">
         <div className="flex flex-col gap-3">
-          <Row label="Comments">
+          <Row label="Files">
             <ToggleGroup
-              size="sm"
+              size="xs"
               variant="outline"
-              value={[ui.hideComments ? "hidden" : ui.commentMode]}
-              onValueChange={(v) => {
-                if (!v[0]) return;
-                if (v[0] === "hidden") {
-                  ui.setHideComments(true);
-                } else {
-                  ui.setHideComments(false);
-                  ui.setCommentMode(v[0] as "inline" | "side");
-                }
-              }}
+              spacing={0}
+              value={[ui.fileDisplayMode]}
+              onValueChange={(v) =>
+                v[0] && ui.setFileDisplayMode(v[0] as FileDisplayMode)
+              }
             >
-              <ToggleGroupItem value="inline">Inline</ToggleGroupItem>
-              <ToggleGroupItem value="side">Side</ToggleGroupItem>
-              <ToggleGroupItem value="hidden">Hide</ToggleGroupItem>
+              <ToggleGroupItem value="single">One</ToggleGroupItem>
+              <ToggleGroupItem value="all">All</ToggleGroupItem>
             </ToggleGroup>
           </Row>
 
-          {previewable && (
-            <Row label="Markdown">
+          {ui.fileDisplayMode === "all" && (
+            <Row label="Reviewed">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[ui.hideReviewed ? "hide" : "show"]}
+                onValueChange={(v) =>
+                  v[0] && ui.setHideReviewed(v[0] === "hide")
+                }
+              >
+                <ToggleGroupItem value="show">Show</ToggleGroupItem>
+                <ToggleGroupItem value="hide">Hide</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
+
+          {capabilities.comments && (
+            <Row label="Comments">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[
+                  ui.hideComments
+                    ? "hidden"
+                    : sideCommentsAllowed
+                      ? ui.commentMode
+                      : "inline",
+                ]}
+                onValueChange={(v) => {
+                  if (!v[0]) return;
+                  if (v[0] === "hidden") {
+                    ui.setHideComments(true);
+                  } else {
+                    ui.setHideComments(false);
+                    ui.setCommentMode(v[0] as "inline" | "side");
+                  }
+                }}
+              >
+                <ToggleGroupItem value="inline">Inline</ToggleGroupItem>
+                {sideCommentsAllowed && <ToggleGroupItem value="side">Side</ToggleGroupItem>}
+                <ToggleGroupItem value="hidden">Hide</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
+
+          {capabilities.diffLayout && diffLayoutAllowed && (
+            <Row label="Diff">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[ui.diffLayout]}
+                onValueChange={(v) =>
+                  v[0] && ui.setDiffLayout(v[0] as DiffLayout)
+                }
+              >
+                <ToggleGroupItem value="unified">Unified</ToggleGroupItem>
+                <ToggleGroupItem value="side">Split</ToggleGroupItem>
+              </ToggleGroup>
+            </Row>
+          )}
+
+          {capabilities.rawToggle && (
+            <Row label={sourceLabel}>
               <ToggleGroup
                 size="sm"
                 variant="outline"
@@ -94,7 +171,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Row>
           )}
 
-          {previewable && !rawView && (
+          {capabilities.markdownFlavor && (
             <Row label="Flavor">
               <ToggleGroup
                 size="sm"
@@ -108,7 +185,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Row>
           )}
 
-          {(rawView || !previewable) && (
+          {capabilities.wrapLines && (
             <Row label="Wrap">
               <ToggleGroup
                 size="sm"
@@ -122,25 +199,29 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Row>
           )}
 
-          <Row label="Spacing">
-            <ToggleGroup
-              size="sm"
-              variant="outline"
-              value={[ui.density]}
-              onValueChange={(v) => v[0] && ui.setDensity(v[0] as Density)}
-            >
-              {DENSITY_OPTIONS.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Row>
+          {capabilities.density && (
+            <Row label="Spacing">
+              <ToggleGroup
+                size="sm"
+                variant="outline"
+                value={[ui.density]}
+                onValueChange={(v) => v[0] && ui.setDensity(v[0] as Density)}
+              >
+                {DENSITY_OPTIONS.map((option) => (
+                  <ToggleGroupItem key={option.value} value={option.value}>
+                    {option.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </Row>
+          )}
 
           <Row label="Theme">
             <Select value={ui.theme} onValueChange={(v) => ui.setTheme(v as (typeof THEMES)[number])}>
               <SelectTrigger size="sm">
-                <SelectValue />
+                <SelectValue>
+                  {(value: ThemeName) => THEME_LABELS[value]}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {THEMES.map((theme) => (
@@ -152,43 +233,48 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Select>
           </Row>
 
-          <div className="border-t border-line-soft pt-2 text-[11px] uppercase tracking-wide text-faint">
-            Filter comments
-          </div>
+          {capabilities.comments && (
+            <>
+              <div className="border-t border-line-soft pt-2 text-[11px] uppercase tracking-wide text-faint">
+                Filter comments
+              </div>
 
-          <Row label="Status">
-            <ToggleGroup
-              size="sm"
-              variant="outline"
-              value={[ui.statusFilter]}
-              onValueChange={(v) => v[0] && ui.setStatusFilter(v[0] as StatusFilter)}
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <ToggleGroupItem key={option.value} value={option.value}>
-                  {option.label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Row>
-
-          <Row label="Type">
-            <div className="flex flex-wrap gap-1">
-              {TYPE_OPTIONS.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`rounded-lg border px-2 py-0.5 text-[11px] transition-colors ${
-                    ui.typeFilters[type]
-                      ? "border-transparent bg-tint text-heading"
-                      : "border-line bg-transparent text-faint hover:bg-hover"
-                  }`}
-                  onClick={() => ui.toggleType(type)}
+              <Row label="Status">
+                <ToggleGroup
+                  size="sm"
+                  variant="outline"
+                  value={[ui.statusFilter]}
+                  onValueChange={(v) => v[0] && ui.setStatusFilter(v[0] as StatusFilter)}
                 >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </Row>
+                  {STATUS_OPTIONS.map((option) => (
+                    <ToggleGroupItem key={option.value} value={option.value}>
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </Row>
+
+              <Row label="Type">
+                <div className="flex flex-wrap gap-1">
+                  {TYPE_OPTIONS.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={ui.typeFilters[type]}
+                      className={`cursor-pointer rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+                        ui.typeFilters[type]
+                          ? "border-transparent bg-tint text-heading"
+                          : "border-line bg-transparent text-faint hover:bg-hover hover:text-muted-foreground"
+                      }`}
+                      onClick={() => ui.toggleType(type)}
+                    >
+                      {CRITIQUE_META[type].label}
+                    </button>
+                  ))}
+                </div>
+              </Row>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>

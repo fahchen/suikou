@@ -9,6 +9,7 @@ import type { RenderedBlock } from "../markdown/render";
 import type { Comment } from "./types";
 import { Composer } from "./Composer";
 import { CommentCard } from "./CommentCard";
+import { useFileScope } from "./file-scope";
 import { isBinaryContent } from "./file-type";
 
 interface EditorProps {
@@ -23,6 +24,9 @@ interface EditorProps {
   imageSrc?: string;
   /** Set when the source content couldn't be fetched (file deleted, moved, unreadable). */
   contentError?: string | null;
+  /** Rendered inside an outer card (stacked all-files mode): drop chrome so the
+   * parent card frame isn't doubled. */
+  nested?: boolean;
 }
 
 // Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline).
@@ -55,23 +59,27 @@ const DENSITY: Record<
 };
 
 export const Editor = observer(function Editor(props: EditorProps) {
-  if (props.imageSrc) return <ImageView src={props.imageSrc} />;
+  if (props.imageSrc) return <ImageView src={props.imageSrc} nested={props.nested} />;
   if (props.contentError)
-    return <FileNotice title="Can't load this file" message={props.contentError} />;
+    return <FileNotice title="Can't load this file" message={props.contentError} nested={props.nested} />;
   if (isBinaryContent(props.content))
     return (
       <FileNotice
         title="Can't render this file"
         message="It looks like a binary file (an image or other non-text format), so there's no source to preview."
+        nested={props.nested}
       />
     );
   if (props.view === "raw") return <RawView {...props} />;
   return <RenderView {...props} />;
 });
 
-const FileNotice = function FileNotice(props: { title: string; message: string }) {
+const FileNotice = function FileNotice(props: { title: string; message: string; nested?: boolean }) {
+  const chrome = props.nested
+    ? "flex flex-col items-center gap-3 px-6 py-16 text-center"
+    : "flex flex-col items-center gap-3 rounded-xl border border-line bg-editor px-6 py-16 text-center";
   return (
-    <article className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-editor px-6 py-16 text-center">
+    <article className={chrome}>
       <FileX2 size={28} className="text-faint" aria-hidden />
       <div className="text-sm font-medium text-heading">{props.title}</div>
       <p className="max-w-sm text-[13px] text-muted-foreground">{props.message}</p>
@@ -79,10 +87,13 @@ const FileNotice = function FileNotice(props: { title: string; message: string }
   );
 };
 
-const ImageView = function ImageView(props: { src: string }) {
+const ImageView = function ImageView(props: { src: string; nested?: boolean }) {
   const name = decodeURIComponent(props.src.slice(props.src.lastIndexOf("/") + 1));
+  const chrome = props.nested
+    ? "flex justify-center px-2 py-6 sm:px-3"
+    : "flex justify-center rounded-xl border border-line bg-editor px-2 py-6 sm:px-3";
   return (
-    <article className="flex justify-center rounded-2xl border border-line bg-editor px-2 py-6 sm:px-3">
+    <article className={chrome}>
       <img
         src={props.src}
         alt={name}
@@ -95,9 +106,12 @@ const ImageView = function ImageView(props: { src: string }) {
 const RenderView = observer(function RenderView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
   const tiers = DENSITY[uiStore.density];
+  const wrapperClass = props.nested
+    ? "px-2 py-4 sm:px-3 sm:py-6"
+    : "overflow-hidden rounded-xl border border-line bg-editor px-2 py-4 sm:px-3 sm:py-6";
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-line bg-editor px-2 py-4 sm:px-3 sm:py-6">
+    <article className={wrapperClass}>
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pt-3">
@@ -130,10 +144,11 @@ const RenderView = observer(function RenderView(props: EditorProps) {
 const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
   const unanchored = props.comments.filter((c) => !c.anchor);
+  const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
 
   return (
     <article
-      className={`rounded-2xl border border-line bg-editor py-4 font-mono text-[13px] sm:py-6 ${
+      className={`${chrome} py-4 font-mono text-[13px] sm:py-6 ${
         // No left padding when scrolling: overflow-x clips to the padding box, so
         // a left pad would let scrolled text show in the strip beside the sticky
         // gutter. The w-12 gutter supplies the left gutter space itself.
@@ -223,16 +238,24 @@ const LineRow = observer(function LineRow(props: {
   children: React.ReactNode;
 }) {
   const ui = uiStore;
+  const fileScope = useFileScope();
   const { startLine, endLine } = props;
-  const selStart = ui.selStart;
-  const selEnd = ui.selEnd;
+  // Only honor the active composer/selection when it was opened against this
+  // file scope — otherwise an open composer on a sibling stacked file would
+  // render a phantom selection here on the same line numbers.
+  const sameScope = ui.composerFilePath === fileScope;
+  const selStart = sameScope ? ui.selStart : null;
+  const selEnd = sameScope ? ui.selEnd : null;
   const selected =
     selStart != null && selEnd != null && startLine <= selEnd && endLine >= selStart;
   const composerOpen = selStart != null && selEnd != null && endLine === selEnd;
   const label = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
   const inlineComments = props.inline
     ? props.comments.filter(
-        (c) => c.anchor && c.anchor.start_line >= startLine && c.anchor.start_line <= endLine,
+        (c) =>
+          c.anchor?.type === "line_range" &&
+          c.anchor.start_line >= startLine &&
+          c.anchor.start_line <= endLine,
       )
     : [];
 
@@ -247,21 +270,17 @@ const LineRow = observer(function LineRow(props: {
           type="button"
           title={`Add a comment on line ${startLine} (Shift-click to extend)`}
           aria-label={`Add a comment on line ${startLine}`}
-          className={`relative sticky left-0 z-10 w-12 shrink-0 select-none self-stretch pr-2 text-right font-mono text-[12px] backdrop-blur-sm transition-colors ${
+          className={`relative sticky left-0 z-10 w-12 shrink-0 cursor-pointer select-none self-stretch pr-2 text-right font-mono text-[12px] backdrop-blur-sm transition-colors ${
             selected
               ? "bg-active-line text-blue"
               : "bg-editor text-faint group-hover:bg-hover hover:text-blue"
           }`}
           onClick={(e) => {
-            // Touch has no shift-key: once a range is open, a plain tap on any
-            // other line number extends it. Fine pointers keep shift-to-extend.
-            const extend =
-              ui.selStart != null &&
-              (e.shiftKey || window.matchMedia("(pointer: coarse)").matches);
+            const extend = sameScope && ui.selStart != null && e.shiftKey;
             if (extend) {
-              ui.extendSelection(startLine, endLine);
+              ui.extendSelection(startLine, endLine, fileScope);
             } else {
-              ui.openComposer(startLine, endLine, "line");
+              ui.openComposer(startLine, endLine, "located", fileScope);
             }
           }}
         >

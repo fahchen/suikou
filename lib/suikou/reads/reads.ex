@@ -61,7 +61,12 @@ defmodule Suikou.Reads do
 
   """
   @spec get_artifact(Ecto.UUID.t()) :: Artifact.t() | nil
-  def get_artifact(artifact_id), do: Repo.get(Artifact, artifact_id)
+  def get_artifact(artifact_id) do
+    case Repo.get(Artifact, artifact_id) do
+      nil -> nil
+      %Artifact{} = artifact -> Repo.preload(artifact, :review)
+    end
+  end
 
   @doc """
   Lists an artifact's rounds in ascending number order.

@@ -2,27 +2,17 @@ import { createFileRoute } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 
 import { uiStore } from "../stores/ui-store"
-import { Editor } from "../review/Editor"
 import { useReviewView } from "../review/store-context"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
-import { imageAssetSrc } from "../review/file-type"
+import { resolveViewKind } from "../review/view-kind"
+import { viewComponentFor } from "../review/views/registry"
 
 const RawEditorRoute = observer(function RawEditorRoute() {
-  const { snapshot, content, contentError, blocks, loading, comments, rawLines } = useReviewView()
+  const view = useReviewView()
   const wide = useMediaQuery(WIDE_QUERY)
-  return (
-    <Editor
-      view="raw"
-      content={content}
-      contentError={contentError}
-      blocks={blocks}
-      loading={loading}
-      comments={comments}
-      rawLines={rawLines}
-      inline={uiStore.commentMode !== "side" || !wide}
-      imageSrc={imageAssetSrc(snapshot.artifact.id, snapshot.artifact.title)}
-    />
-  )
+  const inline = uiStore.commentMode !== "side" || !wide
+  const ViewComponent = viewComponentFor(resolveViewKind(view.snapshot.artifact))
+  return <ViewComponent view={view} forceRaw={true} inline={inline} nested />
 })
 
 export const Route = createFileRoute("/review/$artifactId/raw")({

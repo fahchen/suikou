@@ -37,14 +37,14 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 function anchorLabel(comment: Comment): string {
-  if (!comment.anchor) return "no anchor"
+  if (comment.anchor?.type !== "line_range") return "no anchor"
   const { start_line, end_line } = comment.anchor
   return start_line === end_line ? `L${start_line}` : `L${start_line}–${end_line}`
 }
 
 function quoteBlock(comment: Comment): string | null {
-  const quote = comment.anchor?.quote
-  if (!quote) return null
+  if (comment.anchor?.type !== "line_range") return null
+  const { quote } = comment.anchor
   return quote
     .split("\n")
     .map((line) => `> ${line}`)

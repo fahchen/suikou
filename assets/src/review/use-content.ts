@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react"
 
-import { contentUrl } from "./urls"
+import { contentUrl, reviewFileContentUrl } from "./urls"
 
 export interface ContentState {
   text: string
   loading: boolean
   error: string | null
+  /** True when the backend answered 404 (deliberate placeholder, do not retry). */
+  missing: boolean
 }
 
 /**
@@ -16,33 +18,60 @@ export interface ContentState {
  * which are shown via `<img>` instead of fetched as text.
  */
 export function useContent(artifactId: string, revision: string, enabled: boolean): ContentState {
-  const [state, setState] = useState<ContentState>({ text: "", loading: enabled, error: null })
+  return useTextContent(enabled ? contentUrl(artifactId) : null, revision)
+}
+
+/**
+ * Same shape as `useContent`, but looks the file up by repo-relative path
+ * inside a review — the route the backend exposes for unminted rows. Pass
+ * the row's `content_hash` as the cache key so the fetch re-runs only when
+ * the file's version changes.
+ */
+export function useReviewFileContent(
+  reviewId: string,
+  path: string,
+  contentHash: string | null,
+  enabled: boolean
+): ContentState {
+  return useTextContent(enabled ? reviewFileContentUrl(reviewId, path) : null, contentHash ?? "")
+}
+
+function useTextContent(url: string | null, cacheKey: string): ContentState {
+  const [state, setState] = useState<ContentState>({
+    text: "",
+    loading: url !== null,
+    error: null,
+    missing: false
+  })
 
   useEffect(() => {
-    if (!enabled) {
-      setState({ text: "", loading: false, error: null })
+    if (url === null) {
+      setState({ text: "", loading: false, error: null, missing: false })
       return
     }
 
     let cancelled = false
-    setState((prev) => ({ text: prev.text, loading: true, error: null }))
+    setState((prev) => ({ text: prev.text, loading: true, error: null, missing: false }))
 
-    fetch(contentUrl(artifactId))
-      .then((res) => {
+    fetch(url)
+      .then(async (res) => {
+        if (res.status === 404) {
+          if (!cancelled) setState({ text: "", loading: false, error: null, missing: true })
+          return
+        }
         if (!res.ok) throw new Error(`content unavailable (${res.status})`)
-        return res.text()
-      })
-      .then((text) => {
-        if (!cancelled) setState({ text, loading: false, error: null })
+        const text = await res.text()
+        if (!cancelled) setState({ text, loading: false, error: null, missing: false })
       })
       .catch((err: Error) => {
-        if (!cancelled) setState({ text: "", loading: false, error: err.message })
+        if (!cancelled)
+          setState({ text: "", loading: false, error: err.message, missing: false })
       })
 
     return () => {
       cancelled = true
     }
-  }, [artifactId, revision, enabled])
+  }, [url, cacheKey])
 
   return state
 }

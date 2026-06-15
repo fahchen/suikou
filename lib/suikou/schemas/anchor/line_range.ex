@@ -10,6 +10,8 @@ defmodule Suikou.Schemas.Anchor.LineRange do
 
   import Ecto.Changeset
 
+  alias Suikou.Schemas.Anchor.LineOrder
+
   @primary_key false
   typed_embedded_schema do
     field :start_line, :integer, typed: [null: false]
@@ -36,17 +38,6 @@ defmodule Suikou.Schemas.Anchor.LineRange do
     |> cast(params, [:start_line, :end_line, :quote])
     |> validate_required([:start_line, :end_line, :quote])
     |> validate_number(:start_line, greater_than: 0)
-    |> validate_line_order()
-  end
-
-  defp validate_line_order(changeset) do
-    start_line = get_field(changeset, :start_line)
-    end_line = get_field(changeset, :end_line)
-
-    if is_integer(start_line) and is_integer(end_line) and end_line < start_line do
-      add_error(changeset, :end_line, "must be greater than or equal to start line")
-    else
-      changeset
-    end
+    |> LineOrder.validate()
   end
 end

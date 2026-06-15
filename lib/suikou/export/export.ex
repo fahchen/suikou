@@ -13,7 +13,6 @@ defmodule Suikou.Export do
   alias Suikou.Critique
   alias Suikou.Repo
   alias Suikou.Rounds
-  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
@@ -31,7 +30,6 @@ defmodule Suikou.Export do
           critique_type: Comment.critique_type(),
           body: String.t(),
           anchor: anchor_view() | nil,
-          original_anchor: anchor_view() | nil,
           original_round: integer() | nil,
           resolved_round: integer() | nil,
           resolved: boolean(),
@@ -111,19 +109,12 @@ defmodule Suikou.Export do
       critique_type: comment.critique_type,
       body: comment.body,
       anchor: anchor,
-      original_anchor: anchor_view(comment.original_anchor),
       original_round: comment.original_round,
       resolved_round: comment.resolved_round,
       resolved: not is_nil(comment.resolved_round),
       outdated: outdated,
-      line_anchor: comment.scope == :line and not outdated,
+      line_anchor: comment.scope == :located and not outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
   end
-
-  defp anchor_view(%LineRange{} = anchor) do
-    %{start_line: anchor.start_line, end_line: anchor.end_line, quote: anchor.quote}
-  end
-
-  defp anchor_view(nil), do: nil
 end

@@ -1,7 +1,7 @@
 defmodule Suikou.Critique.Comments do
   @moduledoc """
   Authoring and lifecycle of human critique. New comments attach to the latest
-  round only; a line-scoped comment captures its quoted source on creation.
+  round only; a `:located` comment captures its quoted source on creation.
   Comments stay editable and deletable regardless of status; only `resolve` and
   `unresolve` require a published comment.
   """
@@ -13,8 +13,11 @@ defmodule Suikou.Critique.Comments do
   alias Suikou.Schemas.Comment
 
   @doc """
-  Adds a pending critique to the latest round. A line-scoped comment captures
-  its quoted source. Rejects an unknown or non-latest round.
+  Adds a pending critique to the latest round. A `:located` comment carries a
+  tagged `anchor` payload whose `type` discriminator selects the capture
+  strategy (`"line_range"` / `"diff_hunk"` capture the quote from the live
+  artifact content; `"element"` packages the client-supplied selector + quote
+  verbatim — see BDR-0021). Rejects an unknown or non-latest round.
 
   ## Examples
 
@@ -31,7 +34,9 @@ defmodule Suikou.Critique.Comments do
              Ecto.Changeset.t()
              | :round_not_found
              | :not_latest_round
-             | Artifacts.read_content_error()}
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
   def add(params) do
     round = Rounds.get(params[:round_id])
 
@@ -146,44 +151,46 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Relocates a line-scoped comment to lines `start_line..end_line` of its file,
-  re-capturing the quoted source from the live file so live resolution finds it
-  again. Rejects a comment that carries no line anchor.
+  Relocates a `:located` comment to a fresh `anchor` payload, re-capturing the
+  quoted source from the live file so live resolution finds it again. The
+  `anchor` is tagged with the kind discriminator (`%{type: "line_range", ...}`
+  today) and the call dispatches on it. Rejects a comment that carries no
+  located anchor.
 
   ## Examples
 
-      Suikou.Critique.Comments.relocate(comment.id, 4, 5)
+      Suikou.Critique.Comments.relocate(comment.id, %{type: "line_range", start_line: 4, end_line: 5})
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
-      Suikou.Critique.Comments.relocate(review_comment.id, 4, 5)
-      #=> {:error, :not_line_scoped}
+      Suikou.Critique.Comments.relocate(review_comment.id, %{type: "line_range", start_line: 4, end_line: 5})
+      #=> {:error, :not_located}
 
   """
-  @spec relocate(Ecto.UUID.t(), pos_integer(), pos_integer()) ::
+  @spec relocate(Ecto.UUID.t(), map()) ::
           {:ok, Comment.t()}
           | {:error,
              Ecto.Changeset.t()
              | :comment_not_found
-             | :not_line_scoped
-             | Artifacts.read_content_error()}
-  def relocate(comment_id, start_line, end_line) do
+             | :not_located
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
+  def relocate(comment_id, anchor_params) do
     case Repo.get(Comment, comment_id) do
       nil ->
         {:error, :comment_not_found}
 
-      %Comment{scope: :line} = comment ->
+      %Comment{scope: :located} = comment ->
         round = Rounds.get(comment.round_id)
 
-        with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
-          anchor = Anchor.capture(content, start_line, end_line)
-
+        with {:ok, anchor} <- build_anchor(anchor_params, round) do
           comment
           |> Comment.relocate_changeset(%{anchor: anchor})
           |> Repo.update()
         end
 
       %Comment{} ->
-        {:error, :not_line_scoped}
+        {:error, :not_located}
     end
   end
 
@@ -195,17 +202,11 @@ defmodule Suikou.Critique.Comments do
   end
 
   defp put_anchor(params, round) do
-    start_line = params[:start_line]
-    end_line = params[:end_line]
-
-    if line_scope?(params[:scope]) and is_integer(start_line) and is_integer(end_line) do
-      with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
-        anchor = Anchor.capture(content, start_line, end_line)
-
+    if located_scope?(params[:scope]) do
+      with {:ok, anchor} <- build_anchor(params[:anchor], round) do
         {:ok,
          params
          |> Map.put(:anchor, anchor)
-         |> Map.put(:original_anchor, anchor)
          |> Map.put(:original_round, round.number)}
       end
     else
@@ -213,5 +214,69 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp line_scope?(scope), do: scope in [:line, "line"]
+  defp build_anchor(anchor_params, round) do
+    case anchor_type(anchor_params) do
+      "line_range" -> build_line_range(anchor_params, round)
+      "diff_hunk" -> build_diff_hunk(anchor_params, round)
+      "element" -> build_element(anchor_params)
+      _other -> {:error, :unknown_anchor_type}
+    end
+  end
+
+  defp build_line_range(anchor_params, round) do
+    start_line = anchor_field(anchor_params, :start_line)
+    end_line = anchor_field(anchor_params, :end_line)
+
+    with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
+      {:ok, Anchor.capture(content, start_line, end_line)}
+    end
+  end
+
+  # Element anchors are server-opaque: the client picks the selector against the
+  # live iframe DOM and ships the matching quote with it (see BDR-0021). The
+  # server never reads the HTML to validate or relocate — it just packages the
+  # supplied selector/quote into the polymorphic embed.
+  defp build_element(anchor_params) do
+    selector = anchor_field(anchor_params, :selector)
+    quote = anchor_field(anchor_params, :quote)
+    {:ok, Anchor.capture_element(selector, quote)}
+  end
+
+  defp build_diff_hunk(anchor_params, round) do
+    side = side_field(anchor_params)
+    start_line = anchor_field(anchor_params, :start_line)
+    end_line = anchor_field(anchor_params, :end_line)
+
+    case Artifacts.content_source(round.artifact_id) do
+      {:ok, {:inline, diff, "text/x-diff"}} ->
+        {:ok, Anchor.capture_diff_hunk(diff, side, start_line, end_line)}
+
+      {:ok, {:file, _path}} ->
+        {:error, :unknown_anchor_type}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp anchor_type(%{type: nil}), do: nil
+  defp anchor_type(%{type: type}), do: to_string(type)
+  defp anchor_type(%{"type" => nil}), do: nil
+  defp anchor_type(%{"type" => type}), do: to_string(type)
+  defp anchor_type(_other), do: nil
+
+  defp anchor_field(params, key) when is_map(params) do
+    Map.get(params, key) || Map.get(params, Atom.to_string(key))
+  end
+
+  defp side_field(params) do
+    case anchor_field(params, :side) do
+      side when side in [:old, :new] -> side
+      "old" -> :old
+      "new" -> :new
+      _other -> nil
+    end
+  end
+
+  defp located_scope?(scope), do: scope in [:located, "located"]
 end

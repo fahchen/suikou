@@ -12,17 +12,19 @@ defmodule Suikou.Schemas.Comment do
 
   import PolymorphicEmbed
 
+  alias Suikou.Schemas.Anchor.DiffHunk
+  alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
 
-  @scopes [:line, :file, :review]
+  @scopes [:review, :artifact, :located]
   @critique_types [:fix_required, :needs_answer, :note]
   @statuses [:pending, :published]
 
-  @anchor_types [line_range: LineRange]
+  @anchor_types [line_range: LineRange, diff_hunk: DiffHunk, element: Element]
 
-  @type scope() :: :line | :file | :review
+  @type scope() :: :review | :artifact | :located
   @type critique_type() :: :fix_required | :needs_answer | :note
   @type status() :: :pending | :published
 
@@ -30,12 +32,6 @@ defmodule Suikou.Schemas.Comment do
     field :scope, Ecto.Enum, values: @scopes, typed: [null: false]
 
     polymorphic_embeds_one(:anchor,
-      types: @anchor_types,
-      on_type_not_found: :raise,
-      on_replace: :update
-    )
-
-    polymorphic_embeds_one(:original_anchor,
       types: @anchor_types,
       on_type_not_found: :raise,
       on_replace: :update
@@ -60,7 +56,7 @@ defmodule Suikou.Schemas.Comment do
   ## Examples
 
       iex> Suikou.Schemas.Comment.scopes()
-      [:line, :file, :review]
+      [:review, :artifact, :located]
 
   """
   @spec scopes() :: [scope()]
@@ -80,9 +76,9 @@ defmodule Suikou.Schemas.Comment do
 
   @doc """
   Builds a changeset for authoring a critique, requiring round, scope, critique
-  type, and a non-blank body. A `line`-scoped comment also requires an `anchor`
-  and a frozen `original_anchor` (set to the same selector at creation) plus the
-  `original_round` it was authored at; `file` and `review` comments carry none.
+  type, and a non-blank body. A `:located` comment also requires an `anchor` and
+  the `original_round` it was authored at; `:artifact` and `:review` comments
+  carry no anchor.
 
   ## Examples
 
@@ -104,12 +100,11 @@ defmodule Suikou.Schemas.Comment do
 
   defp cast_anchor(changeset, params) do
     case get_field(changeset, :scope) do
-      :line ->
+      :located ->
         changeset
         |> put_change(:original_round, params[:original_round])
         |> validate_required([:original_round])
         |> cast_polymorphic_embed(:anchor, required: true)
-        |> cast_polymorphic_embed(:original_anchor, required: true)
 
       _other ->
         changeset
@@ -162,7 +157,7 @@ defmodule Suikou.Schemas.Comment do
   end
 
   @doc """
-  Builds a changeset relocating a line-scoped comment to a fresh `anchor`,
+  Builds a changeset relocating a `:located` comment to a fresh `anchor`,
   re-capturing its quote so live resolution finds it again. Used when a human
   manually re-anchors a comment whose quote no longer matched (see BDR-0017).
 

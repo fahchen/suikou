@@ -83,7 +83,7 @@ defmodule Suikou.ExportTest do
     artifact = round.artifact
 
     published_comment(round.id, %{
-      scope: :line,
+      scope: :located,
       start_line: 2,
       end_line: 2,
       critique_type: :fix_required

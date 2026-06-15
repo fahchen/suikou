@@ -65,21 +65,51 @@ describe("layout toggles", () => {
   })
 })
 
+describe("diff layout + file display mode", () => {
+  it("defaults diffLayout to side-by-side and fileDisplayMode to single", () => {
+    const ui = new UiStore()
+    expect(ui.diffLayout).toBe("side")
+    expect(ui.fileDisplayMode).toBe("single")
+  })
+
+  it("persists and restores diffLayout", () => {
+    const ui = new UiStore()
+    ui.setDiffLayout("unified")
+    expect(localStorage.getItem("suikou-diff-layout")).toBe("unified")
+    const restored = new UiStore()
+    expect(restored.diffLayout).toBe("unified")
+  })
+
+  it("ignores an unknown persisted diffLayout", () => {
+    localStorage.setItem("suikou-diff-layout", "bogus")
+    const ui = new UiStore()
+    expect(ui.diffLayout).toBe("side")
+  })
+
+  it("persists and restores fileDisplayMode", () => {
+    const ui = new UiStore()
+    ui.setFileDisplayMode("all")
+    expect(localStorage.getItem("suikou-file-display-mode")).toBe("all")
+    const restored = new UiStore()
+    expect(restored.fileDisplayMode).toBe("all")
+  })
+})
+
 describe("composer draft lifecycle", () => {
   it("opens with a fresh draft", () => {
     const ui = new UiStore()
     ui.setComposerBody("stale")
-    ui.openComposer(12, 12, "file")
+    ui.openComposer(12, 12, "artifact")
     expect(ui.selStart).toBe(12)
     expect(ui.selEnd).toBe(12)
-    expect(ui.composerScope).toBe("file")
+    expect(ui.composerScope).toBe("artifact")
     expect(ui.composerType).toBe("note")
     expect(ui.composerBody).toBe("")
   })
 
   it("edits the draft body and type", () => {
     const ui = new UiStore()
-    ui.openComposer(1, 1, "line")
+    ui.openComposer(1, 1, "located")
     ui.setComposerBody("hello")
     ui.setComposerType("fix_required")
     expect(ui.composerBody).toBe("hello")
@@ -88,7 +118,7 @@ describe("composer draft lifecycle", () => {
 
   it("closes by clearing the selection and body", () => {
     const ui = new UiStore()
-    ui.openComposer(5, 5, "line")
+    ui.openComposer(5, 5, "located")
     ui.setComposerBody("draft")
     ui.closeComposer()
     expect(ui.selStart).toBeNull()
@@ -100,14 +130,14 @@ describe("composer draft lifecycle", () => {
 describe("multi-line selection", () => {
   it("opens a multi-line range", () => {
     const ui = new UiStore()
-    ui.openComposer(7, 9, "line")
+    ui.openComposer(7, 9, "located")
     expect(ui.selStart).toBe(7)
     expect(ui.selEnd).toBe(9)
   })
 
   it("extends the range downward and upward keeping the outer bounds", () => {
     const ui = new UiStore()
-    ui.openComposer(5, 5, "line")
+    ui.openComposer(5, 5, "located")
     ui.extendSelection(8, 9)
     expect(ui.selStart).toBe(5)
     expect(ui.selEnd).toBe(9)

@@ -6,7 +6,7 @@ import type { Comment } from "./types"
 function comment(overrides: Partial<Comment> = {}): Comment {
   return {
     id: "c1",
-    scope: "line",
+    scope: "located",
     critique_type: "note",
     status: "published",
     body: "body",
@@ -31,7 +31,7 @@ describe("buildCopyText", () => {
         comment({
           critique_type: "fix_required",
           body: "use <= here",
-          anchor: { start_line: 10, end_line: 12, quote: "a\nb" }
+          anchor: { type: "line_range", start_line: 10, end_line: 12, quote: "a\nb" }
         })
       ],
       "noteworthy"
@@ -45,7 +45,7 @@ describe("buildCopyText", () => {
   })
 
   it("collapses a single-line anchor and labels a missing anchor", () => {
-    const single = buildCopyText("f", 0, [comment({ anchor: { start_line: 5, end_line: 5, quote: "x" } })], "noteworthy")
+    const single = buildCopyText("f", 0, [comment({ anchor: { type: "line_range", start_line: 5, end_line: 5, quote: "x" } })], "noteworthy")
     expect(single).toContain("L5")
 
     const none = buildCopyText("f", 0, [comment({ anchor: null })], "noteworthy")
