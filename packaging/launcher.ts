@@ -1,3 +1,5 @@
+import { spawn as spawnDetached } from "node:child_process"
+import { openSync } from "node:fs"
 import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
@@ -17,44 +19,197 @@ const BASE_PORT = 47100
 const PORT_PROBE_LIMIT = 16
 
 const base = join(homedir(), "Library", "Application Support", APP_NAME)
+// PID/log files live at the base dir (NOT the versioned runtime dir) so stop and
+// status keep working across version upgrades, which swap the runtime hash.
+const pidfilePath = join(base, "suikou.pid")
+const logPath = join(base, "suikou.log")
 
-const releaseRoot = await ensureExtracted()
-const bin = join(releaseRoot, "suikou", "bin", "suikou")
-const port = await pickPort()
+type Daemon = { pid: number; port: number }
 
-const proc = spawn([bin, "start"], {
-  // Inherit the terminal: this process *is* the server, so its logs go straight
-  // to the user's console.
-  stdin: "inherit",
-  stdout: "inherit",
-  stderr: "inherit",
-  env: {
-    ...process.env,
-    PHX_SERVER: "true",
-    // Pass through PHX_HOST so a Tailscale MagicDNS name / tailnet IP can be set
-    // at launch (PHX_HOST=mybox.tailnet.ts.net suikou). It drives URL generation
-    // and is allow-listed for websocket origin checks in config/runtime.exs.
-    // Defaults to localhost. The server itself already binds all interfaces.
-    PHX_HOST: process.env.PHX_HOST || "localhost",
-    PORT: String(port),
-    DATABASE_PATH: join(base, "suikou.db"),
-    SECRET_KEY_BASE: await ensureSecret()
-  }
-})
-
-// SIGTERM lets the release drain gracefully (it traps it). Forward both signals,
-// then exit once the child does.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => proc.kill(signal))
+// Dispatch on the first positional arg. Bare invocation stays a foreground
+// server (the original behavior); subcommands add background daemon control.
+const command = process.argv[2]
+switch (command) {
+  case undefined:
+    await runServer({ openBrowser: true })
+    break
+  case "run":
+    // Internal: what `start` execs detached. The parent opens the browser, so
+    // this child does not.
+    await runServer({ openBrowser: false })
+    break
+  case "start":
+    process.exit(await start())
+  case "stop":
+    process.exit(await stop())
+  case "status":
+    process.exit(await status())
+  default:
+    console.error("usage: suikou [start|stop|status|run]")
+    process.exit(1)
 }
 
-const url = `http://localhost:${port}`
-waitForReady(port).then((ready) => {
-  if (ready) spawn(["open", url])
-  else console.error(`server did not become ready at ${url}`)
-})
+// Foreground server body shared by bare invocation and the detached `run` child:
+// extract the release, spawn it inheriting our stdio, forward signals for a
+// graceful drain, and exit with the child's code. Never returns.
+async function runServer({ openBrowser }: { openBrowser: boolean }): Promise<never> {
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const port = await pickPort()
 
-process.exit(await proc.exited)
+  const proc = spawn([bin, "start"], {
+    // Inherit our stdio. Bare invocation inherits the terminal; the detached
+    // `run` child inherits the logfile fds the parent `start` handed it.
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+    env: {
+      ...process.env,
+      PHX_SERVER: "true",
+      // Pass through PHX_HOST so a Tailscale MagicDNS name / tailnet IP can be set
+      // at launch (PHX_HOST=mybox.tailnet.ts.net suikou). It drives URL generation
+      // and is allow-listed for websocket origin checks in config/runtime.exs.
+      // Defaults to localhost. The server itself already binds all interfaces.
+      PHX_HOST: process.env.PHX_HOST || "localhost",
+      PORT: String(port),
+      DATABASE_PATH: join(base, "suikou.db"),
+      SECRET_KEY_BASE: await ensureSecret()
+    }
+  })
+
+  // SIGTERM lets the release drain gracefully (it traps it). Forward both signals,
+  // then exit once the child does.
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => proc.kill(signal))
+  }
+
+  if (openBrowser) {
+    const url = urlForPort(port)
+    waitForReady(port).then((ready) => {
+      if (ready) spawn(["open", url])
+      else console.error(`server did not become ready at ${url}`)
+    })
+  }
+
+  process.exit(await proc.exited)
+}
+
+// `suikou start`: launch a detached background daemon and return promptly.
+async function start(): Promise<number> {
+  const existing = await loadPidfile()
+  if (existing && alive(existing.pid)) {
+    console.log(`already running (pid ${existing.pid}) at ${urlForPort(existing.port)}`)
+    return 0
+  }
+
+  // The parent picks the port so it can record it and open the right URL, then
+  // hands it to the detached child via PORT so they agree on the binding.
+  const port = await pickPort()
+  await mkdir(base, { recursive: true })
+  const logFd = openSync(logPath, "a")
+
+  // node:child_process `detached: true` is Bun-native (setsid/new session), so the
+  // daemon survives both this parent exiting and the terminal closing. unref drops
+  // it from the parent's event loop so we can exit.
+  const child = spawnDetached(process.execPath, ["run"], {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: { ...process.env, PORT: String(port) }
+  })
+  child.unref()
+
+  if (child.pid === undefined) {
+    console.error(`failed to spawn daemon; see ${logPath}`)
+    return 1
+  }
+
+  await write(pidfilePath, JSON.stringify({ pid: child.pid, port }))
+
+  const url = urlForPort(port)
+  if (await waitForReady(port)) {
+    spawn(["open", url])
+    console.log(`started (pid ${child.pid}) at ${url}`)
+  } else {
+    console.error(`started (pid ${child.pid}) but not ready yet at ${url}; see ${logPath}`)
+  }
+  return 0
+}
+
+// `suikou stop`: SIGTERM the daemon for a graceful drain, escalate to SIGKILL if
+// it overstays, then clear the pidfile.
+async function stop(): Promise<number> {
+  if (!(await file(pidfilePath).exists())) {
+    console.log("not running")
+    return 0
+  }
+
+  const info = await loadPidfile()
+  if (!info || !alive(info.pid)) {
+    await rm(pidfilePath, { force: true })
+    console.log("not running (removed stale pidfile)")
+    return 0
+  }
+
+  process.kill(info.pid, "SIGTERM")
+
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline && alive(info.pid)) {
+    await Bun.sleep(150)
+  }
+
+  let forced = ""
+  if (alive(info.pid)) {
+    process.kill(info.pid, "SIGKILL")
+    forced = " (forced)"
+  }
+
+  await rm(pidfilePath, { force: true })
+  console.log(`stopped${forced}`)
+  return 0
+}
+
+// `suikou status`: report liveness, pruning a stale pidfile if its holder is gone.
+async function status(): Promise<number> {
+  const info = await loadPidfile()
+  if (info && alive(info.pid)) {
+    console.log(`running (pid ${info.pid}) at ${urlForPort(info.port)}  logs: ${logPath}`)
+    return 0
+  }
+
+  if (await file(pidfilePath).exists()) await rm(pidfilePath, { force: true })
+  console.log("not running")
+  return 0
+}
+
+// Read and validate the daemon pidfile. Returns null when absent or corrupt.
+async function loadPidfile(): Promise<Daemon | null> {
+  const f = file(pidfilePath)
+  if (!(await f.exists())) return null
+  try {
+    const data = JSON.parse(await f.text())
+    if (typeof data?.pid === "number" && typeof data?.port === "number") {
+      return { pid: data.pid, port: data.port }
+    }
+  } catch {
+    // fall through to null for a truncated/corrupt pidfile
+  }
+  return null
+}
+
+// Probe liveness without delivering a signal. ESRCH means the process is gone;
+// EPERM (alive but not ours) still counts as alive.
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    return (err as { code?: string }).code !== "ESRCH"
+  }
+}
+
+function urlForPort(p: number): string {
+  return `http://localhost:${p}`
+}
 
 // Extract the release into ~/Library/Application Support/Suikou/runtime/<hash>/
 // exactly once. The hash in the embedded filename changes every build, so a new
