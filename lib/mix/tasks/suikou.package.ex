@@ -5,15 +5,16 @@ defmodule Mix.Tasks.Suikou.Package do
   Packages the whole app into one runnable file at `dist/suikou`.
 
   The build mirrors the sibling `redbug-cli` trick: a self-contained `mix release`
-  (ERTS bundled) is tarred and embedded into a `bun --compile` launcher that, at
-  runtime, extracts the release, boots the Phoenix server (which serves the API,
+  (ERTS bundled) is packed and embedded into a `bun --compile` launcher that, at
+  runtime, unpacks the release, boots the Phoenix server (which serves the API,
   the React SPA, and the Musubi socket same-origin), and opens the browser.
 
   Steps:
 
     1. Build the React frontend into `priv/static` (Vite via Bun).
     2. `MIX_ENV=prod mix release suikou` → `_build/prod/rel/suikou`.
-    3. Tar the release into `packaging/embed/server.tar.gz`.
+    3. Pack the release into `packaging/embed/server.pack.gz` via the
+       dependency-free `packaging/archive.ts` codec (no external `tar`).
     4. `bun build --compile packaging/launcher.ts` → `dist/suikou`.
 
   Targets the host platform only (macOS arm64).
@@ -28,7 +29,7 @@ defmodule Mix.Tasks.Suikou.Package do
   use Mix.Task
 
   @release_dir "_build/prod/rel"
-  @tarball "packaging/embed/server.tar.gz"
+  @pack "packaging/embed/server.pack.gz"
   @output "dist/suikou"
 
   @impl Mix.Task
@@ -45,7 +46,7 @@ defmodule Mix.Tasks.Suikou.Package do
   def run(_args) do
     build_frontend()
     build_release()
-    tar_release()
+    pack_release()
     compile_binary()
 
     Mix.shell().info("packaged -> #{@output}")
@@ -68,16 +69,20 @@ defmodule Mix.Tasks.Suikou.Package do
     cmd("mix", ["release", "suikou", "--overwrite"], env: [{"MIX_ENV", "prod"}])
   end
 
-  defp tar_release do
-    Mix.shell().info("==> tarring release")
-    File.mkdir_p!(Path.dirname(@tarball))
-    cmd("tar", ["-czf", @tarball, "-C", @release_dir, "suikou"])
+  defp pack_release do
+    Mix.shell().info("==> packing release")
+    File.mkdir_p!(Path.dirname(@pack))
+    # cd packaging/ so archive.ts resolves; `../#{@release_dir}/suikou` is the
+    # release root, and the output lands in `packaging/embed/`.
+    cmd("bun", ["run", "archive.ts", "../#{@release_dir}/suikou", "embed/server.pack.gz"],
+      cd: "packaging"
+    )
   end
 
   defp compile_binary do
     Mix.shell().info("==> compiling single-file binary")
     File.mkdir_p!(Path.dirname(@output))
-    # cwd packaging/ so the launcher's relative `./embed/server.tar.gz` import resolves.
+    # cwd packaging/ so the launcher's relative `./embed/server.pack.gz` import resolves.
     cmd("bun", ["build", "--compile", "launcher.ts", "--outfile", "../#{@output}"],
       cd: "packaging"
     )
