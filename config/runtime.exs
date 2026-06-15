@@ -54,7 +54,7 @@ if config_env() == :prod do
     # resolves to (e.g. a Tailscale MagicDNS name passed at launch), so a remote
     # tailnet device can connect while localhost keeps working. "//host" matches
     # any scheme/port, so this stays correct for plain-http access.
-    check_origin: ["//localhost", "//127.0.0.1", "//#{host}"],
+    check_origin: ["//localhost", "//127.0.0.1", "//[::1]", "//#{host}"],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
