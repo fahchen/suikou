@@ -6,8 +6,17 @@ defmodule Mix.Tasks.Suikou.Package do
 
   The build mirrors the sibling `redbug-cli` trick: a self-contained `mix release`
   (ERTS bundled) is packed and embedded into a `bun --compile` launcher that, at
-  runtime, unpacks the release, boots the Phoenix server (which serves the API,
-  the React SPA, and the Musubi socket same-origin), and opens the browser.
+  runtime, unpacks the release and boots the Phoenix server (which serves the API,
+  the React SPA, and the Musubi socket same-origin).
+
+  The launcher takes subcommands:
+
+    * bare `suikou` — run in the foreground, opening the browser; Ctrl-C stops it.
+    * `suikou start` — start a detached background daemon (logs to
+      `suikou.log`), then open the browser.
+    * `suikou stop` — gracefully stop the running daemon.
+    * `suikou status` — report whether the daemon is running.
+    * `suikou run` — internal foreground body the daemon execs; not for direct use.
 
   Steps:
 
