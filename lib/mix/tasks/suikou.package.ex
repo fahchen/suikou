@@ -90,7 +90,7 @@ defmodule Mix.Tasks.Suikou.Package do
     File.chmod!(@output, 0o755)
   end
 
-  defp cmd(exe, args, opts \\ []) do
+  defp cmd(exe, args, opts) do
     opts = Keyword.merge([into: IO.stream(:stdio, :line), stderr_to_stdout: true], opts)
     {_output, status} = System.cmd(exe, args, opts)
 
