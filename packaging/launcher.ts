@@ -32,7 +32,11 @@ const proc = spawn([bin, "start"], {
   env: {
     ...process.env,
     PHX_SERVER: "true",
-    PHX_HOST: "localhost",
+    // Pass through PHX_HOST so a Tailscale MagicDNS name / tailnet IP can be set
+    // at launch (PHX_HOST=mybox.tailnet.ts.net suikou). It drives URL generation
+    // and is allow-listed for websocket origin checks in config/runtime.exs.
+    // Defaults to localhost. The server itself already binds all interfaces.
+    PHX_HOST: process.env.PHX_HOST || "localhost",
     PORT: String(port),
     DATABASE_PATH: join(base, "suikou.db"),
     SECRET_KEY_BASE: await ensureSecret()
