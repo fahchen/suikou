@@ -9,14 +9,19 @@ defmodule Mix.Tasks.Suikou.Package do
   runtime, unpacks the release and boots the Phoenix server (which serves the API,
   the React SPA, and the Musubi socket same-origin).
 
-  The launcher takes subcommands:
+  The launcher takes subcommands. Background lifecycle delegates to the release's
+  own OTP-native commands (`bin/suikou daemon`/`stop`/`pid` via run_erl), with the
+  release's `RELEASE_TMP`/`RELEASE_COOKIE`/`RELEASE_NODE`/`RELEASE_DISTRIBUTION`
+  pinned to stable locations in `~/Library/Application Support/Suikou` so stop and
+  status reach the daemon regardless of which binary version started it.
 
     * bare `suikou` — run in the foreground, opening the browser; Ctrl-C stops it.
-    * `suikou start` — start a detached background daemon (logs to
-      `~/Library/Application Support/Suikou/suikou.log`), then open the browser.
-    * `suikou stop` — gracefully stop the running daemon.
+    * `suikou start` — start the release as a background daemon, then open the
+      browser. run_erl logs land in
+      `~/Library/Application Support/Suikou/tmp/log`.
+    * `suikou stop` — stop the running daemon.
     * `suikou status` — report whether the daemon is running.
-    * `suikou run` — internal foreground body the daemon execs; not for direct use.
+    * `suikou run` — foreground alias (same as bare, without opening the browser).
 
   Steps:
 
