@@ -32,3 +32,45 @@ export function resolveViewKind(artifact: ArtifactHint): ViewKind {
   if (isHtmlPath(artifact.title)) return "html"
   return "file"
 }
+
+/**
+ * Per-artifact capability flags used by the topbar to gate controls. Each flag
+ * is true only when the corresponding control is meaningful for the artifact at
+ * hand — so irrelevant toggles disappear instead of sitting around inert.
+ */
+export interface ViewCapabilities {
+  /** Diff layout toggle (unified vs side-by-side) — only for diff artifacts. */
+  diffLayout: boolean
+  /** Rendered/raw toggle — only for files with a rendered preview (markdown). */
+  rawToggle: boolean
+  /** Markdown flavor toggle — only for previewable files in rendered mode. */
+  markdownFlavor: boolean
+  /** Soft-wrap toggle — only for raw text views (not images / diffs / html). */
+  wrapLines: boolean
+  /** Density (reading rhythm) — only meaningful for the markdown render view. */
+  density: boolean
+  /** Comment plumbing (mode toggle, status/type filters, collapse-all). */
+  comments: boolean
+}
+
+interface CapabilityHint {
+  kind: ViewKind
+  previewable: boolean
+  image: boolean
+  rawView: boolean
+  binary: boolean
+}
+
+export function viewCapabilities(hint: CapabilityHint): ViewCapabilities {
+  const { kind, previewable, image, rawView, binary } = hint
+  const fileKind = kind === "file"
+  const htmlKind = kind === "html"
+  return {
+    diffLayout: kind === "diff",
+    rawToggle: (fileKind && previewable && !image) || htmlKind,
+    markdownFlavor: fileKind && previewable && !rawView && !image,
+    wrapLines: fileKind && !image && !binary && (rawView || !previewable),
+    density: fileKind && previewable && !rawView && !image,
+    comments: !image && !binary
+  }
+}

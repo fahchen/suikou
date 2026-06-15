@@ -55,7 +55,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     rawLines: null,
     snapshot: {
       artifact: { id: "art1", title: "page.html" }
-    } as ReviewView["snapshot"]
+    } as ReviewView["snapshot"],
+    verdict: "comment",
+    onVerdictChange: () => undefined
   }
 }
 
@@ -91,9 +93,48 @@ async function flushMicrotasks(): Promise<void> {
 beforeEach(() => {
   dispatch.mockReset()
   uiStore.setOutdatedElementCommentIds(new Set())
+  uiStore.closeComposer()
 })
 
 describe("HtmlView", () => {
+  it("survives loading→loaded without changing hook count (regression)", async () => {
+    // Console.error fails the test on a React invariant like "Rendered more
+    // hooks than during the previous render". Captures it explicitly so the
+    // failure mode is loud even if the component still returns a fallback.
+    const errors: unknown[] = []
+    const original = console.error
+    console.error = (...args) => {
+      errors.push(args)
+      original.apply(console, args as Parameters<typeof console.error>)
+    }
+    try {
+      const initial = makeView("")
+      const loadingView: ReviewView = { ...initial, loading: true }
+      const { rerender } = render(
+        <HtmlView view={loadingView} forceRaw={false} inline={true} />
+      )
+      // Loading placeholder rendered (hook count = baseline).
+      await screen.findByText("Loading…")
+      // Content arrives → component falls through to the iframe path; this
+      // is the render that previously crashed because matchingComments's
+      // useMemo lived below the early returns.
+      rerender(
+        <HtmlView
+          view={makeView(`<p id="hi">hi</p>`)}
+          forceRaw={false}
+          inline={true}
+        />
+      )
+      await screen.findByTitle("page.html")
+      const hookError = errors.find((args) =>
+        JSON.stringify(args).includes("Rendered more hooks")
+      )
+      expect(hookError).toBeUndefined()
+    } finally {
+      console.error = original
+    }
+  })
+
   it("renders the iframe with sandbox=allow-same-origin and NO allow-scripts", async () => {
     render(
       <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
@@ -147,6 +188,25 @@ describe("HtmlView", () => {
     await waitFor(() =>
       expect(screen.queryByText(/New comment on selected region/)).toBeNull()
     )
+  })
+
+  it("opens the composer from a touch-driven selectionchange (no mouseup)", async () => {
+    render(
+      <HtmlView
+        view={makeView(`<p id="hello">hello world</p>`)}
+        forceRaw={false}
+        inline={true}
+      />
+    )
+    const iframe = await loadedIframe(`<p id="hello">hello world</p>`)
+    const doc = iframe.contentDocument!
+    const p = doc.getElementById("hello")!
+
+    selectInside(doc, p, "hello")
+    // Touch text-selection finalizes via selectionchange, never a mouseup.
+    doc.dispatchEvent(new doc.defaultView!.Event("selectionchange", { bubbles: true }))
+
+    await screen.findByText(/New comment on selected region/, undefined, { timeout: 2000 })
   })
 
   it("renders an element comment as outdated when its selector misses", async () => {
@@ -215,6 +275,76 @@ describe("HtmlView", () => {
     expect(screen.getByText(/Lost its anchor/)).toBeInTheDocument()
   })
 
+  it("paints the hover highlight class on the element under the cursor", async () => {
+    render(
+      <HtmlView
+        view={makeView(`<p id="hello">hello world</p>`)}
+        forceRaw={false}
+        inline={true}
+      />
+    )
+    const iframe = await loadedIframe(`<p id="hello">hello world</p>`)
+    const doc = iframe.contentDocument!
+    const p = doc.getElementById("hello")!
+
+    const move = new doc.defaultView!.Event("pointermove", { bubbles: true }) as PointerEvent
+    Object.defineProperty(move, "target", { value: p })
+    doc.dispatchEvent(move)
+    await flushMicrotasks()
+
+    expect(p.classList.contains("suikou-hover-highlight")).toBe(true)
+  })
+
+  it("opens a popover composer when an element is clicked (no text selection)", async () => {
+    render(
+      <HtmlView
+        view={makeView(`<p id="hello">hello world</p>`)}
+        forceRaw={false}
+        inline={true}
+      />
+    )
+    const iframe = await loadedIframe(`<p id="hello">hello world</p>`)
+    const doc = iframe.contentDocument!
+    const p = doc.getElementById("hello")!
+
+    // No active selection -> click path; mock so it reports collapsed.
+    doc.getSelection = () => ({ isCollapsed: true, rangeCount: 0, toString: () => "" } as unknown as Selection)
+
+    const click = new doc.defaultView!.Event("click", { bubbles: true }) as MouseEvent
+    Object.defineProperty(click, "target", { value: p })
+    doc.dispatchEvent(click)
+    await flushMicrotasks()
+
+    const dialog = await screen.findByRole("dialog", { name: /element comment/i })
+    expect(dialog).toBeInTheDocument()
+    expect(dialog.textContent ?? "").toMatch(/hello world/)
+  })
+
+  it("publishes the targeted anchor to ui-store when inline=false (side mode)", async () => {
+    render(
+      <HtmlView
+        view={makeView(`<p id="hello">hello world</p>`)}
+        forceRaw={false}
+        inline={false}
+      />
+    )
+    const iframe = await loadedIframe(`<p id="hello">hello world</p>`)
+    const doc = iframe.contentDocument!
+    const p = doc.getElementById("hello")!
+
+    doc.getSelection = () => ({ isCollapsed: true, rangeCount: 0, toString: () => "" } as unknown as Selection)
+    const click = new doc.defaultView!.Event("click", { bubbles: true }) as MouseEvent
+    Object.defineProperty(click, "target", { value: p })
+    doc.dispatchEvent(click)
+    await flushMicrotasks()
+
+    await waitFor(() => {
+      expect(uiStore.htmlAnchorTarget).not.toBeNull()
+    })
+    expect(uiStore.htmlAnchorTarget?.selector).toBe("#hello")
+    expect(uiStore.htmlAnchorTarget?.quote).toMatch(/hello world/)
+  })
+
   it("does NOT render anchored element comments inline when inline=false", async () => {
     const located: Comment = {
       id: "c-located",
@@ -241,5 +371,30 @@ describe("HtmlView", () => {
     )
     await loadedIframe(`<p id="kept">still here</p>`)
     expect(screen.queryByText("rail-only payload")).toBeNull()
+  })
+
+  it("forceRaw: opens the line composer and dispatches a line_range anchor", async () => {
+    render(
+      <HtmlView
+        view={makeView("<p>one</p>\n<p>two</p>")}
+        forceRaw={true}
+        inline={true}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a comment on line 2" }))
+    await screen.findByText(/New comment on line 2/)
+
+    fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
+      target: { value: "tighten this tag" }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Add comment" }))
+
+    expect(dispatch).toHaveBeenCalledWith({
+      scope: "located",
+      critique_type: "note",
+      body: "tighten this tag",
+      anchor: { type: "line_range", start_line: 2, end_line: 2 }
+    })
   })
 })

@@ -70,7 +70,7 @@ export const Composer = observer(function Composer(props: {
             ? `line ${props.startLine}`
             : `lines ${props.startLine}-${props.endLine}`}
         </span>
-        <span className="hidden text-[11px] text-faint pointer-coarse:inline">
+        <span className="hidden text-[11px] text-faint">
           Tap another line to extend.
         </span>
         <div className="flex flex-wrap gap-1 sm:ml-auto">
@@ -79,7 +79,7 @@ export const Composer = observer(function Composer(props: {
               key={type}
               type="button"
               aria-pressed={ui.composerType === type}
-              className={`pointer-coarse:h-8 inline-flex h-6 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
+              className={`inline-flex h-6 cursor-pointer items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
                 ui.composerType === type
                   ? TYPE_TONE[CRITIQUE_META[type].tone]
                   : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
@@ -106,7 +106,7 @@ export const Composer = observer(function Composer(props: {
           type="button"
           variant="ghost"
           size="xs"
-          className="text-muted-foreground pointer-coarse:min-h-8"
+          className="text-muted-foreground"
           onClick={suggest}
         >
           <SquarePlus size={13} />
@@ -120,7 +120,7 @@ export const Composer = observer(function Composer(props: {
             type="button"
             variant="ghost"
             size="sm"
-            className="text-muted-foreground pointer-coarse:min-h-9"
+            className="text-muted-foreground"
             onClick={() => ui.closeComposer()}
           >
             Cancel
@@ -128,7 +128,6 @@ export const Composer = observer(function Composer(props: {
           <Button
             type="button"
             size="sm"
-            className="pointer-coarse:min-h-9"
             disabled={commands.addComment.isPending || !ui.composerBody.trim()}
             onClick={add}
           >

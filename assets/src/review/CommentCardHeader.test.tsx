@@ -49,4 +49,14 @@ describe("CommentCardHeader", () => {
     renderHeader(comment({ status: "published" }));
     expect(screen.getByTitle("Comment actions")).toBeInTheDocument();
   });
+
+  it("renders a Resolved badge when comment.resolved is true", () => {
+    renderHeader(comment({ status: "published", resolved: true }));
+    expect(screen.getByLabelText("Resolved")).toBeInTheDocument();
+  });
+
+  it("omits the Resolved badge when the comment is unresolved", () => {
+    renderHeader(comment({ status: "published", resolved: false }));
+    expect(screen.queryByLabelText("Resolved")).not.toBeInTheDocument();
+  });
 });

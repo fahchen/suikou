@@ -1,15 +1,39 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
+
+beforeAll(() => {
+  if (!window.matchMedia) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false
+      })
+    })
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => undefined
+  }
+})
 
 const dispatch = vi.fn()
 const listBranches = vi.fn()
 const createDiffReview = vi.fn()
 let snapshot: unknown
 let rootEntries: { path: string; dir: boolean }[]
-let reviewFiles: { path: string; artifact_id: string | null; approved: boolean }[]
+// `pick` was the old Base UI Select helper. Combobox is a plain Popover now,
+// so `fireEvent.click` is enough.
 
 vi.mock("../musubi", () => ({
   storeCache: {},
+  usePrefetchReviewStore: () => () => undefined,
   useMusubiRoot: () => ({
     status: "ready",
     store: {},
@@ -21,8 +45,6 @@ vi.mock("../musubi", () => ({
   useMusubiCommand: (_store: unknown, name: string) => {
     if (name === "list_dir")
       return { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
-    if (name === "list_review_files")
-      return { dispatch: () => Promise.resolve({ files: reviewFiles, error: null }), isPending: false }
     if (name === "list_branches")
       return { dispatch: listBranches, isPending: false }
     if (name === "create_diff_review")
@@ -33,18 +55,13 @@ vi.mock("../musubi", () => ({
 
 import { ProjectBoard } from "./ProjectBoard"
 
-function pick(el: HTMLElement) {
-  fireEvent.pointerDown(el)
-  fireEvent.pointerUp(el)
-  fireEvent.click(el)
-}
-
 beforeEach(() => {
   dispatch.mockReset()
   listBranches.mockReset()
   createDiffReview.mockReset()
   listBranches.mockResolvedValue({
     branches: ["main", "feature/x", "release"],
+    remote_branches: ["origin/main", "origin/feature/x"],
     default: "main",
     error: null
   })
@@ -53,7 +70,6 @@ beforeEach(() => {
     { path: "design.md", dir: false },
     { path: "draft.md", dir: false }
   ]
-  reviewFiles = [{ path: "design.md", artifact_id: "a-99", approved: false }]
   snapshot = {
     projects: [
       {
@@ -65,12 +81,17 @@ beforeEach(() => {
             id: "r1",
             name: "Launch",
             inserted_at: "2026-06-12T09:30:00",
-            selections: ["design.md"],
-            selection_count: 1
+            kind: "file_selection",
+            selections: ["design.md"]
           }
         ]
       }
-    ]
+    ],
+    review_files: {
+      status: "ok",
+      data: [{ review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] }],
+      error: null
+    }
   }
 })
 
@@ -81,6 +102,159 @@ describe("ProjectBoard", () => {
     expect(screen.getByText("Data Platform")).toBeInTheDocument()
     expect(screen.getByText("/tmp/dp")).toBeInTheDocument()
     expect(screen.getByText("Launch")).toBeInTheDocument()
+  })
+
+  it("badges file-selection and git-diff review cards distinctly", () => {
+    snapshot = {
+      projects: [
+        {
+          id: "p1",
+          name: "Data Platform",
+          path: "/tmp/dp",
+          reviews: [
+            {
+              id: "r1",
+              name: "Launch",
+              inserted_at: "2026-06-12T09:30:00",
+              kind: "file_selection",
+              selections: ["design.md"]
+            },
+            {
+              id: "r2",
+              name: "Auth rewrite",
+              inserted_at: "2026-06-12T10:00:00",
+              kind: "git_diff",
+              selections: [],
+              base_ref: "main",
+              head_ref: "origin/feature/x"
+            }
+          ]
+        }
+      ],
+      review_files: {
+        status: "ok",
+        data: [
+          { review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] },
+          {
+            review_id: "r2",
+            files: [
+              { path: "auth/login.ex", artifact_id: "a-1", approved: false },
+              { path: "auth/session.ex", artifact_id: null, approved: false }
+            ]
+          }
+        ],
+        error: null
+      }
+    }
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    const filesBadge = screen.getByText("Files")
+    const diffBadge = screen.getByText("Diff")
+    // Both badges read off the per-theme `--kind-{files,diff}-*` tokens so the
+    // file-selection vs. diff distinction stays clear across light and dark
+    // themes (the diff chip stays a fixed-hue blue independent of `--primary`).
+    expect(filesBadge.className).toContain("bg-kind-files-bg")
+    expect(diffBadge.className).toContain("bg-kind-diff-bg")
+    expect(diffBadge.className).toContain("text-kind-diff-fg")
+    expect(screen.getByText("main..origin/feature/x")).toBeInTheDocument()
+    expect(screen.getByText("2 files")).toBeInTheDocument()
+  })
+
+  it("flags an all-HTML file-selection review with an HTML sub-badge", () => {
+    snapshot = {
+      projects: [
+        {
+          id: "p1",
+          name: "Data Platform",
+          path: "/tmp/dp",
+          reviews: [
+            {
+              id: "r1",
+              name: "Report",
+              inserted_at: "2026-06-12T09:30:00",
+              kind: "file_selection",
+              selections: ["report.html"]
+            },
+            {
+              id: "r2",
+              name: "Design",
+              inserted_at: "2026-06-12T10:00:00",
+              kind: "file_selection",
+              selections: ["design.md"]
+            }
+          ]
+        }
+      ],
+      review_files: {
+        status: "ok",
+        data: [
+          { review_id: "r1", files: [{ path: "report.html", artifact_id: "a-1", approved: false }] },
+          { review_id: "r2", files: [{ path: "design.md", artifact_id: "a-2", approved: false }] }
+        ],
+        error: null
+      }
+    }
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    // Only the all-HTML selection earns the badge; a generic file selection stays plain.
+    const htmlBadge = screen.getByText("HTML")
+    expect(htmlBadge.className).toContain("bg-kind-html-bg")
+    expect(screen.getAllByText("Files")).toHaveLength(2)
+  })
+
+  it("shows em-dashes on the diff card subline when refs are missing", () => {
+    snapshot = {
+      projects: [
+        {
+          id: "p1",
+          name: "Data Platform",
+          path: "/tmp/dp",
+          reviews: [
+            {
+              id: "r2",
+              name: "Auth rewrite",
+              inserted_at: "2026-06-12T10:00:00",
+              kind: "git_diff",
+              selections: [],
+              base_ref: null,
+              head_ref: null
+            }
+          ]
+        }
+      ],
+      review_files: { status: "ok", data: [{ review_id: "r2", files: [] }], error: null }
+    }
+    render(<ProjectBoard onOpen={vi.fn()} />)
+    expect(screen.getByText("–..–")).toBeInTheDocument()
+  })
+
+  it("renders a loading skeleton while review files are still resolving", () => {
+    snapshot = {
+      projects: [
+        {
+          id: "p1",
+          name: "Data Platform",
+          path: "/tmp/dp",
+          reviews: [
+            {
+              id: "r1",
+              name: "Launch",
+              inserted_at: "2026-06-12T09:30:00",
+              kind: "file_selection",
+              selections: ["design.md"]
+            }
+          ]
+        }
+      ],
+      review_files: { status: "loading", data: null, error: null }
+    }
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    const openButton = screen.getByRole("button", { name: "Open Launch" })
+    expect(openButton).toBeDisabled()
+    expect(openButton).toHaveAttribute("aria-busy", "true")
+    expect(openButton).toHaveAttribute("title", "Loading review files…")
+    expect(screen.getByLabelText("Loading files")).toBeInTheDocument()
   })
 
   it("reveals a review's files only once expanded", async () => {
@@ -188,7 +362,7 @@ describe("ProjectBoard", () => {
   })
 
   it("shows an empty state when no project is registered", () => {
-    snapshot = { projects: [] }
+    snapshot = { projects: [], review_files: { status: "ok", data: [], error: null } }
     render(<ProjectBoard onOpen={vi.fn()} />)
 
     expect(screen.getByText(/No projects yet/)).toBeInTheDocument()
@@ -235,8 +409,8 @@ describe("ProjectBoard", () => {
 
     await waitFor(() => expect(listBranches).toHaveBeenCalled())
 
-    pick(await screen.findByLabelText("Head branch"))
-    pick(await screen.findByRole("option", { name: "feature/x" }))
+    fireEvent.click(await screen.findByLabelText("Head branch"))
+    fireEvent.click(await screen.findByRole("option", { name: "feature/x" }))
 
     fireEvent.click(screen.getByText("Create diff review"))
 
@@ -250,8 +424,77 @@ describe("ProjectBoard", () => {
     )
   })
 
+  it("groups local and remote branches in the picker and filters by query", async () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    await waitFor(() => expect(listBranches).toHaveBeenCalled())
+
+    fireEvent.click(await screen.findByLabelText("Head branch"))
+
+    expect(await screen.findByText("Local")).toBeInTheDocument()
+    expect(screen.getByText("Remote (origin)")).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: /main default/ })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "origin/main" })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Search branches"), {
+      target: { value: "feature" }
+    })
+
+    expect(screen.queryByRole("option", { name: /main default/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "feature/x" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "origin/feature/x" })).toBeInTheDocument()
+  })
+
+  it("allows picking a remote branch as the head ref", async () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {
+      target: { value: "Auth rewrite" }
+    })
+
+    await waitFor(() => expect(listBranches).toHaveBeenCalled())
+
+    fireEvent.click(await screen.findByLabelText("Head branch"))
+    fireEvent.click(await screen.findByRole("option", { name: "origin/feature/x" }))
+
+    fireEvent.click(screen.getByText("Create diff review"))
+
+    await waitFor(() =>
+      expect(createDiffReview).toHaveBeenCalledWith({
+        project_id: "p1",
+        name: "Auth rewrite",
+        base_ref: "main",
+        head_ref: "origin/feature/x"
+      })
+    )
+  })
+
+  it("shows an empty-state inside the picker when no branch matches the query", async () => {
+    render(<ProjectBoard onOpen={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByText("Review diff"))
+    await waitFor(() => expect(listBranches).toHaveBeenCalled())
+
+    fireEvent.click(await screen.findByLabelText("Head branch"))
+    fireEvent.change(await screen.findByLabelText("Search branches"), {
+      target: { value: "nonexistent" }
+    })
+    expect(screen.getByText("No branches match.")).toBeInTheDocument()
+  })
+
   it("surfaces a list_branches error inside the diff-review composer", async () => {
-    listBranches.mockResolvedValueOnce({ branches: [], default: null, error: "not_a_git_repo" })
+    listBranches.mockResolvedValueOnce({
+      branches: [],
+      remote_branches: [],
+      default: null,
+      error: "not_a_git_repo"
+    })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
     fireEvent.click(screen.getByRole("button", { name: "New review" }))
@@ -273,8 +516,8 @@ describe("ProjectBoard", () => {
 
     await waitFor(() => expect(listBranches).toHaveBeenCalled())
 
-    pick(await screen.findByLabelText("Head branch"))
-    pick(await screen.findByRole("option", { name: "release" }))
+    fireEvent.click(await screen.findByLabelText("Head branch"))
+    fireEvent.click(await screen.findByRole("option", { name: "release" }))
 
     fireEvent.click(screen.getByText("Create diff review"))
 

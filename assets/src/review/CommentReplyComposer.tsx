@@ -30,7 +30,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
       <Button
         variant="outline"
         size="sm"
-        className="h-[30px] text-muted-foreground"
+        className="text-muted-foreground"
         disabled={commands.unresolveComment.isPending}
         onClick={() => void commands.unresolveComment.dispatch({ comment_id: comment.id })}
       >
@@ -41,7 +41,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
       <Button
         variant="outline"
         size="sm"
-        className="h-[30px] border-green/50 bg-green/15 text-green-text hover:bg-green/25"
+        className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
         disabled={commands.resolveComment.isPending}
         onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
       >
@@ -57,7 +57,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         <Button
           variant="outline"
           size="sm"
-          className="h-[30px] ml-auto text-muted-foreground"
+          className="ml-auto text-muted-foreground"
           onClick={() => setExpanded(true)}
         >
           <MessageSquarePlus size={14} />
@@ -93,7 +93,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         {resolveAction}
         <Button
           size="sm"
-          className="h-[30px] ml-auto"
+          className="ml-auto"
           disabled={commands.reply.isPending || !body.trim()}
           onClick={send}
         >

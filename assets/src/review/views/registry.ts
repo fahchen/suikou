@@ -13,6 +13,12 @@ export interface ViewProps {
   forceRaw: boolean
   /** True when the side-rail layout is not used and anchored comments render inline. */
   inline: boolean
+  /**
+   * True when the view is rendered inside an outer card (the all-files stacked
+   * shell). Views drop their own border / rounded / surface chrome so the
+   * parent card's frame isn't doubled, but keep internal padding and layout.
+   */
+  nested?: boolean
 }
 
 export type ViewComponent = ComponentType<ViewProps>

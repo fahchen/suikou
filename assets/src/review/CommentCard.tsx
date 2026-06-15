@@ -46,6 +46,15 @@ export const CommentCard = observer(function CommentCard(props: {
     setOpen(!uiStore.commentsCollapsed);
   }, [uiStore.collapseNonce, uiStore.commentsCollapsed]);
 
+  // Auto-collapse on a live resolve so the card visibly reacts without a
+  // remount. Don't auto-expand on unresolve — that would override the user's
+  // own collapsed choice.
+  const wasResolved = useRef(comment.resolved);
+  useEffect(() => {
+    if (!wasResolved.current && comment.resolved) setOpen(false);
+    wasResolved.current = comment.resolved;
+  }, [comment.resolved]);
+
   // Rail cards reveal the reply composer only when selected; inline cards
   // (next to their own line) always show it.
   const showComposer = inline || selected;
@@ -57,9 +66,11 @@ export const CommentCard = observer(function CommentCard(props: {
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       onClick={onSelect}
-      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] ${
+      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] transition-opacity ${
         onSelect && !selected ? "cursor-pointer" : ""
-      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"}`}
+      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"} ${
+        comment.resolved ? "opacity-70" : ""
+      }`}
     >
       <Collapsible open={open} onOpenChange={setOpen}>
         <CommentCardHeader

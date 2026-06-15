@@ -4,6 +4,8 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   ClipboardCheck,
@@ -13,16 +15,18 @@ import {
   Send,
 } from "lucide-react";
 
+import { usePrefetchReviewStore } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
-import { VERDICT_META, type ReviewSnapshot, type Verdict } from "./types";
-import { TopBarTocMenu } from "./TopBarTocMenu";
-import { TopBarArtifactMenu } from "./TopBarArtifactMenu";
+import { adjacentReviewFiles } from "./file-order";
+import { VERDICT_META, type ReviewFileEntry, type ReviewSnapshot, type Verdict } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
-import { TopBarVerdictMenu, VerdictIcon } from "./TopBarVerdictMenu";
+import { VerdictIcon } from "./TopBarVerdictMenu";
+import { resolveViewKind, viewCapabilities } from "./view-kind";
+import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
 import {
@@ -40,31 +44,39 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Split-button seam: the theme's primary, darkened, so the divider reads as a
-// deliberate seam on the filled button and tracks every [data-theme] palette.
-const SPLIT_SEAM = "bg-[color-mix(in_oklch,var(--primary),black_22%)]";
+// Split-button seam: a darker step of the theme's primary so the divider reads
+// as a deliberate seam on the filled button. `--accent-seam` is derived per
+// theme via relative-OKLCH so the seam tracks light vs. dark palettes.
+const SPLIT_SEAM = "bg-accent-seam";
 
 export const TopBar = observer(function TopBar(props: {
   snapshot: ReviewSnapshot;
   previewable: boolean;
   content: string;
+  verdict: Verdict | null;
 }) {
-  const { snapshot, previewable, content } = props;
+  const { snapshot, previewable, content, verdict } = props;
   const commands = useReviewCommands();
   const navigate = useNavigate();
+  const prefetchReview = usePrefetchReviewStore();
   const rawView = useLocation().pathname.endsWith("/raw");
+  const wide = useMediaQuery(WIDE_QUERY);
+  const title = snapshot.artifact.title;
+  const image = isImagePath(title);
+  const binary = isBinaryContent(content);
   // Comments anchor to editor lines; an image or other binary has none.
-  const commentsSupported =
-    !isImagePath(snapshot.artifact.title) && !isBinaryContent(content);
-  const [verdict, setVerdict] = useState<Verdict>(
-    snapshot.draft_verdict ?? snapshot.latest_verdict ?? "request_changes",
-  );
+  const commentsSupported = !image && !binary;
+  const viewKind = resolveViewKind(snapshot.artifact);
+  const capabilities = viewCapabilities({
+    kind: viewKind,
+    previewable,
+    image,
+    rawView,
+    binary,
+  });
+  const [navError, setNavError] = useState<string | null>(null);
+  const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  function changeVerdict(next: Verdict) {
-    setVerdict(next);
-    void commands.setDraftVerdict.dispatch({ verdict: next });
-  }
 
   function copyComments(mode: CopyMode) {
     const text = buildCopyText(
@@ -76,14 +88,52 @@ export const TopBar = observer(function TopBar(props: {
     void copyToClipboard(text);
   }
 
+  // An untouched file has no verdict (`null`); submitting it records a plain
+  // comment rather than blocking the review.
+  const submitVerdict: Verdict = verdict ?? "comment";
+
   function submit() {
-    void commands.submitReview.dispatch({ verdict });
+    void commands.submitReview.dispatch({ verdict: submitVerdict });
     setConfirmOpen(false);
   }
 
   function submitAndCopy(mode: CopyMode) {
     copyComments(mode);
     submit();
+  }
+
+  // Tree-order neighbours (folders before files, alphabetical) so prev/next
+  // steps in lockstep with the file tree — not raw array order.
+  const { prev: prevFile, next: nextFile } = adjacentReviewFiles(
+    snapshot.files.data ?? [],
+    snapshot.artifact.id,
+  );
+  // Single-file mode only: in all-files mode the user already sees every file
+  // stacked, so stepping is meaningless.
+  const showFileNav = uiStore.fileDisplayMode === "single";
+
+  async function navigateToFile(file: ReviewFileEntry, dir: "prev" | "next") {
+    setNavError(null);
+    setNavPending(dir);
+    try {
+      let id = file.artifact_id;
+      if (!id) {
+        uiStore.setMintingPath(file.path);
+        const reply = await commands.openFile.dispatch({ path: file.path });
+        if (!reply.artifact_id) {
+          setNavError(reply.error ?? "Could not open file");
+          uiStore.setMintingPath(null);
+          return;
+        }
+        id = reply.artifact_id;
+      }
+      void navigate({
+        to: rawView ? "/review/$artifactId/raw" : "/review/$artifactId",
+        params: { artifactId: id },
+      });
+    } finally {
+      setNavPending(null);
+    }
   }
 
   return (
@@ -96,10 +146,42 @@ export const TopBar = observer(function TopBar(props: {
           aria-label="Project board"
           onClick={() => void navigate({ to: "/" })}
         >
-          <Home className="size-4 text-muted-foreground" />
+          <Home className="text-muted-foreground" />
         </Button>
-        <TopBarTocMenu content={content} path={snapshot.artifact.title} />
-        <TopBarArtifactMenu snapshot={snapshot} rawView={rawView} />
+        {showFileNav && (
+          <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
+            <Button
+              variant="pill"
+              size="icon-xs"
+              title={prevFile ? `Previous file (${prevFile.path})` : "No previous file"}
+              aria-label="Previous file"
+              disabled={!prevFile || navPending !== null}
+              onClick={() => prevFile && void navigateToFile(prevFile, "prev")}
+              onMouseEnter={() => prevFile?.artifact_id && prefetchReview(prevFile.artifact_id)}
+              onFocus={() => prevFile?.artifact_id && prefetchReview(prevFile.artifact_id)}
+            >
+              <ChevronLeft className="text-muted-foreground" />
+            </Button>
+            <ButtonGroupSeparator />
+            <Button
+              variant="pill"
+              size="icon-xs"
+              title={nextFile ? `Next file (${nextFile.path})` : "No next file"}
+              aria-label="Next file"
+              disabled={!nextFile || navPending !== null}
+              onClick={() => nextFile && void navigateToFile(nextFile, "next")}
+              onMouseEnter={() => nextFile?.artifact_id && prefetchReview(nextFile.artifact_id)}
+              onFocus={() => nextFile?.artifact_id && prefetchReview(nextFile.artifact_id)}
+            >
+              <ChevronRight className="text-muted-foreground" />
+            </Button>
+          </ButtonGroup>
+        )}
+        {navError && (
+          <span className="hidden text-[11px] text-red sm:inline" role="alert">
+            {navError}
+          </span>
+        )}
       </div>
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
@@ -113,20 +195,22 @@ export const TopBar = observer(function TopBar(props: {
             onClick={() => uiStore.toggleCollapseAll()}
           >
             {uiStore.commentsCollapsed ? (
-              <ChevronsUpDown className="size-4" />
+              <ChevronsUpDown />
             ) : (
-              <ChevronsDownUp className="size-4" />
+              <ChevronsDownUp />
             )}
           </Button>
         )}
         <TopBarDisplayMenu
           artifactId={snapshot.artifact.id}
           rawView={rawView}
-          previewable={previewable}
+          capabilities={capabilities}
+          viewKind={viewKind}
+          diffLayoutAllowed={wide}
+          sideCommentsAllowed={wide}
         />
-        <TopBarVerdictMenu snapshot={snapshot} verdict={verdict} onVerdictChange={changeVerdict} />
 
-        <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),0_1px_1px_-0.5px_oklch(20%_0.01_255/0.10),0_2px_4px_-1.5px_oklch(20%_0.01_255/0.08)]">
+        <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
           <Button
             size="icon-xs"
             title="Submit review"
@@ -165,13 +249,13 @@ export const TopBar = observer(function TopBar(props: {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <VerdictIcon verdict={verdict} size={16} />
+                <VerdictIcon verdict={submitVerdict} size={16} />
                 Submit this review?
               </DialogTitle>
             </DialogHeader>
-            <p className="text-[13px] text-muted-foreground">
-              Files the <b className="text-heading">{VERDICT_META[verdict].label}</b> verdict for
-              this file and publishes every pending comment across this review.
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              Applies <b className="text-heading">{VERDICT_META[submitVerdict].label}</b> to this file
+              and publishes every pending comment across the review.
             </p>
 
             <DialogFooter>
@@ -180,7 +264,6 @@ export const TopBar = observer(function TopBar(props: {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-10 sm:h-7"
                   />
                 }
               >
@@ -189,7 +272,7 @@ export const TopBar = observer(function TopBar(props: {
               <ButtonGroup className="w-full sm:w-auto">
                 <Button
                   size="sm"
-                  className="h-10 grow sm:h-7 sm:grow-0"
+                  className="grow sm:grow-0"
                   disabled={commands.submitReview.isPending}
                   onClick={submit}
                 >
@@ -201,7 +284,6 @@ export const TopBar = observer(function TopBar(props: {
                     render={
                       <Button
                         size="icon-sm"
-                        className="h-10 w-10 sm:size-7"
                         title="Submit and copy"
                         aria-label="Submit and copy"
                         disabled={commands.submitReview.isPending}

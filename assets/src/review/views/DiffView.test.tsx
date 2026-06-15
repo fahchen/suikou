@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from "@testing-library/react"
 
 import type { Comment } from "../types"
 import type { ReviewView } from "../store-context"
+import { uiStore } from "../../stores/ui-store"
 
 // jsdom omits matchMedia, but rendering an anchored CommentCard pulls in
 // CommentReplyComposer -> useMediaQuery, which calls it.
@@ -54,7 +55,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     blocks: [],
     previewable: false,
     rawLines: null,
-    snapshot: {} as ReviewView["snapshot"]
+    snapshot: {} as ReviewView["snapshot"],
+    verdict: "comment",
+    onVerdictChange: () => undefined
   }
 }
 
@@ -164,6 +167,15 @@ describe("DiffView", () => {
 
     render(<DiffView view={makeView(DIFF, [comment])} forceRaw={false} inline={true} />)
     expect(screen.getByText("general note")).toBeInTheDocument()
+  })
+
+  it("renders a unified layout when the screen is narrow (matchMedia is false)", () => {
+    // Defaults: matchMedia(wide) returns false → layout falls back to unified
+    // regardless of uiStore.diffLayout. The unified row carries a +/- marker.
+    uiStore.setDiffLayout("side")
+    render(<DiffView view={makeView(DIFF)} forceRaw={false} inline={true} />)
+    expect(screen.getByText("+")).toBeInTheDocument()
+    expect(screen.getByText("-")).toBeInTheDocument()
   })
 
   it("hides anchored comments when inline is false (rail mode)", () => {

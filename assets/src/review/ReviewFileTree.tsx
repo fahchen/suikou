@@ -1,11 +1,14 @@
-import { ArrowRight, Check, Folder } from "lucide-react"
+import { ArrowRight, Check, Folder, Loader2 } from "lucide-react"
 
+import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
 import { FileIcon } from "./FileIcon"
+import { FILE_TREE_SCROLL } from "./file-tree-scroll"
 
 interface ReviewFile {
   path: string
   artifact_id: string | null
   approved: boolean
+  change_status?: ChangeStatus
 }
 
 interface FileNode {
@@ -57,14 +60,24 @@ function sort(nodes: TreeNode[]): void {
 /** Read-only nested view of a review's files; a leaf opens its artifact. */
 export function ReviewFileTree({
   files,
-  onOpen
+  pendingPath,
+  onOpen,
+  onHover
 }: {
   files: ReviewFile[]
+  pendingPath?: string | null
   onOpen: (path: string) => void
+  onHover?: (file: ReviewFile) => void
 }) {
   return (
-    <div className="flex flex-col">
-      <TreeLevel nodes={buildTree(files)} depth={0} onOpen={onOpen} />
+    <div className={`flex flex-col ${FILE_TREE_SCROLL}`}>
+      <TreeLevel
+        nodes={buildTree(files)}
+        depth={0}
+        pendingPath={pendingPath ?? null}
+        onOpen={onOpen}
+        onHover={onHover}
+      />
     </div>
   )
 }
@@ -72,17 +85,35 @@ export function ReviewFileTree({
 function TreeLevel({
   nodes,
   depth,
-  onOpen
+  pendingPath,
+  onOpen,
+  onHover
 }: {
   nodes: TreeNode[]
   depth: number
+  pendingPath: string | null
   onOpen: (path: string) => void
+  onHover?: (file: ReviewFile) => void
 }) {
   return nodes.map((node) =>
     node.type === "folder" ? (
-      <FolderRow key={`folder:${node.name}`} node={node} depth={depth} onOpen={onOpen} />
+      <FolderRow
+        key={`folder:${node.name}`}
+        node={node}
+        depth={depth}
+        pendingPath={pendingPath}
+        onOpen={onOpen}
+        onHover={onHover}
+      />
     ) : (
-      <FileRow key={node.file.path} node={node} depth={depth} onOpen={onOpen} />
+      <FileRow
+        key={node.file.path}
+        node={node}
+        depth={depth}
+        pending={pendingPath === node.file.path}
+        onOpen={onOpen}
+        onHover={onHover}
+      />
     )
   )
 }
@@ -91,11 +122,15 @@ function TreeLevel({
 function FolderRow({
   node,
   depth,
-  onOpen
+  pendingPath,
+  onOpen,
+  onHover
 }: {
   node: FolderNode
   depth: number
+  pendingPath: string | null
   onOpen: (path: string) => void
+  onHover?: (file: ReviewFile) => void
 }) {
   let name = node.name
   let children = node.children
@@ -113,7 +148,13 @@ function FolderRow({
         <Folder size={13} className="shrink-0 text-faint" />
         <span className="min-w-0 truncate font-medium">{name}</span>
       </div>
-      <TreeLevel nodes={children} depth={depth + 1} onOpen={onOpen} />
+      <TreeLevel
+        nodes={children}
+        depth={depth + 1}
+        pendingPath={pendingPath}
+        onOpen={onOpen}
+        onHover={onHover}
+      />
     </>
   )
 }
@@ -121,20 +162,31 @@ function FolderRow({
 function FileRow({
   node,
   depth,
-  onOpen
+  pending,
+  onOpen,
+  onHover
 }: {
   node: FileNode
   depth: number
+  pending: boolean
   onOpen: (path: string) => void
+  onHover?: (file: ReviewFile) => void
 }) {
   const { file } = node
+  const hover = onHover ? () => onHover(file) : undefined
   return (
     <button
       type="button"
+      disabled={pending}
       onClick={() => onOpen(file.path)}
+      onMouseEnter={hover}
+      onFocus={hover}
       style={{ paddingLeft: `${depth * 14 + 14}px` }}
-      className="group flex w-full min-w-0 items-center gap-2 py-1.5 pr-3.5 text-left transition-colors hover:bg-hover pointer-coarse:min-h-11"
+      className={`group flex w-full min-w-0 cursor-pointer items-center gap-2 py-1.5 pr-3.5 text-left transition-colors hover:bg-hover disabled:cursor-not-allowed ${
+        pending ? "animate-pulse bg-tint/60" : ""
+      }`}
     >
+      <ChangeStatusIcon status={file.change_status ?? null} size={12} />
       <FileIcon name={node.name} />
       <span
         className={`min-w-0 flex-1 truncate font-mono text-[12.5px] ${
@@ -149,10 +201,14 @@ function FileRow({
           Approved
         </span>
       )}
-      <ArrowRight
-        size={13}
-        className="shrink-0 text-faint opacity-0 transition-opacity group-hover:opacity-100"
-      />
+      {pending ? (
+        <Loader2 size={12} className="shrink-0 animate-spin text-blue" aria-label="Opening" />
+      ) : (
+        <ArrowRight
+          size={13}
+          className="shrink-0 text-faint opacity-0 transition-opacity group-hover:opacity-100"
+        />
+      )}
     </button>
   )
 }

@@ -1,41 +1,86 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import { AnimatePresence, motion } from "motion/react"
-import { SquarePlus } from "lucide-react"
+import { FileText, X } from "lucide-react"
 
 import { CommentCard } from "../CommentCard"
-import { useReviewCommands } from "../commands"
+import { Editor } from "../Editor"
 import { isOutdated, locate, selectorFor } from "../element-selector"
-import { CRITIQUE_META } from "../types"
 import { assetBase } from "../urls"
-import { uiStore, type CritiqueType } from "../../stores/ui-store"
+import { uiStore } from "../../stores/ui-store"
 import { Button } from "@/components/ui/button"
+import type { Comment } from "../types"
 import type { ViewProps } from "./registry"
+import { HtmlAnchorComposer, type HtmlAnchorTarget } from "./HtmlAnchorComposer"
 
-interface PendingSelection {
-  selector: string
-  quote: string
+const COMMENT_HIGHLIGHT_CLASS = "suikou-anchor-highlight"
+const HOVER_HIGHLIGHT_CLASS = "suikou-hover-highlight"
+const TARGET_HIGHLIGHT_CLASS = "suikou-target-highlight"
+
+// The iframe can't inherit the parent's CSS custom properties, so resolve the
+// active theme's accent here and template it into the injected stylesheet. Read
+// on every (re)apply so a theme switch repaints the highlights to match.
+function highlightStyle(): string {
+  const root = getComputedStyle(document.documentElement)
+  const blue = root.getPropertyValue("--blue").trim() || "#2563eb"
+  const focus = root.getPropertyValue("--focus").trim() || blue
+  const tint = (color: string, pct: number) =>
+    `color-mix(in oklch, ${color} ${pct}%, transparent)`
+  return `
+.${COMMENT_HIGHLIGHT_CLASS}{outline:1.5px dashed ${blue};outline-offset:2px;background:${tint(blue, 6)};cursor:pointer;}
+.${HOVER_HIGHLIGHT_CLASS}{outline:1.5px solid ${blue};outline-offset:2px;background:${tint(blue, 7)};cursor:pointer;transition:outline-color 140ms cubic-bezier(0.22,1,0.36,1),outline-width 140ms cubic-bezier(0.22,1,0.36,1),background 140ms cubic-bezier(0.22,1,0.36,1);}
+.${TARGET_HIGHLIGHT_CLASS}{outline:2px solid ${focus};outline-offset:3px;background:${tint(focus, 12)};cursor:pointer;}
+@media (prefers-reduced-motion: reduce){.${HOVER_HIGHLIGHT_CLASS}{transition:none;}}
+`
 }
 
-const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"]
-
-const TYPE_TONE: Record<string, string> = {
-  red: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
-  amber: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/30",
-  muted: "bg-soft text-heading ring-1 ring-inset ring-line"
-}
-
-const HIGHLIGHT_CLASS = "suikou-anchor-highlight"
-const HIGHLIGHT_STYLE = `.${HIGHLIGHT_CLASS}{outline:2px solid #2563eb;outline-offset:2px;background:rgba(37,99,235,0.08);}`
-
+/**
+ * Dispatcher that picks the raw or interactive sub-view. Kept as a thin
+ * branchy wrapper with NO hooks of its own so flipping `forceRaw` between
+ * renders doesn't change the parent's hook count.
+ */
 export const HtmlView = observer(function HtmlView(props: ViewProps) {
-  const { view, inline } = props
+  const { view, forceRaw, inline, nested } = props
+  if (forceRaw) {
+    return (
+      <Editor
+        view="raw"
+        content={view.content}
+        contentError={view.contentError}
+        blocks={view.blocks}
+        loading={view.loading}
+        comments={view.comments}
+        rawLines={view.rawLines}
+        inline={inline}
+        nested={nested}
+      />
+    )
+  }
+  return <HtmlInteractiveView view={view} inline={inline} nested={nested} />
+})
+
+/**
+ * Interactive iframe sub-view. ALL hooks are declared above any early returns
+ * so the hook count is identical across renders (loading→loaded, error→ok).
+ * A prior layout where `matchingComments`'s `useMemo` lived below `if
+ * (loading)` reliably crashed with "rendered more hooks than during the
+ * previous render" on the first navigation into a single-file HTML route.
+ */
+const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
+  view: ViewProps["view"]
+  inline: boolean
+  nested?: boolean
+}) {
+  const { view, inline, nested } = props
   const { snapshot, content, contentError, loading, comments } = view
   const artifactId = snapshot.artifact.id
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [docVersion, setDocVersion] = useState(0)
-  const [pending, setPending] = useState<PendingSelection | null>(null)
+  const [target, setTarget] = useState<HtmlAnchorTarget | null>(null)
+  const [hoverEl, setHoverEl] = useState<Element | null>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
 
   const srcdoc = useMemo(
     () => composeSrcdoc(content, assetBase(artifactId)),
@@ -45,38 +90,131 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
   const onLoad = useCallback(() => {
     const doc = iframeRef.current?.contentDocument
     if (!doc) return
-    injectHighlightStyle(doc)
+    applyHighlightStyle(doc)
     setDocVersion((v) => v + 1)
   }, [])
 
+  // Repaint the injected highlight stylesheet when the theme changes so the
+  // accent tracks the active palette (the iframe can't see parent CSS vars).
   useEffect(() => {
+    if (docVersion === 0) return
     const doc = iframeRef.current?.contentDocument
-    if (!doc) return
-    function onMouseUp(): void {
-      // Reading selection inside a brief microtask gives the browser time to
-      // finalize the range after the mouseup event.
-      queueMicrotask(() => {
-        const sel = doc!.getSelection()
-        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
-        const range = sel.getRangeAt(0)
-        const el = elementForRange(range)
-        if (!el || !doc!.body.contains(el)) return
-        const quote = sel.toString().trim()
-        if (quote === "") return
-        setPending({ selector: selectorFor(el), quote })
-      })
-    }
-    doc.addEventListener("mouseup", onMouseUp)
-    return () => {
-      doc.removeEventListener("mouseup", onMouseUp)
-    }
-  }, [docVersion])
+    if (doc) applyHighlightStyle(doc)
+  }, [docVersion, uiStore.theme])
 
   const elementComments = useMemo(
     () => comments.filter((c) => c.anchor?.type === "element"),
     [comments]
   )
 
+  // Hover + click + (legacy) selection wiring. Pointer events drive the live
+  // hover outline; click sets the targeted anchor; mouseup with a non-empty
+  // selection still opens the composer scoped to the selected element so the
+  // selection-to-quote affordance keeps working.
+  useEffect(() => {
+    const iframe = iframeRef.current
+    const doc = iframe?.contentDocument
+    if (!iframe || !doc) return
+
+    function isAnchorable(el: Element | null): el is Element {
+      if (!el) return false
+      const tag = el.tagName
+      return tag !== "HTML" && tag !== "BODY" && tag !== "HEAD"
+    }
+
+    function clearHover(): void {
+      for (const el of Array.from(doc!.querySelectorAll(`.${HOVER_HIGHLIGHT_CLASS}`))) {
+        el.classList.remove(HOVER_HIGHLIGHT_CLASS)
+      }
+    }
+
+    function paintHover(el: Element | null): void {
+      clearHover()
+      if (el) el.classList.add(HOVER_HIGHLIGHT_CLASS)
+      setHoverEl(el)
+    }
+
+    function onMove(e: Event): void {
+      const el = (e as PointerEvent).target as Element | null
+      if (!isAnchorable(el)) {
+        paintHover(null)
+        return
+      }
+      paintHover(el)
+    }
+
+    function onLeave(): void {
+      paintHover(null)
+    }
+
+    function buildTarget(el: Element, quote: string): HtmlAnchorTarget {
+      return { artifactId, selector: selectorFor(el), quote }
+    }
+
+    function quoteFor(el: Element): string {
+      const text = (el.textContent ?? "").replace(/\s+/g, " ").trim()
+      return text.length > 200 ? `${text.slice(0, 200).trimEnd()}…` : text
+    }
+
+    function onMouseUp(): void {
+      // Read selection after the browser has finalized the range.
+      queueMicrotask(() => {
+        const sel = doc!.getSelection()
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
+        const range = sel.getRangeAt(0)
+        const el = elementForRange(range)
+        if (!isAnchorable(el) || !doc!.body.contains(el)) return
+        const quote = sel.toString().trim()
+        if (quote === "") return
+        setTarget(buildTarget(el, quote))
+      })
+    }
+
+    // Touch text-selection finalizes via selectionchange, not mouseup.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    function onSelectionChange(): void {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        const sel = doc!.getSelection()
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return
+        const range = sel.getRangeAt(0)
+        const el = elementForRange(range)
+        if (!isAnchorable(el) || !doc!.body.contains(el)) return
+        const quote = sel.toString().trim()
+        if (quote === "") return
+        setTarget(buildTarget(el, quote))
+      }, 250)
+    }
+
+    function onClick(e: Event): void {
+      const evt = e as MouseEvent
+      // Selection-based gestures already handled by mouseup; don't double-fire.
+      const sel = doc!.getSelection()
+      if (sel && !sel.isCollapsed && sel.toString().trim() !== "") return
+      const el = evt.target as Element | null
+      if (!isAnchorable(el)) return
+      evt.preventDefault()
+      setTarget(buildTarget(el, quoteFor(el)))
+    }
+
+    doc.addEventListener("pointermove", onMove)
+    doc.addEventListener("pointerleave", onLeave)
+    doc.addEventListener("click", onClick)
+    doc.addEventListener("mouseup", onMouseUp)
+    doc.addEventListener("selectionchange", onSelectionChange)
+    return () => {
+      if (timer) clearTimeout(timer)
+      clearHover()
+      doc.removeEventListener("pointermove", onMove)
+      doc.removeEventListener("pointerleave", onLeave)
+      doc.removeEventListener("click", onClick)
+      doc.removeEventListener("mouseup", onMouseUp)
+      doc.removeEventListener("selectionchange", onSelectionChange)
+    }
+  }, [docVersion, artifactId])
+
+  // Highlight existing element-comment selectors + publish miss set for the
+  // outdated badge. Runs whenever the comment set or the iframe DOM changes.
   useEffect(() => {
     if (docVersion === 0) {
       uiStore.setOutdatedElementCommentIds(new Set())
@@ -84,7 +222,7 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
     }
     const doc = iframeRef.current?.contentDocument
     if (!doc) return
-    clearHighlights(doc)
+    clearCommentHighlights(doc)
     const misses = new Set<string>()
     for (const comment of elementComments) {
       const anchor = comment.anchor
@@ -92,179 +230,267 @@ export const HtmlView = observer(function HtmlView(props: ViewProps) {
       if (isOutdated(doc, { selector: anchor.selector, quote: anchor.quote })) {
         misses.add(comment.id)
       } else {
-        locate(doc, anchor.selector)?.classList.add(HIGHLIGHT_CLASS)
+        locate(doc, anchor.selector)?.classList.add(COMMENT_HIGHLIGHT_CLASS)
       }
     }
     uiStore.setOutdatedElementCommentIds(misses)
   }, [elementComments, docVersion])
 
-  // Clear the published set on unmount so a later view doesn't see stale misses.
+  // Apply the sticky "targeted" highlight + recompute the popover anchor rect.
+  useLayoutEffect(() => {
+    const iframe = iframeRef.current
+    const doc = iframe?.contentDocument
+    if (!doc) {
+      setAnchorRect(null)
+      return
+    }
+    for (const el of Array.from(doc.querySelectorAll(`.${TARGET_HIGHLIGHT_CLASS}`))) {
+      el.classList.remove(TARGET_HIGHLIGHT_CLASS)
+    }
+    if (!target) {
+      setAnchorRect(null)
+      return
+    }
+    const el = locate(doc, target.selector)
+    if (!el) {
+      setAnchorRect(null)
+      return
+    }
+    el.classList.add(TARGET_HIGHLIGHT_CLASS)
+    const recompute = () => {
+      const ifr = iframeRef.current
+      if (!ifr) return
+      const eRect = el.getBoundingClientRect()
+      const fRect = ifr.getBoundingClientRect()
+      setAnchorRect(
+        new DOMRect(
+          fRect.left + eRect.left,
+          fRect.top + eRect.top,
+          eRect.width,
+          eRect.height
+        )
+      )
+    }
+    recompute()
+    const win = doc.defaultView
+    win?.addEventListener("scroll", recompute, true)
+    window.addEventListener("scroll", recompute, true)
+    window.addEventListener("resize", recompute)
+    return () => {
+      win?.removeEventListener("scroll", recompute, true)
+      window.removeEventListener("scroll", recompute, true)
+      window.removeEventListener("resize", recompute)
+      el.classList.remove(TARGET_HIGHLIGHT_CLASS)
+    }
+  }, [target, docVersion])
+
+  // Side mode: hand the targeted anchor off to ui-store so the side rail's
+  // composer picks it up. Inline mode keeps the popover local and never
+  // populates the store (so the rail doesn't render a stale composer if the
+  // viewport widens).
+  useEffect(() => {
+    if (inline) return
+    uiStore.setHtmlAnchorTarget(target)
+  }, [inline, target])
+
+  // Clear state on unmount so a later view doesn't see stale misses / targets.
   useEffect(() => {
     return () => {
       uiStore.setOutdatedElementCommentIds(new Set())
+      uiStore.setHtmlAnchorTarget(null)
     }
   }, [])
 
-  if (contentError) return <Notice title="Can't load this HTML" message={contentError} />
+  // Close target on Escape anywhere.
+  useEffect(() => {
+    if (!target) return
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === "Escape") setTarget(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [target])
+
+  // Element comments matching the current target's selector. Must live above
+  // every conditional return so the hook order stays stable when loading
+  // flips off — see the wrapper docstring for the prior crash.
+  const matchingComments = useMemo(() => {
+    if (!target) return [] as Comment[]
+    return elementComments.filter(
+      (c) => c.anchor?.type === "element" && c.anchor.selector === target.selector
+    )
+  }, [elementComments, target])
+
+  if (contentError) return <Notice title="Can't load this HTML" message={contentError} nested={nested} />
   if (loading && content === "")
-    return <Notice title="Loading…" message="Fetching the document." />
+    return <Notice title="Loading…" message="Fetching the document." nested={nested} />
 
   const unanchored = comments.filter((c) => !c.anchor)
+  const containerClass = nested ? "flex flex-col gap-3 px-3 pb-3" : "flex flex-col gap-3"
 
   return (
-    <div className="flex flex-col gap-3">
-      <iframe
-        ref={iframeRef}
-        title={snapshot.artifact.title}
-        srcDoc={srcdoc}
-        sandbox="allow-same-origin"
-        onLoad={onLoad}
-        className="min-h-[480px] w-full rounded-2xl border border-line bg-editor"
-      />
-
-      {pending && (
-        <HtmlComposer
-          selector={pending.selector}
-          quote={pending.quote}
-          onClose={() => setPending(null)}
+    <div className={containerClass}>
+      <HtmlPaperFrame nested={nested}>
+        <iframe
+          ref={iframeRef}
+          title={snapshot.artifact.title}
+          srcDoc={srcdoc}
+          sandbox="allow-same-origin"
+          onLoad={onLoad}
+          className="block min-h-[480px] w-full rounded-md bg-white"
         />
+      </HtmlPaperFrame>
+
+      {inline && target && anchorRect && (
+        <HtmlAnchorPopover
+          rect={anchorRect}
+          onDismiss={() => setTarget(null)}
+        >
+          {matchingComments.length > 0 && (
+            <section className="flex flex-col gap-2 border-b border-line pb-2.5">
+              <AnimatePresence initial={false}>
+                {matchingComments.map((comment) => (
+                  <CommentCard key={comment.id} comment={comment} context="inline" />
+                ))}
+              </AnimatePresence>
+            </section>
+          )}
+          <HtmlAnchorComposer
+            target={target}
+            onClose={() => setTarget(null)}
+            variant="popover"
+          />
+        </HtmlAnchorPopover>
       )}
 
-      {inline && (
+      {/* Hover hint: dim badge appears while a non-targeted element is hovered. */}
+      {inline && hoverEl && !target && (
+        <p className="text-[12px] text-faint">Click any element in the document to comment on it.</p>
+      )}
+
+      {/* Comments that can't be anchored in the iframe (no anchor + element
+       * comments whose selector no longer resolves) fall back to inline cards
+       * so they don't disappear when their popover host is gone. */}
+      {inline && (unanchored.length > 0 || strandedElementComments(elementComments, iframeRef.current?.contentDocument ?? null).length > 0) && (
         <section className="flex flex-col gap-2">
           {unanchored.map((comment) => (
             <CommentCard key={comment.id} comment={comment} context="inline" />
           ))}
-          <AnimatePresence initial={false}>
-            {elementComments.map((comment) => (
-              <CommentCard key={comment.id} comment={comment} context="inline" />
-            ))}
-          </AnimatePresence>
+          {strandedElementComments(elementComments, iframeRef.current?.contentDocument ?? null).map((comment) => (
+            <CommentCard key={comment.id} comment={comment} context="inline" />
+          ))}
         </section>
       )}
     </div>
   )
 })
 
-const HtmlComposer = observer(function HtmlComposer(props: {
-  selector: string
-  quote: string
-  onClose: () => void
+/** Floating popover anchored to a rect in viewport coordinates. */
+function HtmlAnchorPopover(props: {
+  rect: DOMRect
+  onDismiss: () => void
+  children: React.ReactNode
 }) {
-  const commands = useReviewCommands()
-  const [body, setBody] = useState("")
-  const [type, setType] = useState<CritiqueType>("note")
+  const { rect, onDismiss, children } = props
+  const popoverRef = useRef<HTMLDivElement | null>(null)
 
-  function suggest(): void {
-    const fence = `> ${props.quote.split("\n").join("\n> ")}`
-    setBody((prev) => `${prev}${prev ? "\n\n" : ""}${fence}\n\n`)
-  }
-
-  function add(): void {
-    if (!body.trim()) return
-    void commands.addComment.dispatch({
-      scope: "located",
-      critique_type: type,
-      body: body.trim(),
-      anchor: { type: "element", selector: props.selector, quote: props.quote }
-    })
-    props.onClose()
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault()
-      add()
-    } else if (e.key === "Escape") {
-      e.preventDefault()
-      props.onClose()
+  // Click outside dismisses (clicks inside the iframe don't bubble here, so
+  // this only fires for true parent-document clicks).
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent): void {
+      const node = popoverRef.current
+      if (!node) return
+      if (node.contains(e.target as Node)) return
+      onDismiss()
     }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [onDismiss])
+
+  const POPOVER_WIDTH = 360
+  const margin = 12
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 768
+  // Prefer below the target; flip above when the bottom would overflow.
+  const preferAbove = rect.bottom + 240 + margin > viewportH && rect.top > 240
+  const top = preferAbove ? Math.max(margin, rect.top - margin) : rect.bottom + 8
+  let left = rect.left
+  if (left + POPOVER_WIDTH + margin > viewportW) {
+    left = Math.max(margin, viewportW - POPOVER_WIDTH - margin)
   }
 
-  return (
+  const style: React.CSSProperties = {
+    position: "fixed",
+    top,
+    left,
+    width: POPOVER_WIDTH,
+    transform: preferAbove ? "translateY(-100%)" : undefined,
+    zIndex: 60
+  }
+
+  return createPortal(
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      ref={popoverRef}
+      role="dialog"
+      aria-label="Element comment"
+      initial={{ opacity: 0, y: preferAbove ? 4 : -4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-      className="flex flex-col gap-2 rounded-lg border border-blue-soft bg-surface p-3 shadow-[var(--surface-shadow)]"
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16, ease: "easeOut" }}
+      style={style}
+      className="flex flex-col gap-2 rounded-xl border border-line-strong bg-popover p-3 text-popover-foreground shadow-[var(--elev-overlay)] ring-1 ring-inset ring-line-soft"
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-[12px] font-medium text-heading">
-          New comment on selected region
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wide text-faint">
+          Element comment
         </span>
-        <div className="flex flex-wrap gap-1 sm:ml-auto">
-          {TYPES.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              aria-pressed={type === kind}
-              className={`pointer-coarse:h-8 inline-flex h-6 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
-                type === kind
-                  ? TYPE_TONE[CRITIQUE_META[kind].tone]
-                  : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
-              }`}
-              onClick={() => setType(kind)}
-            >
-              {CRITIQUE_META[kind].label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <blockquote className="max-h-24 overflow-y-auto rounded-md border border-line bg-editor px-2 py-1.5 text-[12px] text-muted-foreground">
-        {props.quote}
-      </blockquote>
-
-      <textarea
-        autoFocus
-        className="min-h-20 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
-        placeholder="Leave a comment. Markdown supported."
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="ghost"
-          size="xs"
-          className="text-muted-foreground pointer-coarse:min-h-8"
-          onClick={suggest}
-          disabled={props.quote === ""}
+          size="icon-xs"
+          aria-label="Close"
+          onClick={onDismiss}
+          className="h-5 w-5 p-0"
         >
-          <SquarePlus size={13} />
-          Quote
+          <X size={12} />
         </Button>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground pointer-coarse:min-h-9"
-            onClick={props.onClose}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="pointer-coarse:min-h-9"
-            disabled={commands.addComment.isPending || !body.trim()}
-            onClick={add}
-          >
-            Add comment
-          </Button>
-        </div>
       </div>
-    </motion.div>
+      {children}
+    </motion.div>,
+    document.body
   )
-})
+}
 
-function Notice(props: { title: string; message: string }) {
+/**
+ * Frames the rendered HTML iframe as an intentional document preview. The
+ * iframe carries the user's authored HTML, which we can't restyle, so a hard
+ * white body would clash visually inside dark themes. The framing — outer
+ * matting + a small `Rendered HTML` chip — reads the white surface as
+ * deliberate paper, not a contrast bug.
+ */
+function HtmlPaperFrame(props: { children: React.ReactNode; nested?: boolean }) {
+  const outer = props.nested
+    ? "bg-soft p-3 sm:p-4"
+    : "rounded-xl border border-line bg-soft p-3 shadow-[var(--elev-1)] ring-1 ring-inset ring-line-soft sm:p-4"
   return (
-    <article className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-editor px-6 py-16 text-center">
+    <section aria-label="Rendered HTML preview" className={outer}>
+      <header className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-faint">
+        <FileText size={11} aria-hidden />
+        <span>Rendered HTML</span>
+      </header>
+      <div className="overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5">
+        {props.children}
+      </div>
+    </section>
+  )
+}
+
+function Notice(props: { title: string; message: string; nested?: boolean }) {
+  const className = props.nested
+    ? "flex flex-col items-center gap-3 px-6 py-12 text-center"
+    : "flex flex-col items-center gap-3 rounded-xl border border-line bg-editor px-6 py-16 text-center"
+  return (
+    <article className={className}>
       <div className="text-sm font-medium text-heading">{props.title}</div>
       <p className="max-w-sm text-[13px] text-muted-foreground">{props.message}</p>
     </article>
@@ -307,16 +533,27 @@ function elementForRange(range: Range): Element | null {
     : node.parentElement
 }
 
-function injectHighlightStyle(doc: Document): void {
-  if (doc.getElementById("suikou-anchor-style")) return
-  const style = doc.createElement("style")
-  style.id = "suikou-anchor-style"
-  style.textContent = HIGHLIGHT_STYLE
-  doc.head.appendChild(style)
+function applyHighlightStyle(doc: Document): void {
+  let style = doc.getElementById("suikou-anchor-style") as HTMLStyleElement | null
+  if (!style) {
+    style = doc.createElement("style")
+    style.id = "suikou-anchor-style"
+    doc.head.appendChild(style)
+  }
+  style.textContent = highlightStyle()
 }
 
-function clearHighlights(doc: Document): void {
-  for (const el of Array.from(doc.querySelectorAll(`.${HIGHLIGHT_CLASS}`))) {
-    el.classList.remove(HIGHLIGHT_CLASS)
+function clearCommentHighlights(doc: Document): void {
+  for (const el of Array.from(doc.querySelectorAll(`.${COMMENT_HIGHLIGHT_CLASS}`))) {
+    el.classList.remove(COMMENT_HIGHLIGHT_CLASS)
   }
+}
+
+/** Element-anchored comments whose selector no longer resolves against the iframe. */
+function strandedElementComments(comments: Comment[], doc: Document | null): Comment[] {
+  if (!doc) return []
+  return comments.filter((c) => {
+    if (c.anchor?.type !== "element") return false
+    return isOutdated(doc, { selector: c.anchor.selector, quote: c.anchor.quote })
+  })
 }

@@ -1,14 +1,18 @@
 import {
   Crosshair,
+  Link2,
   Unlink,
   RefreshCw,
   MoreHorizontal,
   Pencil,
   Trash2,
   ChevronDown,
+  CircleCheck,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 
 import { CRITIQUE_META, type Comment } from "./types";
+import { badgePop } from "./motion";
 import { useReviewCommands } from "./commands";
 import { relativeTime, fullTimestamp } from "./time";
 import { Button } from "@/components/ui/button";
@@ -49,6 +53,7 @@ export function CommentCardHeader(props: {
 }) {
   const { comment, inline, open, onEdit } = props;
   const commands = useReviewCommands();
+  const reduced = useReducedMotion() ?? false;
   const meta = CRITIQUE_META[comment.critique_type];
   const lineRange = comment.anchor?.type === "line_range" ? comment.anchor : null;
   const anchorLabel = lineRange
@@ -77,7 +82,7 @@ export function CommentCardHeader(props: {
           <button
             type="button"
             aria-label={open ? "Collapse comment" : "Expand comment"}
-            className="-m-1 inline-flex shrink-0 items-center rounded-md p-1 text-faint hover:bg-hover hover:text-muted-foreground"
+            className="-m-1 inline-flex size-auto p-1 shrink-0 cursor-pointer items-center justify-center rounded-md text-faint transition-colors hover:bg-hover hover:text-muted-foreground"
           />
         }
       >
@@ -89,18 +94,24 @@ export function CommentCardHeader(props: {
       </CollapsibleTrigger>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {lineRange
-          ? !inline && (
-              <button
-                type="button"
-                onClick={locateLine}
-                title="Jump to these lines"
-                className="inline-flex shrink-0 items-center gap-1 rounded text-muted-foreground hover:text-heading hover:underline"
-              >
-                <Crosshair size={13} />
-                {anchorLabel}
-              </button>
-            )
+        {comment.anchor
+          ? lineRange
+            ? !inline && (
+                <button
+                  type="button"
+                  onClick={locateLine}
+                  title="Jump to these lines"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded text-muted-foreground transition-colors hover:text-heading hover:underline"
+                >
+                  <Crosshair size={13} />
+                  {anchorLabel}
+                </button>
+              )
+            : !inline && (
+                <span className="text-faint" title="Anchored">
+                  <Link2 size={13} aria-label="Anchored" />
+                </span>
+              )
           : (
             <span className="text-faint" title="No anchor">
               <Unlink size={13} aria-label="No anchor" />
@@ -128,9 +139,20 @@ export function CommentCardHeader(props: {
 
         {comment.status === "pending" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-active-line-border bg-blue-soft px-2 py-0.5 text-[11px] text-blue">
-            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            <span className="size-1.5 rounded-full bg-current pending-pulse" aria-hidden />
             Pending
           </span>
+        )}
+
+        {comment.resolved && (
+          <motion.span
+            aria-label="Resolved"
+            {...badgePop(reduced)}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green/35 bg-green/15 px-2 py-0.5 text-[11px] text-green-text"
+          >
+            <CircleCheck size={11} aria-hidden />
+            Resolved
+          </motion.span>
         )}
       </div>
 

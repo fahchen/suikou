@@ -11,17 +11,27 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
   const commands = useReviewCommands();
   const rounds = snapshot.rounds;
   const latest = rounds[rounds.length - 1].number;
+  const current = snapshot.current_round.number;
+  const isLatest = current === latest;
+  const triggerLabel = isLatest
+    ? `Round ${current} (under review), switch rounds`
+    : `Round ${current} (superseded; round ${latest} is current), switch rounds`;
 
   return (
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="pill" size="xs" className="px-2.5">
-            <GitCompare className="size-4 text-muted-foreground" />
-            <span className="hidden text-[12px] font-medium sm:inline">
-              R{snapshot.current_round.number}
+          <Button
+            variant="pill"
+            size="xs"
+            title={triggerLabel}
+            aria-label={triggerLabel}
+          >
+            <GitCompare className="text-muted-foreground" />
+            <span className="hidden text-[11px] font-medium sm:inline">
+              R{current}
             </span>
-            <ChevronDown size={13} className="text-faint" />
+            <ChevronDown className="text-faint" />
           </Button>
         }
       />
@@ -33,7 +43,7 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
               <button
                 key={round.number}
                 type="button"
-                className={`flex flex-col rounded px-2 py-1.5 text-left ${current ? "bg-tint" : "hover:bg-hover"}`}
+                className={`flex cursor-pointer flex-col rounded px-2 py-1.5 text-left transition-colors ${current ? "bg-tint" : "hover:bg-hover"}`}
                 onClick={() => void commands.selectRound.dispatch({ number: round.number })}
               >
                 <span className="flex items-center gap-2 text-[13px] font-medium text-heading">

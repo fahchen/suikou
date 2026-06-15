@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from "react"
 import type { ThemedToken } from "shiki"
 
-import type { Comment, ReviewSnapshot, ReviewStore } from "./types"
+import type { Comment, ReviewSnapshot, ReviewStore, Verdict } from "./types"
 import type { RenderedBlock } from "../markdown/render"
 import type { StatusFilter, CritiqueType } from "../stores/ui-store"
 
@@ -35,9 +35,14 @@ export interface ReviewView {
   previewable: boolean
   /** Per-line syntax tokens for the raw view, or null for plain-text files. */
   rawLines: ThemedToken[][] | null
+  /** Current locally-held verdict for the mounted artifact, or `null` when the
+   * file is untouched (no verdict picked yet). */
+  verdict: Verdict | null
+  /** Persist a new verdict choice for the mounted artifact. */
+  onVerdictChange: (verdict: Verdict) => void
 }
 
-const ReviewViewContext = createContext<ReviewView | null>(null)
+export const ReviewViewContext = createContext<ReviewView | null>(null)
 
 export function ReviewViewProvider(props: { value: ReviewView; children: ReactNode }) {
   return <ReviewViewContext.Provider value={props.value}>{props.children}</ReviewViewContext.Provider>
@@ -49,6 +54,15 @@ export function useReviewView(): ReviewView {
     throw new Error("useReviewView must be used within a ReviewViewProvider")
   }
   return view
+}
+
+/** Whether any comment filter is currently narrowing the list. */
+export function isFiltering(
+  status: StatusFilter,
+  typeFilters: Record<CritiqueType, boolean>
+): boolean {
+  if (status !== "all") return true
+  return Object.values(typeFilters).some((on) => !on)
 }
 
 /** Applies the status + critique-type filters to a comment list. */

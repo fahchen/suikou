@@ -9,6 +9,8 @@ export type StatusFilter = "all" | "unresolved" | "resolved"
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
 export type CommentScope = "review" | "artifact" | "located"
 export type Density = "tight" | "normal" | "loose"
+export type DiffLayout = "unified" | "side"
+export type FileDisplayMode = "single" | "all"
 
 const THEME_KEY = "suikou-theme"
 const COMMENT_MODE_KEY = "suikou-comment-mode"
@@ -16,6 +18,9 @@ const DENSITY_KEY = "suikou-density"
 const HIDE_COMMENTS_KEY = "suikou-hide-comments"
 const WRAP_LINES_KEY = "suikou-wrap-lines"
 const MARKDOWN_FLAVOR_KEY = "suikou-markdown-flavor"
+const DIFF_LAYOUT_KEY = "suikou-diff-layout"
+const FILE_DISPLAY_MODE_KEY = "suikou-file-display-mode"
+const HIDE_REVIEWED_KEY = "suikou-hide-reviewed"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -28,6 +33,12 @@ export class UiStore {
   commentMode: CommentMode = "side"
   density: Density = "normal"
   markdownFlavor: MarkdownFlavor = "gfm"
+  diffLayout: DiffLayout = "side"
+  fileDisplayMode: FileDisplayMode = "single"
+  // All-files mode: hide rows whose per-file verdict is already set. Off by
+  // default so the reviewer sees every file on first open; flipping it on
+  // collapses the stack to outstanding work.
+  hideReviewed = false
   wrapLines = true
   hideComments = false
   commentsCollapsed = false
@@ -48,6 +59,22 @@ export class UiStore {
   composerScope: CommentScope = "located"
   composerType: CritiqueType = "note"
   composerBody = ""
+  // All-files mode scopes the active composer to one stacked file at a time
+  // so clicking line 12 in `foo.md` and line 12 in `bar.md` doesn't render two
+  // composers. Single-file mode passes `null` and keeps the legacy behavior.
+  composerFilePath: string | null = null
+
+  // Visible mint-on-click affordance: the path currently being minted into
+  // an artifact by an `open_file` command. Survives the navigation that
+  // tears down the current ReviewShell, so the progress strip in the
+  // mounted shell stays visible until the new shell takes over.
+  mintingPath: string | null = null
+
+  // Per-file render-vs-raw override in all-files (stacked) mode. Keyed by file
+  // path so each stacked card owns its display independently of the others;
+  // unset means the file falls back to its default (rendered). Transient
+  // session state — not persisted.
+  fileRawView: Record<string, boolean> = {}
 
   // Client-computed outdated state for element-anchored comments. The server
   // never relocates element anchors (Plan B: re-anchoring is client-only), so
@@ -55,6 +82,12 @@ export class UiStore {
   // misses here. Scoped to element anchors so the file/diff views are
   // unaffected; CommentCard reads it through `isCommentOutdated/1`.
   outdatedElementCommentIds: Set<string> = new Set()
+
+  // Element the reviewer has targeted in the rendered HTML iframe. Inline mode
+  // anchors a floating popover here; side mode hands this off to the rail so
+  // the rail composer focuses on the same element. Scoped by artifactId so a
+  // stale target from a previous HTML artifact doesn't leak through.
+  htmlAnchorTarget: { artifactId: string; selector: string; quote: string } | null = null
 
   constructor() {
     makeAutoObservable(this)
@@ -78,12 +111,26 @@ export class UiStore {
       this.markdownFlavor = "commonmark"
     }
 
+    const savedDiffLayout = localStorage.getItem(DIFF_LAYOUT_KEY)
+    if (savedDiffLayout === "unified" || savedDiffLayout === "side") {
+      this.diffLayout = savedDiffLayout
+    }
+
+    const savedFileDisplayMode = localStorage.getItem(FILE_DISPLAY_MODE_KEY)
+    if (savedFileDisplayMode === "single" || savedFileDisplayMode === "all") {
+      this.fileDisplayMode = savedFileDisplayMode
+    }
+
     if (localStorage.getItem(WRAP_LINES_KEY) === "false") {
       this.wrapLines = false
     }
 
     if (localStorage.getItem(HIDE_COMMENTS_KEY) === "true") {
       this.hideComments = true
+    }
+
+    if (localStorage.getItem(HIDE_REVIEWED_KEY) === "true") {
+      this.hideReviewed = true
     }
 
     this.applyTheme()
@@ -110,6 +157,16 @@ export class UiStore {
     localStorage.setItem(MARKDOWN_FLAVOR_KEY, flavor)
   }
 
+  setDiffLayout(layout: DiffLayout): void {
+    this.diffLayout = layout
+    localStorage.setItem(DIFF_LAYOUT_KEY, layout)
+  }
+
+  setFileDisplayMode(mode: FileDisplayMode): void {
+    this.fileDisplayMode = mode
+    localStorage.setItem(FILE_DISPLAY_MODE_KEY, mode)
+  }
+
   setWrapLines(wrap: boolean): void {
     this.wrapLines = wrap
     localStorage.setItem(WRAP_LINES_KEY, String(wrap))
@@ -120,6 +177,11 @@ export class UiStore {
     localStorage.setItem(HIDE_COMMENTS_KEY, String(hide))
     // Hiding starts from a clean slate; only comments added afterward reveal.
     if (hide) this.revealedCommentIds = []
+  }
+
+  setHideReviewed(hide: boolean): void {
+    this.hideReviewed = hide
+    localStorage.setItem(HIDE_REVIEWED_KEY, String(hide))
   }
 
   revealComment(id: string): void {
@@ -139,17 +201,31 @@ export class UiStore {
     this.typeFilters[type] = !this.typeFilters[type]
   }
 
-  openComposer(start: number | null, end: number | null, scope: CommentScope): void {
+  openComposer(
+    start: number | null,
+    end: number | null,
+    scope: CommentScope,
+    filePath: string | null = null
+  ): void {
     this.selStart = start
     this.selEnd = end
     this.composerScope = scope
     this.composerType = "note"
     this.composerBody = ""
+    this.composerFilePath = filePath
   }
 
   // Grow the active selection to cover [start, end], keeping the lowest start and
   // highest end so shift-clicking any line above or below extends the range.
-  extendSelection(start: number, end: number): void {
+  // In all-files mode, extending across files closes the cross-file selection
+  // and starts a fresh one in the new file scope.
+  extendSelection(start: number, end: number, filePath: string | null = null): void {
+    if (this.composerFilePath !== filePath) {
+      this.composerFilePath = filePath
+      this.selStart = start
+      this.selEnd = end
+      return
+    }
     if (this.selStart === null || this.selEnd === null) {
       this.selStart = start
       this.selEnd = end
@@ -163,6 +239,7 @@ export class UiStore {
     this.selStart = null
     this.selEnd = null
     this.composerBody = ""
+    this.composerFilePath = null
   }
 
   setComposerType(type: CritiqueType): void {
@@ -173,11 +250,29 @@ export class UiStore {
     this.composerBody = body
   }
 
+  setMintingPath(path: string | null): void {
+    this.mintingPath = path
+  }
+
+  setFileRawView(path: string, raw: boolean): void {
+    this.fileRawView = { ...this.fileRawView, [path]: raw }
+  }
+
+  getFileRawView(path: string): boolean {
+    return this.fileRawView[path] ?? false
+  }
+
   // Replace the set in one shot so observers see a single change. Identity-
   // equal sets short-circuit to avoid spurious renders when nothing moved.
   setOutdatedElementCommentIds(ids: Set<string>): void {
     if (sameSet(this.outdatedElementCommentIds, ids)) return
     this.outdatedElementCommentIds = ids
+  }
+
+  setHtmlAnchorTarget(
+    target: { artifactId: string; selector: string; quote: string } | null
+  ): void {
+    this.htmlAnchorTarget = target
   }
 
   private applyTheme(): void {

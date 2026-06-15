@@ -16,7 +16,8 @@ import {
   type DiffSide,
   type ParsedDiff
 } from "../diff-parse"
-import type { CritiqueType } from "../../stores/ui-store"
+import { uiStore, type CritiqueType } from "../../stores/ui-store"
+import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import type { ViewProps } from "./registry"
 
@@ -46,19 +47,24 @@ const ROW_KIND_CLASS: Record<DiffRow["kind"], { old: string; new: string }> = {
 const SIDE_LABEL: Record<DiffSide, string> = { old: "old", new: "new" }
 
 export const DiffView = observer(function DiffView(props: ViewProps) {
-  const { view, inline } = props
+  const { view, inline, nested } = props
   const { content, contentError, loading, comments } = view
   const [selection, setSelection] = useState<Selection | null>(null)
+  const wide = useMediaQuery(WIDE_QUERY)
+  // Side-by-side needs the screen real estate; narrow viewports fall back to
+  // unified regardless of preference so the diff stays readable.
+  const layout = uiStore.diffLayout === "side" && wide ? "side" : "unified"
 
   const parsed = useMemo<ParsedDiff>(() => parseUnifiedDiff(content), [content])
 
-  if (contentError) return <Notice title="Can't load this diff" message={contentError} />
-  if (loading && content === "") return <Notice title="Loading…" message="Fetching the diff." />
+  if (contentError) return <Notice title="Can't load this diff" message={contentError} nested={nested} />
+  if (loading && content === "") return <Notice title="Loading…" message="Fetching the diff." nested={nested} />
   if (parsed.hunks.length === 0)
     return (
       <Notice
         title="No changes"
         message="This file has no differences between the selected branches."
+        nested={nested}
       />
     )
 
@@ -80,8 +86,12 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
     setSelection(null)
   }
 
+  const wrapperClass = nested
+    ? "py-3 text-[13px] sm:py-4"
+    : "overflow-hidden rounded-xl border border-line bg-editor py-3 text-[13px] sm:py-4"
+
   return (
-    <article className="overflow-hidden rounded-2xl border border-line bg-editor py-3 text-[13px] sm:py-4">
+    <article className={wrapperClass}>
       {inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className="px-4 pb-2">
@@ -96,6 +106,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
           parsed={parsed}
           comments={comments}
           inline={inline}
+          layout={layout}
           selection={selection}
           onGutterClick={onGutterClick}
           closeComposer={closeComposer}
@@ -105,38 +116,98 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
   )
 })
 
+type Layout = "side" | "unified"
+
 const HunkBlock = observer(function HunkBlock(props: {
   hunk: DiffHunk
   parsed: ParsedDiff
   comments: Comment[]
   inline: boolean
+  layout: Layout
   selection: Selection | null
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { hunk, parsed, comments, inline, selection, onGutterClick, closeComposer } = props
+  const { hunk, parsed, comments, inline, layout, selection, onGutterClick, closeComposer } = props
+  const unifiedRows = useMemo(
+    () => (layout === "unified" ? toUnifiedRows(hunk.rows) : []),
+    [hunk.rows, layout]
+  )
   return (
     <section className="mt-3 first:mt-0">
       <header className="bg-soft px-3 py-1 font-mono text-[12px] text-muted-foreground">
         {hunk.header}
       </header>
       <div className="font-mono">
-        {hunk.rows.map((row, i) => (
-          <DiffRowView
-            key={i}
-            row={row}
-            parsed={parsed}
-            comments={comments}
-            inline={inline}
-            selection={selection}
-            onGutterClick={onGutterClick}
-            closeComposer={closeComposer}
-          />
-        ))}
+        {layout === "side"
+          ? hunk.rows.map((row, i) => (
+              <DiffRowView
+                key={i}
+                row={row}
+                parsed={parsed}
+                comments={comments}
+                inline={inline}
+                selection={selection}
+                onGutterClick={onGutterClick}
+                closeComposer={closeComposer}
+              />
+            ))
+          : unifiedRows.map((row, i) => (
+              <UnifiedRowView
+                key={i}
+                row={row}
+                parsed={parsed}
+                comments={comments}
+                inline={inline}
+                selection={selection}
+                onGutterClick={onGutterClick}
+                closeComposer={closeComposer}
+              />
+            ))}
       </div>
     </section>
   )
 })
+
+interface UnifiedRow {
+  kind: "context" | "add" | "remove"
+  side: DiffSide
+  oldNo: number | null
+  newNo: number | null
+  text: string
+}
+
+/**
+ * Flatten paired DiffRows into per-line unified rows. `replace` pairs split into
+ * a removal followed by an addition; everything else maps 1:1. Selection still
+ * lives on the row's logical `side`, so anchors are identical across layouts.
+ */
+function toUnifiedRows(rows: DiffRow[]): UnifiedRow[] {
+  const out: UnifiedRow[] = []
+  for (const row of rows) {
+    if (row.kind === "context" && row.old && row.new) {
+      out.push({
+        kind: "context",
+        side: "new",
+        oldNo: row.old.lineNo,
+        newNo: row.new.lineNo,
+        text: row.new.text
+      })
+    } else if (row.kind === "remove" && row.old) {
+      out.push({ kind: "remove", side: "old", oldNo: row.old.lineNo, newNo: null, text: row.old.text })
+    } else if (row.kind === "add" && row.new) {
+      out.push({ kind: "add", side: "new", oldNo: null, newNo: row.new.lineNo, text: row.new.text })
+    } else if (row.kind === "replace") {
+      if (row.old) {
+        out.push({ kind: "remove", side: "old", oldNo: row.old.lineNo, newNo: null, text: row.old.text })
+      }
+      if (row.new) {
+        out.push({ kind: "add", side: "new", oldNo: null, newNo: row.new.lineNo, text: row.new.text })
+      }
+    }
+  }
+  return out
+}
 
 const DiffRowView = observer(function DiffRowView(props: {
   row: DiffRow
@@ -188,6 +259,127 @@ const DiffRowView = observer(function DiffRowView(props: {
   )
 })
 
+const UNIFIED_KIND_CLASS: Record<UnifiedRow["kind"], string> = {
+  context: "bg-editor",
+  add: "bg-green/15",
+  remove: "bg-red-soft"
+}
+
+const UNIFIED_MARKER: Record<UnifiedRow["kind"], string> = {
+  context: " ",
+  add: "+",
+  remove: "-"
+}
+
+const UnifiedRowView = observer(function UnifiedRowView(props: {
+  row: UnifiedRow
+  parsed: ParsedDiff
+  comments: Comment[]
+  inline: boolean
+  selection: Selection | null
+  onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
+  closeComposer: () => void
+}) {
+  const { row, parsed, comments, inline, selection, onGutterClick, closeComposer } = props
+  const lineNo = row.side === "old" ? row.oldNo : row.newNo
+  const tone = UNIFIED_KIND_CLASS[row.kind]
+  const selected =
+    selection != null && selection.side === row.side && lineNo != null &&
+    lineNo >= selection.start && lineNo <= selection.end
+  const composerOpen =
+    selection != null && selection.side === row.side && lineNo === selection.end
+  const cellTone = selected ? "bg-active-line" : tone
+  const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
+  const matches = inline
+    ? comments.filter((c) => {
+        if (c.anchor?.type !== "diff_hunk") return false
+        return c.anchor.side === row.side && c.anchor.start_line === lineNo
+      })
+    : []
+
+  return (
+    <div>
+      <div className="grid grid-cols-[3rem_3rem_1.25rem_1fr] items-stretch">
+        <GutterButton
+          side="old"
+          lineNo={row.oldNo}
+          active={row.side === "old"}
+          tone={gutterTone}
+          fallbackTone={tone}
+          onGutterClick={onGutterClick}
+        />
+        <GutterButton
+          side="new"
+          lineNo={row.newNo}
+          active={row.side === "new"}
+          tone={gutterTone}
+          fallbackTone={tone}
+          onGutterClick={onGutterClick}
+        />
+        <div className={`flex select-none items-start justify-center font-mono text-[12px] leading-5 ${cellTone} text-faint`}>
+          {UNIFIED_MARKER[row.kind]}
+        </div>
+        <div
+          className={`min-w-0 whitespace-pre-wrap break-words pl-1 pr-2 leading-5 text-text [overflow-wrap:anywhere] ${cellTone}`}
+        >
+          {row.text === "" ? " " : row.text}
+        </div>
+      </div>
+
+      {composerOpen && selection != null && (
+        <DiffComposer
+          side={selection.side}
+          startLine={selection.start}
+          endLine={selection.end}
+          parsed={parsed}
+          onClose={closeComposer}
+        />
+      )}
+
+      {matches.length > 0 && (
+        <AnimatePresence initial={false}>
+          {matches.map((comment) => (
+            <div key={comment.id} className="px-2 pt-2 pl-14 sm:px-4 sm:pl-20">
+              <CommentCard comment={comment} context="inline" />
+            </div>
+          ))}
+        </AnimatePresence>
+      )}
+    </div>
+  )
+})
+
+function GutterButton(props: {
+  side: DiffSide
+  lineNo: number | null
+  active: boolean
+  tone: string
+  fallbackTone: string
+  onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
+}) {
+  const { side, lineNo, active, tone, fallbackTone, onGutterClick } = props
+  if (lineNo == null) {
+    return (
+      <div className={`border-r border-line-soft ${fallbackTone}`} aria-hidden />
+    )
+  }
+  const className = `group flex cursor-pointer items-start justify-end gap-1 border-r border-line-soft pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : `${fallbackTone} text-faint`}`
+  return (
+    <button
+      type="button"
+      title={`Add a comment on ${SIDE_LABEL[side]} line ${lineNo} (Shift-click to extend)`}
+      aria-label={`Add a comment on ${SIDE_LABEL[side]} line ${lineNo}`}
+      className={className}
+      onClick={(e) => {
+        onGutterClick(side, lineNo, e.shiftKey)
+      }}
+    >
+      <Plus size={12} className="hidden text-blue group-hover:block" aria-hidden />
+      {lineNo}
+    </button>
+  )
+}
+
 function SideCell(props: {
   cell: DiffCell | null
   side: DiffSide
@@ -221,17 +413,17 @@ function SideCell(props: {
         title={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo} (Shift-click to extend)`}
         aria-label={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo}`}
         aria-selected={selected}
-        className={`group flex items-center justify-end gap-1 border-r border-line-soft pr-2 text-right font-mono text-[12px] transition-colors hover:text-blue ${gutterTone}`}
+        className={`group flex cursor-pointer items-start justify-end gap-1 border-r border-line-soft pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${gutterTone}`}
         onClick={(e) => {
-          const shift =
-            e.shiftKey || (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches)
-          onGutterClick(side, cell.lineNo, !!shift)
+          onGutterClick(side, cell.lineNo, e.shiftKey)
         }}
       >
         <Plus size={12} className="hidden text-blue group-hover:block" aria-hidden />
         {cell.lineNo}
       </button>
-      <div className={`whitespace-pre pl-2 text-text ${cellTone}`}>
+      <div
+        className={`min-w-0 whitespace-pre-wrap break-words pl-2 leading-5 text-text [overflow-wrap:anywhere] ${cellTone}`}
+      >
         {cell.text === "" ? " " : cell.text}
       </div>
     </>
@@ -325,7 +517,7 @@ const DiffComposer = observer(function DiffComposer(props: {
               key={kind}
               type="button"
               aria-pressed={type === kind}
-              className={`pointer-coarse:h-8 inline-flex h-6 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
+              className={`inline-flex h-6 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
                 type === kind
                   ? TYPE_TONE[CRITIQUE_META[kind].tone]
                   : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
@@ -352,7 +544,7 @@ const DiffComposer = observer(function DiffComposer(props: {
           type="button"
           variant="ghost"
           size="xs"
-          className="text-muted-foreground pointer-coarse:min-h-8"
+          className="text-muted-foreground"
           onClick={suggest}
           disabled={selectedText === ""}
         >
@@ -364,7 +556,7 @@ const DiffComposer = observer(function DiffComposer(props: {
             type="button"
             variant="ghost"
             size="sm"
-            className="text-muted-foreground pointer-coarse:min-h-9"
+            className="text-muted-foreground"
             onClick={props.onClose}
           >
             Cancel
@@ -372,7 +564,6 @@ const DiffComposer = observer(function DiffComposer(props: {
           <Button
             type="button"
             size="sm"
-            className="pointer-coarse:min-h-9"
             disabled={commands.addComment.isPending || !body.trim()}
             onClick={add}
           >
@@ -384,9 +575,12 @@ const DiffComposer = observer(function DiffComposer(props: {
   )
 })
 
-function Notice(props: { title: string; message: string }) {
+function Notice(props: { title: string; message: string; nested?: boolean }) {
+  const className = props.nested
+    ? "flex flex-col items-center gap-3 px-6 py-12 text-center"
+    : "flex flex-col items-center gap-3 rounded-xl border border-line bg-editor px-6 py-16 text-center"
   return (
-    <article className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-editor px-6 py-16 text-center">
+    <article className={className}>
       <div className="text-sm font-medium text-heading">{props.title}</div>
       <p className="max-w-sm text-[13px] text-muted-foreground">{props.message}</p>
     </article>

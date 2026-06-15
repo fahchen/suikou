@@ -12,7 +12,7 @@ const RawEditorRoute = observer(function RawEditorRoute() {
   const wide = useMediaQuery(WIDE_QUERY)
   const inline = uiStore.commentMode !== "side" || !wide
   const ViewComponent = viewComponentFor(resolveViewKind(view.snapshot.artifact))
-  return <ViewComponent view={view} forceRaw={true} inline={inline} />
+  return <ViewComponent view={view} forceRaw={true} inline={inline} nested />
 })
 
 export const Route = createFileRoute("/review/$artifactId/raw")({

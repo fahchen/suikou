@@ -10,7 +10,7 @@ import type { ViewProps } from "./registry"
  * rendered-markdown branch for previewable files.
  */
 export const FileView = observer(function FileView(props: ViewProps) {
-  const { view, forceRaw, inline } = props
+  const { view, forceRaw, inline, nested } = props
   const { snapshot, content, contentError, blocks, loading, comments, previewable, rawLines } =
     view
   const editorView = forceRaw || !previewable ? "raw" : "rendered"
@@ -24,6 +24,7 @@ export const FileView = observer(function FileView(props: ViewProps) {
       comments={comments}
       rawLines={rawLines}
       inline={inline}
+      nested={nested}
       imageSrc={imageAssetSrc(snapshot.artifact.id, snapshot.artifact.title)}
     />
   )
