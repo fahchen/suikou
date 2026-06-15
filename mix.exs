@@ -45,7 +45,8 @@ defmodule Suikou.MixProject do
       suikou: [
         include_executables_for: [:unix],
         include_erts: true,
-        strip_beams: true
+        strip_beams: true,
+        steps: [:assemble, :tar]
       ]
     ]
   end
