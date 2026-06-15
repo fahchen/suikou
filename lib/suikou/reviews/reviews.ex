@@ -626,15 +626,15 @@ defmodule Suikou.Reviews do
     if Git.ref_exists?(path, ref), do: :ok, else: {:error, error}
   end
 
-  # Refs/repo are already validated above, so the only path to an empty list
-  # is a base==head (or otherwise no-change) pair — reject before persisting
-  # an empty review.
+  # Refs/repo are already validated above, so an empty list means a base==head
+  # (or otherwise no-change) pair — reject before persisting an empty review. A
+  # git failure here is a real error, distinct from "no diff".
   defp ensure_changes(%Project{path: path}, base, head) do
     case Git.changed_files(path, base, head) do
       {:ok, []} -> {:error, :no_changes}
       {:ok, [_head | _rest]} -> :ok
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
-      {:error, _reason} -> {:error, :no_changes}
+      {:error, _reason} -> {:error, :git_error}
     end
   end
 
