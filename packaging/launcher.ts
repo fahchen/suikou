@@ -2,12 +2,12 @@ import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
 import { file, spawn, write } from "bun"
-import { unpack } from "./archive.ts"
 
-// The `suikou` mix release (ERTS + app), packed at build time. Bun embeds the
-// bytes into the compiled binary and rewrites this import to a `$bunfs/...` path
-// whose basename carries a content hash — we reuse that hash as the cache key.
-import serverPack from "./embed/server.pack.gz" with { type: "file" }
+// The `suikou` mix release (ERTS + app), packed at build time by erl_tar. Bun
+// embeds the bytes into the compiled binary and rewrites this import to a
+// `$bunfs/...` path whose basename carries a content hash — we reuse that hash
+// as the cache key.
+import serverPack from "./embed/server.tar.gz" with { type: "file" }
 
 const APP_NAME = "Suikou"
 // Fixed high base port (registered range, away from common dev ports and the
@@ -84,9 +84,14 @@ async function ensureExtracted(): Promise<string> {
     await mkdir(dest, { recursive: true })
     const tmp = await mkdtemp(join(runtime, ".extract-"))
     try {
-      await unpack(await file(serverPack).bytes(), tmp)
-      // archive root is `suikou/`; promote it into the versioned cache dir.
-      // Clear any stale partial promotion first so rename lands on a clean target.
+      // The erl_tar archive holds the release contents (bin/, lib/, releases/,
+      // erts-*/) at its root, so extract into a `suikou` subdir to reconstruct
+      // the `suikou/bin/suikou` layout the promotion below expects. Bun.Archive
+      // (libarchive) restores exec bits and symlinks with no external `tar`.
+      const bytes = new Uint8Array(await file(serverPack).arrayBuffer())
+      await new Bun.Archive(bytes).extract(join(tmp, "suikou"))
+      // Promote the extracted release into the versioned cache dir. Clear any
+      // stale partial promotion first so rename lands on a clean target.
       await rm(join(dest, "suikou"), { recursive: true, force: true })
       await rename(join(tmp, "suikou"), join(dest, "suikou"))
       return dest
