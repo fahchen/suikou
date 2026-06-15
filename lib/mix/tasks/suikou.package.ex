@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Suikou.Package do
 
     * bare `suikou` — run in the foreground, opening the browser; Ctrl-C stops it.
     * `suikou start` — start a detached background daemon (logs to
-      `suikou.log`), then open the browser.
+      `~/Library/Application Support/Suikou/suikou.log`), then open the browser.
     * `suikou stop` — gracefully stop the running daemon.
     * `suikou status` — report whether the daemon is running.
     * `suikou run` — internal foreground body the daemon execs; not for direct use.
