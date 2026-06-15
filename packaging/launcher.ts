@@ -1,14 +1,13 @@
-import { randomBytes } from "node:crypto"
 import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
-import { connect as netConnect } from "node:net"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
 import { file, spawn, write } from "bun"
+import { unpack } from "./archive.ts"
 
-// The `suikou` mix release (ERTS + app), tar.gz'd at package time. Bun embeds the
+// The `suikou` mix release (ERTS + app), packed at build time. Bun embeds the
 // bytes into the compiled binary and rewrites this import to a `$bunfs/...` path
 // whose basename carries a content hash — we reuse that hash as the cache key.
-import serverTarball from "./embed/server.tar.gz" with { type: "file" }
+import serverPack from "./embed/server.pack.gz" with { type: "file" }
 
 const APP_NAME = "Suikou"
 // Fixed high base port (registered range, away from common dev ports and the
@@ -62,9 +61,9 @@ process.exit(await proc.exited)
 // binary extracts fresh while the persisted DB and secret (kept at the base dir)
 // survive across versions.
 async function ensureExtracted(): Promise<string> {
-  // bun inserts a content hash before the final extension (server.tar-<hash>.gz),
+  // bun inserts a content hash before the final extension (server.pack-<hash>.gz),
   // so the whole basename is build-unique; sanitize it into a tidy dir name.
-  const key = basename(serverTarball).replace(/[^a-zA-Z0-9]+/g, "-")
+  const key = basename(serverPack).replace(/[^a-zA-Z0-9]+/g, "-")
   const runtime = join(base, "runtime")
   const dest = join(runtime, key)
   const binPath = join(dest, "suikou", "bin", "suikou")
@@ -85,11 +84,8 @@ async function ensureExtracted(): Promise<string> {
     await mkdir(dest, { recursive: true })
     const tmp = await mkdtemp(join(runtime, ".extract-"))
     try {
-      const tarPath = join(tmp, "server.tar.gz")
-      await write(tarPath, file(serverTarball))
-      const tar = spawn(["tar", "-xzf", tarPath, "-C", tmp])
-      if ((await tar.exited) !== 0) throw new Error("failed to extract embedded release")
-      // tar archive root is `suikou/`; promote it into the versioned cache dir.
+      await unpack(await file(serverPack).bytes(), tmp)
+      // archive root is `suikou/`; promote it into the versioned cache dir.
       // Clear any stale partial promotion first so rename lands on a clean target.
       await rm(join(dest, "suikou"), { recursive: true, force: true })
       await rename(join(tmp, "suikou"), join(dest, "suikou"))
@@ -167,10 +163,11 @@ async function ensureSecret(): Promise<string> {
     // Phoenix demands >= 64 bytes; a truncated/corrupt file would crash the boot,
     // so regenerate rather than hand back something too short. Measure bytes, not
     // characters, to match what Phoenix actually checks.
-    if (Buffer.byteLength(existing, "utf8") >= 64) return existing
+    if (new TextEncoder().encode(existing).length >= 64) return existing
   }
 
-  const secret = randomBytes(64).toString("hex")
+  const bytes = crypto.getRandomValues(new Uint8Array(64))
+  const secret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
   await write(path, secret)
   await chmod(path, 0o600)
   return secret
@@ -205,14 +202,26 @@ async function waitForReady(p: number, timeoutMs = 20_000): Promise<boolean> {
   return false
 }
 
+// Probe liveness by opening a TCP socket. A successful connect means "up"; a
+// refused connection surfaces either as the `error` handler firing or the
+// `Bun.connect` promise rejecting, so guard against both and settle once.
 function tcpUp(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
-    const socket = netConnect({ port, host })
-    const settle = (up: boolean) => {
-      socket.destroy()
+    let settled = false
+    const settle = (up: boolean, socket?: { end(): void }) => {
+      if (settled) return
+      settled = true
+      socket?.end()
       resolve(up)
     }
-    socket.once("connect", () => settle(true))
-    socket.once("error", () => settle(false))
+    Bun.connect({
+      hostname: host,
+      port,
+      socket: {
+        open: (socket) => settle(true, socket),
+        error: () => settle(false),
+        data: () => {}
+      }
+    }).catch(() => settle(false))
   })
 }
