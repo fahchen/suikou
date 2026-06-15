@@ -445,14 +445,7 @@ defmodule Suikou.Reviews do
   end
 
   defp read_content_by_path(%Review{source: %FileSelection{}, project: project}, path) do
-    case Path.safe_relative(path, project.path) do
-      {:ok, relative} ->
-        absolute = Path.join(project.path, relative)
-        if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
-
-      :error ->
-        {:error, :unsafe_path}
-    end
+    file_selection_content_source(project, path)
   end
 
   defp read_content_by_path(
@@ -502,14 +495,7 @@ defmodule Suikou.Reviews do
   end
 
   defp read_raw_by_path(%Review{source: %FileSelection{}, project: project}, path) do
-    case Path.safe_relative(path, project.path) do
-      {:ok, relative} ->
-        absolute = Path.join(project.path, relative)
-        if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
-
-      :error ->
-        {:error, :unsafe_path}
-    end
+    file_selection_content_source(project, path)
   end
 
   defp read_raw_by_path(%Review{source: %GitDiff{} = git_diff, project: project}, path) do
@@ -517,6 +503,17 @@ defmodule Suikou.Reviews do
       {:ok, bytes} -> {:ok, {:inline, bytes, MIME.from_path(path)}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp file_selection_content_source(%Project{} = project, path) do
+    case Path.safe_relative(path, project.path) do
+      {:ok, relative} ->
+        absolute = Path.join(project.path, relative)
+        if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
+
+      :error ->
+        {:error, :unsafe_path}
     end
   end
 

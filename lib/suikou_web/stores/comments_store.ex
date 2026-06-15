@@ -19,58 +19,12 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias SuikouWeb.Stores.CommentBroadcast
+  alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentRendering
-
-  # The comment shape literal is the contract the client narrows against and
-  # is repeated in `ReviewStore.files_comments`; both must move together, and
-  # extracting it would force a generated-d.ts indirection without making the
-  # contract any clearer.
-  # credo:disable-for-this-file Credo.Check.Design.DuplicatedCode
+  require CommentContract
 
   state do
-    field(
-      :items,
-      list(%{
-        id: String.t(),
-        scope: :review | :artifact | :located,
-        critique_type: :fix_required | :needs_answer | :note,
-        status: :pending | :published,
-        body: String.t(),
-        resolved: boolean(),
-        resolved_round: integer() | nil,
-        outdated: boolean(),
-        original_round: integer() | nil,
-        carried: boolean(),
-        inserted_at: String.t(),
-        anchor:
-          %{
-            type: :line_range,
-            start_line: integer(),
-            end_line: integer(),
-            quote: String.t()
-          }
-          | %{
-              type: :diff_hunk,
-              side: :old | :new,
-              start_line: integer(),
-              end_line: integer(),
-              quote: String.t()
-            }
-          | %{
-              type: :element,
-              selector: String.t(),
-              quote: String.t()
-            }
-          | nil,
-        replies:
-          list(%{
-            id: String.t(),
-            author: :human | :agent,
-            body: String.t(),
-            inserted_at: String.t()
-          })
-      })
-    )
+    CommentContract.comments_items_field()
   end
 
   command :add_comment do
@@ -79,13 +33,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
       field(:critique_type, :fix_required | :needs_answer | :note)
       field(:body, String.t())
 
-      field(
-        :anchor,
-        %{type: :line_range, start_line: integer(), end_line: integer()}
-        | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
-        | %{type: :element, selector: String.t(), quote: String.t()}
-        | nil
-      )
+      CommentContract.optional_anchor_field()
     end
   end
 
@@ -126,12 +74,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
     payload do
       field(:comment_id, String.t())
 
-      field(
-        :anchor,
-        %{type: :line_range, start_line: integer(), end_line: integer()}
-        | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
-        | %{type: :element, selector: String.t(), quote: String.t()}
-      )
+      CommentContract.required_anchor_field()
     end
   end
 

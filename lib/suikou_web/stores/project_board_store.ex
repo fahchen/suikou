@@ -22,6 +22,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
   alias SuikouWeb.Iso8601
+  alias SuikouWeb.Stores.ProjectBoardContract
+  require ProjectBoardContract
 
   state do
     field(
@@ -52,23 +54,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     # `Reviews.list_files/1`. Carries the authoritative file count for every
     # card — including git-diff reviews, whose card was previously stuck at 0
     # and unopenable.
-    field(
-      :review_files,
-      Musubi.AsyncResult.of(
-        list(%{
-          review_id: String.t(),
-          files:
-            list(%{
-              path: String.t(),
-              artifact_id: String.t() | nil,
-              approved: boolean(),
-              content_hash: String.t() | nil,
-              change_status:
-                :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
-            })
-        })
-      )
-    )
+    ProjectBoardContract.review_files_state_field()
   end
 
   command :create_project do
@@ -172,16 +158,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
 
     reply do
-      field(
-        :files,
-        list(%{
-          path: String.t(),
-          artifact_id: String.t() | nil,
-          approved: boolean(),
-          content_hash: String.t() | nil,
-          change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
-        })
-      )
+      ProjectBoardContract.review_files_reply_field()
 
       field(:error, String.t() | nil)
     end

@@ -26,13 +26,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentBroadcast
+  alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentRendering
   alias SuikouWeb.Stores.CommentsStore
-
-  # The comment shape literal under `files_comments` mirrors `CommentsStore`'s
-  # `items` field; both must move together to keep the client tagged-union
-  # narrowing aligned, so the duplication is intentional.
-  # credo:disable-for-this-file Credo.Check.Design.DuplicatedCode
+  require CommentContract
 
   state do
     # The parent review's id, exposed so the client can fetch unminted file
@@ -105,54 +102,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     # its frame renders empty until the first add mints it. Anchors are
     # resolved against each artifact's live content, matching the per-artifact
     # `comments` child contract one-for-one.
-    field(
-      :files_comments,
-      list(%{
-        artifact_id: String.t(),
-        path: String.t(),
-        items:
-          list(%{
-            id: String.t(),
-            scope: :review | :artifact | :located,
-            critique_type: :fix_required | :needs_answer | :note,
-            status: :pending | :published,
-            body: String.t(),
-            resolved: boolean(),
-            resolved_round: integer() | nil,
-            outdated: boolean(),
-            original_round: integer() | nil,
-            carried: boolean(),
-            inserted_at: String.t(),
-            anchor:
-              %{
-                type: :line_range,
-                start_line: integer(),
-                end_line: integer(),
-                quote: String.t()
-              }
-              | %{
-                  type: :diff_hunk,
-                  side: :old | :new,
-                  start_line: integer(),
-                  end_line: integer(),
-                  quote: String.t()
-                }
-              | %{
-                  type: :element,
-                  selector: String.t(),
-                  quote: String.t()
-                }
-              | nil,
-            replies:
-              list(%{
-                id: String.t(),
-                author: :human | :agent,
-                body: String.t(),
-                inserted_at: String.t()
-              })
-          })
-      })
-    )
+    CommentContract.files_comments_field()
   end
 
   command :submit_review do
@@ -207,13 +157,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       field(:critique_type, :fix_required | :needs_answer | :note)
       field(:body, String.t())
 
-      field(
-        :anchor,
-        %{type: :line_range, start_line: integer(), end_line: integer()}
-        | %{type: :diff_hunk, side: :old | :new, start_line: integer(), end_line: integer()}
-        | %{type: :element, selector: String.t(), quote: String.t()}
-        | nil
-      )
+      CommentContract.optional_anchor_field()
     end
 
     reply do
