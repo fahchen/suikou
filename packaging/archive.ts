@@ -1,5 +1,5 @@
 import { chmod, lstat, mkdir, readdir, readlink, symlink } from "node:fs/promises"
-import { dirname, join, relative } from "node:path"
+import { dirname, join, relative, resolve, sep } from "node:path"
 
 // A self-contained archive codec shared by the build-time packer and the runtime
 // unpacker, so the binary needs no external `tar`. Because the same code writes
@@ -22,7 +22,12 @@ export async function packDir(srcDir: string): Promise<Uint8Array> {
   const entries: Entry[] = []
   const bodies: Uint8Array[] = []
 
-  await walk(srcDir, srcDir, entries, bodies)
+  // Archive the directory itself (like `tar <dir>`), so paths are prefixed with
+  // srcDir's basename — the launcher promotes the top-level `suikou/` by name.
+  const src = resolve(srcDir)
+  const root = dirname(src)
+  entries.push({ path: relative(root, src), type: "dir", mode: (await lstat(src)).mode & 0o7777 })
+  await walk(root, src, entries, bodies)
 
   const manifestJson = new TextEncoder().encode(JSON.stringify(entries))
   const header = new Uint8Array(4)
@@ -50,12 +55,24 @@ export async function unpack(gz: Uint8Array, destDir: string): Promise<void> {
     new TextDecoder().decode(whole.subarray(manifestStart, bodyStart))
   )
 
+  const root = resolve(destDir)
+  const safeTarget = (path: string): string => {
+    const target = resolve(root, path)
+    if (target !== root && !target.startsWith(root + sep)) {
+      throw new Error(`archive entry escapes destination: ${path}`)
+    }
+    return target
+  }
+
+  const dirs: Array<{ target: string; mode: number }> = []
   let offset = bodyStart
   for (const entry of manifest) {
-    const target = join(destDir, entry.path)
+    const target = safeTarget(entry.path)
     if (entry.type === "dir") {
+      // Create writable now; defer the recorded mode until all children exist,
+      // so a read-only dir (e.g. 0555) doesn't block writing its contents.
       await mkdir(target, { recursive: true })
-      await chmod(target, entry.mode)
+      dirs.push({ target, mode: entry.mode })
     } else if (entry.type === "symlink") {
       await mkdir(dirname(target), { recursive: true })
       await symlink(entry.target, target)
@@ -65,6 +82,12 @@ export async function unpack(gz: Uint8Array, destDir: string): Promise<void> {
       await chmod(target, entry.mode)
       offset += entry.size
     }
+  }
+
+  // Manifest is parent-before-child; reverse so children are chmod'd first and a
+  // read-only parent never blocks its descendants.
+  for (let i = dirs.length - 1; i >= 0; i--) {
+    await chmod(dirs[i].target, dirs[i].mode)
   }
 }
 
