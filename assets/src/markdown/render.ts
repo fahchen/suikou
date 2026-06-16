@@ -197,41 +197,29 @@ function splitListRange(
 
 /**
  * Splits a table token group into one `RenderedBlock` per `<tr>` so each row is
- * independently anchorable. The header row becomes its own block (kept visible
- * as the table's context) and every body row another. Each block re-emits a
- * standalone single-row `<table>` carrying a shared equal-width `<colgroup>` and
- * `table-layout:fixed`, so the columns line up across the separate row tables;
- * `border-collapse` plus a `-1px` top margin on the trailing rows merges the
- * cell borders back into one continuous grid. Cell alignment styles emitted by
- * markdown-it are preserved since each `<tr>` is rendered from its own tokens.
+ * independently anchorable, header row first. Each block carries only its row's
+ * cell HTML (the `<th>`/`<td>` run, without a wrapping `<tr>` or `<table>`); the
+ * editor stitches the rows back into one real `<table>` inside a single
+ * horizontal scroller, so columns size to their content and stay aligned across
+ * rows while the whole table scrolls as one unit. Cell alignment styles emitted
+ * by markdown-it are preserved since each cell run is rendered from its tokens.
  */
 function splitTableGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
-  const cols = group.filter((t) => t.type === "th_open").length || 1
-  const colgroup = colgroupHtml(cols)
   const blocks: RenderedBlock[] = []
-  let section: "thead" | "tbody" = "tbody"
-  let first = true
 
   for (let i = 0; i < group.length; i++) {
-    const t = group[i]
-    if (t.type === "thead_open") section = "thead"
-    else if (t.type === "tbody_open") section = "tbody"
-    if (t.type !== "tr_open") continue
-
+    if (group[i].type !== "tr_open") continue
     const close = matchClose(group, i)
-    const row = group.slice(i, close + 1)
-    const [startLine, endLine] = lineRange(row)
-    const style = `table-layout:fixed${first ? "" : ";margin-top:-1px"}`
-    const inner = md.renderer.render(row, md.options, env)
+    const cells = group.slice(i + 1, close)
+    const [startLine, endLine] = lineRange(group.slice(i, close + 1))
     blocks.push({
       startLine,
       endLine,
       kind: "markdown",
       tag: "tr",
       lang: null,
-      html: `<table style="${style}">${colgroup}<${section}>${inner}</${section}></table>`
+      html: md.renderer.render(cells, md.options, env)
     })
-    first = false
     i = close
   }
 
@@ -360,12 +348,6 @@ function blockquoteStyle(first: boolean, last: boolean): string {
   return parts.join(";")
 }
 
-/** An equal-width `<colgroup>` so split row tables share identical column widths. */
-function colgroupHtml(cols: number): string {
-  const width = (100 / cols).toFixed(4)
-  return `<colgroup>${`<col style="width:${width}%">`.repeat(cols)}</colgroup>`
-}
-
 /**
  * Splits a fenced code block into one `RenderedBlock` per source line so code
  * review can anchor a comment to a single line, reusing the raw view's
@@ -378,14 +360,13 @@ function colgroupHtml(cols: number): string {
 function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): RenderedBlock[] {
   const lang = resolveLang(fence.info)
   const code = fence.content.replace(/\n$/, "")
-  const { tokens, fg = "inherit", bg = "var(--code-bg)" } = highlighter.codeToTokens(code, {
+  const { tokens } = highlighter.codeToTokens(code, {
     lang: lang as BundledLanguage,
     theme: shiki
   })
   // fence.map is [openFenceLine, closeFenceLine+1] (0-based); the first content
   // line sits one line below the opening fence, +1 again for 1-based output.
   const base = (fence.map?.[0] ?? 0) + 2
-  const last = tokens.length - 1
 
   return tokens.map((line, i) => {
     const startLine = base + i
@@ -395,41 +376,15 @@ function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): 
       kind: "code",
       tag: "",
       lang,
-      html: codeLineHtml(line, { fg, bg, first: i === 0, last: i === last })
+      html: codeLineHtml(line)
     }
   })
 }
 
-/** One code line as a `<div>` of Shiki-colored spans, with edge chrome flags. */
-function codeLineHtml(
-  tokens: ThemedToken[],
-  opts: { fg: string; bg: string; first: boolean; last: boolean }
-): string {
-  const spans =
-    tokens.length === 0
-      ? " "
-      : tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
-  const style = [
-    `background:${opts.bg}`,
-    `color:${opts.fg}`,
-    "font-family:var(--mono)",
-    "font-size:0.86rem",
-    "line-height:1.6",
-    "white-space:pre",
-    "overflow-x:auto",
-    "padding:0 1em",
-    "border-left:1px solid var(--line-soft)",
-    "border-right:1px solid var(--line-soft)",
-    opts.first ? "padding-top:0.85em" : "",
-    opts.first ? "border-top:1px solid var(--line-soft)" : "",
-    opts.first ? "border-top-left-radius:8px;border-top-right-radius:8px" : "",
-    opts.last ? "padding-bottom:0.85em" : "",
-    opts.last ? "border-bottom:1px solid var(--line-soft)" : "",
-    opts.last ? "border-bottom-left-radius:8px;border-bottom-right-radius:8px" : ""
-  ]
-    .filter(Boolean)
-    .join(";")
-  return `<div class="md-codeline" style="${style}">${spans}</div>`
+/** One code line as Shiki-colored spans; an empty line keeps a space for height. */
+function codeLineHtml(tokens: ThemedToken[]): string {
+  if (tokens.length === 0) return " "
+  return tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
 }
 
 /** Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline). */

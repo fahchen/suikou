@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
 import { FileX2, Plus } from "lucide-react";
@@ -121,25 +122,244 @@ const RenderView = observer(function RenderView(props: EditorProps) {
 
       {props.loading && <p className="px-6 py-8 text-sm text-muted-foreground">Rendering…</p>}
 
-      {props.blocks.map((block, i) => (
-        <LineRow
-          key={`${block.startLine}-${block.kind}`}
-          startLine={block.startLine}
-          endLine={block.endLine}
-          comments={props.comments}
-          inline={props.inline}
-          content={props.content}
-          marginClass={blockSpacing(block, props.blocks[i - 1], tiers)}
-        >
-          <div
-            className={`min-w-0 flex-1 ${KIND_CLASS[block.kind]}`}
-            dangerouslySetInnerHTML={{ __html: block.html }}
+      {segmentBlocks(props.blocks).map((seg) =>
+        seg.type === "code" ? (
+          <CodeFence
+            key={`code-${seg.blocks[0].startLine}`}
+            blocks={seg.blocks}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            marginClass={blockSpacing(seg.blocks[0], props.blocks[seg.index - 1], tiers)}
           />
-        </LineRow>
-      ))}
+        ) : seg.type === "table" ? (
+          <TableBlock
+            key={`table-${seg.blocks[0].startLine}`}
+            rows={seg.blocks}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            marginClass={blockSpacing(seg.blocks[0], props.blocks[seg.index - 1], tiers)}
+          />
+        ) : (
+          <LineRow
+            key={`${seg.block.startLine}-${seg.block.kind}`}
+            startLine={seg.block.startLine}
+            endLine={seg.block.endLine}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            marginClass={blockSpacing(seg.block, props.blocks[seg.index - 1], tiers)}
+          >
+            <div
+              className={`min-w-0 flex-1 ${KIND_CLASS[seg.block.kind]}`}
+              dangerouslySetInnerHTML={{ __html: seg.block.html }}
+            />
+          </LineRow>
+        ),
+      )}
     </article>
   );
 });
+
+type BlockSegment =
+  | { type: "single"; block: RenderedBlock; index: number }
+  | { type: "code"; blocks: RenderedBlock[]; index: number }
+  | { type: "table"; blocks: RenderedBlock[]; index: number };
+
+/**
+ * Coalesces consecutive code-fence lines into one `code` segment and consecutive
+ * table rows into one `table` segment, so the editor can wrap each in a single
+ * horizontal-scroll unit; every other block stays its own `single` segment. The
+ * carried `index` is the run's position in the original list so spacing can read
+ * its predecessor.
+ */
+function segmentBlocks(blocks: RenderedBlock[]): BlockSegment[] {
+  const segments: BlockSegment[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    if (blocks[i].kind === "code") {
+      const start = i;
+      const run: RenderedBlock[] = [];
+      while (i < blocks.length && blocks[i].kind === "code") {
+        run.push(blocks[i]);
+        i++;
+      }
+      segments.push({ type: "code", blocks: run, index: start });
+    } else if (blocks[i].tag === "tr") {
+      const start = i;
+      const run: RenderedBlock[] = [];
+      while (i < blocks.length && blocks[i].tag === "tr") {
+        run.push(blocks[i]);
+        i++;
+      }
+      segments.push({ type: "table", blocks: run, index: start });
+    } else {
+      segments.push({ type: "single", block: blocks[i], index: i });
+      i++;
+    }
+  }
+  return segments;
+}
+
+/**
+ * One fenced code block as a single horizontal-scroll box: a rounded, tinted
+ * container scrolls all its lines together so they stay column-aligned, while
+ * each line is still its own anchorable row (sticky line-number gutter + the
+ * "+" add-comment button). The inner `w-max min-w-full` wrapper sizes every row
+ * to the widest line so the shared right edge and tint span the full width.
+ */
+const CodeFence = observer(function CodeFence(props: {
+  blocks: RenderedBlock[];
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+  marginClass?: string;
+}) {
+  return (
+    <div
+      className={`${props.marginClass ?? ""} overflow-x-auto rounded-lg border border-line-soft bg-code py-2`}
+    >
+      <div className="w-max min-w-full">
+        {props.blocks.map((block) => (
+          <LineRow
+            key={`${block.startLine}-code`}
+            startLine={block.startLine}
+            endLine={block.endLine}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            fill
+            tone="code"
+          >
+            <span
+              className="md-codeline min-w-0 flex-1 whitespace-pre pl-2 font-mono text-[0.86rem] leading-[1.6]"
+              dangerouslySetInnerHTML={{ __html: block.html }}
+            />
+          </LineRow>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+/** colSpan large enough to span every column; browsers clamp it to the table's
+ * real column count, so an aside row stretches the full table width. */
+const FULL_ROW_SPAN = 1000;
+
+/** lucide "plus" glyph, inlined so the table gutter can live in raw cell HTML. */
+const PLUS_SVG =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+
+/**
+ * One markdown table as a single horizontally-scrollable real `<table>`: columns
+ * size to their content (no equal-width squeeze) and stay aligned across rows,
+ * and the whole table scrolls as one unit when wider than the view. Every row
+ * keeps its own sticky line-number gutter with the "+" add-comment button, so
+ * per-row anchoring is intact; clicks are delegated from the table so the gutter
+ * can live in raw cell HTML. Composer and inline comments render as full-width
+ * aside rows pinned left so they stay readable while the grid scrolls.
+ */
+const TableBlock = observer(function TableBlock(props: {
+  rows: RenderedBlock[];
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+  marginClass?: string;
+}) {
+  const ui = uiStore;
+  const fileScope = useFileScope();
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+
+  const onGutterClick = (e: React.MouseEvent<HTMLTableElement>) => {
+    const cell = (e.target as HTMLElement).closest<HTMLElement>("[data-line-start]");
+    if (!cell) return;
+    const start = Number(cell.dataset.lineStart);
+    const end = Number(cell.dataset.lineEnd);
+    if (selStart != null && e.shiftKey) {
+      ui.extendSelection(start, end, fileScope);
+    } else {
+      ui.openComposer(start, end, "located", fileScope);
+    }
+  };
+
+  return (
+    <div className={`${props.marginClass ?? ""} overflow-x-auto rounded-lg border border-line bg-editor`}>
+      <table className="md-table w-max min-w-full" onClick={onGutterClick}>
+        <tbody>
+          {props.rows.map((row) => {
+            const { startLine, endLine } = row;
+            const selected =
+              selStart != null && selEnd != null && startLine <= selEnd && endLine >= selStart;
+            const composerOpen = selStart != null && selEnd != null && endLine === selEnd;
+            const inlineComments = props.inline
+              ? props.comments.filter(
+                  (c) =>
+                    c.anchor?.type === "line_range" &&
+                    c.anchor.start_line >= startLine &&
+                    c.anchor.start_line <= endLine,
+                )
+              : [];
+
+            return (
+              <Fragment key={`${startLine}-tr`}>
+                <TableRow startLine={startLine} endLine={endLine} cells={row.html} selected={selected} />
+
+                {composerOpen && selStart != null && selEnd != null && (
+                  <tr>
+                    <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
+                      <div className="sticky left-0 max-w-3xl">
+                        <Composer
+                          startLine={selStart}
+                          endLine={selEnd}
+                          selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
+                          filePath={fileScope}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {inlineComments.map((comment) => (
+                  <tr key={comment.id}>
+                    <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
+                      <div className="sticky left-0 max-w-3xl px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14">
+                        <CommentCard comment={comment} context="inline" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
+/** One anchorable table row: a sticky gutter cell (line label + "+") followed by
+ * the row's rendered cells, injected as raw HTML so the real `<td>`/`<th>` grid
+ * stays a single table. Selection styling is driven by `aria-selected`. */
+function TableRow(props: { startLine: number; endLine: number; cells: string; selected: boolean }) {
+  const label =
+    props.startLine === props.endLine ? `${props.startLine}` : `${props.startLine}-${props.endLine}`;
+  const gutter =
+    `<td class="md-gutter" data-line-start="${props.startLine}" data-line-end="${props.endLine}">` +
+    `<button type="button" class="md-gutter-btn" title="Add a comment on line ${props.startLine} (Shift-click to extend)" aria-label="Add a comment on line ${props.startLine}">` +
+    `<span class="md-gutter-plus">${PLUS_SVG}</span><span class="md-gutter-label">${label}</span>` +
+    `</button></td>`;
+
+  return (
+    <tr
+      id={`line-${props.startLine}`}
+      aria-selected={props.selected}
+      dangerouslySetInnerHTML={{ __html: gutter + props.cells }}
+    />
+  );
+}
 
 const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
@@ -247,6 +467,9 @@ const LineRow = observer(function LineRow(props: {
   content: string;
   marginClass?: string;
   fill?: boolean;
+  /** "code": the row sits inside a tinted code-fence box, so it stays
+   * transparent (letting the box tint show) instead of painting its own bg. */
+  tone?: "code";
   children: React.ReactNode;
 }) {
   const ui = uiStore;
@@ -274,7 +497,7 @@ const LineRow = observer(function LineRow(props: {
   return (
     <div className={`${props.marginClass ?? ""} ${props.fill ? "min-w-full" : ""}`}>
       <div
-        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "bg-editor hover:bg-hover"}`}
+        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : props.tone === "code" ? "hover:bg-hover" : "bg-editor hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
