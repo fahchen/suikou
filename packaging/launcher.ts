@@ -265,8 +265,12 @@ async function loadDaemonPort(): Promise<number | null> {
   return null
 }
 
+// User-facing URL reflects PHX_HOST (same value releaseEnv passes the release),
+// so a non-default host like a Tailscale MagicDNS name is what we print and open.
+// Liveness probing stays on 127.0.0.1 — only the displayed URL uses the host.
 function urlForPort(p: number): string {
-  return `http://localhost:${p}`
+  const host = process.env.PHX_HOST || "localhost"
+  return `http://${host}:${p}`
 }
 
 // Extract the release into ~/Library/Application Support/Suikou/runtime/<hash>/
