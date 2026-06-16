@@ -119,6 +119,9 @@ async function start(): Promise<number> {
   })
   const exitCode = await daemon.exited
   if (exitCode !== 0) {
+    // The daemon never came up; drop the port file we just wrote so a later
+    // status doesn't report a phantom port that nothing is listening on.
+    await rm(daemonFile, { force: true })
     console.error(`failed to start daemon (exit ${exitCode}); see logs in ${logDir}`)
     return 1
   }
@@ -127,10 +130,14 @@ async function start(): Promise<number> {
   if (await waitForReady(port)) {
     spawn(["open", url])
     console.log(`started at ${url}`)
-  } else {
-    console.error(`started but not ready yet at ${url}; see logs in ${logDir}`)
+    return 0
   }
-  return 0
+
+  // Daemon spawned but never became reachable; remove the stale port file so
+  // persisted state stays consistent with reality.
+  await rm(daemonFile, { force: true })
+  console.error(`started but not ready yet at ${url}; see logs in ${logDir}`)
+  return 1
 }
 
 // `suikou stop`: ask the running node to stop via the release rpc. A downed node
