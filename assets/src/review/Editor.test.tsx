@@ -108,3 +108,41 @@ describe("Editor rendered code fence", () => {
     expect(box?.textContent).not.toContain("prose");
   });
 });
+
+function tableRow(startLine: number, cells: string): RenderedBlock {
+  return { startLine, endLine: startLine, kind: "markdown", tag: "tr", lang: null, html: cells };
+}
+
+describe("Editor rendered table", () => {
+  const ROWS = [
+    tableRow(1, "<th>H1</th><th>H2</th>"),
+    tableRow(3, "<td>a</td><td>b</td>"),
+    tableRow(4, "<td>c</td><td>d</td>"),
+  ];
+
+  it("stitches the rows into one scrollable real table", () => {
+    const { container } = renderEditor(ROWS);
+
+    const boxes = container.querySelectorAll(".overflow-x-auto");
+    expect(boxes.length).toBe(1);
+    const tables = container.querySelectorAll("table.md-table");
+    expect(tables.length).toBe(1);
+    // Header cells stay in the one table alongside the body rows.
+    expect(tables[0].querySelectorAll("th").length).toBe(2);
+    expect(tables[0].textContent).toContain("a");
+    expect(tables[0].textContent).toContain("d");
+  });
+
+  it("uses content-proportional columns, not the equal-width squeeze", () => {
+    const { container } = renderEditor(ROWS);
+    expect(container.innerHTML).not.toContain("table-layout");
+    expect(container.innerHTML).not.toContain("<colgroup");
+  });
+
+  it("keeps every row independently anchorable", () => {
+    renderEditor(ROWS);
+    expect(screen.getByRole("button", { name: "Add a comment on line 1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a comment on line 3" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a comment on line 4" })).toBeTruthy();
+  });
+});

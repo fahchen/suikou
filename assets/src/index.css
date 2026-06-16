@@ -1002,14 +1002,92 @@
     font-weight: 600;
   }
 
-  .md-mermaid {
+  /* One real table per markdown table: content-proportional columns that scroll
+     as a single unit when wide, with a sticky per-row gutter for anchoring. */
+  .md-table {
+    border-collapse: collapse;
+    font-size: 0.92em;
+  }
+
+  .md-table th,
+  .md-table td {
+    border: 1px solid var(--line);
+    padding: 0.35em 0.7em;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .md-table th {
+    background: var(--soft);
+    color: var(--heading);
+    font-weight: 600;
+  }
+
+  .md-table .md-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    width: 3rem;
+    min-width: 3rem;
+    padding: 0;
+    background: var(--editor-bg);
+  }
+
+  .md-table .md-gutter-btn {
     display: flex;
-    justify-content: center;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    width: 100%;
+    padding: 0.35em 0.5em;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .md-table tr:hover .md-gutter-btn {
+    color: var(--blue);
+  }
+
+  .md-table .md-gutter-plus {
+    display: none;
+    color: var(--blue);
+  }
+
+  .md-table tr:hover .md-gutter-plus {
+    display: inline-flex;
+  }
+
+  .md-table tr[aria-selected="false"]:hover > td,
+  .md-table tr[aria-selected="false"]:hover > th {
+    background: var(--hover);
+  }
+
+  .md-table tr[aria-selected="true"] > td,
+  .md-table tr[aria-selected="true"] > th {
+    background: var(--active-line);
+  }
+
+  .md-table tr[aria-selected="true"] .md-gutter-btn {
+    color: var(--blue);
+  }
+
+  .md-table td.md-table-aside {
+    border: 0;
+    padding: 0;
+    background: var(--editor-bg);
+    white-space: normal;
+  }
+
+  .md-mermaid {
+    overflow-x: auto;
     padding: 0.6em 0;
   }
 
   .md-mermaid svg {
-    max-width: 100%;
+    max-width: none;
     height: auto;
   }
 
