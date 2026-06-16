@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 
 import { UiStore } from "./ui-store"
+import { fileScopeKey } from "../review/file-scope"
 
 beforeEach(() => {
   localStorage.clear()
@@ -176,5 +177,41 @@ describe("per-file draft isolation", () => {
     ui.closeComposer("a.md")
     expect(ui.draftFor("a.md")).toBeUndefined()
     expect(ui.draftFor("b.md")).toMatchObject({ body: "on B" })
+  })
+})
+
+describe("artifact-scoped draft keys", () => {
+  it("namespaces a draft key by artifact id and path", () => {
+    expect(fileScopeKey("art-1", "README.md")).toBe("art-1:README.md")
+    expect(fileScopeKey("art-2", "README.md")).toBe("art-2:README.md")
+  })
+
+  it("keeps drafts independent for the same path under different artifacts", () => {
+    const ui = new UiStore()
+    const a = fileScopeKey("art-1", "README.md")
+    const b = fileScopeKey("art-2", "README.md")
+
+    ui.openComposer(1, 1, "located", a)
+    ui.setComposerBody("draft for review 1", a)
+
+    // The same file path in another review must not see review 1's draft.
+    expect(ui.draftFor(b)).toBeUndefined()
+
+    ui.openComposer(2, 2, "located", b)
+    ui.setComposerBody("draft for review 2", b)
+    expect(ui.draftFor(a)).toMatchObject({ body: "draft for review 1" })
+    expect(ui.draftFor(b)).toMatchObject({ body: "draft for review 2" })
+  })
+
+  it("scopes single-file mode by artifact, never the bare empty key", () => {
+    const ui = new UiStore()
+    const scoped = fileScopeKey("art-1", "README.md")
+    ui.openComposer(3, 3, "located", scoped)
+    ui.setComposerBody("scoped draft", scoped)
+
+    // The legacy bare "" key (null scope) stays empty — drafts never collapse
+    // onto the shared single-file key anymore.
+    expect(ui.draftFor(null)).toBeUndefined()
+    expect(ui.draftFor(scoped)).toMatchObject({ body: "scoped draft" })
   })
 })

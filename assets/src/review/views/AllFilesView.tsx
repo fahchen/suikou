@@ -477,7 +477,7 @@ const ScopedFileBody = observer(function ScopedFileBody(props: {
 
   const ViewComponent = viewComponentFor(viewKind)
   return (
-    <FileScopeProvider filePath={path}>
+    <FileScopeProvider artifactId={snapshot.artifact.id} filePath={path}>
       <ReviewViewProvider value={view}>
         <ViewComponent view={view} forceRaw={rawView} inline={inline} nested />
       </ReviewViewProvider>

@@ -14,7 +14,10 @@ const RenderedEditorRoute = observer(function RenderedEditorRoute() {
   const inline = uiStore.commentMode !== "side" || !wide
   const ViewComponent = viewComponentFor(resolveViewKind(view.snapshot.artifact))
   return (
-    <FileScopeProvider filePath={view.snapshot.artifact.title}>
+    <FileScopeProvider
+      artifactId={view.snapshot.artifact.id}
+      filePath={view.snapshot.artifact.title}
+    >
       <ViewComponent view={view} forceRaw={false} inline={inline} nested />
     </FileScopeProvider>
   )
