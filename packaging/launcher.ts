@@ -152,9 +152,17 @@ async function stop(): Promise<number> {
     // System.stop() is async: the rpc returns while the node is still draining and
     // briefly keeps answering. Wait for it to actually vanish so a follow-up
     // start/status sees a clean state.
-    const deadline = Date.now() + 10_000
+    const waitSeconds = 10
+    const deadline = Date.now() + waitSeconds * 1000
     while (Date.now() < deadline && (await daemonPid(bin, env)) !== null) {
       await Bun.sleep(150)
+    }
+    // The node may still be draining (or wedged) past the wait. Don't claim
+    // success and discard the port file while it's alive — that would orphan a
+    // running daemon that status/stop could no longer find.
+    if ((await daemonPid(bin, env)) !== null) {
+      console.error(`failed to stop: daemon still running after ${waitSeconds}s`)
+      return 1
     }
     await rm(daemonFile, { force: true })
     console.log("stopped")
