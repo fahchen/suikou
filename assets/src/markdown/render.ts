@@ -1,5 +1,6 @@
 import MarkdownIt from "markdown-it"
 import Token from "markdown-it/lib/token.mjs"
+import type { BundledLanguage, Highlighter, ThemedToken } from "shiki"
 import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
@@ -93,8 +94,7 @@ export async function renderMarkdown(
       if (fence) {
         const lang = resolveLang(fence.info)
         await ensureLang(highlighter, lang)
-        const html = highlighter.codeToHtml(fence.content.replace(/\n$/, ""), { lang, theme: shiki })
-        return [{ startLine, endLine, kind: "code", tag: "", lang, html }]
+        return splitCodeFence(fence, highlighter, shiki)
       }
 
       return [
@@ -229,6 +229,94 @@ function splitTableGroup(group: Token[], md: MarkdownIt, env: AssetEnv): Rendere
 function colgroupHtml(cols: number): string {
   const width = (100 / cols).toFixed(4)
   return `<colgroup>${`<col style="width:${width}%">`.repeat(cols)}</colgroup>`
+}
+
+/**
+ * Splits a fenced code block into one `RenderedBlock` per source line so code
+ * review can anchor a comment to a single line, reusing the raw view's
+ * per-line Shiki tokenization (`codeToTokens`). The first and last line carry
+ * the rounded corners, vertical padding, and top/bottom border; intermediate
+ * lines share the side borders and theme background so the lines stack back
+ * into one continuous code block. Each line's source line number is derived
+ * from the fence's opening line so anchors map to the real file lines.
+ */
+function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): RenderedBlock[] {
+  const lang = resolveLang(fence.info)
+  const code = fence.content.replace(/\n$/, "")
+  const { tokens, fg = "inherit", bg = "var(--code-bg)" } = highlighter.codeToTokens(code, {
+    lang: lang as BundledLanguage,
+    theme: shiki
+  })
+  // fence.map is [openFenceLine, closeFenceLine+1] (0-based); the first content
+  // line sits one line below the opening fence, +1 again for 1-based output.
+  const base = (fence.map?.[0] ?? 0) + 2
+  const last = tokens.length - 1
+
+  return tokens.map((line, i) => {
+    const startLine = base + i
+    return {
+      startLine,
+      endLine: startLine,
+      kind: "code",
+      tag: "",
+      lang,
+      html: codeLineHtml(line, { fg, bg, first: i === 0, last: i === last })
+    }
+  })
+}
+
+/** One code line as a `<div>` of Shiki-colored spans, with edge chrome flags. */
+function codeLineHtml(
+  tokens: ThemedToken[],
+  opts: { fg: string; bg: string; first: boolean; last: boolean }
+): string {
+  const spans =
+    tokens.length === 0
+      ? " "
+      : tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
+  const style = [
+    `background:${opts.bg}`,
+    `color:${opts.fg}`,
+    "font-family:var(--mono)",
+    "font-size:0.86rem",
+    "line-height:1.6",
+    "white-space:pre",
+    "overflow-x:auto",
+    "padding:0 1em",
+    "border-left:1px solid var(--line-soft)",
+    "border-right:1px solid var(--line-soft)",
+    opts.first ? "padding-top:0.85em" : "",
+    opts.first ? "border-top:1px solid var(--line-soft)" : "",
+    opts.first ? "border-top-left-radius:8px;border-top-right-radius:8px" : "",
+    opts.last ? "padding-bottom:0.85em" : "",
+    opts.last ? "border-bottom:1px solid var(--line-soft)" : "",
+    opts.last ? "border-bottom-left-radius:8px;border-bottom-right-radius:8px" : ""
+  ]
+    .filter(Boolean)
+    .join(";")
+  return `<div class="md-codeline" style="${style}">${spans}</div>`
+}
+
+/** Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline). */
+function tokenCss(token: ThemedToken): string {
+  const parts = [`color:${token.color}`]
+  const fontStyle = token.fontStyle ?? 0
+  if (fontStyle & 1) parts.push("font-style:italic")
+  if (fontStyle & 2) parts.push("font-weight:bold")
+  if (fontStyle & 4) parts.push("text-decoration:underline")
+  return parts.join(";")
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;"
+}
+
+/** Escapes the HTML-significant characters in a code token's literal text. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (ch) => HTML_ESCAPES[ch] ?? ch)
 }
 
 /** Index of the `*_close` token matching the `*_open` token at `openIdx`. */

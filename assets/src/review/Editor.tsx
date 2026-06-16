@@ -225,6 +225,8 @@ function blockSpacing(
   if (block.tag === "li" && prev.tag === "li") return "mt-0.5";
   // Rows split out of one table stay flush so they read as a single grid.
   if (block.tag === "tr" && prev.tag === "tr") return "";
+  // Lines split out of one code fence stay flush so they read as one block.
+  if (block.kind === "code" && prev.kind === "code") return "";
   if (heading(block)) return tiers.section;
   if (heading(prev)) return tiers.hug;
   if (wide(block) || wide(prev)) return tiers.wide;

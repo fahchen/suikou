@@ -104,3 +104,51 @@ describe("renderMarkdown table splitting", () => {
     expect(rows[0].html).toContain("text-align:right")
   })
 })
+
+describe("renderMarkdown code-fence splitting", () => {
+  const FENCE = "```javascript\nconst a = 1\nconst b = 2\nconst c = 3\n```"
+
+  it("splits a fenced block into one anchorable block per source line", async () => {
+    const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
+    expect(code.length).toBe(3)
+    // The fence opens on line 1; its three content lines are source lines 2-4.
+    expect(code.map((b) => [b.startLine, b.endLine])).toEqual([
+      [2, 2],
+      [3, 3],
+      [4, 4]
+    ])
+  })
+
+  it("carries the fence language on every line block", async () => {
+    const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
+    expect(code.every((b) => b.lang === "javascript")).toBe(true)
+  })
+
+  it("keeps Shiki per-line highlighting as colored spans", async () => {
+    const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
+    expect(code[0].html).toContain("md-codeline")
+    expect(code[0].html).toMatch(/<span style="color:/)
+    expect(code[0].html).toContain("const")
+  })
+
+  it("rounds only the first and last line so they stack into one block", async () => {
+    const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
+    expect(code[0].html).toContain("border-top-left-radius")
+    expect(code[0].html).not.toContain("border-bottom-left-radius")
+    expect(code[1].html).not.toContain("border-top-left-radius")
+    expect(code[2].html).toContain("border-bottom-left-radius")
+  })
+
+  it("escapes HTML-significant characters in code", async () => {
+    const code = (await renderMarkdown("```\n<a> & 'b'\n```", "github")).filter(
+      (b) => b.kind === "code"
+    )
+    expect(code[0].html).toContain("&lt;a&gt; &amp; 'b'")
+  })
+
+  it("renders mermaid fences as a single block, not per line", async () => {
+    const blocks = await renderMarkdown("```mermaid\ngraph TD\nA-->B\n```", "github")
+    const mermaid = blocks.filter((b) => b.kind === "mermaid")
+    expect(mermaid.length).toBe(1)
+  })
+})
