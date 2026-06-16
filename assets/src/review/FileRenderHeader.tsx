@@ -3,7 +3,9 @@ import { ChevronRight, Code2, Eye } from "lucide-react"
 
 import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
 import { FileIcon } from "./FileIcon"
+import { FileSwitcher } from "./FileSwitcher"
 import { TopBarTocMenu } from "./TopBarTocMenu"
+import type { ReviewFileEntry } from "./types"
 import type { ViewCapabilities, ViewKind } from "./view-kind"
 import { Button } from "@/components/ui/button"
 
@@ -14,8 +16,10 @@ import { Button } from "@/components/ui/button"
  * toggles + verdict chip cluster on the right.
  *
  * Mode-specific affordances are passed as props rather than swapping the
- * component: stacked mode supplies a collapse chevron. File-switching is not a
- * card-header concern — it lives in the review top bar.
+ * component: stacked mode supplies a collapse chevron. The file path doubles as
+ * a switcher when the caller passes the review's file list and a select handler
+ * — stacked mode scrolls the chosen card into view, single mode navigates to
+ * the artifact.
  */
 export const FileRenderHeader = observer(function FileRenderHeader(props: {
   variant: "single" | "stacked"
@@ -28,6 +32,10 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   rawView: boolean
   onRawViewChange: (raw: boolean) => void
   verdictChip: React.ReactNode
+  // File switcher: present together when the path should open a file picker.
+  files?: ReviewFileEntry[]
+  onSelectFile?: (file: ReviewFileEntry) => void
+  commentCountFor?: (path: string) => number
   // Stacked-only.
   expanded?: boolean
   onToggleExpand?: () => void
@@ -43,6 +51,9 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
     rawView,
     onRawViewChange,
     verdictChip,
+    files,
+    onSelectFile,
+    commentCountFor,
     expanded,
     onToggleExpand
   } = props
@@ -52,7 +63,15 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   const basename = slash === -1 ? filePath : filePath.slice(slash + 1)
   const tocSupported = viewKind !== "diff" && outlineContent !== ""
 
-  const pathLabel = (
+  const switchable = files !== undefined && onSelectFile !== undefined
+  const pathLabel = switchable ? (
+    <FileSwitcher
+      files={files}
+      currentPath={filePath}
+      commentCountFor={commentCountFor ?? (() => 0)}
+      onSelect={onSelectFile}
+    />
+  ) : (
     <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
       <FileIcon name={basename} />
       <span className="flex min-w-0 items-baseline gap-px overflow-hidden font-mono text-[12px]">
