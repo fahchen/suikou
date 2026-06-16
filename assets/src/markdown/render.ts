@@ -197,41 +197,29 @@ function splitListRange(
 
 /**
  * Splits a table token group into one `RenderedBlock` per `<tr>` so each row is
- * independently anchorable. The header row becomes its own block (kept visible
- * as the table's context) and every body row another. Each block re-emits a
- * standalone single-row `<table>` carrying a shared equal-width `<colgroup>` and
- * `table-layout:fixed`, so the columns line up across the separate row tables;
- * `border-collapse` plus a `-1px` top margin on the trailing rows merges the
- * cell borders back into one continuous grid. Cell alignment styles emitted by
- * markdown-it are preserved since each `<tr>` is rendered from its own tokens.
+ * independently anchorable, header row first. Each block carries only its row's
+ * cell HTML (the `<th>`/`<td>` run, without a wrapping `<tr>` or `<table>`); the
+ * editor stitches the rows back into one real `<table>` inside a single
+ * horizontal scroller, so columns size to their content and stay aligned across
+ * rows while the whole table scrolls as one unit. Cell alignment styles emitted
+ * by markdown-it are preserved since each cell run is rendered from its tokens.
  */
 function splitTableGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
-  const cols = group.filter((t) => t.type === "th_open").length || 1
-  const colgroup = colgroupHtml(cols)
   const blocks: RenderedBlock[] = []
-  let section: "thead" | "tbody" = "tbody"
-  let first = true
 
   for (let i = 0; i < group.length; i++) {
-    const t = group[i]
-    if (t.type === "thead_open") section = "thead"
-    else if (t.type === "tbody_open") section = "tbody"
-    if (t.type !== "tr_open") continue
-
+    if (group[i].type !== "tr_open") continue
     const close = matchClose(group, i)
-    const row = group.slice(i, close + 1)
-    const [startLine, endLine] = lineRange(row)
-    const style = `table-layout:fixed${first ? "" : ";margin-top:-1px"}`
-    const inner = md.renderer.render(row, md.options, env)
+    const cells = group.slice(i + 1, close)
+    const [startLine, endLine] = lineRange(group.slice(i, close + 1))
     blocks.push({
       startLine,
       endLine,
       kind: "markdown",
       tag: "tr",
       lang: null,
-      html: `<table style="${style}">${colgroup}<${section}>${inner}</${section}></table>`
+      html: md.renderer.render(cells, md.options, env)
     })
-    first = false
     i = close
   }
 
@@ -358,12 +346,6 @@ function blockquoteStyle(first: boolean, last: boolean): string {
   if (!last)
     parts.push("border-bottom:0", "border-bottom-left-radius:0", "border-bottom-right-radius:0")
   return parts.join(";")
-}
-
-/** An equal-width `<colgroup>` so split row tables share identical column widths. */
-function colgroupHtml(cols: number): string {
-  const width = (100 / cols).toFixed(4)
-  return `<colgroup>${`<col style="width:${width}%">`.repeat(cols)}</colgroup>`
 }
 
 /**

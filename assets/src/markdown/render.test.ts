@@ -80,20 +80,16 @@ describe("renderMarkdown table splitting", () => {
     ])
   })
 
-  it("renders the header row as a thead and body rows as tbody", async () => {
+  it("emits only the row's cells so the editor can stitch one real table", async () => {
     const rows = (await renderMarkdown(TABLE, "github")).filter((b) => b.tag === "tr")
-    expect(rows[0].html).toContain("<thead>")
-    expect(rows[0].html).toContain("H1")
-    expect(rows[1].html).toContain("<tbody>")
-    expect(rows[1].html).toContain(">a</td>")
-  })
-
-  it("gives every row block a shared equal-width colgroup for aligned columns", async () => {
-    const rows = (await renderMarkdown(TABLE, "github")).filter((b) => b.tag === "tr")
+    expect(rows[0].html).toContain("<th>H1</th>")
+    expect(rows[1].html).toContain("<td>a</td>")
+    // No per-row table/colgroup/fixed-width hack — one shared table owns layout.
     for (const row of rows) {
-      expect(row.html).toContain("table-layout:fixed")
-      expect(row.html.match(/<col /g)?.length).toBe(2)
-      expect(row.html).toContain("width:50.0000%")
+      expect(row.html).not.toContain("<table")
+      expect(row.html).not.toContain("<colgroup")
+      expect(row.html).not.toContain("table-layout")
+      expect(row.html).not.toContain("<tr")
     }
   })
 
