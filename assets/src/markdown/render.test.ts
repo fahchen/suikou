@@ -152,3 +152,41 @@ describe("renderMarkdown code-fence splitting", () => {
     expect(mermaid.length).toBe(1)
   })
 })
+
+describe("renderMarkdown blockquote splitting", () => {
+  function quotes(blocks: Awaited<ReturnType<typeof renderMarkdown>>) {
+    return blocks.filter((b) => b.tag === "blockquote")
+  }
+
+  it("splits a multi-paragraph blockquote into one block per paragraph", async () => {
+    const blocks = await renderMarkdown("> one\n>\n> two\n>\n> three", "github")
+    const bq = quotes(blocks)
+    expect(bq.length).toBe(3)
+    // Blank quote lines separate the paragraphs at source lines 1, 3, 5.
+    expect(bq.map((b) => [b.startLine, b.endLine])).toEqual([
+      [1, 1],
+      [3, 3],
+      [5, 5]
+    ])
+    expect(bq[0].html).toContain("<blockquote")
+    expect(bq[0].html).toContain("one")
+  })
+
+  it("merges the inner edges so the quote bar stays continuous", async () => {
+    const bq = quotes(await renderMarkdown("> one\n>\n> two\n>\n> three", "github"))
+    // First keeps its top, drops its bottom; middle drops both; last keeps bottom.
+    expect(bq[0].html).toContain("border-bottom:0")
+    expect(bq[0].html).not.toContain("border-top:0")
+    expect(bq[1].html).toContain("border-top:0")
+    expect(bq[1].html).toContain("border-bottom:0")
+    expect(bq[2].html).toContain("border-top:0")
+    expect(bq[2].html).not.toContain("border-bottom:0")
+  })
+
+  it("leaves a single-paragraph blockquote as one block", async () => {
+    const bq = quotes(await renderMarkdown("> just one line", "github"))
+    expect(bq.length).toBe(1)
+    expect(bq[0].html).not.toContain("border-top:0")
+    expect(bq[0].html).not.toContain("border-bottom:0")
+  })
+})

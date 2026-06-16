@@ -227,6 +227,9 @@ function blockSpacing(
   if (block.tag === "tr" && prev.tag === "tr") return "";
   // Lines split out of one code fence stay flush so they read as one block.
   if (block.kind === "code" && prev.kind === "code") return "";
+  // Paragraphs split out of one blockquote stay flush so the quote bar reads
+  // as one continuous block.
+  if (block.tag === "blockquote" && prev.tag === "blockquote") return "";
   if (heading(block)) return tiers.section;
   if (heading(prev)) return tiers.hug;
   if (wide(block) || wide(prev)) return tiers.wide;

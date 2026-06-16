@@ -84,6 +84,10 @@ export async function renderMarkdown(
         return splitTableGroup(group, md, env)
       }
 
+      if (first && first.type === "blockquote_open") {
+        return splitBlockquoteGroup(group, md, env)
+      }
+
       const [startLine, endLine] = lineRange(group)
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
@@ -223,6 +227,58 @@ function splitTableGroup(group: Token[], md: MarkdownIt, env: AssetEnv): Rendere
   }
 
   return blocks
+}
+
+/**
+ * Splits a blockquote into one `RenderedBlock` per top-level child block (each
+ * quoted paragraph, list, etc.) so a multi-paragraph quote is anchorable line
+ * by line. Each child re-renders inside its own `<blockquote>`; the inner edges
+ * drop their border and corner radius so the separate quotes merge back into
+ * one continuous quote bar with no dividers between paragraphs. A single-block
+ * quote is left as one block, matching the prior rendering.
+ */
+function splitBlockquoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const inner = group.slice(1, group.length - 1)
+  const children = groupTopLevel(inner)
+  if (children.length <= 1) {
+    const [startLine, endLine] = lineRange(group)
+    return [
+      {
+        startLine,
+        endLine,
+        kind: "markdown",
+        tag: "blockquote",
+        lang: null,
+        html: md.renderer.render(group, md.options, env)
+      }
+    ]
+  }
+
+  const last = children.length - 1
+  return children.map((child, idx) => {
+    const [startLine, endLine] = lineRange(child)
+    return {
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "blockquote",
+      lang: null,
+      html: `<blockquote style="${blockquoteStyle(idx === 0, idx === last)}">${md.renderer.render(
+        child,
+        md.options,
+        env
+      )}</blockquote>`
+    }
+  })
+}
+
+/** Edge overrides that merge stacked single-paragraph blockquotes into one bar. */
+function blockquoteStyle(first: boolean, last: boolean): string {
+  const parts: string[] = []
+  if (!first) parts.push("border-top:0", "border-top-left-radius:0", "border-top-right-radius:0")
+  if (!last)
+    parts.push("border-bottom:0", "border-bottom-left-radius:0", "border-bottom-right-radius:0")
+  return parts.join(";")
 }
 
 /** An equal-width `<colgroup>` so split row tables share identical column widths. */
