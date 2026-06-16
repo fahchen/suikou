@@ -88,6 +88,10 @@ export async function renderMarkdown(
         return splitBlockquoteGroup(group, md, env)
       }
 
+      if (first && first.type === "footnote_block_open") {
+        return splitFootnoteGroup(group, md, env)
+      }
+
       const [startLine, endLine] = lineRange(group)
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
@@ -270,6 +274,44 @@ function splitBlockquoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): Re
       )}</blockquote>`
     }
   })
+}
+
+/**
+ * Splits the footnote-definitions block (appended by markdown-it-footnote) into
+ * one `RenderedBlock` per footnote so each definition is independently
+ * anchorable, mirroring the list-item split. Each definition re-renders inside
+ * its own `<section class="footnotes"><ol start="N">` so its number and styling
+ * survive; only the first keeps the section's top divider/spacing, the rest
+ * suppress it so the definitions read as one continuous footnotes section.
+ */
+function splitFootnoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const blocks: RenderedBlock[] = []
+  let number = 1
+
+  for (let i = 1; i < group.length - 1; i++) {
+    if (group[i].type !== "footnote_open") continue
+    const close = matchClose(group, i)
+    const item = group.slice(i, close + 1)
+    const [startLine, endLine] = lineRange(item)
+    const sectionStyle = number === 1 ? "" : ' style="margin-top:0;border-top:0;padding-top:0"'
+    const start = number === 1 ? "" : ` start="${number}"`
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "li",
+      lang: null,
+      html: `<section class="footnotes"${sectionStyle}><ol class="footnotes-list"${start}>${md.renderer.render(
+        item,
+        md.options,
+        env
+      )}</ol></section>`
+    })
+    number++
+    i = close
+  }
+
+  return blocks
 }
 
 /** Edge overrides that merge stacked single-paragraph blockquotes into one bar. */

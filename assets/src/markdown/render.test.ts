@@ -190,3 +190,36 @@ describe("renderMarkdown blockquote splitting", () => {
     expect(bq[0].html).not.toContain("border-bottom:0")
   })
 })
+
+describe("renderMarkdown footnote splitting", () => {
+  const DOC = "Text.[^1] More.[^2]\n\n[^1]: First note.\n[^2]: Second note."
+
+  it("makes each footnote definition its own anchorable block", async () => {
+    const blocks = await renderMarkdown(DOC, "github")
+    const notes = blocks.filter((b) => b.html.includes('class="footnotes"'))
+    expect(notes.length).toBe(2)
+    expect(notes.map((b) => [b.startLine, b.endLine])).toEqual([
+      [3, 3],
+      [4, 4]
+    ])
+    expect(notes.every((b) => b.tag === "li")).toBe(true)
+    expect(notes[0].html).toContain("First note.")
+    expect(notes[1].html).toContain("Second note.")
+  })
+
+  it("keeps footnote numbering via per-item ol start", async () => {
+    const notes = (await renderMarkdown(DOC, "github")).filter((b) =>
+      b.html.includes('class="footnotes"')
+    )
+    expect(notes[0].html).not.toContain("start=")
+    expect(notes[1].html).toContain('start="2"')
+  })
+
+  it("keeps only the first definition's section divider", async () => {
+    const notes = (await renderMarkdown(DOC, "github")).filter((b) =>
+      b.html.includes('class="footnotes"')
+    )
+    expect(notes[0].html).not.toContain("border-top:0")
+    expect(notes[1].html).toContain("border-top:0")
+  })
+})
