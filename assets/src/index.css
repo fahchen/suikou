@@ -809,12 +809,6 @@
     letter-spacing: -0.006em;
   }
 
-  /* Magazine measure: prose stays at a book-comfortable line length while wide
-     media (tables, code, diagrams are separate blocks) span the full column. */
-  .md-content :is(h1, h2, h3, h4, p, ul, ol, blockquote) {
-    max-width: 70ch;
-  }
-
   .md-content h1,
   .md-content h2,
   .md-content h3,
