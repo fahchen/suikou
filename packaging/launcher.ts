@@ -116,8 +116,16 @@ async function start(): Promise<number> {
         console.log(`already running (pid ${runningPid}) — port unknown`)
       } else {
         const url = urlForPort(port)
-        spawn(["open", url])
-        console.log(`already running (pid ${runningPid}) at ${url}`)
+        if (await tcpUp(port)) {
+          spawn(["open", url])
+          console.log(`already running (pid ${runningPid}) at ${url}`)
+        } else {
+          // Node is up but the Phoenix endpoint may still be booting (migrations
+          // run first); wait until the port is reachable before opening, like the
+          // first-start path does, so we don't open a dead page.
+          console.log(`already running (pid ${runningPid}) — starting at ${url}`)
+          if (await waitForReady(port)) spawn(["open", url])
+        }
       }
       return 0
     }
