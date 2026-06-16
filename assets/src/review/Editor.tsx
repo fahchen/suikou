@@ -104,6 +104,15 @@ const ImageView = function ImageView(props: { src: string; nested?: boolean }) {
   );
 };
 
+/**
+ * Inline comment / composer wrapper. Pins to the left so the card stays put
+ * while a wide code fence or table scrolls horizontally, and clamps its width to
+ * the readable max on desktop but the viewport on a phone, so the card never
+ * forces the page to scroll sideways. The viewport branch subtracts the page's
+ * `px-3` (1.5rem) side padding.
+ */
+const COMMENT_CLAMP = "sticky left-0 w-full max-w-[min(48rem,calc(100vw_-_1.5rem))]";
+
 const RenderView = observer(function RenderView(props: EditorProps) {
   const unanchored = props.comments.filter((c) => !c.anchor);
   const tiers = DENSITY[uiStore.density];
@@ -115,7 +124,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
     <article className={wrapperClass}>
       {props.inline &&
         unanchored.map((comment) => (
-          <div key={comment.id} className="px-4 pt-3">
+          <div key={comment.id} className={`${COMMENT_CLAMP} px-4 pt-3`}>
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}
@@ -310,7 +319,7 @@ const TableBlock = observer(function TableBlock(props: {
                 {composerOpen && selStart != null && selEnd != null && (
                   <tr>
                     <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
-                      <div className="sticky left-0 max-w-3xl">
+                      <div className={COMMENT_CLAMP}>
                         <Composer
                           startLine={selStart}
                           endLine={selEnd}
@@ -325,7 +334,7 @@ const TableBlock = observer(function TableBlock(props: {
                 {inlineComments.map((comment) => (
                   <tr key={comment.id}>
                     <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
-                      <div className="sticky left-0 max-w-3xl px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14">
+                      <div className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}>
                         <CommentCard comment={comment} context="inline" />
                       </div>
                     </td>
@@ -377,7 +386,7 @@ const RawView = observer(function RawView(props: EditorProps) {
     >
       {props.inline &&
         unanchored.map((comment) => (
-          <div key={comment.id} className="px-4 pt-3">
+          <div key={comment.id} className={`${COMMENT_CLAMP} px-4 pt-3`}>
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}
@@ -531,7 +540,7 @@ const LineRow = observer(function LineRow(props: {
 
       <AnimatePresence>
         {composerOpen && selStart != null && selEnd != null && (
-          <div className={props.fill ? "sticky left-0 max-w-3xl" : undefined}>
+          <div className={COMMENT_CLAMP}>
             <Composer
               startLine={selStart}
               endLine={selEnd}
@@ -546,7 +555,7 @@ const LineRow = observer(function LineRow(props: {
         {inlineComments.map((comment) => (
           <div
             key={comment.id}
-            className={`px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14 ${props.fill ? "sticky left-0 max-w-3xl" : ""}`}
+            className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}
           >
             <CommentCard comment={comment} context="inline" />
           </div>
