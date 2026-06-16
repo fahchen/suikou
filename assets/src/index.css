@@ -1002,20 +1002,6 @@
     font-weight: 600;
   }
 
-  .md-code pre.shiki {
-    margin: 0;
-    padding: 0.85em 1em;
-    border-radius: 8px;
-    border: 1px solid var(--line-soft);
-    overflow-x: auto;
-    font-size: 0.86rem;
-    line-height: 1.6;
-  }
-
-  .md-code pre.shiki code {
-    font-family: var(--mono);
-  }
-
   .md-mermaid {
     display: flex;
     justify-content: center;

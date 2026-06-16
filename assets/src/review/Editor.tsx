@@ -121,23 +121,105 @@ const RenderView = observer(function RenderView(props: EditorProps) {
 
       {props.loading && <p className="px-6 py-8 text-sm text-muted-foreground">Rendering…</p>}
 
-      {props.blocks.map((block, i) => (
-        <LineRow
-          key={`${block.startLine}-${block.kind}`}
-          startLine={block.startLine}
-          endLine={block.endLine}
-          comments={props.comments}
-          inline={props.inline}
-          content={props.content}
-          marginClass={blockSpacing(block, props.blocks[i - 1], tiers)}
-        >
-          <div
-            className={`min-w-0 flex-1 ${KIND_CLASS[block.kind]}`}
-            dangerouslySetInnerHTML={{ __html: block.html }}
+      {segmentBlocks(props.blocks).map((seg) =>
+        seg.type === "code" ? (
+          <CodeFence
+            key={`code-${seg.blocks[0].startLine}`}
+            blocks={seg.blocks}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            marginClass={blockSpacing(seg.blocks[0], props.blocks[seg.index - 1], tiers)}
           />
-        </LineRow>
-      ))}
+        ) : (
+          <LineRow
+            key={`${seg.block.startLine}-${seg.block.kind}`}
+            startLine={seg.block.startLine}
+            endLine={seg.block.endLine}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            marginClass={blockSpacing(seg.block, props.blocks[seg.index - 1], tiers)}
+          >
+            <div
+              className={`min-w-0 flex-1 ${KIND_CLASS[seg.block.kind]}`}
+              dangerouslySetInnerHTML={{ __html: seg.block.html }}
+            />
+          </LineRow>
+        ),
+      )}
     </article>
+  );
+});
+
+type BlockSegment =
+  | { type: "single"; block: RenderedBlock; index: number }
+  | { type: "code"; blocks: RenderedBlock[]; index: number };
+
+/**
+ * Coalesces consecutive code-fence line blocks into one `code` segment so the
+ * editor can wrap each fence in a single horizontal-scroll box, while every
+ * other block stays its own `single` segment. The carried `index` is the
+ * block's position in the original list so spacing can read its predecessor.
+ */
+function segmentBlocks(blocks: RenderedBlock[]): BlockSegment[] {
+  const segments: BlockSegment[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    if (blocks[i].kind === "code") {
+      const start = i;
+      const run: RenderedBlock[] = [];
+      while (i < blocks.length && blocks[i].kind === "code") {
+        run.push(blocks[i]);
+        i++;
+      }
+      segments.push({ type: "code", blocks: run, index: start });
+    } else {
+      segments.push({ type: "single", block: blocks[i], index: i });
+      i++;
+    }
+  }
+  return segments;
+}
+
+/**
+ * One fenced code block as a single horizontal-scroll box: a rounded, tinted
+ * container scrolls all its lines together so they stay column-aligned, while
+ * each line is still its own anchorable row (sticky line-number gutter + the
+ * "+" add-comment button). The inner `w-max min-w-full` wrapper sizes every row
+ * to the widest line so the shared right edge and tint span the full width.
+ */
+const CodeFence = observer(function CodeFence(props: {
+  blocks: RenderedBlock[];
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+  marginClass?: string;
+}) {
+  return (
+    <div
+      className={`${props.marginClass ?? ""} overflow-x-auto rounded-lg border border-line-soft bg-code py-2`}
+    >
+      <div className="w-max min-w-full">
+        {props.blocks.map((block) => (
+          <LineRow
+            key={`${block.startLine}-code`}
+            startLine={block.startLine}
+            endLine={block.endLine}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            fill
+            tone="code"
+          >
+            <span
+              className="md-codeline min-w-0 flex-1 whitespace-pre pl-2 font-mono text-[0.86rem] leading-[1.6]"
+              dangerouslySetInnerHTML={{ __html: block.html }}
+            />
+          </LineRow>
+        ))}
+      </div>
+    </div>
   );
 });
 
@@ -247,6 +329,9 @@ const LineRow = observer(function LineRow(props: {
   content: string;
   marginClass?: string;
   fill?: boolean;
+  /** "code": the row sits inside a tinted code-fence box, so it stays
+   * transparent (letting the box tint show) instead of painting its own bg. */
+  tone?: "code";
   children: React.ReactNode;
 }) {
   const ui = uiStore;
@@ -274,7 +359,7 @@ const LineRow = observer(function LineRow(props: {
   return (
     <div className={`${props.marginClass ?? ""} ${props.fill ? "min-w-full" : ""}`}>
       <div
-        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : "bg-editor hover:bg-hover"}`}
+        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : props.tone === "code" ? "hover:bg-hover" : "bg-editor hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
