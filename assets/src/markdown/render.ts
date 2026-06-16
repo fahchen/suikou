@@ -378,14 +378,13 @@ function colgroupHtml(cols: number): string {
 function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): RenderedBlock[] {
   const lang = resolveLang(fence.info)
   const code = fence.content.replace(/\n$/, "")
-  const { tokens, fg = "inherit", bg = "var(--code-bg)" } = highlighter.codeToTokens(code, {
+  const { tokens } = highlighter.codeToTokens(code, {
     lang: lang as BundledLanguage,
     theme: shiki
   })
   // fence.map is [openFenceLine, closeFenceLine+1] (0-based); the first content
   // line sits one line below the opening fence, +1 again for 1-based output.
   const base = (fence.map?.[0] ?? 0) + 2
-  const last = tokens.length - 1
 
   return tokens.map((line, i) => {
     const startLine = base + i
@@ -395,41 +394,15 @@ function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): 
       kind: "code",
       tag: "",
       lang,
-      html: codeLineHtml(line, { fg, bg, first: i === 0, last: i === last })
+      html: codeLineHtml(line)
     }
   })
 }
 
-/** One code line as a `<div>` of Shiki-colored spans, with edge chrome flags. */
-function codeLineHtml(
-  tokens: ThemedToken[],
-  opts: { fg: string; bg: string; first: boolean; last: boolean }
-): string {
-  const spans =
-    tokens.length === 0
-      ? " "
-      : tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
-  const style = [
-    `background:${opts.bg}`,
-    `color:${opts.fg}`,
-    "font-family:var(--mono)",
-    "font-size:0.86rem",
-    "line-height:1.6",
-    "white-space:pre",
-    "overflow-x:auto",
-    "padding:0 1em",
-    "border-left:1px solid var(--line-soft)",
-    "border-right:1px solid var(--line-soft)",
-    opts.first ? "padding-top:0.85em" : "",
-    opts.first ? "border-top:1px solid var(--line-soft)" : "",
-    opts.first ? "border-top-left-radius:8px;border-top-right-radius:8px" : "",
-    opts.last ? "padding-bottom:0.85em" : "",
-    opts.last ? "border-bottom:1px solid var(--line-soft)" : "",
-    opts.last ? "border-bottom-left-radius:8px;border-bottom-right-radius:8px" : ""
-  ]
-    .filter(Boolean)
-    .join(";")
-  return `<div class="md-codeline" style="${style}">${spans}</div>`
+/** One code line as Shiki-colored spans; an empty line keeps a space for height. */
+function codeLineHtml(tokens: ThemedToken[]): string {
+  if (tokens.length === 0) return " "
+  return tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
 }
 
 /** Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline). */

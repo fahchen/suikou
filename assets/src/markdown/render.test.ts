@@ -126,17 +126,17 @@ describe("renderMarkdown code-fence splitting", () => {
 
   it("keeps Shiki per-line highlighting as colored spans", async () => {
     const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
-    expect(code[0].html).toContain("md-codeline")
     expect(code[0].html).toMatch(/<span style="color:/)
     expect(code[0].html).toContain("const")
   })
 
-  it("rounds only the first and last line so they stack into one block", async () => {
+  it("emits no per-line box chrome so the editor can scroll the fence as one", async () => {
     const code = (await renderMarkdown(FENCE, "github")).filter((b) => b.kind === "code")
-    expect(code[0].html).toContain("border-top-left-radius")
-    expect(code[0].html).not.toContain("border-bottom-left-radius")
-    expect(code[1].html).not.toContain("border-top-left-radius")
-    expect(code[2].html).toContain("border-bottom-left-radius")
+    for (const block of code) {
+      expect(block.html).not.toContain("overflow-x")
+      expect(block.html).not.toContain("border-")
+      expect(block.html).not.toContain("background")
+    }
   })
 
   it("escapes HTML-significant characters in code", async () => {
