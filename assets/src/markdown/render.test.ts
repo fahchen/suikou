@@ -223,3 +223,30 @@ describe("renderMarkdown footnote splitting", () => {
     expect(notes[1].html).toContain("border-top:0")
   })
 })
+
+describe("renderMarkdown definition-list splitting", () => {
+  const DL = "Term 1\n: Definition 1\n\nTerm 2\n: Definition 2a\n: Definition 2b"
+
+  it("splits a definition list into one anchorable block per term and definition", async () => {
+    const items = (await renderMarkdown(DL, "github")).filter(
+      (b) => b.tag === "dt" || b.tag === "dd"
+    )
+    expect(items.map((b) => b.tag)).toEqual(["dt", "dd", "dt", "dd", "dd"])
+  })
+
+  it("wraps each item in its own dl with the right element", async () => {
+    const items = (await renderMarkdown(DL, "github")).filter(
+      (b) => b.tag === "dt" || b.tag === "dd"
+    )
+    expect(items[0].html).toBe("<dl><dt>Term 1</dt>\n</dl>")
+    expect(items[1].html).toContain("<dd>")
+    expect(items[1].html).toContain("Definition 1")
+  })
+
+  it("anchors each item to its own source line", async () => {
+    const items = (await renderMarkdown(DL, "github")).filter(
+      (b) => b.tag === "dt" || b.tag === "dd"
+    )
+    expect(items.map((b) => b.startLine)).toEqual([1, 2, 4, 5, 6])
+  })
+})

@@ -230,6 +230,9 @@ function blockSpacing(
   // Paragraphs split out of one blockquote stay flush so the quote bar reads
   // as one continuous block.
   if (block.tag === "blockquote" && prev.tag === "blockquote") return "";
+  // Terms/definitions split out of one definition list hug like list rows.
+  const defItem = (b: RenderedBlock) => b.tag === "dt" || b.tag === "dd";
+  if (defItem(block) && defItem(prev)) return "mt-0.5";
   if (heading(block)) return tiers.section;
   if (heading(prev)) return tiers.hug;
   if (wide(block) || wide(prev)) return tiers.wide;

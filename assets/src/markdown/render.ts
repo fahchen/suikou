@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it"
 import Token from "markdown-it/lib/token.mjs"
 import type { BundledLanguage, Highlighter, ThemedToken } from "shiki"
+import deflist from "markdown-it-deflist"
 import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
@@ -48,7 +49,7 @@ export interface RenderedBlock {
 const gfm = new MarkdownIt({ html: false, linkify: true, typographer: true })
 taskLists(gfm)
 assetImages(gfm)
-gfm.use(emoji).use(footnote).use(sub).use(sup)
+gfm.use(emoji).use(footnote).use(sub).use(sup).use(deflist)
 
 /** Strict CommonMark: no tables/strikethrough/autolinks/task lists. */
 const commonmark = new MarkdownIt("commonmark", { html: false, typographer: true })
@@ -90,6 +91,10 @@ export async function renderMarkdown(
 
       if (first && first.type === "footnote_block_open") {
         return splitFootnoteGroup(group, md, env)
+      }
+
+      if (first && first.type === "dl_open") {
+        return splitDefListGroup(group, md, env)
       }
 
       const [startLine, endLine] = lineRange(group)
@@ -274,6 +279,38 @@ function splitBlockquoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): Re
       )}</blockquote>`
     }
   })
+}
+
+/**
+ * Splits a definition list into one `RenderedBlock` per `<dt>`/`<dd>` so each
+ * term and definition is independently anchorable, mirroring the list-item
+ * split. Each item re-renders inside its own `<dl>` so the term/definition
+ * styling is preserved; blocks carry their `dt`/`dd` tag so the editor can hug
+ * consecutive items into one definition group.
+ */
+function splitDefListGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const blocks: RenderedBlock[] = []
+
+  for (let i = 1; i < group.length - 1; i++) {
+    const open = group[i]
+    if (open.type !== "dt_open" && open.type !== "dd_open") continue
+    const close = matchClose(group, i)
+    const item = group.slice(i, close + 1)
+    // A `<dd>`'s own open token maps back to the term's line; range from the
+    // inner content so each definition anchors to its own line, not the term.
+    const [startLine, endLine] = lineRange(item.slice(1, -1))
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: open.tag,
+      lang: null,
+      html: `<dl>${md.renderer.render(item, md.options, env)}</dl>`
+    })
+    i = close
+  }
+
+  return blocks
 }
 
 /**

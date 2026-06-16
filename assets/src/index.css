@@ -969,6 +969,20 @@
     margin: 0.4em 0;
   }
 
+  .md-content dl {
+    margin: 0;
+  }
+
+  .md-content dt {
+    font-weight: 650;
+    color: var(--heading);
+  }
+
+  .md-content dd {
+    margin: 0 0 0 1.25em;
+    color: var(--muted);
+  }
+
   .md-content table {
     border-collapse: collapse;
     width: 100%;
