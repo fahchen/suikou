@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import { AnimatePresence, motion } from "motion/react"
-import { FileText, X } from "lucide-react"
+import { FileText, Maximize2, Minimize2, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react"
 
 import { CommentCard } from "../CommentCard"
 import { Editor } from "../Editor"
@@ -17,6 +17,14 @@ import { HtmlAnchorComposer, type HtmlAnchorTarget } from "./HtmlAnchorComposer"
 const COMMENT_HIGHLIGHT_CLASS = "suikou-anchor-highlight"
 const HOVER_HIGHLIGHT_CLASS = "suikou-hover-highlight"
 const TARGET_HIGHLIGHT_CLASS = "suikou-target-highlight"
+
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2
+const ZOOM_STEP = 0.1
+
+function clampZoom(zoom: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(zoom * 100) / 100))
+}
 
 // The iframe can't inherit the parent's CSS custom properties, so resolve the
 // active theme's accent here and template it into the injected stylesheet. Read
@@ -81,6 +89,8 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
   const [target, setTarget] = useState<HtmlAnchorTarget | null>(null)
   const [hoverEl, setHoverEl] = useState<Element | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [fullscreen, setFullscreen] = useState(false)
 
   const srcdoc = useMemo(
     () => composeSrcdoc(content, assetBase(artifactId)),
@@ -101,6 +111,36 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     const doc = iframeRef.current?.contentDocument
     if (doc) applyHighlightStyle(doc)
   }, [docVersion, uiStore.theme])
+
+  // Scale the rendered document via CSS `zoom` on the iframe's root element.
+  // `zoom` (not `transform: scale`) keeps element bounding rects in sync with
+  // the iframe's own rect, so the anchor-popover positioning math stays correct
+  // at any zoom level. Reapply on doc (re)load so a fresh srcdoc keeps the level.
+  useEffect(() => {
+    const root = iframeRef.current?.contentDocument?.documentElement
+    if (!root) return
+    root.style.setProperty("zoom", String(zoom))
+  }, [zoom, docVersion])
+
+  // Lock body scroll while the fullscreen overlay covers the app.
+  useEffect(() => {
+    if (!fullscreen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [fullscreen])
+
+  // Escape exits fullscreen (the overlay is our own CSS, not the native API).
+  useEffect(() => {
+    if (!fullscreen) return
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === "Escape") setFullscreen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [fullscreen])
 
   const elementComments = useMemo(
     () => comments.filter((c) => c.anchor?.type === "element"),
@@ -328,16 +368,76 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
   const unanchored = comments.filter((c) => !c.anchor)
   const containerClass = nested ? "flex flex-col gap-3 px-3 pb-3" : "flex flex-col gap-3"
 
+  // Default height fills the viewport: a single-file route gets a tall preview,
+  // each stacked (nested) file gets roughly one screen, and fullscreen lets the
+  // iframe fill the flex-1 overlay body.
+  const iframeClass = fullscreen
+    ? "block h-full w-full bg-white"
+    : nested
+      ? "block h-[100vh] w-full rounded-md bg-white"
+      : "block h-[calc(100vh-12rem)] min-h-[480px] w-full rounded-md bg-white"
+
+  const toolbar = (
+    <div className="flex items-center gap-0.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Zoom out"
+        onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+        disabled={zoom <= ZOOM_MIN}
+        className="text-faint"
+      >
+        <ZoomOut size={13} />
+      </Button>
+      <span className="min-w-[3rem] text-center text-[11px] tabular-nums text-faint" aria-live="polite">
+        {Math.round(zoom * 100)}%
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Zoom in"
+        onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+        disabled={zoom >= ZOOM_MAX}
+        className="text-faint"
+      >
+        <ZoomIn size={13} />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Reset zoom"
+        onClick={() => setZoom(1)}
+        disabled={zoom === 1}
+        className="text-faint"
+      >
+        <RotateCcw size={13} />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+        onClick={() => setFullscreen((f) => !f)}
+        className="text-faint"
+      >
+        {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+      </Button>
+    </div>
+  )
+
   return (
     <div className={containerClass}>
-      <HtmlPaperFrame nested={nested}>
+      <HtmlPaperFrame nested={nested} fullscreen={fullscreen} toolbar={toolbar}>
         <iframe
           ref={iframeRef}
           title={snapshot.artifact.title}
           srcDoc={srcdoc}
           sandbox="allow-same-origin"
           onLoad={onLoad}
-          className="block min-h-[480px] w-full rounded-md bg-white"
+          className={iframeClass}
         />
       </HtmlPaperFrame>
 
@@ -468,19 +568,30 @@ function HtmlAnchorPopover(props: {
  * matting + a small `Rendered HTML` chip — reads the white surface as
  * deliberate paper, not a contrast bug.
  */
-function HtmlPaperFrame(props: { children: React.ReactNode; nested?: boolean }) {
-  const outer = props.nested
-    ? "bg-soft p-3 sm:p-4"
-    : "rounded-xl border border-line bg-soft p-3 shadow-[var(--elev-1)] ring-1 ring-inset ring-line-soft sm:p-4"
+function HtmlPaperFrame(props: {
+  children: React.ReactNode
+  nested?: boolean
+  fullscreen?: boolean
+  toolbar?: React.ReactNode
+}) {
+  const outer = props.fullscreen
+    ? "fixed inset-0 z-50 flex flex-col bg-soft p-3 sm:p-4"
+    : props.nested
+      ? "bg-soft p-3 sm:p-4"
+      : "rounded-xl border border-line bg-soft p-3 shadow-[var(--elev-1)] ring-1 ring-inset ring-line-soft sm:p-4"
+  const inner = props.fullscreen
+    ? "min-h-0 flex-1 overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5"
+    : "overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5"
   return (
     <section aria-label="Rendered HTML preview" className={outer}>
-      <header className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-faint">
-        <FileText size={11} aria-hidden />
-        <span>Rendered HTML</span>
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-faint">
+          <FileText size={11} aria-hidden />
+          <span>Rendered HTML</span>
+        </div>
+        {props.toolbar}
       </header>
-      <div className="overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5">
-        {props.children}
-      </div>
+      <div className={inner}>{props.children}</div>
     </section>
   )
 }
