@@ -100,11 +100,13 @@ describe("composer draft lifecycle", () => {
     const ui = new UiStore()
     ui.setComposerBody("stale")
     ui.openComposer(12, 12, "artifact")
-    expect(ui.selStart).toBe(12)
-    expect(ui.selEnd).toBe(12)
-    expect(ui.composerScope).toBe("artifact")
-    expect(ui.composerType).toBe("note")
-    expect(ui.composerBody).toBe("")
+    expect(ui.draftFor(null)).toMatchObject({
+      selStart: 12,
+      selEnd: 12,
+      scope: "artifact",
+      type: "note",
+      body: ""
+    })
   })
 
   it("edits the draft body and type", () => {
@@ -112,18 +114,15 @@ describe("composer draft lifecycle", () => {
     ui.openComposer(1, 1, "located")
     ui.setComposerBody("hello")
     ui.setComposerType("fix_required")
-    expect(ui.composerBody).toBe("hello")
-    expect(ui.composerType).toBe("fix_required")
+    expect(ui.draftFor(null)).toMatchObject({ body: "hello", type: "fix_required" })
   })
 
-  it("closes by clearing the selection and body", () => {
+  it("closes by dropping the file's draft", () => {
     const ui = new UiStore()
     ui.openComposer(5, 5, "located")
     ui.setComposerBody("draft")
     ui.closeComposer()
-    expect(ui.selStart).toBeNull()
-    expect(ui.selEnd).toBeNull()
-    expect(ui.composerBody).toBe("")
+    expect(ui.draftFor(null)).toBeUndefined()
   })
 })
 
@@ -131,25 +130,51 @@ describe("multi-line selection", () => {
   it("opens a multi-line range", () => {
     const ui = new UiStore()
     ui.openComposer(7, 9, "located")
-    expect(ui.selStart).toBe(7)
-    expect(ui.selEnd).toBe(9)
+    expect(ui.draftFor(null)).toMatchObject({ selStart: 7, selEnd: 9 })
   })
 
   it("extends the range downward and upward keeping the outer bounds", () => {
     const ui = new UiStore()
     ui.openComposer(5, 5, "located")
     ui.extendSelection(8, 9)
-    expect(ui.selStart).toBe(5)
-    expect(ui.selEnd).toBe(9)
+    expect(ui.draftFor(null)).toMatchObject({ selStart: 5, selEnd: 9 })
     ui.extendSelection(2, 2)
-    expect(ui.selStart).toBe(2)
-    expect(ui.selEnd).toBe(9)
+    expect(ui.draftFor(null)).toMatchObject({ selStart: 2, selEnd: 9 })
   })
 
   it("seeds the range when extending with no active selection", () => {
     const ui = new UiStore()
     ui.extendSelection(3, 4)
-    expect(ui.selStart).toBe(3)
-    expect(ui.selEnd).toBe(4)
+    expect(ui.draftFor(null)).toMatchObject({ selStart: 3, selEnd: 4 })
+  })
+})
+
+describe("per-file draft isolation", () => {
+  it("keeps each file's draft separate and restores it on switch-back", () => {
+    const ui = new UiStore()
+    ui.openComposer(3, 3, "located", "a.md")
+    ui.setComposerBody("on A", "a.md")
+
+    // Switching to B (no draft) shows nothing for B, and never touches A.
+    expect(ui.draftFor("b.md")).toBeUndefined()
+    expect(ui.draftFor("a.md")).toMatchObject({ selStart: 3, body: "on A" })
+
+    // A draft on B is independent.
+    ui.openComposer(7, 7, "located", "b.md")
+    ui.setComposerBody("on B", "b.md")
+    expect(ui.draftFor("a.md")).toMatchObject({ body: "on A" })
+    expect(ui.draftFor("b.md")).toMatchObject({ selStart: 7, body: "on B" })
+  })
+
+  it("clears only the submitted file's draft", () => {
+    const ui = new UiStore()
+    ui.openComposer(1, 1, "located", "a.md")
+    ui.setComposerBody("on A", "a.md")
+    ui.openComposer(2, 2, "located", "b.md")
+    ui.setComposerBody("on B", "b.md")
+
+    ui.closeComposer("a.md")
+    expect(ui.draftFor("a.md")).toBeUndefined()
+    expect(ui.draftFor("b.md")).toMatchObject({ body: "on B" })
   })
 })

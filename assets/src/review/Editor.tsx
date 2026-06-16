@@ -242,12 +242,12 @@ const LineRow = observer(function LineRow(props: {
   const ui = uiStore;
   const fileScope = useFileScope();
   const { startLine, endLine } = props;
-  // Only honor the active composer/selection when it was opened against this
-  // file scope — otherwise an open composer on a sibling stacked file would
-  // render a phantom selection here on the same line numbers.
-  const sameScope = ui.composerFilePath === fileScope;
-  const selStart = sameScope ? ui.selStart : null;
-  const selEnd = sameScope ? ui.selEnd : null;
+  // Each file owns its draft, so reading by scope keeps a sibling stacked file's
+  // open composer from rendering a phantom selection here on the same lines, and
+  // restores this file's own draft when the user switches back to it.
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
   const selected =
     selStart != null && selEnd != null && startLine <= selEnd && endLine >= selStart;
   const composerOpen = selStart != null && selEnd != null && endLine === selEnd;
@@ -278,7 +278,7 @@ const LineRow = observer(function LineRow(props: {
               : "bg-editor text-faint group-hover:bg-hover hover:text-blue"
           }`}
           onClick={(e) => {
-            const extend = sameScope && ui.selStart != null && e.shiftKey;
+            const extend = selStart != null && e.shiftKey;
             if (extend) {
               ui.extendSelection(startLine, endLine, fileScope);
             } else {
@@ -303,6 +303,7 @@ const LineRow = observer(function LineRow(props: {
               startLine={selStart}
               endLine={selEnd}
               selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
+              filePath={fileScope}
             />
           </div>
         )}
