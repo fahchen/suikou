@@ -227,7 +227,7 @@ const CodeFence = observer(function CodeFence(props: {
 }) {
   return (
     <div
-      className={`${props.marginClass ?? ""} overflow-x-auto rounded-lg border border-line-soft bg-code py-2`}
+      className={`${props.marginClass ?? ""} overflow-x-auto py-2`}
     >
       <div className="w-max min-w-full">
         {props.blocks.map((block) => (
@@ -242,7 +242,7 @@ const CodeFence = observer(function CodeFence(props: {
             tone="code"
           >
             <span
-              className="md-codeline min-w-0 flex-1 whitespace-pre pl-2 font-mono text-[0.86rem] leading-[1.6]"
+              className="md-codeline min-w-0 flex-1 whitespace-pre bg-code pl-2 font-mono text-[0.86rem] leading-[1.6]"
               dangerouslySetInnerHTML={{ __html: block.html }}
             />
           </LineRow>
@@ -515,6 +515,8 @@ const LineRow = observer(function LineRow(props: {
           title={`Add a comment on line ${startLine} (Shift-click to extend)`}
           aria-label={`Add a comment on line ${startLine}`}
           className={`relative sticky left-0 z-10 w-12 shrink-0 cursor-pointer select-none self-stretch pr-2 text-right font-mono text-[12px] backdrop-blur-sm transition-colors ${
+            props.tone === "code" ? "leading-[1.376rem]" : ""
+          } ${
             selected
               ? "bg-active-line text-blue"
               : "bg-editor text-faint group-hover:bg-hover hover:text-blue"
