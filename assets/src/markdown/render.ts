@@ -1,5 +1,5 @@
 import MarkdownIt from "markdown-it"
-import type Token from "markdown-it/lib/token.mjs"
+import Token from "markdown-it/lib/token.mjs"
 import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
@@ -33,7 +33,8 @@ export interface RenderedBlock {
   endLine: number
   html: string
   kind: BlockKind
-  /** Top-level HTML tag for markdown blocks (`h2`, `p`, `ul`, `table`, …), else "". */
+  /** Top-level HTML tag for markdown blocks (`h2`, `p`, `ul`, `table`, …), else "".
+   * List items split out of a list group carry `li` so each is anchorable. */
   tag: string
   /** Fence language for code blocks, else null. */
   lang: string | null
@@ -71,32 +72,157 @@ export async function renderMarkdown(
   const { shiki } = THEME_CODE[theme]
   const highlighter = await getHighlighter()
 
-  return Promise.all(
-    groups.map(async (group): Promise<RenderedBlock> => {
+  const grouped = await Promise.all(
+    groups.map(async (group): Promise<RenderedBlock[]> => {
+      const first = group[0]
+      if (first && (first.type === "bullet_list_open" || first.type === "ordered_list_open")) {
+        return splitListGroup(group, md, env)
+      }
+
       const [startLine, endLine] = lineRange(group)
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
       if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return { startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }
+        return [{ startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }]
       }
 
       if (fence) {
         const lang = resolveLang(fence.info)
         await ensureLang(highlighter, lang)
         const html = highlighter.codeToHtml(fence.content.replace(/\n$/, ""), { lang, theme: shiki })
-        return { startLine, endLine, kind: "code", tag: "", lang, html }
+        return [{ startLine, endLine, kind: "code", tag: "", lang, html }]
       }
 
-      return {
-        startLine,
-        endLine,
-        kind: "markdown",
-        tag: group[0]?.tag ?? "",
-        lang: null,
-        html: md.renderer.render(group, md.options, env)
-      }
+      return [
+        {
+          startLine,
+          endLine,
+          kind: "markdown",
+          tag: group[0]?.tag ?? "",
+          lang: null,
+          html: md.renderer.render(group, md.options, env)
+        }
+      ]
     })
   )
+
+  return grouped.flat()
+}
+
+/**
+ * Splits a top-level list token group into one `RenderedBlock` per list item so
+ * each `<li>` gets its own line gutter and is independently commentable. Each
+ * item renders as a standalone single-item list that preserves its marker
+ * (bullet, or `<ol start="N">` for continuous numbering), task-list checkbox,
+ * and nesting indent. Nested items recurse into their own blocks in document
+ * order so they are anchorable too.
+ */
+function splitListGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  return splitListRange(group, 0, group.length - 1, 0, md, env)
+}
+
+function splitListRange(
+  tokens: Token[],
+  openIdx: number,
+  closeIdx: number,
+  depth: number,
+  md: MarkdownIt,
+  env: AssetEnv
+): RenderedBlock[] {
+  const ordered = tokens[openIdx].type === "ordered_list_open"
+  const startAttr = ordered ? Number(tokens[openIdx].attrGet("start") ?? "1") || 1 : 1
+  const blocks: RenderedBlock[] = []
+  let i = openIdx + 1
+  let number = startAttr
+
+  while (i < closeIdx) {
+    if (tokens[i].type !== "list_item_open") {
+      i++
+      continue
+    }
+    const itemOpen = tokens[i]
+    const itemClose = matchClose(tokens, i)
+    const own: Token[] = []
+    const nested: Array<[number, number]> = []
+    let k = i + 1
+    while (k < itemClose) {
+      const t = tokens[k]
+      if (t.type === "bullet_list_open" || t.type === "ordered_list_open") {
+        const close = matchClose(tokens, k)
+        nested.push([k, close])
+        k = close + 1
+      } else {
+        own.push(t)
+        k++
+      }
+    }
+
+    const [startLine, endLine] = lineRange(own.length > 0 ? own : [itemOpen])
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "li",
+      lang: null,
+      html: renderListItem(itemOpen, own, ordered, number, depth, md, env)
+    })
+
+    for (const [ns, ne] of nested) {
+      blocks.push(...splitListRange(tokens, ns, ne, depth + 1, md, env))
+    }
+
+    number++
+    i = itemClose + 1
+  }
+
+  return blocks
+}
+
+/** Index of the `*_close` token matching the `*_open` token at `openIdx`. */
+function matchClose(tokens: Token[], openIdx: number): number {
+  let depth = 0
+  for (let i = openIdx; i < tokens.length; i++) {
+    depth += tokens[i].nesting
+    if (depth === 0) return i
+  }
+  return tokens.length - 1
+}
+
+/**
+ * Renders one list item as a standalone single-item list, reusing the item's
+ * own tokens (minus any nested sub-lists, which become their own blocks). The
+ * wrapping list carries the marker semantics: `<ol start="N">` for continuous
+ * ordered numbering and a per-depth indent so nested items read as nested.
+ */
+function renderListItem(
+  itemOpen: Token,
+  own: Token[],
+  ordered: boolean,
+  number: number,
+  depth: number,
+  md: MarkdownIt,
+  env: AssetEnv
+): string {
+  const listOpen = new Token(ordered ? "ordered_list_open" : "bullet_list_open", ordered ? "ol" : "ul", 1)
+  listOpen.block = true
+  listOpen.attrSet("style", listStyle(ordered, depth))
+  if (ordered && number !== 1) listOpen.attrSet("start", String(number))
+
+  const listClose = new Token(ordered ? "ordered_list_close" : "bullet_list_close", ordered ? "ol" : "ul", -1)
+  listClose.block = true
+
+  const itemClose = new Token("list_item_close", "li", -1)
+  itemClose.block = true
+
+  const slice = [listOpen, itemOpen, ...own, itemClose, listClose]
+  return md.renderer.render(slice, md.options, env)
+}
+
+/** Per-depth indent (and nested bullet marker) for a standalone single-item list. */
+function listStyle(ordered: boolean, depth: number): string {
+  const parts = [`padding-left:${(depth + 1) * 19}px`]
+  if (!ordered && depth > 0) parts.push("list-style-type:circle")
+  return parts.join(";")
 }
 
 /**

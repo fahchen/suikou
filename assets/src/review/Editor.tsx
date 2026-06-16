@@ -221,6 +221,8 @@ function blockSpacing(
   const heading = (b: RenderedBlock) => /^h[1-6]$/.test(b.tag);
   const wide = (b: RenderedBlock) =>
     b.kind === "code" || b.kind === "mermaid" || b.tag === "table";
+  // Items of the same list hug like list rows, not separate reading blocks.
+  if (block.tag === "li" && prev.tag === "li") return "mt-0.5";
   if (heading(block)) return tiers.section;
   if (heading(prev)) return tiers.hug;
   if (wide(block) || wide(prev)) return tiers.wide;
