@@ -1023,12 +1023,16 @@
     font-weight: 600;
   }
 
+  /* The gutter is a line-number column, not table content: strip the cell border
+     and padding it inherits from the `.md-table td` rule so it reads as a plain
+     sticky gutter (like `LineRow`), not a bordered table cell. */
   .md-table .md-gutter {
     position: sticky;
     left: 0;
     z-index: 5;
     width: 3rem;
     min-width: 3rem;
+    border: 0;
     padding: 0;
     background: var(--editor-bg);
   }
