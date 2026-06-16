@@ -98,53 +98,65 @@ async function start(): Promise<number> {
   await mkdir(releaseTmp, { recursive: true })
   const env = await releaseEnv()
 
-  const runningPid = await daemonPid(bin, env)
-  if (runningPid !== null) {
-    const port = await loadDaemonPort()
-    if (port === null) {
-      // Running but we lost the port (missing/corrupt daemon.json); don't open
-      // a guessed BASE_PORT that is likely a dead page.
-      console.log(`already running (pid ${runningPid}) — port unknown`)
-    } else {
-      const url = urlForPort(port)
-      spawn(["open", url])
-      console.log(`already running (pid ${runningPid}) at ${url}`)
+  // Serialize the launch decision so racing `start`s can't both observe
+  // "not running", spawn the same daemon, and have the loser's failure-cleanup
+  // delete the winner's daemon.json. Distinct from the per-version extraction
+  // lock — this guards the daemon-launch decision, not the extraction.
+  const startLock = join(base, "start.lock")
+  await acquireLock(startLock)
+  try {
+    // Re-check liveness under the lock: a peer may have started the daemon
+    // between our pre-lock check and acquiring the lock.
+    const runningPid = await daemonPid(bin, env)
+    if (runningPid !== null) {
+      const port = await loadDaemonPort()
+      if (port === null) {
+        // Running but we lost the port (missing/corrupt daemon.json); don't open
+        // a guessed BASE_PORT that is likely a dead page.
+        console.log(`already running (pid ${runningPid}) — port unknown`)
+      } else {
+        const url = urlForPort(port)
+        spawn(["open", url])
+        console.log(`already running (pid ${runningPid}) at ${url}`)
+      }
+      return 0
     }
-    return 0
-  }
 
-  const port = await pickPort()
-  await write(daemonFile, JSON.stringify({ port }))
+    const port = await pickPort()
+    await write(daemonFile, JSON.stringify({ port }))
 
-  // Do NOT pipe the daemon's stdio: run_erl backgrounds itself but inherits these
-  // fds, so a piped stdout would stay open and a read would hang forever. run_erl
-  // writes the real output to logDir; we only care about the exit code.
-  const daemon = spawn([bin, "daemon"], {
-    env: { ...env, PORT: String(port) },
-    stdout: "ignore",
-    stderr: "ignore"
-  })
-  const exitCode = await daemon.exited
-  if (exitCode !== 0) {
-    // The daemon never came up; drop the port file we just wrote so a later
-    // status doesn't report a phantom port that nothing is listening on.
+    // Do NOT pipe the daemon's stdio: run_erl backgrounds itself but inherits these
+    // fds, so a piped stdout would stay open and a read would hang forever. run_erl
+    // writes the real output to logDir; we only care about the exit code.
+    const daemon = spawn([bin, "daemon"], {
+      env: { ...env, PORT: String(port) },
+      stdout: "ignore",
+      stderr: "ignore"
+    })
+    const exitCode = await daemon.exited
+    if (exitCode !== 0) {
+      // The daemon never came up; drop the port file we just wrote so a later
+      // status doesn't report a phantom port that nothing is listening on.
+      await rm(daemonFile, { force: true })
+      console.error(`failed to start daemon (exit ${exitCode}); see logs in ${logDir}`)
+      return 1
+    }
+
+    const url = urlForPort(port)
+    if (await waitForReady(port)) {
+      spawn(["open", url])
+      console.log(`started at ${url}`)
+      return 0
+    }
+
+    // Daemon spawned but never became reachable; remove the stale port file so
+    // persisted state stays consistent with reality.
     await rm(daemonFile, { force: true })
-    console.error(`failed to start daemon (exit ${exitCode}); see logs in ${logDir}`)
+    console.error(`started but not ready yet at ${url}; see logs in ${logDir}`)
     return 1
+  } finally {
+    await rm(startLock, { recursive: true, force: true })
   }
-
-  const url = urlForPort(port)
-  if (await waitForReady(port)) {
-    spawn(["open", url])
-    console.log(`started at ${url}`)
-    return 0
-  }
-
-  // Daemon spawned but never became reachable; remove the stale port file so
-  // persisted state stays consistent with reality.
-  await rm(daemonFile, { force: true })
-  console.error(`started but not ready yet at ${url}; see logs in ${logDir}`)
-  return 1
 }
 
 // `suikou stop`: ask the running node to stop via the release rpc. A downed node
