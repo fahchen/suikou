@@ -373,6 +373,46 @@ describe("HtmlView", () => {
     expect(screen.queryByText("rail-only payload")).toBeNull()
   })
 
+  it("zoom controls step the level and clamp at the bounds", async () => {
+    render(
+      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+    )
+    await screen.findByTitle("page.html")
+
+    expect(screen.getByText("100%")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    expect(screen.getByText("110%")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }))
+    expect(screen.getByText("100%")).toBeInTheDocument()
+
+    // Step down to the 50% floor; the button disables once clamped.
+    const zoomOut = screen.getByRole("button", { name: "Zoom out" })
+    for (let i = 0; i < 10; i++) fireEvent.click(zoomOut)
+    expect(screen.getByText("50%")).toBeInTheDocument()
+    expect(zoomOut).toBeDisabled()
+  })
+
+  it("toggles a fullscreen overlay and exits on Escape", async () => {
+    render(
+      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+    )
+    await screen.findByTitle("page.html")
+    const frame = screen.getByLabelText("Rendered HTML preview")
+    expect(frame.className).not.toMatch(/fixed/)
+
+    fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }))
+    expect(frame.className).toMatch(/fixed/)
+    expect(screen.getByRole("button", { name: "Exit fullscreen" })).toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    })
+    expect(frame.className).not.toMatch(/fixed/)
+    expect(screen.getByRole("button", { name: "Fullscreen" })).toBeInTheDocument()
+  })
+
   it("forceRaw: opens the line composer and dispatches a line_range anchor", async () => {
     render(
       <HtmlView
