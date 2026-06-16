@@ -53,9 +53,9 @@ const DENSITY: Record<
   Density,
   { section: string; hug: string; wide: string; prose: string }
 > = {
-  tight: { section: "mt-5", hug: "mt-1", wide: "mt-3", prose: "mt-2" },
-  normal: { section: "mt-7", hug: "mt-2", wide: "mt-5", prose: "mt-3" },
-  loose: { section: "mt-10", hug: "mt-3", wide: "mt-7", prose: "mt-5" },
+  tight: { section: "mt-6", hug: "mt-1", wide: "mt-3", prose: "mt-2" },
+  normal: { section: "mt-8", hug: "mt-2", wide: "mt-5", prose: "mt-3" },
+  loose: { section: "mt-11", hug: "mt-3", wide: "mt-7", prose: "mt-5" },
 };
 
 export const Editor = observer(function Editor(props: EditorProps) {

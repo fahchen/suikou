@@ -817,34 +817,36 @@
     margin: 0;
   }
 
-  /* The live document title is an h1 (`#`); section headings are h2 (`##`).
-     The mockup's title is 23px/760 and its sections are 16px/680, so the live
-     heading scale is shifted one level to land on those exact values. */
+  /* Monotonically descending scale: every level is visibly larger and heavier
+     than the next, and h4 still outsizes body text so headings never read as
+     smaller than the prose they introduce. Size, weight, and `--heading` color
+     each carry part of the hierarchy. */
   .md-content h1 {
-    font-size: 23px;
-    font-weight: 760;
-    line-height: 1.22;
-    letter-spacing: -0.022em;
+    font-size: 26px;
+    font-weight: 750;
+    line-height: 1.2;
+    letter-spacing: -0.021em;
   }
 
   .md-content h2 {
-    font-size: 16px;
-    font-weight: 680;
-    line-height: 1.3;
-    letter-spacing: -0.012em;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.016em;
   }
 
   .md-content h3 {
-    font-size: 14px;
-    font-weight: 660;
+    font-size: 18px;
+    font-weight: 670;
     line-height: 1.3;
-    letter-spacing: -0.008em;
+    letter-spacing: -0.011em;
   }
 
   .md-content h4 {
-    font-size: 13px;
-    font-weight: 640;
-    line-height: 1.3;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.34;
+    letter-spacing: -0.006em;
   }
 
   .md-content p,
