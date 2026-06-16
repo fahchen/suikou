@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
 import { file, spawn, write } from "bun"
@@ -401,7 +401,10 @@ async function ensureSecret(): Promise<string> {
 
   const bytes = crypto.getRandomValues(new Uint8Array(64))
   const secret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
-  await write(path, secret)
+  // Create with 0600 so the secret is never exposed in a default-perms window.
+  // The chmod is idempotent safety for a pre-existing, too-short file (the mode
+  // option only applies when writeFile creates the file).
+  await writeFile(path, secret, { mode: 0o600 })
   await chmod(path, 0o600)
   return secret
 }
@@ -419,7 +422,10 @@ async function ensureCookie(): Promise<string> {
 
   const bytes = crypto.getRandomValues(new Uint8Array(64))
   const cookie = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
-  await write(path, cookie)
+  // Create with 0600 so the cookie is never exposed in a default-perms window.
+  // The chmod is idempotent safety for a pre-existing, looser file (the mode
+  // option only applies when writeFile creates the file).
+  await writeFile(path, cookie, { mode: 0o600 })
   await chmod(path, 0o600)
   return cookie
 }
