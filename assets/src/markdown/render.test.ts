@@ -66,3 +66,41 @@ describe("renderMarkdown list splitting", () => {
     expect(blocks.map((b) => b.tag)).toEqual(["h1", "p"])
   })
 })
+
+describe("renderMarkdown table splitting", () => {
+  const TABLE = "| H1 | H2 |\n| --- | --- |\n| a | b |\n| c | d |"
+
+  it("splits a table into one anchorable block per row, header first", async () => {
+    const rows = (await renderMarkdown(TABLE, "github")).filter((b) => b.tag === "tr")
+    expect(rows.length).toBe(3)
+    expect(rows.map((b) => [b.startLine, b.endLine])).toEqual([
+      [1, 1],
+      [3, 3],
+      [4, 4]
+    ])
+  })
+
+  it("renders the header row as a thead and body rows as tbody", async () => {
+    const rows = (await renderMarkdown(TABLE, "github")).filter((b) => b.tag === "tr")
+    expect(rows[0].html).toContain("<thead>")
+    expect(rows[0].html).toContain("H1")
+    expect(rows[1].html).toContain("<tbody>")
+    expect(rows[1].html).toContain(">a</td>")
+  })
+
+  it("gives every row block a shared equal-width colgroup for aligned columns", async () => {
+    const rows = (await renderMarkdown(TABLE, "github")).filter((b) => b.tag === "tr")
+    for (const row of rows) {
+      expect(row.html).toContain("table-layout:fixed")
+      expect(row.html.match(/<col /g)?.length).toBe(2)
+      expect(row.html).toContain("width:50.0000%")
+    }
+  })
+
+  it("preserves column alignment styles on aligned cells", async () => {
+    const aligned = "| L | R |\n| :--- | ---: |\n| a | b |"
+    const rows = (await renderMarkdown(aligned, "github")).filter((b) => b.tag === "tr")
+    expect(rows[0].html).toContain("text-align:left")
+    expect(rows[0].html).toContain("text-align:right")
+  })
+})

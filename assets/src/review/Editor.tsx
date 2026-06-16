@@ -220,9 +220,11 @@ function blockSpacing(
   if (!prev) return "";
   const heading = (b: RenderedBlock) => /^h[1-6]$/.test(b.tag);
   const wide = (b: RenderedBlock) =>
-    b.kind === "code" || b.kind === "mermaid" || b.tag === "table";
+    b.kind === "code" || b.kind === "mermaid" || b.tag === "table" || b.tag === "tr";
   // Items of the same list hug like list rows, not separate reading blocks.
   if (block.tag === "li" && prev.tag === "li") return "mt-0.5";
+  // Rows split out of one table stay flush so they read as a single grid.
+  if (block.tag === "tr" && prev.tag === "tr") return "";
   if (heading(block)) return tiers.section;
   if (heading(prev)) return tiers.hug;
   if (wide(block) || wide(prev)) return tiers.wide;
