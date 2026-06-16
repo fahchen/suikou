@@ -100,9 +100,16 @@ async function start(): Promise<number> {
 
   const runningPid = await daemonPid(bin, env)
   if (runningPid !== null) {
-    const url = urlForPort((await loadDaemonPort()) ?? BASE_PORT)
-    spawn(["open", url])
-    console.log(`already running (pid ${runningPid}) at ${url}`)
+    const port = await loadDaemonPort()
+    if (port === null) {
+      // Running but we lost the port (missing/corrupt daemon.json); don't open
+      // a guessed BASE_PORT that is likely a dead page.
+      console.log(`already running (pid ${runningPid}) — port unknown`)
+    } else {
+      const url = urlForPort(port)
+      spawn(["open", url])
+      console.log(`already running (pid ${runningPid}) at ${url}`)
+    }
     return 0
   }
 
@@ -193,8 +200,12 @@ async function status(): Promise<number> {
     return 0
   }
 
-  const port = (await loadDaemonPort()) ?? BASE_PORT
-  if (await tcpUp(port)) {
+  const port = await loadDaemonPort()
+  if (port === null) {
+    // Node is alive but we lost the port (missing/corrupt daemon.json); don't
+    // guess BASE_PORT and probe/print a URL that may be wrong.
+    console.log(`running (pid ${pid}) — port unknown (no daemon.json)  logs: ${logDir}`)
+  } else if (await tcpUp(port)) {
     console.log(`running (pid ${pid}) at ${urlForPort(port)}  logs: ${logDir}`)
   } else {
     console.log(`starting (pid ${pid}), port ${port} not yet reachable  logs: ${logDir}`)
