@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
 import { FileX2, Plus } from "lucide-react";
@@ -151,20 +151,17 @@ const RenderView = observer(function RenderView(props: EditorProps) {
             marginClass={blockSpacing(seg.blocks[0], props.blocks[seg.index - 1], tiers)}
           />
         ) : (
-          <LineRow
+          <BlockRow
             key={`${seg.block.startLine}-${seg.block.kind}`}
             startLine={seg.block.startLine}
             endLine={seg.block.endLine}
+            kind={seg.block.kind}
+            html={seg.block.html}
             comments={props.comments}
             inline={props.inline}
             content={props.content}
             marginClass={blockSpacing(seg.block, props.blocks[seg.index - 1], tiers)}
-          >
-            <div
-              className={`min-w-0 flex-1 ${KIND_CLASS[seg.block.kind]}`}
-              dangerouslySetInnerHTML={{ __html: seg.block.html }}
-            />
-          </LineRow>
+          />
         ),
       )}
     </article>
@@ -211,12 +208,215 @@ function segmentBlocks(blocks: RenderedBlock[]): BlockSegment[] {
   return segments;
 }
 
+// --- Shared gutter pieces (one Editor view family: rendered markdown + raw
+// source). Every gutter-bearing layout here is its own component with its own
+// markup; they share only these leaf pieces and the `.gutter-cell` CSS look, not
+// a branchy layout component. ---
+
+/** One line-number button painted with the shared `.gutter-cell` look. Delegated
+ * scrollers (code/raw runs) omit `onClick` and handle the click on the column
+ * wrapper via `data-line`; in-place rows pass a handler directly. */
+function GutterCell(props: {
+  startLine: number;
+  endLine: number;
+  selected: boolean;
+  hovered?: boolean;
+  className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
+  const label =
+    props.startLine === props.endLine ? `${props.startLine}` : `${props.startLine}-${props.endLine}`;
+  return (
+    <button
+      type="button"
+      data-line={props.startLine}
+      data-selected={props.selected ? "true" : undefined}
+      data-hover={props.hovered ? "true" : undefined}
+      title={`Add a comment on line ${props.startLine} (Shift-click to extend)`}
+      aria-label={`Add a comment on line ${props.startLine}`}
+      className={`gutter-cell ${props.className ?? ""}`}
+      onClick={props.onClick}
+    >
+      <Plus size={12} className="gutter-plus" aria-hidden />
+      {label}
+    </button>
+  );
+}
+
+/** The full-width aside stack under a row: the open composer and any anchored
+ * inline comments for `[startLine, endLine]`. Pinned left so it stays readable
+ * while a sibling code fence / table scrolls horizontally. */
+const RowAside = observer(function RowAside(props: {
+  startLine: number;
+  endLine: number;
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+  fileScope: string | null;
+}) {
+  const draft = uiStore.draftFor(props.fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+  const composerOpen = selStart != null && selEnd != null && props.endLine === selEnd;
+  const inlineComments = props.inline
+    ? props.comments.filter(
+        (c) =>
+          c.anchor?.type === "line_range" &&
+          c.anchor.start_line >= props.startLine &&
+          c.anchor.start_line <= props.endLine,
+      )
+    : [];
+
+  return (
+    <>
+      <AnimatePresence>
+        {composerOpen && selStart != null && selEnd != null && (
+          <div className={COMMENT_CLAMP}>
+            <Composer
+              startLine={selStart}
+              endLine={selEnd}
+              selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
+              filePath={props.fileScope}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence initial={false}>
+        {inlineComments.map((comment) => (
+          <div
+            key={comment.id}
+            className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}
+          >
+            <CommentCard comment={comment} context="inline" />
+          </div>
+        ))}
+      </AnimatePresence>
+    </>
+  );
+});
+
 /**
- * One fenced code block as a single horizontal-scroll box: a rounded, tinted
- * container scrolls all its lines together so they stay column-aligned, while
- * each line is still its own anchorable row (sticky line-number gutter + the
- * "+" add-comment button). The inner `w-max min-w-full` wrapper sizes every row
- * to the widest line so the shared right edge and tint span the full width.
+ * One rendered markdown block (paragraph, heading, list item, blockquote,
+ * mermaid, footnote…): a two-column grid of `[gutter | content]`. The gutter is
+ * a real grid column, never `position: sticky`, so it can't drift; the content
+ * wraps and never scrolls horizontally. Gutter and content share one grid
+ * element, so the `.md-row` hover lights the gutter with plain CSS.
+ */
+const BlockRow = observer(function BlockRow(props: {
+  startLine: number;
+  endLine: number;
+  kind: RenderedBlock["kind"];
+  html: string;
+  marginClass?: string;
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+}) {
+  const ui = uiStore;
+  const fileScope = useFileScope();
+  const { startLine, endLine } = props;
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+  const selected =
+    selStart != null && selEnd != null && startLine <= selEnd && endLine >= selStart;
+
+  return (
+    <div className={props.marginClass ?? ""}>
+      <div
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        id={`line-${startLine}`}
+        aria-selected={selected}
+      >
+        <GutterCell
+          startLine={startLine}
+          endLine={endLine}
+          selected={selected}
+          className="self-stretch"
+          onClick={(e) => {
+            const extend = selStart != null && e.shiftKey;
+            if (extend) ui.extendSelection(startLine, endLine, fileScope);
+            else ui.openComposer(startLine, endLine, "located", fileScope);
+          }}
+        />
+        <div
+          className={`min-w-0 ${KIND_CLASS[props.kind]}`}
+          dangerouslySetInnerHTML={{ __html: props.html }}
+        />
+      </div>
+
+      <RowAside
+        startLine={startLine}
+        endLine={endLine}
+        comments={props.comments}
+        inline={props.inline}
+        content={props.content}
+        fileScope={fileScope}
+      />
+    </div>
+  );
+});
+
+interface LineLike {
+  startLine: number;
+  endLine: number;
+}
+
+type RunItem<T extends LineLike> =
+  | { type: "run"; lines: T[] }
+  | { type: "aside"; line: T };
+
+/** True when a line needs a full-width aside under it: its composer is open, or
+ * it carries an inline comment. */
+function lineHasAside(
+  line: LineLike,
+  selEnd: number | null,
+  comments: Comment[],
+  inline: boolean,
+): boolean {
+  if (selEnd != null && line.endLine === selEnd) return true;
+  if (!inline) return false;
+  return comments.some(
+    (c) =>
+      c.anchor?.type === "line_range" &&
+      c.anchor.start_line >= line.startLine &&
+      c.anchor.start_line <= line.endLine,
+  );
+}
+
+/**
+ * Split a list of lines into horizontal-scroll runs separated by asides. A run is
+ * one scroll unit whose lines scroll together; a line that needs an aside ends
+ * its run (it stays in the run, styled in place) and the aside follows full
+ * width. With nothing open the whole list is a single run, so it scrolls as one
+ * block; an open composer or inline comment splits it only at that line.
+ */
+function splitRuns<T extends LineLike>(
+  lines: T[],
+  hasAside: (line: T) => boolean,
+): RunItem<T>[] {
+  const items: RunItem<T>[] = [];
+  let run: T[] = [];
+  for (const line of lines) {
+    run.push(line);
+    if (hasAside(line)) {
+      items.push({ type: "run", lines: run });
+      run = [];
+      items.push({ type: "aside", line });
+    }
+  }
+  if (run.length) items.push({ type: "run", lines: run });
+  return items;
+}
+
+/**
+ * One fenced code block. The gutter is a fixed-width column that sits OUTSIDE the
+ * horizontal scroller (no `position: sticky`, so it can't drift), beside a single
+ * scroller that holds every code line so they scroll together and stay
+ * column-aligned. Gutter cells and code lines share one fixed line height, so the
+ * line numbers line up by construction. An open composer / inline comment splits
+ * the fence into separate scroll runs at that line, with the aside between.
  */
 const CodeFence = observer(function CodeFence(props: {
   blocks: RenderedBlock[];
@@ -225,32 +425,119 @@ const CodeFence = observer(function CodeFence(props: {
   content: string;
   marginClass?: string;
 }) {
+  const ui = uiStore;
+  const fileScope = useFileScope();
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+
+  const onLineClick = (line: number, shift: boolean) => {
+    if (selStart != null && shift) ui.extendSelection(line, line, fileScope);
+    else ui.openComposer(line, line, "located", fileScope);
+  };
+
+  const items = splitRuns(props.blocks, (b) =>
+    lineHasAside(b, selEnd, props.comments, props.inline),
+  );
+
   return (
-    <div
-      className={`${props.marginClass ?? ""} overflow-x-auto py-2`}
-    >
-      <div className="w-max min-w-full">
-        {props.blocks.map((block) => (
-          <LineRow
-            key={`${block.startLine}-code`}
-            startLine={block.startLine}
-            endLine={block.endLine}
+    <div className={`${props.marginClass ?? ""} py-2`}>
+      {items.map((item, i) =>
+        item.type === "aside" ? (
+          <RowAside
+            key={`aside-${item.line.startLine}`}
+            startLine={item.line.startLine}
+            endLine={item.line.endLine}
             comments={props.comments}
             inline={props.inline}
             content={props.content}
-            fill
-            tone="code"
-          >
-            <span
-              className="md-codeline min-w-0 flex-1 whitespace-pre bg-code pl-2 font-mono text-[0.86rem] leading-[1.6]"
-              dangerouslySetInnerHTML={{ __html: block.html }}
-            />
-          </LineRow>
-        ))}
-      </div>
+            fileScope={fileScope}
+          />
+        ) : (
+          <CodeRun
+            key={`run-${i}-${item.lines[0].startLine}`}
+            lines={item.lines}
+            selStart={selStart}
+            selEnd={selEnd}
+            onLineClick={onLineClick}
+          />
+        ),
+      )}
     </div>
   );
 });
+
+/** One contiguous scroll unit of code lines: gutter column beside one horizontal
+ * scroller. Cross-column hover is driven from JS (the two columns are separate
+ * DOM subtrees, so CSS `:hover` can't bridge them). */
+function CodeRun(props: {
+  lines: RenderedBlock[];
+  selStart: number | null;
+  selEnd: number | null;
+  onLineClick: (line: number, shift: boolean) => void;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const lineAt = (target: EventTarget | null): number | null => {
+    const el = (target as HTMLElement | null)?.closest<HTMLElement>("[data-line]");
+    return el ? Number(el.dataset.line) : null;
+  };
+  const selected = (line: number) =>
+    props.selStart != null && props.selEnd != null && line >= props.selStart && line <= props.selEnd;
+
+  return (
+    <div
+      className="flex"
+      onPointerMove={(e) => {
+        const ln = lineAt(e.target);
+        setHovered((prev) => (prev === ln ? prev : ln));
+      }}
+      onPointerLeave={() => setHovered(null)}
+      onClick={(e) => {
+        const ln = lineAt(e.target);
+        if (ln != null) props.onLineClick(ln, e.shiftKey);
+      }}
+    >
+      <div className="flex shrink-0 flex-col">
+        {props.lines.map((b) => (
+          <GutterCell
+            key={`g-${b.startLine}`}
+            startLine={b.startLine}
+            endLine={b.endLine}
+            selected={selected(b.startLine)}
+            hovered={hovered === b.startLine}
+            className="h-[1.376rem] items-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onLineClick(b.startLine, e.shiftKey);
+            }}
+          />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <div className="w-max min-w-full">
+          {props.lines.map((b) => {
+            const sel = selected(b.startLine);
+            return (
+              <div
+                key={`c-${b.startLine}`}
+                data-line={b.startLine}
+                id={`line-${b.startLine}`}
+                aria-selected={sel}
+                className={`h-[1.376rem] ${sel ? "bg-active-line" : hovered === b.startLine ? "bg-hover" : ""}`}
+              >
+                <span
+                  className="md-codeline block whitespace-pre bg-code pl-2 font-mono text-[0.86rem] leading-[1.376rem]"
+                  dangerouslySetInnerHTML={{ __html: b.html }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** colSpan large enough to span every column; browsers clamp it to the table's
  * real column count, so an aside row stretches the full table width. */
@@ -263,11 +550,13 @@ const PLUS_SVG =
 /**
  * One markdown table as a single horizontally-scrollable real `<table>`: columns
  * size to their content (no equal-width squeeze) and stay aligned across rows,
- * and the whole table scrolls as one unit when wider than the view. Every row
- * keeps its own sticky line-number gutter with the "+" add-comment button, so
- * per-row anchoring is intact; clicks are delegated from the table so the gutter
- * can live in raw cell HTML. Composer and inline comments render as full-width
- * aside rows pinned left so they stay readable while the grid scrolls.
+ * and the whole table scrolls as one unit when wider than the view. A single
+ * table is one scroll container, so its line-number gutter is the row's leftmost
+ * `<td>` pinned with `position: sticky; left: 0` — the one place sticky is right,
+ * since the gutter is the leftmost cell with nothing before it, so it holds
+ * drift-free. Clicks are delegated from the table so the gutter can live in raw
+ * cell HTML. Composer and inline comments render as full-width aside rows pinned
+ * left so they stay readable while the grid scrolls.
  */
 const TableBlock = observer(function TableBlock(props: {
   rows: RenderedBlock[];
@@ -351,14 +640,15 @@ const TableBlock = observer(function TableBlock(props: {
 
 /** One anchorable table row: a sticky gutter cell (line label + "+") followed by
  * the row's rendered cells, injected as raw HTML so the real `<td>`/`<th>` grid
- * stays a single table. Selection styling is driven by `aria-selected`. */
+ * stays a single table. The gutter button carries the shared `.gutter-cell` look.
+ * Selection styling is driven by `aria-selected`. */
 function TableRow(props: { startLine: number; endLine: number; cells: string; selected: boolean }) {
   const label =
     props.startLine === props.endLine ? `${props.startLine}` : `${props.startLine}-${props.endLine}`;
   const gutter =
     `<td class="md-gutter" data-line-start="${props.startLine}" data-line-end="${props.endLine}">` +
-    `<button type="button" class="md-gutter-btn" title="Add a comment on line ${props.startLine} (Shift-click to extend)" aria-label="Add a comment on line ${props.startLine}">` +
-    `<span class="md-gutter-plus">${PLUS_SVG}</span><span class="md-gutter-label">${label}</span>` +
+    `<button type="button" class="gutter-cell" title="Add a comment on line ${props.startLine} (Shift-click to extend)" aria-label="Add a comment on line ${props.startLine}">` +
+    `<span class="gutter-plus">${PLUS_SVG}</span>${label}` +
     `</button></td>`;
 
   return (
@@ -376,14 +666,7 @@ const RawView = observer(function RawView(props: EditorProps) {
   const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
 
   return (
-    <article
-      className={`${chrome} py-4 font-mono text-[13px] sm:py-6 ${
-        // No left padding when scrolling: overflow-x clips to the padding box, so
-        // a left pad would let scrolled text show in the strip beside the sticky
-        // gutter. The w-12 gutter supplies the left gutter space itself.
-        uiStore.wrapLines ? "overflow-hidden px-2 sm:px-3" : "overflow-x-auto pr-2 sm:pr-3"
-      }`}
-    >
+    <article className={`${chrome} px-2 py-4 font-mono text-[13px] sm:px-3 sm:py-6`}>
       {props.inline &&
         unanchored.map((comment) => (
           <div key={comment.id} className={`${COMMENT_CLAMP} px-4 pt-3`}>
@@ -391,55 +674,237 @@ const RawView = observer(function RawView(props: EditorProps) {
           </div>
         ))}
 
-      <div className={uiStore.wrapLines ? undefined : "w-max min-w-full"}>
-        {lines.map((line, i) => {
-          const lineNo = i + 1;
-          const tokens = props.rawLines?.[i];
-          return (
-            <LineRow
-              key={i}
-              startLine={lineNo}
-              endLine={lineNo}
-              comments={props.comments}
-              inline={props.inline}
-              content={props.content}
-              fill={!uiStore.wrapLines}
-            >
-              <span
-                className={`min-w-0 flex-1 pl-2 text-text ${
-                  uiStore.wrapLines ? "whitespace-pre-wrap" : "whitespace-pre"
-                }`}
-              >
-                {line === "" ? (
-                  " "
-                ) : tokens ? (
-                  tokens.map((token, j) => (
-                    <span key={j} style={tokenStyle(token)}>
-                      {token.content}
-                    </span>
-                  ))
-                ) : (
-                  line
-                )}
-              </span>
-            </LineRow>
-          );
-        })}
-      </div>
+      {uiStore.wrapLines ? (
+        lines.map((line, i) => (
+          <RawLine
+            key={i}
+            lineNo={i + 1}
+            line={line}
+            tokens={props.rawLines?.[i]}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+          />
+        ))
+      ) : (
+        <RawScrolled
+          lines={lines}
+          rawLines={props.rawLines}
+          comments={props.comments}
+          inline={props.inline}
+          content={props.content}
+        />
+      )}
     </article>
   );
 });
 
-/**
- * A single anchorable row: gutter line label + add-comment button, the content
- * slot supplied by the caller, plus the inline composer and anchored comments.
- * Shared by the rendered (per-block) and raw (per-line) views.
- */
+/** Render one raw source line's content: syntax tokens when highlighted, else the
+ * plain text (a single space keeps a blank line clickable). */
+function rawContent(line: string, tokens: ThemedToken[] | undefined): React.ReactNode {
+  if (line === "") return " ";
+  if (tokens) {
+    return tokens.map((token, j) => (
+      <span key={j} style={tokenStyle(token)}>
+        {token.content}
+      </span>
+    ));
+  }
+  return line;
+}
+
+/** One wrapped raw source line: a `[gutter | content]` grid that wraps and never
+ * scrolls, mirroring `BlockRow`. */
+const RawLine = observer(function RawLine(props: {
+  lineNo: number;
+  line: string;
+  tokens: ThemedToken[] | undefined;
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+}) {
+  const ui = uiStore;
+  const fileScope = useFileScope();
+  const lineNo = props.lineNo;
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+  const selected = selStart != null && selEnd != null && lineNo <= selEnd && lineNo >= selStart;
+
+  return (
+    <div>
+      <div
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        id={`line-${lineNo}`}
+        aria-selected={selected}
+      >
+        <GutterCell
+          startLine={lineNo}
+          endLine={lineNo}
+          selected={selected}
+          className="self-stretch"
+          onClick={(e) => {
+            const extend = selStart != null && e.shiftKey;
+            if (extend) ui.extendSelection(lineNo, lineNo, fileScope);
+            else ui.openComposer(lineNo, lineNo, "located", fileScope);
+          }}
+        />
+        <span className="min-w-0 whitespace-pre-wrap pl-2 text-text">
+          {rawContent(props.line, props.tokens)}
+        </span>
+      </div>
+
+      <RowAside
+        startLine={lineNo}
+        endLine={lineNo}
+        comments={props.comments}
+        inline={props.inline}
+        content={props.content}
+        fileScope={fileScope}
+      />
+    </div>
+  );
+});
+
+interface RawLineData extends LineLike {
+  text: string;
+  tokens: ThemedToken[] | undefined;
+}
+
+/** Raw source in no-wrap mode: a fixed-width gutter column outside one horizontal
+ * scroller holding every line, so the lines scroll together and the gutter can't
+ * drift. Asides split it into scroll runs, same as the code fence. */
+const RawScrolled = observer(function RawScrolled(props: {
+  lines: string[];
+  rawLines: ThemedToken[][] | null;
+  comments: Comment[];
+  inline: boolean;
+  content: string;
+}) {
+  const ui = uiStore;
+  const fileScope = useFileScope();
+  const draft = ui.draftFor(fileScope);
+  const selStart = draft?.selStart ?? null;
+  const selEnd = draft?.selEnd ?? null;
+
+  const data: RawLineData[] = props.lines.map((text, i) => ({
+    startLine: i + 1,
+    endLine: i + 1,
+    text,
+    tokens: props.rawLines?.[i],
+  }));
+
+  const onLineClick = (line: number, shift: boolean) => {
+    if (selStart != null && shift) ui.extendSelection(line, line, fileScope);
+    else ui.openComposer(line, line, "located", fileScope);
+  };
+
+  const items = splitRuns(data, (l) =>
+    lineHasAside(l, selEnd, props.comments, props.inline),
+  );
+
+  return (
+    <>
+      {items.map((item, i) =>
+        item.type === "aside" ? (
+          <RowAside
+            key={`aside-${item.line.startLine}`}
+            startLine={item.line.startLine}
+            endLine={item.line.endLine}
+            comments={props.comments}
+            inline={props.inline}
+            content={props.content}
+            fileScope={fileScope}
+          />
+        ) : (
+          <RawRun
+            key={`run-${i}-${item.lines[0].startLine}`}
+            lines={item.lines}
+            selStart={selStart}
+            selEnd={selEnd}
+            onLineClick={onLineClick}
+          />
+        ),
+      )}
+    </>
+  );
+});
+
+/** One contiguous scroll unit of raw source lines. Cross-column hover from JS,
+ * mirroring `CodeRun`. */
+function RawRun(props: {
+  lines: RawLineData[];
+  selStart: number | null;
+  selEnd: number | null;
+  onLineClick: (line: number, shift: boolean) => void;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const lineAt = (target: EventTarget | null): number | null => {
+    const el = (target as HTMLElement | null)?.closest<HTMLElement>("[data-line]");
+    return el ? Number(el.dataset.line) : null;
+  };
+  const selected = (line: number) =>
+    props.selStart != null && props.selEnd != null && line >= props.selStart && line <= props.selEnd;
+
+  return (
+    <div
+      className="flex"
+      onPointerMove={(e) => {
+        const ln = lineAt(e.target);
+        setHovered((prev) => (prev === ln ? prev : ln));
+      }}
+      onPointerLeave={() => setHovered(null)}
+      onClick={(e) => {
+        const ln = lineAt(e.target);
+        if (ln != null) props.onLineClick(ln, e.shiftKey);
+      }}
+    >
+      <div className="flex shrink-0 flex-col">
+        {props.lines.map((l) => (
+          <GutterCell
+            key={`g-${l.startLine}`}
+            startLine={l.startLine}
+            endLine={l.startLine}
+            selected={selected(l.startLine)}
+            hovered={hovered === l.startLine}
+            className="h-[1.5rem] items-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onLineClick(l.startLine, e.shiftKey);
+            }}
+          />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <div className="w-max min-w-full">
+          {props.lines.map((l) => {
+            const sel = selected(l.startLine);
+            return (
+              <div
+                key={`c-${l.startLine}`}
+                data-line={l.startLine}
+                id={`line-${l.startLine}`}
+                aria-selected={sel}
+                className={`h-[1.5rem] ${sel ? "bg-active-line" : hovered === l.startLine ? "bg-hover" : ""}`}
+              >
+                <span className="block whitespace-pre pl-2 leading-[1.5rem] text-text">
+                  {rawContent(l.text, l.tokens)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Reading-rhythm gap above each rendered block (margin-top only, so adjacent
- * flex rows never double their margins). Headings open a section, then hug the
- * body that follows; code/mermaid/tables get a wider break; prose stays calm.
- * Tier widths come from the active density.
+ * rows never double their margins). Headings open a section, then hug the body
+ * that follows; code/mermaid/tables get a wider break; prose stays calm. Tier
+ * widths come from the active density.
  */
 function blockSpacing(
   block: RenderedBlock,
@@ -467,102 +932,3 @@ function blockSpacing(
   if (wide(block) || wide(prev)) return tiers.wide;
   return tiers.prose;
 }
-
-const LineRow = observer(function LineRow(props: {
-  startLine: number;
-  endLine: number;
-  comments: Comment[];
-  inline: boolean;
-  content: string;
-  marginClass?: string;
-  fill?: boolean;
-  /** "code": the row sits inside a tinted code-fence box, so it stays
-   * transparent (letting the box tint show) instead of painting its own bg. */
-  tone?: "code";
-  children: React.ReactNode;
-}) {
-  const ui = uiStore;
-  const fileScope = useFileScope();
-  const { startLine, endLine } = props;
-  // Each file owns its draft, so reading by scope keeps a sibling stacked file's
-  // open composer from rendering a phantom selection here on the same lines, and
-  // restores this file's own draft when the user switches back to it.
-  const draft = ui.draftFor(fileScope);
-  const selStart = draft?.selStart ?? null;
-  const selEnd = draft?.selEnd ?? null;
-  const selected =
-    selStart != null && selEnd != null && startLine <= selEnd && endLine >= selStart;
-  const composerOpen = selStart != null && selEnd != null && endLine === selEnd;
-  const label = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
-  const inlineComments = props.inline
-    ? props.comments.filter(
-        (c) =>
-          c.anchor?.type === "line_range" &&
-          c.anchor.start_line >= startLine &&
-          c.anchor.start_line <= endLine,
-      )
-    : [];
-
-  return (
-    <div className={`${props.marginClass ?? ""} ${props.fill ? "min-w-full" : ""}`}>
-      <div
-        className={`group flex items-start gap-2 px-2 sm:gap-3 sm:px-4 ${selected ? "bg-active-line" : props.tone === "code" ? "hover:bg-hover" : "bg-editor hover:bg-hover"}`}
-        id={`line-${startLine}`}
-        aria-selected={selected}
-      >
-        <button
-          type="button"
-          title={`Add a comment on line ${startLine} (Shift-click to extend)`}
-          aria-label={`Add a comment on line ${startLine}`}
-          className={`relative sticky left-0 z-10 w-12 shrink-0 cursor-pointer select-none self-stretch pr-2 text-right font-mono text-[12px] backdrop-blur-sm transition-colors ${
-            props.tone === "code" ? "leading-[1.376rem]" : ""
-          } ${
-            selected
-              ? "bg-active-line text-blue"
-              : "bg-editor text-faint group-hover:bg-hover hover:text-blue"
-          }`}
-          onClick={(e) => {
-            const extend = selStart != null && e.shiftKey;
-            if (extend) {
-              ui.extendSelection(startLine, endLine, fileScope);
-            } else {
-              ui.openComposer(startLine, endLine, "located", fileScope);
-            }
-          }}
-        >
-          <Plus
-            size={13}
-            className="absolute -left-2 top-0.5 hidden text-blue group-hover:block"
-            aria-hidden
-          />
-          {label}
-        </button>
-        {props.children}
-      </div>
-
-      <AnimatePresence>
-        {composerOpen && selStart != null && selEnd != null && (
-          <div className={COMMENT_CLAMP}>
-            <Composer
-              startLine={selStart}
-              endLine={selEnd}
-              selectedText={props.content.split("\n").slice(selStart - 1, selEnd).join("\n")}
-              filePath={fileScope}
-            />
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence initial={false}>
-        {inlineComments.map((comment) => (
-          <div
-            key={comment.id}
-            className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}
-          >
-            <CommentCard comment={comment} context="inline" />
-          </div>
-        ))}
-      </AnimatePresence>
-    </div>
-  );
-});
