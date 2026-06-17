@@ -112,14 +112,30 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     if (doc) applyHighlightStyle(doc)
   }, [docVersion, uiStore.theme])
 
-  // Scale the rendered document via CSS `zoom` on the iframe's root element.
-  // `zoom` (not `transform: scale`) keeps element bounding rects in sync with
-  // the iframe's own rect, so the anchor-popover positioning math stays correct
-  // at any zoom level. Reapply on doc (re)load so a fresh srcdoc keeps the level.
+  // Scale the rendered document on the iframe's root element. Prefer CSS `zoom`
+  // where supported (Chromium/Safari): it keeps element bounding rects in sync
+  // with the iframe's own rect so the anchor-popover positioning math stays
+  // correct. Firefox doesn't support `zoom`, so fall back to `transform: scale`
+  // with a top-left origin; transforms also scale child bounding rects, so the
+  // anchor math holds, and widening the root to `100%/z` keeps the scaled layout
+  // filling (and scrollable) instead of clipping to the unscaled box. Reapply on
+  // doc (re)load so a fresh srcdoc keeps the level.
   useEffect(() => {
     const root = iframeRef.current?.contentDocument?.documentElement
     if (!root) return
-    root.style.setProperty("zoom", String(zoom))
+    const supportsZoom =
+      typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("zoom", "2")
+    if (supportsZoom) {
+      root.style.removeProperty("transform")
+      root.style.removeProperty("transform-origin")
+      root.style.removeProperty("width")
+      root.style.setProperty("zoom", String(zoom))
+      return
+    }
+    root.style.removeProperty("zoom")
+    root.style.transformOrigin = "top left"
+    root.style.transform = `scale(${zoom})`
+    root.style.width = `${100 / zoom}%`
   }, [zoom, docVersion])
 
   // Lock body scroll while the fullscreen overlay covers the app.
