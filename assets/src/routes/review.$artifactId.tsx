@@ -5,7 +5,7 @@ import { observer } from "mobx-react-lite"
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
-import { useContent } from "../review/use-content"
+import { contentErrorFrom, useContent } from "../review/use-content"
 import { useRawHighlight } from "../review/use-raw-highlight"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import {
@@ -129,11 +129,13 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const image = isImagePath(title)
   const slash = title.lastIndexOf("/")
 
-  const { text: content, loading: contentLoading, error: contentError } = useContent(
+  const contentState = useContent(
     snapshot.artifact.id,
     snapshot.current_round.content_hash,
     !image
   )
+  const { text: content, loading: contentLoading } = contentState
+  const contentError = contentErrorFrom(contentState)
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
     base: assetBase(snapshot.artifact.id),

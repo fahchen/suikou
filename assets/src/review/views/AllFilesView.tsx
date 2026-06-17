@@ -10,7 +10,7 @@ import { FileScopeProvider } from "../file-scope"
 import { orderedReviewFiles } from "../file-order"
 import { uiStore } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
-import { useContent, useReviewFileContent, type ContentState } from "../use-content"
+import { contentErrorFrom, useContent, useReviewFileContent, type ContentState } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
@@ -452,6 +452,7 @@ const ScopedFileBody = observer(function ScopedFileBody(props: {
     snapshot,
     file,
     state.text,
+    contentErrorFrom(state),
     viewKind,
     previewable,
     blocks.blocks,
@@ -462,14 +463,6 @@ const ScopedFileBody = observer(function ScopedFileBody(props: {
 
   if (image) {
     return <StackedImage file={file} reviewId={reviewId} />
-  }
-  if (state.missing) {
-    return (
-      <p className="px-3 py-4 text-[12px] text-muted-foreground">Content unavailable.</p>
-    )
-  }
-  if (state.error) {
-    return <p className="px-3 py-4 text-[12px] text-red">{state.error}</p>
   }
   if (state.loading && state.text === "") {
     return <p className="px-3 py-4 text-[12px] text-muted-foreground">Loading…</p>
@@ -489,6 +482,7 @@ function useStackedFileView(
   snapshot: ReviewSnapshot,
   file: ReviewFileEntry,
   content: string,
+  contentError: string | null,
   viewKind: ViewKind,
   previewable: boolean,
   blocks: ReviewView["blocks"],
@@ -515,7 +509,7 @@ function useStackedFileView(
       }
     } as ReviewSnapshot,
     content,
-    contentError: null,
+    contentError,
     blocks,
     loading: blocksLoading,
     comments,

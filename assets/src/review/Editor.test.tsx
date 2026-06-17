@@ -40,6 +40,7 @@ vi.mock("./commands", () => ({
 }));
 
 import { Editor } from "./Editor";
+import { MISSING_CONTENT_MESSAGE } from "./use-content";
 
 function codeLine(startLine: number, text: string): RenderedBlock {
   return {
@@ -106,6 +107,36 @@ describe("Editor rendered code fence", () => {
     const box = container.querySelector(".overflow-x-auto");
     expect(box?.textContent).toContain("const a = 1");
     expect(box?.textContent).not.toContain("prose");
+  });
+});
+
+describe("Editor missing source", () => {
+  it("renders a friendly notice instead of a blank editor when the source is gone", () => {
+    const block: RenderedBlock = {
+      startLine: 1,
+      endLine: 1,
+      kind: "markdown",
+      tag: "p",
+      lang: null,
+      html: "<p>stale</p>",
+    };
+    render(
+      <Editor
+        view="rendered"
+        content=""
+        contentError={MISSING_CONTENT_MESSAGE}
+        blocks={[block]}
+        loading={false}
+        comments={[]}
+        rawLines={null}
+        inline={false}
+      />,
+    );
+
+    expect(screen.getByText("Can't load this file")).toBeTruthy();
+    expect(screen.getByText(MISSING_CONTENT_MESSAGE)).toBeTruthy();
+    // The stale rendered block must not leak through behind the notice.
+    expect(screen.queryByText("stale")).toBeNull();
   });
 });
 
