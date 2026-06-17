@@ -116,6 +116,70 @@ defmodule Suikou.ExportTest do
     assert {:error, :artifact_not_found} = Export.export("00000000-0000-7000-8000-000000000000")
   end
 
+  describe "export_review/2" do
+    test "default :latest scope yields each artifact's standing-round critique" do
+      # Resolve the round-0 note before advancing so it is not carried forward,
+      # isolating the latest round's own critique.
+      review = insert(:review)
+      round = round_in_review(review)
+      note0 = published_comment(round.id, %{body: "round 0 note"})
+      {:ok, _resolved} = Critique.resolve_comment(note0.id)
+      %{round: round2} = advance(round.artifact_id, "changed\n")
+      published_comment(round2.id, %{body: "round 1 note"})
+
+      assert %{review_id: review_id, submission_version: 1, artifacts: [artifact]} =
+               Export.export_review(review.id)
+
+      assert review_id == review.id
+      assert %{round: 1} = artifact
+      assert Enum.map(artifact.comments, & &1.body) == ["round 1 note"]
+    end
+
+    test "a round range gathers published critique across the selected rounds" do
+      review = insert(:review)
+      round = round_in_review(review)
+      note0 = published_comment(round.id, %{body: "round 0 note"})
+      {:ok, _resolved} = Critique.resolve_comment(note0.id)
+      %{round: round2} = advance(round.artifact_id, "v2\n")
+      note1 = published_comment(round2.id, %{body: "round 1 note"})
+      {:ok, _resolved} = Critique.resolve_comment(note1.id)
+      %{round: round3} = advance(round.artifact_id, "v3\n")
+      published_comment(round3.id, %{body: "round 2 note"})
+
+      assert %{artifacts: [artifact]} = Export.export_review(review.id, {0, 1})
+      assert Enum.sort(Enum.map(artifact.comments, & &1.body)) == ["round 0 note", "round 1 note"]
+    end
+
+    test ":all scope gathers published critique from every round" do
+      review = insert(:review)
+      round = round_in_review(review)
+      note0 = published_comment(round.id, %{body: "round 0 note"})
+      {:ok, _resolved} = Critique.resolve_comment(note0.id)
+      %{round: round2} = advance(round.artifact_id, "v2\n")
+      published_comment(round2.id, %{body: "round 1 note"})
+
+      assert %{artifacts: [artifact]} = Export.export_review(review.id, :all)
+      assert Enum.sort(Enum.map(artifact.comments, & &1.body)) == ["round 0 note", "round 1 note"]
+    end
+
+    test "every minted artifact of the review is aggregated" do
+      review = insert(:review)
+      a1 = round_in_review(review)
+      a2 = round_in_review(review)
+      published_comment(a1.id, %{body: "first"})
+      published_comment(a2.id, %{body: "second"})
+
+      assert %{artifacts: artifacts} = Export.export_review(review.id, :all)
+      bodies = artifacts |> Enum.flat_map(& &1.comments) |> Enum.map(& &1.body)
+      assert Enum.sort(bodies) == ["first", "second"]
+    end
+
+    test "an unknown review id returns an error" do
+      assert {:error, :review_not_found} =
+               Export.export_review("00000000-0000-7000-8000-000000000000")
+    end
+  end
+
   defp latest_comment_ids(artifact_id) do
     {:ok, export} = Export.export(artifact_id)
     Enum.map(export.comments, & &1.id)

@@ -130,6 +130,30 @@ defmodule Suikou.Submissions do
   end
 
   @doc """
+  Counts every submission recorded across a review's artifacts. Because each
+  submit inserts exactly one `Submission` and never deletes one, the count is
+  monotonic per review — the poll cursor that tells an agent a new round has
+  been submitted.
+
+  ## Examples
+
+      Suikou.Submissions.review_submission_count(review.id)
+      #=> 3
+
+      Suikou.Submissions.review_submission_count("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> 0
+
+  """
+  @spec review_submission_count(Ecto.UUID.t()) :: non_neg_integer()
+  def review_submission_count(review_id) do
+    from(s in Submission, as: :submission)
+    |> join(:inner, [submission: s], rd in Round, as: :round, on: s.round_id == rd.id)
+    |> join(:inner, [round: rd], a in Artifact, as: :artifact, on: rd.artifact_id == a.id)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Returns the in-progress `draft_verdict` on an artifact's latest round, or
   `nil` when no round exists yet or the draft is empty. A draft is the
   reviewer's pre-submission choice; it disappears the moment the round is

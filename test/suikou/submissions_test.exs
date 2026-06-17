@@ -200,6 +200,38 @@ defmodule Suikou.SubmissionsTest do
     end
   end
 
+  describe "review_submission_count/1" do
+    test "is zero for a review with no submissions" do
+      review = insert(:review)
+      round_in_review(review)
+
+      assert Submissions.review_submission_count(review.id) == 0
+    end
+
+    test "increments monotonically with each submit across the review's files" do
+      review = insert(:review)
+      round1 = round_in_review(review)
+      round2 = round_in_review(review)
+
+      assert {:ok, _submission} = Submissions.submit(round1.id, :comment)
+      assert Submissions.review_submission_count(review.id) == 1
+
+      assert {:ok, _submission} = Submissions.submit(round2.id, :comment)
+      assert Submissions.review_submission_count(review.id) == 2
+    end
+
+    test "counts only submissions belonging to the review" do
+      review = insert(:review)
+      round = round_in_review(review)
+      other = insert(:round)
+
+      assert {:ok, _submission} = Submissions.submit(round.id, :comment)
+      assert {:ok, _other} = Submissions.submit(other.id, :comment)
+
+      assert Submissions.review_submission_count(review.id) == 1
+    end
+  end
+
   describe "missing targets" do
     test "submitting on a non-existent round is rejected" do
       assert {:error, :round_not_found} =
