@@ -227,7 +227,7 @@ const DiffRowView = observer(function DiffRowView(props: {
 
   return (
     <div>
-      <div className="grid grid-cols-[3rem_1fr_3rem_1fr] items-stretch">
+      <div className="grid grid-cols-[var(--gutter-w)_1fr_var(--gutter-w)_1fr] items-stretch">
         <SideCell
           cell={row.old}
           side="old"
@@ -299,7 +299,7 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
 
   return (
     <div>
-      <div className="grid grid-cols-[3rem_3rem_1.25rem_1fr] items-stretch">
+      <div className="grid grid-cols-[var(--gutter-w)_var(--gutter-w)_1.25rem_1fr] items-stretch">
         <GutterButton
           side="old"
           lineNo={row.oldNo}
@@ -360,10 +360,10 @@ function GutterButton(props: {
   const { side, lineNo, active, tone, fallbackTone, onGutterClick } = props
   if (lineNo == null) {
     return (
-      <div className={`border-r border-line-soft ${fallbackTone}`} aria-hidden />
+      <div className={fallbackTone} aria-hidden />
     )
   }
-  const className = `group flex cursor-pointer items-start justify-end gap-1 border-r border-line-soft pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : `${fallbackTone} text-faint`}`
+  const className = `group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : `${fallbackTone} text-faint`}`
   return (
     <button
       type="button"
@@ -400,7 +400,7 @@ function SideCell(props: {
   if (!cell) {
     return (
       <>
-        <div className={`border-r border-line-soft ${tone}`} aria-hidden />
+        <div className={tone} aria-hidden />
         <div className={tone} aria-hidden />
       </>
     )
@@ -413,7 +413,7 @@ function SideCell(props: {
         title={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo} (Shift-click to extend)`}
         aria-label={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo}`}
         aria-selected={selected}
-        className={`group flex cursor-pointer items-start justify-end gap-1 border-r border-line-soft pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${gutterTone}`}
+        className={`group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${gutterTone}`}
         onClick={(e) => {
           onGutterClick(side, cell.lineNo, e.shiftKey)
         }}
