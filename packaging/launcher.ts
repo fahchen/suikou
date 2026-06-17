@@ -300,12 +300,8 @@ async function runGroupVerb(group: string, verb: string | undefined, argv: strin
     if (spec.poll) return await runPoll(spec, payload, values)
     return await runCommand(spec, payload)
   } catch (err) {
-    if (err instanceof UsageError) {
-      console.error(`${err.message}\n\n${usage(group, verb)}`)
-      return 1
-    }
     // parseArgs throws TypeError on unknown/misused flags; surface its message.
-    if (err instanceof TypeError) {
+    if (err instanceof UsageError || err instanceof TypeError) {
       console.error(`${err.message}\n\n${usage(group, verb)}`)
       return 1
     }
@@ -323,18 +319,12 @@ async function resolveBody(values: Values): Promise<string> {
   return await new Response(Bun.stdin.stream()).text()
 }
 
-// The single generic executor: extract the release, pipe the JSON payload on the
-// child's stdin (EOF on close), capture its one JSON line, pass it straight
-// through on success. A downed node prints the friendly "not running" line.
-async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): Promise<number> {
-  const releaseRoot = await ensureExtracted()
-  const bin = join(releaseRoot, "suikou", "bin", "suikou")
-  const json = JSON.stringify(payload)
-
-  const proc = spawn([bin, "rpc", spec.expr], {
-    env: await releaseEnv(),
-    // Encoding the JSON as bytes feeds stdin and closes it (EOF) — exactly what
-    // the remote `IO.read(:stdio, :eof)` waits for.
+// Spawn `bin/suikou rpc <expr>`, piping the JSON payload on stdin (EOF on close —
+// exactly what the remote `IO.read(:stdio, :eof)` waits for) and capturing both
+// streams plus the exit code.
+async function rpcInvoke(bin: string, env: Record<string, string>, expr: string, json: string) {
+  const proc = spawn([bin, "rpc", expr], {
+    env,
     stdin: new TextEncoder().encode(json),
     stdout: "pipe",
     stderr: "pipe"
@@ -343,16 +333,35 @@ async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): 
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text()
   ])
-  const exitCode = await proc.exited
+  return { stdout, stderr, exitCode: await proc.exited }
+}
 
-  if (exitCode !== 0 && notRunning(stderr)) {
+// Returns the exit code to propagate on failure, or null when the call succeeded.
+function rpcFailure(stderr: string, exitCode: number): number | null {
+  if (exitCode === 0) return null
+  if (notRunning(stderr)) {
     console.error("Suikou is not running — start it first with `suikou`.")
     return 1
   }
-  if (exitCode !== 0) {
-    console.error(stderr.trim() || `rpc failed (exit ${exitCode})`)
-    return exitCode
-  }
+  console.error(stderr.trim() || `rpc failed (exit ${exitCode})`)
+  return exitCode
+}
+
+// The single generic executor: extract the release, pipe the JSON payload on the
+// child's stdin (EOF on close), capture its one JSON line, pass it straight
+// through on success. A downed node prints the friendly "not running" line.
+async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): Promise<number> {
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+
+  const { stdout, stderr, exitCode } = await rpcInvoke(
+    bin,
+    await releaseEnv(),
+    spec.expr,
+    JSON.stringify(payload)
+  )
+  const fail = rpcFailure(stderr, exitCode)
+  if (fail !== null) return fail
 
   process.stdout.write(stdout)
   return 0
@@ -382,26 +391,9 @@ async function runPoll(
 
   let lastTimeout = ""
   for (;;) {
-    const proc = spawn([bin, "rpc", spec.expr], {
-      env,
-      stdin: new TextEncoder().encode(json),
-      stdout: "pipe",
-      stderr: "pipe"
-    })
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text()
-    ])
-    const exitCode = await proc.exited
-
-    if (exitCode !== 0 && notRunning(stderr)) {
-      console.error("Suikou is not running — start it first with `suikou`.")
-      return 1
-    }
-    if (exitCode !== 0) {
-      console.error(stderr.trim() || `rpc failed (exit ${exitCode})`)
-      return exitCode
-    }
+    const { stdout, stderr, exitCode } = await rpcInvoke(bin, env, spec.expr, json)
+    const fail = rpcFailure(stderr, exitCode)
+    if (fail !== null) return fail
 
     if (!isTimeout(stdout)) {
       process.stdout.write(stdout)
