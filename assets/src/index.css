@@ -799,9 +799,72 @@
   }
 }
 
+/* Shared line-number gutter surface. Every gutter-bearing review view (rendered
+   markdown rows, raw source, code fences, tables, diffs) references these tokens
+   so the column has one width and one set of colors across views. Aliases are
+   late-bound through var(), so the per-theme `--faint`/`--blue`/`--editor-bg`
+   still resolve at the element using `.gutter-cell`. */
+:root {
+  --gutter-w: 3rem;
+  --gutter-fg: var(--faint);
+  --gutter-fg-active: var(--blue);
+  --gutter-bg: var(--editor-bg);
+  --gutter-bg-active: var(--active-line);
+}
+
 /* Markdown content rendered from `dangerouslySetInnerHTML` — Tailwind utilities
    can't reach inside, so the rendered HTML is styled here against theme tokens. */
 @layer components {
+  /* The one shared gutter look: a right-aligned, monospace line label with a
+     reveal-on-hover "+" add-comment affordance. Each view owns its own layout
+     (column vs. table cell) but paints the gutter with this class so colors,
+     width, and the hover/selected states stay identical everywhere. State is
+     driven by data-attributes so views can light the gutter from JS (cross-column
+     hover) as well as native :hover. */
+  .gutter-cell {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 2px;
+    width: var(--gutter-w);
+    min-width: var(--gutter-w);
+    padding-right: 0.5rem;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--gutter-fg);
+    background: var(--gutter-bg);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.12s;
+  }
+
+  .gutter-cell .gutter-plus {
+    display: none;
+    color: var(--gutter-fg-active);
+  }
+
+  /* Hover lights the gutter. `:hover` covers hovering the gutter itself;
+     `[data-hover]` is the JS-driven cross-column hover the code/raw scrollers set
+     when the pointer is over a content line in the other column; `.md-row` is the
+     single-block markdown row whose gutter and content share one grid element. */
+  .gutter-cell:hover,
+  .gutter-cell[data-hover="true"],
+  .md-row[aria-selected="false"]:hover .gutter-cell {
+    color: var(--gutter-fg-active);
+    background: var(--hover);
+  }
+
+  .gutter-cell:hover .gutter-plus,
+  .gutter-cell[data-hover="true"] .gutter-plus,
+  .md-row[aria-selected="false"]:hover .gutter-cell .gutter-plus {
+    display: inline-flex;
+  }
+
+  .gutter-cell[data-selected="true"] {
+    color: var(--gutter-fg-active);
+    background: var(--gutter-bg-active);
+  }
+
   .md-content {
     color: var(--text);
     font-size: 15.5px;
@@ -1025,42 +1088,34 @@
 
   /* The gutter is a line-number column, not table content: strip the cell border
      and padding it inherits from the `.md-table td` rule so it reads as a plain
-     sticky gutter (like `LineRow`), not a bordered table cell. */
+     gutter. A single markdown table is one horizontal-scroll unit, so the gutter
+     must travel with that scroll — hence `position: sticky; left: 0`, which holds
+     drift-free here because the gutter is the row's leftmost cell with nothing
+     before it. The `.gutter-cell` button inside supplies the shared look. */
   .md-table .md-gutter {
     position: sticky;
     left: 0;
     z-index: 5;
-    width: 3rem;
-    min-width: 3rem;
+    width: var(--gutter-w);
+    min-width: var(--gutter-w);
     border: 0;
     padding: 0;
-    background: var(--editor-bg);
+    background: var(--gutter-bg);
   }
 
-  .md-table .md-gutter-btn {
-    display: flex;
+  .md-table .md-gutter .gutter-cell {
     align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
     width: 100%;
-    padding: 0.35em 0.5em;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--faint);
-    cursor: pointer;
-    user-select: none;
+    padding-block: 0.35em;
   }
 
-  .md-table tr:hover .md-gutter-btn {
-    color: var(--blue);
+  /* Whole-row hover lights the gutter, mirroring the cross-column hover the
+     code/raw views drive from JS. */
+  .md-table tr:hover .gutter-cell {
+    color: var(--gutter-fg-active);
   }
 
-  .md-table .md-gutter-plus {
-    display: none;
-    color: var(--blue);
-  }
-
-  .md-table tr:hover .md-gutter-plus {
+  .md-table tr:hover .gutter-cell .gutter-plus {
     display: inline-flex;
   }
 
@@ -1074,14 +1129,15 @@
     background: var(--active-line);
   }
 
-  .md-table tr[aria-selected="true"] .md-gutter-btn {
-    color: var(--blue);
+  .md-table tr[aria-selected="true"] .gutter-cell {
+    color: var(--gutter-fg-active);
+    background: var(--gutter-bg-active);
   }
 
   .md-table td.md-table-aside {
     border: 0;
     padding: 0;
-    background: var(--editor-bg);
+    background: var(--gutter-bg);
     white-space: normal;
   }
 
