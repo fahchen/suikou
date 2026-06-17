@@ -188,6 +188,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @impl Musubi.Store
   @spec handle_info(CommentBroadcast.message(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_info(:comments_changed, socket) do
+    # The open single-file thread is a `CommentsStore` child (store_id
+    # `["comments"]`), not a process, so it cannot subscribe. Push it a
+    # `reload_token` the parent never supplies — `CommentsStore.update/2` is
+    # `assign |> reload`, so this key alone re-reads the thread from the DB
+    # (e.g. after an external CLI reply lands on it).
+    Musubi.send_update(["comments"], %{reload_token: System.unique_integer()})
     {:noreply, Socket.assign(socket, :comment_rev, System.unique_integer())}
   end
 
@@ -284,6 +290,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
       %Round{} = round ->
         case Submissions.submit(round.id, payload["verdict"]) do
           {:ok, %{warnings: warnings, next_round: %Round{number: next_number}}} ->
+            # Wake a CLI `poll` and refresh sibling tabs on the same review.
+            broadcast_comments_changed(socket.assigns.artifact_id)
+
             {:reply, %{warnings: Enum.map(warnings, &Atom.to_string/1)},
              Socket.assign(socket, :round_number, next_number)}
 
@@ -487,6 +496,13 @@ defmodule SuikouWeb.Stores.ReviewStore do
   defp subscribe_comment_changes(artifact_id) do
     case Reads.get_artifact(artifact_id) do
       %Artifact{review_id: review_id} -> CommentBroadcast.subscribe(review_id)
+      nil -> :ok
+    end
+  end
+
+  defp broadcast_comments_changed(artifact_id) do
+    case Reads.get_artifact(artifact_id) do
+      %Artifact{review_id: review_id} -> CommentBroadcast.broadcast(review_id)
       nil -> :ok
     end
   end
