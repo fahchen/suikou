@@ -26,3 +26,7 @@ config :phoenix, :plug_init_mode, :runtime
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Keep the agent CLI poll window short so its timeout branch is exercised
+# without a 25 s wait. The wake test drives a real submission within the window.
+config :suikou, :agent_cli_poll_window_ms, 200
