@@ -1,10 +1,38 @@
 defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
   use Suikou.DataCase
 
+  alias Musubi.AsyncResult
   alias Musubi.Testing
   alias Suikou.Projects
   alias Suikou.Reviews
+  alias SuikouWeb.Stores.BoardBroadcast
   alias SuikouWeb.Stores.ProjectBoardStore
+
+  describe ":board_changed reactivity" do
+    @tag :tmp_dir
+    test "a board broadcast pushes a patch reflecting a review created elsewhere", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+
+      page = Testing.mount(ProjectBoardStore)
+      await_review_files(page)
+      flush_patches()
+
+      # Simulates a write on another connection (e.g. a CLI `review create`):
+      # the open board was never dirtied by its own command, so only the
+      # broadcast can refresh it.
+      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      :ok = BoardBroadcast.broadcast()
+
+      assert_receive {:patch, _envelope}
+      # Draining to a resolved async also lets the recompute task finish before
+      # teardown reclaims the sandbox connection.
+      assert %{projects: [%{reviews: [%{name: "Launch"}]}], review_files: review_files} =
+               await_review_files(page)
+
+      assert %AsyncResult{status: :ok, result: [%{review_id: _review_id}]} = review_files
+    end
+  end
 
   describe "render/1" do
     @tag :tmp_dir
@@ -611,6 +639,31 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                  review_id: review.id,
                  path: "other.md"
                })
+    end
+  end
+
+  defp flush_patches do
+    receive do
+      {:patch, _envelope} -> flush_patches()
+    after
+      0 -> :ok
+    end
+  end
+
+  # Re-renders until the async `review_files` resolves. Each render peeks the
+  # page via a synchronous call, so when the resolution patch lands the next
+  # render observes `:ok`; the wait both isolates the board-changed push and
+  # lets the recompute task finish before the sandbox connection is reclaimed.
+  defp await_review_files(page) do
+    snapshot = Testing.render(page)
+
+    case snapshot.review_files do
+      %AsyncResult{status: :ok} ->
+        snapshot
+
+      %AsyncResult{} ->
+        assert_receive {:patch, _envelope}
+        await_review_files(page)
     end
   end
 
