@@ -53,4 +53,15 @@ describe("missing or empty values", () => {
     localStorage.setItem("suikou-scroll-positions", "{not json")
     expect(loadScrollOffset(scrollPositionKey("art-1", "rendered"))).toBeNull()
   })
+
+  it("treats a stored array as corrupt so subsequent saves still persist", () => {
+    // An array JSON.stringifies back to `[]`, silently dropping string keys —
+    // readMap must reject it and fall back to a fresh object map.
+    localStorage.setItem("suikou-scroll-positions", "[]")
+    const key = scrollPositionKey("art-1", "rendered")
+    expect(loadScrollOffset(key)).toBeNull()
+
+    saveScrollOffset(key, 320)
+    expect(loadScrollOffset(key)).toBe(320)
+  })
 })

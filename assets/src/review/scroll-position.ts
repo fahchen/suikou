@@ -39,7 +39,11 @@ function readMap(): OffsetMap {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return {}
     const parsed: unknown = JSON.parse(raw)
-    if (parsed && typeof parsed === "object") return parsed as OffsetMap
+    // Arrays JSON.stringify as `[]`, dropping any string keys saveScrollOffset
+    // would set — treat them (and any non-plain-object) as corrupt.
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as OffsetMap
+    }
   } catch {
     // Corrupt JSON — start from an empty map rather than throwing.
   }
