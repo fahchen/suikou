@@ -64,6 +64,13 @@ export function useScrollRestore(options: ScrollRestoreOptions): void {
     }
   }, [container, enabled, key])
 
+  // When the hook is disabled (all-files stacked view), clear the guard so that
+  // switching back to single-file mode for the same key restores the saved
+  // single-file offset again instead of being stuck where the stacked view sat.
+  useEffect(() => {
+    if (!enabled) restoredKey.current = null
+  }, [enabled])
+
   useEffect(() => {
     if (!container || !enabled || !ready) return
     if (restoredKey.current === key) return
