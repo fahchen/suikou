@@ -46,7 +46,7 @@ defmodule SuikouWeb.AgentCLI do
   def emit(map) do
     # `IO.write` with an explicit newline rather than `IO.puts` (lint rule), so
     # the launcher still reads exactly one JSON line.
-    IO.write([Jason.encode!(map), ?\n])
+    IO.write([Jason.encode!(map, escape: :unicode_safe), ?\n])
   end
 
   @doc """

@@ -323,9 +323,12 @@ async function resolveBody(values: Values): Promise<string> {
 // exactly what the remote `IO.read(:stdio, :eof)` waits for) and capturing both
 // streams plus the exit code.
 async function rpcInvoke(bin: string, env: Record<string, string>, expr: string, json: string) {
+  // The rpc transport reads stdin in latin1; escape non-ASCII to \uXXXX so the
+  // payload survives as valid JSON (mirrors the backend's escape: :unicode_safe).
+  const ascii = json.replace(/[-￿]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"))
   const proc = spawn([bin, "rpc", expr], {
     env,
-    stdin: new TextEncoder().encode(json),
+    stdin: new TextEncoder().encode(ascii),
     stdout: "pipe",
     stderr: "pipe"
   })

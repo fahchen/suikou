@@ -23,6 +23,14 @@ defmodule SuikouWeb.AgentCLITest do
 
       assert %{"review_id" => "0192"} = Jason.decode!(out)
     end
+
+    test "escapes non-ASCII as \\uXXXX so the latin1 rpc transport can't corrupt it" do
+      out = capture_io(fn -> AgentCLI.emit(%{note: "em—dash"}) end)
+
+      assert out =~ "\\u2014"
+      assert String.printable?(out)
+      assert Enum.all?(:binary.bin_to_list(out), &(&1 < 128))
+    end
   end
 
   describe "error/1" do
