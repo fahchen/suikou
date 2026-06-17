@@ -1,6 +1,7 @@
-import { chmod, mkdir, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, join } from "node:path"
+import { parseArgs, type ParseArgsConfig } from "node:util"
 import { file, spawn, write } from "bun"
 
 // The `suikou` mix release (ERTS + app), packed at build time by erl_tar. Bun
@@ -30,10 +31,9 @@ const logDir = join(releaseTmp, "log")
 const daemonFile = join(base, "daemon.json")
 const RELEASE_NODE = "suikou@127.0.0.1"
 
-// Dispatch on the first positional arg. Bare invocation stays a foreground
-// server (the original behavior); subcommands add background daemon control.
-await dispatch(process.argv[2])
-
+// Dispatch runs at the END of this module (see the final line): the command
+// registry is a `const`, so calling dispatch before its declaration would hit the
+// temporal dead zone. Hoisted `function` declarations below are all reachable.
 async function dispatch(command: string | undefined): Promise<void> {
   switch (command) {
     case undefined:
@@ -49,10 +49,406 @@ async function dispatch(command: string | undefined): Promise<void> {
       return process.exit(await stop())
     case "status":
       return process.exit(await status())
+    case "help":
+    case "--help":
+    case "-h":
+      // `help [group [verb]]`: usage is generated from the registry, never a
+      // hand-maintained second copy.
+      console.log(usage(process.argv[3], process.argv[4]))
+      return process.exit(0)
+    case "poll":
+      // Thin alias for `review poll`: the id sits at argv[3] (one slot earlier
+      // than the `<group> <verb> <id>` form), so route directly to the spec with
+      // the argv after the alias token.
+      return process.exit(await runGroupVerb("review", "poll", process.argv.slice(3)))
+    case "project":
+    case "review":
+    case "comment":
+      return process.exit(await runGroupVerb(command, process.argv[3], process.argv.slice(4)))
     default:
-      console.error("usage: suikou [start|stop|status|run]")
+      console.error(usage())
       return process.exit(1)
   }
+}
+
+// ── Agent CLI command layer ────────────────────────────────────────────────
+//
+// Every project/review/comment verb shells into `bin/suikou rpc "<static expr>"`
+// with a JSON payload piped on stdin (the expr carries NO user content — all
+// parameters travel in the payload). Each command is one declarative spec in the
+// registry below; `runCommand` is the single generic executor.
+
+type ParseOptions = NonNullable<ParseArgsConfig["options"]>
+type Values = Record<string, string | boolean | undefined>
+
+type CommandSpec = {
+  // The static zero-arg expr evaluated by `bin/suikou rpc`.
+  expr: string
+  // parseArgs option schema for this verb's flags.
+  options: ParseOptions
+  // Whether a positional id (positionals[0]) is required as the subject.
+  id?: { name: string; required: boolean }
+  // Required flag names; missing ones produce a friendly error.
+  required?: string[]
+  // Builds the JSON payload sent on stdin from the parsed id + flag values.
+  payload: (ctx: { id?: string; values: Values }) => Record<string, unknown>
+  // One-line usage summary for `help`.
+  summary: string
+  // poll loops instead of a single round-trip.
+  poll?: boolean
+}
+
+// `--files a,b,c` → ["a","b","c"], trimming empties. ponytail: plain split, no
+// quoting/escaping — paths with commas aren't a real use case here.
+function splitFiles(values: Values): string[] {
+  const raw = values.files
+  if (typeof raw !== "string") return []
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+}
+
+// The `rounds` payload value the backend `scope/1` reads: omit (→ :latest) when
+// neither flag is given; "all" for --all; [n,n] / [from,to] of numbers for
+// --rounds. --all and --rounds are mutually exclusive.
+function roundsPayload(values: Values): { rounds?: unknown } {
+  const all = values.all === true
+  const rounds = typeof values.rounds === "string" ? values.rounds : undefined
+  if (all && rounds !== undefined) throw new UsageError("--all and --rounds are mutually exclusive")
+  if (all) return { rounds: "all" }
+  if (rounds === undefined) return {}
+
+  const match = rounds.match(/^(\d+)(?:-(\d+))?$/)
+  if (!match) throw new UsageError(`invalid --rounds ${rounds}; expected N or N-M`)
+  const from = Number(match[1])
+  const to = match[2] === undefined ? from : Number(match[2])
+  return { rounds: [from, to] }
+}
+
+const roundsOptions: ParseOptions = {
+  rounds: { type: "string" },
+  all: { type: "boolean" }
+}
+
+const registry: Record<string, Record<string, CommandSpec>> = {
+  project: {
+    list: {
+      expr: "SuikouWeb.AgentCLI.Projects.list()",
+      options: {},
+      payload: () => ({}),
+      summary: "list all projects"
+    },
+    create: {
+      expr: "SuikouWeb.AgentCLI.Projects.create()",
+      options: { name: { type: "string" }, path: { type: "string" } },
+      required: ["name", "path"],
+      payload: ({ values }) => ({ name: values.name, path: values.path }),
+      summary: "register a project (--name --path)"
+    }
+  },
+  review: {
+    list: {
+      expr: "SuikouWeb.AgentCLI.Reviews.list()",
+      options: { project: { type: "string" } },
+      required: ["project"],
+      payload: ({ values }) => ({ project_id: values.project }),
+      summary: "list a project's reviews (--project)"
+    },
+    create: {
+      expr: "SuikouWeb.AgentCLI.Reviews.create()",
+      options: { project: { type: "string" }, name: { type: "string" }, files: { type: "string" } },
+      required: ["project", "name"],
+      // --files maps to the `selections` payload key (file-selection review).
+      payload: ({ values }) => ({
+        project_id: values.project,
+        name: values.name,
+        selections: splitFiles(values)
+      }),
+      summary: "create a file-selection review (--project --name --files a,b,c)"
+    },
+    "create-diff": {
+      expr: "SuikouWeb.AgentCLI.Reviews.create_diff()",
+      options: {
+        project: { type: "string" },
+        name: { type: "string" },
+        base: { type: "string" },
+        head: { type: "string" }
+      },
+      required: ["project", "name", "base", "head"],
+      payload: ({ values }) => ({
+        project_id: values.project,
+        name: values.name,
+        base_ref: values.base,
+        head_ref: values.head
+      }),
+      summary: "create a git-diff review (--project --name --base --head)"
+    },
+    show: {
+      expr: "SuikouWeb.AgentCLI.Reviews.show()",
+      options: {},
+      id: { name: "review-id", required: true },
+      payload: ({ id }) => ({ review_id: id }),
+      summary: "show a review's metadata and files (<review-id>)"
+    },
+    files: {
+      expr: "SuikouWeb.AgentCLI.Reviews.files()",
+      options: {},
+      id: { name: "review-id", required: true },
+      payload: ({ id }) => ({ review_id: id }),
+      summary: "list a review's files (<review-id>)"
+    },
+    rename: {
+      expr: "SuikouWeb.AgentCLI.Reviews.rename()",
+      options: { name: { type: "string" } },
+      id: { name: "review-id", required: true },
+      required: ["name"],
+      payload: ({ id, values }) => ({ review_id: id, name: values.name }),
+      summary: "rename a review (<review-id> --name)"
+    },
+    "set-files": {
+      expr: "SuikouWeb.AgentCLI.Reviews.set_files()",
+      options: { files: { type: "string" } },
+      id: { name: "review-id", required: true },
+      // Here --files maps to the `files` payload key (NOT `selections`).
+      payload: ({ id, values }) => ({ review_id: id, files: splitFiles(values) }),
+      summary: "replace a review's file selection (<review-id> --files a,b,c)"
+    },
+    delete: {
+      expr: "SuikouWeb.AgentCLI.Reviews.delete()",
+      options: {},
+      id: { name: "review-id", required: true },
+      payload: ({ id }) => ({ review_id: id }),
+      summary: "delete a review (<review-id>)"
+    },
+    export: {
+      expr: "SuikouWeb.AgentCLI.Reviews.export()",
+      options: roundsOptions,
+      id: { name: "review-id", required: true },
+      payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values) }),
+      summary: "export a critique snapshot (<review-id> [--rounds a-b] [--all])"
+    },
+    poll: {
+      expr: "SuikouWeb.AgentCLI.Reviews.poll()",
+      options: { ...roundsOptions, timeout: { type: "string" } },
+      id: { name: "review-id", required: true },
+      payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values) }),
+      poll: true,
+      summary: "wait for the next submission (<review-id> [--rounds a-b] [--all] [--timeout secs])"
+    }
+  },
+  comment: {
+    reply: {
+      expr: "SuikouWeb.AgentCLI.Comments.reply()",
+      options: { body: { type: "string" }, "body-file": { type: "string" } },
+      id: { name: "comment-id", required: true },
+      payload: () => ({}), // body resolved asynchronously in runGroupVerb
+      summary: "reply to a comment (<comment-id> --body | --body-file | stdin)"
+    }
+  }
+}
+
+// A bad invocation (unknown verb, missing flag/id, malformed --rounds). Carries a
+// friendly message; the dispatcher prints it to stderr and exits non-zero.
+class UsageError extends Error {}
+
+// Route a `<group> <verb>` to its spec: parse the verb's argv, validate id/flags,
+// build the payload, then run (single round-trip, or poll loop). Returns the exit
+// code. UsageErrors print to stderr with a hint and exit 1.
+async function runGroupVerb(group: string, verb: string | undefined, argv: string[]): Promise<number> {
+  const verbs = registry[group]
+  if (!verbs) {
+    console.error(usage())
+    return 1
+  }
+  if (verb === undefined || !(verb in verbs)) {
+    console.error(`unknown command: ${group} ${verb ?? ""}`.trim() + "\n\n" + usage(group))
+    return 1
+  }
+
+  const spec = verbs[verb]
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log(usage(group, verb))
+    return 0
+  }
+
+  try {
+    const { values, positionals } = parseArgs({
+      args: argv,
+      options: spec.options,
+      allowPositionals: true,
+      strict: true
+    })
+
+    let id: string | undefined
+    if (spec.id) {
+      id = positionals[0]
+      if (spec.id.required && !id) {
+        throw new UsageError(`missing required <${spec.id.name}>`)
+      }
+    }
+
+    for (const flag of spec.required ?? []) {
+      if (values[flag] === undefined) throw new UsageError(`missing required --${flag}`)
+    }
+
+    const payload = spec.payload({ id, values })
+    if (group === "comment" && verb === "reply") {
+      payload.body = await resolveBody(values)
+    }
+
+    if (spec.poll) return await runPoll(spec, payload, values)
+    return await runCommand(spec, payload)
+  } catch (err) {
+    if (err instanceof UsageError) {
+      console.error(`${err.message}\n\n${usage(group, verb)}`)
+      return 1
+    }
+    // parseArgs throws TypeError on unknown/misused flags; surface its message.
+    if (err instanceof TypeError) {
+      console.error(`${err.message}\n\n${usage(group, verb)}`)
+      return 1
+    }
+    throw err
+  }
+}
+
+// Resolve a `comment reply` body, in priority order: --body, then --body-file,
+// then the launcher's own stdin read to EOF.
+async function resolveBody(values: Values): Promise<string> {
+  if (typeof values.body === "string") return values.body
+  if (typeof values["body-file"] === "string") {
+    return await readFile(values["body-file"] as string, "utf8")
+  }
+  return await new Response(Bun.stdin.stream()).text()
+}
+
+// The single generic executor: extract the release, pipe the JSON payload on the
+// child's stdin (EOF on close), capture its one JSON line, pass it straight
+// through on success. A downed node prints the friendly "not running" line.
+async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): Promise<number> {
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const json = JSON.stringify(payload)
+
+  const proc = spawn([bin, "rpc", spec.expr], {
+    env: await releaseEnv(),
+    // Encoding the JSON as bytes feeds stdin and closes it (EOF) — exactly what
+    // the remote `IO.read(:stdio, :eof)` waits for.
+    stdin: new TextEncoder().encode(json),
+    stdout: "pipe",
+    stderr: "pipe"
+  })
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text()
+  ])
+  const exitCode = await proc.exited
+
+  if (exitCode !== 0 && notRunning(stderr)) {
+    console.error("Suikou is not running — start it first with `suikou`.")
+    return 1
+  }
+  if (exitCode !== 0) {
+    console.error(stderr.trim() || `rpc failed (exit ${exitCode})`)
+    return exitCode
+  }
+
+  process.stdout.write(stdout)
+  return 0
+}
+
+// poll re-issues the rpc until the backend returns a non-timeout snapshot. The
+// backend blocks ~25 s per call then emits {"status":"timeout","version":N}; we
+// loop on that. --timeout caps total wall-clock and, when it elapses, prints the
+// last timeout line and exits 0. ponytail: without --timeout we loop forever —
+// the caller is an agent waiting on a human, so no submission just means "keep
+// waiting".
+async function runPoll(
+  spec: CommandSpec,
+  payload: Record<string, unknown>,
+  values: Values
+): Promise<number> {
+  const releaseRoot = await ensureExtracted()
+  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const env = await releaseEnv()
+  const json = JSON.stringify(payload)
+
+  const timeoutSecs = typeof values.timeout === "string" ? Number(values.timeout) : undefined
+  if (timeoutSecs !== undefined && (!Number.isFinite(timeoutSecs) || timeoutSecs < 0)) {
+    throw new UsageError(`invalid --timeout ${values.timeout}; expected seconds`)
+  }
+  const deadline = timeoutSecs === undefined ? Infinity : Date.now() + timeoutSecs * 1000
+
+  let lastTimeout = ""
+  for (;;) {
+    const proc = spawn([bin, "rpc", spec.expr], {
+      env,
+      stdin: new TextEncoder().encode(json),
+      stdout: "pipe",
+      stderr: "pipe"
+    })
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text()
+    ])
+    const exitCode = await proc.exited
+
+    if (exitCode !== 0 && notRunning(stderr)) {
+      console.error("Suikou is not running — start it first with `suikou`.")
+      return 1
+    }
+    if (exitCode !== 0) {
+      console.error(stderr.trim() || `rpc failed (exit ${exitCode})`)
+      return exitCode
+    }
+
+    if (!isTimeout(stdout)) {
+      process.stdout.write(stdout)
+      return 0
+    }
+    lastTimeout = stdout
+
+    if (Date.now() >= deadline) {
+      process.stdout.write(lastTimeout)
+      return 0
+    }
+  }
+}
+
+// A poll round-trip is a timeout when the JSON line says so.
+function isTimeout(line: string): boolean {
+  try {
+    return (JSON.parse(line) as { status?: string }).status === "timeout"
+  } catch {
+    return false
+  }
+}
+
+// Generate usage text from the registry so there's a single source of truth.
+// `usage()` lists everything; `usage(group)` a group; `usage(group, verb)` one verb.
+function usage(group?: string, verb?: string): string {
+  if (group && verb && registry[group]?.[verb]) {
+    return `usage: suikou ${group} ${verb}\n  ${registry[group][verb].summary}`
+  }
+  if (group && registry[group]) {
+    const lines = Object.entries(registry[group]).map(
+      ([v, spec]) => `  ${group} ${v.padEnd(12)} ${spec.summary}`
+    )
+    return `usage: suikou ${group} <verb>\n${lines.join("\n")}`
+  }
+
+  const lifecycle = "  (bare)        start the foreground server and open the browser\n" +
+    "  start|stop|status   background daemon control\n" +
+    "  poll <review-id>    alias for `review poll`"
+  const groups = Object.entries(registry)
+    .map(([g, verbs]) =>
+      Object.entries(verbs)
+        .map(([v, spec]) => `  ${`${g} ${v}`.padEnd(20)} ${spec.summary}`)
+        .join("\n")
+    )
+    .join("\n")
+  return `usage: suikou <command>\n\nlifecycle:\n${lifecycle}\n\ncommands:\n${groups}`
 }
 
 // Foreground server body shared by bare invocation and `run`: extract the release,
@@ -502,3 +898,8 @@ function tcpUp(port: number, host = "127.0.0.1"): Promise<boolean> {
     }).catch(() => settle(false))
   })
 }
+
+// Entry point, last so every `const` (notably the command registry) is past its
+// temporal dead zone before dispatch reads it. Bare invocation stays a foreground
+// server; subcommands add daemon control and the agent CLI groups.
+await dispatch(process.argv[2])
