@@ -20,7 +20,7 @@ export function CommentReplies(props: { replies: Comment["replies"] }) {
               {relativeTime(reply.inserted_at)}
             </span>
           </div>
-          <p className="whitespace-pre-wrap leading-relaxed text-text">{reply.body}</p>
+          <p className="whitespace-pre-wrap break-words leading-relaxed text-text">{reply.body}</p>
         </div>
       ))}
     </>

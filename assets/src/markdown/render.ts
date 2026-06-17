@@ -1,5 +1,7 @@
 import MarkdownIt from "markdown-it"
-import type Token from "markdown-it/lib/token.mjs"
+import Token from "markdown-it/lib/token.mjs"
+import type { BundledLanguage, Highlighter, ThemedToken } from "shiki"
+import deflist from "markdown-it-deflist"
 import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
@@ -33,7 +35,8 @@ export interface RenderedBlock {
   endLine: number
   html: string
   kind: BlockKind
-  /** Top-level HTML tag for markdown blocks (`h2`, `p`, `ul`, `table`, …), else "". */
+  /** Top-level HTML tag for markdown blocks (`h2`, `p`, `ul`, `table`, …), else "".
+   * List items split out of a list group carry `li` so each is anchorable. */
   tag: string
   /** Fence language for code blocks, else null. */
   lang: string | null
@@ -46,7 +49,7 @@ export interface RenderedBlock {
 const gfm = new MarkdownIt({ html: false, linkify: true, typographer: true })
 taskLists(gfm)
 assetImages(gfm)
-gfm.use(emoji).use(footnote).use(sub).use(sup)
+gfm.use(emoji).use(footnote).use(sub).use(sup).use(deflist)
 
 /** Strict CommonMark: no tables/strikethrough/autolinks/task lists. */
 const commonmark = new MarkdownIt("commonmark", { html: false, typographer: true })
@@ -71,32 +74,386 @@ export async function renderMarkdown(
   const { shiki } = THEME_CODE[theme]
   const highlighter = await getHighlighter()
 
-  return Promise.all(
-    groups.map(async (group): Promise<RenderedBlock> => {
+  const grouped = await Promise.all(
+    groups.map(async (group): Promise<RenderedBlock[]> => {
+      const first = group[0]
+      if (first && (first.type === "bullet_list_open" || first.type === "ordered_list_open")) {
+        return splitListGroup(group, md, env)
+      }
+
+      if (first && first.type === "table_open") {
+        return splitTableGroup(group, md, env)
+      }
+
+      if (first && first.type === "blockquote_open") {
+        return splitBlockquoteGroup(group, md, env)
+      }
+
+      if (first && first.type === "footnote_block_open") {
+        return splitFootnoteGroup(group, md, env)
+      }
+
+      if (first && first.type === "dl_open") {
+        return splitDefListGroup(group, md, env)
+      }
+
       const [startLine, endLine] = lineRange(group)
       const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
 
       if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return { startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }
+        return [{ startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }]
       }
 
       if (fence) {
         const lang = resolveLang(fence.info)
         await ensureLang(highlighter, lang)
-        const html = highlighter.codeToHtml(fence.content.replace(/\n$/, ""), { lang, theme: shiki })
-        return { startLine, endLine, kind: "code", tag: "", lang, html }
+        return splitCodeFence(fence, highlighter, shiki)
       }
 
-      return {
+      return [
+        {
+          startLine,
+          endLine,
+          kind: "markdown",
+          tag: group[0]?.tag ?? "",
+          lang: null,
+          html: md.renderer.render(group, md.options, env)
+        }
+      ]
+    })
+  )
+
+  return grouped.flat()
+}
+
+/**
+ * Splits a top-level list token group into one `RenderedBlock` per list item so
+ * each `<li>` gets its own line gutter and is independently commentable. Each
+ * item renders as a standalone single-item list that preserves its marker
+ * (bullet, or `<ol start="N">` for continuous numbering), task-list checkbox,
+ * and nesting indent. Nested items recurse into their own blocks in document
+ * order so they are anchorable too.
+ */
+function splitListGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  return splitListRange(group, 0, group.length - 1, 0, md, env)
+}
+
+function splitListRange(
+  tokens: Token[],
+  openIdx: number,
+  closeIdx: number,
+  depth: number,
+  md: MarkdownIt,
+  env: AssetEnv
+): RenderedBlock[] {
+  const ordered = tokens[openIdx].type === "ordered_list_open"
+  const startAttr = ordered ? Number(tokens[openIdx].attrGet("start") ?? "1") || 1 : 1
+  const blocks: RenderedBlock[] = []
+  let i = openIdx + 1
+  let number = startAttr
+
+  while (i < closeIdx) {
+    if (tokens[i].type !== "list_item_open") {
+      i++
+      continue
+    }
+    const itemOpen = tokens[i]
+    const itemClose = matchClose(tokens, i)
+    const own: Token[] = []
+    const nested: Array<[number, number]> = []
+    let k = i + 1
+    while (k < itemClose) {
+      const t = tokens[k]
+      if (t.type === "bullet_list_open" || t.type === "ordered_list_open") {
+        const close = matchClose(tokens, k)
+        nested.push([k, close])
+        k = close + 1
+      } else {
+        own.push(t)
+        k++
+      }
+    }
+
+    const [startLine, endLine] = lineRange(own.length > 0 ? own : [itemOpen])
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "li",
+      lang: null,
+      html: renderListItem(itemOpen, own, ordered, number, depth, md, env)
+    })
+
+    for (const [ns, ne] of nested) {
+      blocks.push(...splitListRange(tokens, ns, ne, depth + 1, md, env))
+    }
+
+    number++
+    i = itemClose + 1
+  }
+
+  return blocks
+}
+
+/**
+ * Splits a table token group into one `RenderedBlock` per `<tr>` so each row is
+ * independently anchorable, header row first. Each block carries only its row's
+ * cell HTML (the `<th>`/`<td>` run, without a wrapping `<tr>` or `<table>`); the
+ * editor stitches the rows back into one real `<table>` inside a single
+ * horizontal scroller, so columns size to their content and stay aligned across
+ * rows while the whole table scrolls as one unit. Cell alignment styles emitted
+ * by markdown-it are preserved since each cell run is rendered from its tokens.
+ */
+function splitTableGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const blocks: RenderedBlock[] = []
+
+  for (let i = 0; i < group.length; i++) {
+    if (group[i].type !== "tr_open") continue
+    const close = matchClose(group, i)
+    const cells = group.slice(i + 1, close)
+    const [startLine, endLine] = lineRange(group.slice(i, close + 1))
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "tr",
+      lang: null,
+      html: md.renderer.render(cells, md.options, env)
+    })
+    i = close
+  }
+
+  return blocks
+}
+
+/**
+ * Splits a blockquote into one `RenderedBlock` per top-level child block (each
+ * quoted paragraph, list, etc.) so a multi-paragraph quote is anchorable line
+ * by line. Each child re-renders inside its own `<blockquote>`; the inner edges
+ * drop their border and corner radius so the separate quotes merge back into
+ * one continuous quote bar with no dividers between paragraphs. A single-block
+ * quote is left as one block, matching the prior rendering.
+ */
+function splitBlockquoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const inner = group.slice(1, group.length - 1)
+  const children = groupTopLevel(inner)
+  if (children.length <= 1) {
+    const [startLine, endLine] = lineRange(group)
+    return [
+      {
         startLine,
         endLine,
         kind: "markdown",
-        tag: group[0]?.tag ?? "",
+        tag: "blockquote",
         lang: null,
         html: md.renderer.render(group, md.options, env)
       }
+    ]
+  }
+
+  const last = children.length - 1
+  return children.map((child, idx) => {
+    const [startLine, endLine] = lineRange(child)
+    return {
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "blockquote",
+      lang: null,
+      html: `<blockquote style="${blockquoteStyle(idx === 0, idx === last)}">${md.renderer.render(
+        child,
+        md.options,
+        env
+      )}</blockquote>`
+    }
+  })
+}
+
+/**
+ * Splits a definition list into one `RenderedBlock` per `<dt>`/`<dd>` so each
+ * term and definition is independently anchorable, mirroring the list-item
+ * split. Each item re-renders inside its own `<dl>` so the term/definition
+ * styling is preserved; blocks carry their `dt`/`dd` tag so the editor can hug
+ * consecutive items into one definition group.
+ */
+function splitDefListGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const blocks: RenderedBlock[] = []
+
+  for (let i = 1; i < group.length - 1; i++) {
+    const open = group[i]
+    if (open.type !== "dt_open" && open.type !== "dd_open") continue
+    const close = matchClose(group, i)
+    const item = group.slice(i, close + 1)
+    // A `<dd>`'s own open token maps back to the term's line; range from the
+    // inner content so each definition anchors to its own line, not the term.
+    const [startLine, endLine] = lineRange(item.slice(1, -1))
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: open.tag,
+      lang: null,
+      html: `<dl>${md.renderer.render(item, md.options, env)}</dl>`
     })
-  )
+    i = close
+  }
+
+  return blocks
+}
+
+/**
+ * Splits the footnote-definitions block (appended by markdown-it-footnote) into
+ * one `RenderedBlock` per footnote so each definition is independently
+ * anchorable, mirroring the list-item split. Each definition re-renders inside
+ * its own `<section class="footnotes"><ol start="N">` so its number and styling
+ * survive; only the first keeps the section's top divider/spacing, the rest
+ * suppress it so the definitions read as one continuous footnotes section.
+ */
+function splitFootnoteGroup(group: Token[], md: MarkdownIt, env: AssetEnv): RenderedBlock[] {
+  const blocks: RenderedBlock[] = []
+  let number = 1
+
+  for (let i = 1; i < group.length - 1; i++) {
+    if (group[i].type !== "footnote_open") continue
+    const close = matchClose(group, i)
+    const item = group.slice(i, close + 1)
+    const [startLine, endLine] = lineRange(item)
+    const sectionStyle = number === 1 ? "" : ' style="margin-top:0;border-top:0;padding-top:0"'
+    const start = number === 1 ? "" : ` start="${number}"`
+    blocks.push({
+      startLine,
+      endLine,
+      kind: "markdown",
+      tag: "li",
+      lang: null,
+      html: `<section class="footnotes"${sectionStyle}><ol class="footnotes-list"${start}>${md.renderer.render(
+        item,
+        md.options,
+        env
+      )}</ol></section>`
+    })
+    number++
+    i = close
+  }
+
+  return blocks
+}
+
+/** Edge overrides that merge stacked single-paragraph blockquotes into one bar. */
+function blockquoteStyle(first: boolean, last: boolean): string {
+  const parts: string[] = []
+  if (!first) parts.push("border-top:0", "border-top-left-radius:0", "border-top-right-radius:0")
+  if (!last)
+    parts.push("border-bottom:0", "border-bottom-left-radius:0", "border-bottom-right-radius:0")
+  return parts.join(";")
+}
+
+/**
+ * Splits a fenced code block into one `RenderedBlock` per source line so code
+ * review can anchor a comment to a single line, reusing the raw view's
+ * per-line Shiki tokenization (`codeToTokens`). The first and last line carry
+ * the rounded corners, vertical padding, and top/bottom border; intermediate
+ * lines share the side borders and theme background so the lines stack back
+ * into one continuous code block. Each line's source line number is derived
+ * from the fence's opening line so anchors map to the real file lines.
+ */
+function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): RenderedBlock[] {
+  const lang = resolveLang(fence.info)
+  const code = fence.content.replace(/\n$/, "")
+  const { tokens } = highlighter.codeToTokens(code, {
+    lang: lang as BundledLanguage,
+    theme: shiki
+  })
+  // fence.map is [openFenceLine, closeFenceLine+1] (0-based); the first content
+  // line sits one line below the opening fence, +1 again for 1-based output.
+  const base = (fence.map?.[0] ?? 0) + 2
+
+  return tokens.map((line, i) => {
+    const startLine = base + i
+    return {
+      startLine,
+      endLine: startLine,
+      kind: "code",
+      tag: "",
+      lang,
+      html: codeLineHtml(line)
+    }
+  })
+}
+
+/** One code line as Shiki-colored spans; an empty line keeps a space for height. */
+function codeLineHtml(tokens: ThemedToken[]): string {
+  if (tokens.length === 0) return " "
+  return tokens.map((t) => `<span style="${tokenCss(t)}">${escapeHtml(t.content)}</span>`).join("")
+}
+
+/** Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline). */
+function tokenCss(token: ThemedToken): string {
+  const parts = [`color:${token.color}`]
+  const fontStyle = token.fontStyle ?? 0
+  if (fontStyle & 1) parts.push("font-style:italic")
+  if (fontStyle & 2) parts.push("font-weight:bold")
+  if (fontStyle & 4) parts.push("text-decoration:underline")
+  return parts.join(";")
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;"
+}
+
+/** Escapes the HTML-significant characters in a code token's literal text. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (ch) => HTML_ESCAPES[ch] ?? ch)
+}
+
+/** Index of the `*_close` token matching the `*_open` token at `openIdx`. */
+function matchClose(tokens: Token[], openIdx: number): number {
+  let depth = 0
+  for (let i = openIdx; i < tokens.length; i++) {
+    depth += tokens[i].nesting
+    if (depth === 0) return i
+  }
+  return tokens.length - 1
+}
+
+/**
+ * Renders one list item as a standalone single-item list, reusing the item's
+ * own tokens (minus any nested sub-lists, which become their own blocks). The
+ * wrapping list carries the marker semantics: `<ol start="N">` for continuous
+ * ordered numbering and a per-depth indent so nested items read as nested.
+ */
+function renderListItem(
+  itemOpen: Token,
+  own: Token[],
+  ordered: boolean,
+  number: number,
+  depth: number,
+  md: MarkdownIt,
+  env: AssetEnv
+): string {
+  const listOpen = new Token(ordered ? "ordered_list_open" : "bullet_list_open", ordered ? "ol" : "ul", 1)
+  listOpen.block = true
+  listOpen.attrSet("style", listStyle(ordered, depth))
+  if (ordered && number !== 1) listOpen.attrSet("start", String(number))
+
+  const listClose = new Token(ordered ? "ordered_list_close" : "bullet_list_close", ordered ? "ol" : "ul", -1)
+  listClose.block = true
+
+  const itemClose = new Token("list_item_close", "li", -1)
+  itemClose.block = true
+
+  const slice = [listOpen, itemOpen, ...own, itemClose, listClose]
+  return md.renderer.render(slice, md.options, env)
+}
+
+/** Per-depth indent (and nested bullet marker) for a standalone single-item list. */
+function listStyle(ordered: boolean, depth: number): string {
+  const parts = [`padding-left:${(depth + 1) * 19}px`]
+  if (!ordered && depth > 0) parts.push("list-style-type:circle")
+  return parts.join(";")
 }
 
 /**

@@ -799,20 +799,77 @@
   }
 }
 
+/* Shared line-number gutter surface. Every gutter-bearing review view (rendered
+   markdown rows, raw source, code fences, tables, diffs) references these tokens
+   so the column has one width and one set of colors across views. Aliases are
+   late-bound through var(), so the per-theme `--faint`/`--blue`/`--editor-bg`
+   still resolve at the element using `.gutter-cell`. */
+:root {
+  --gutter-w: 3rem;
+  --gutter-fg: var(--faint);
+  --gutter-fg-active: var(--blue);
+  --gutter-bg: var(--editor-bg);
+  --gutter-bg-active: var(--active-line);
+}
+
 /* Markdown content rendered from `dangerouslySetInnerHTML` — Tailwind utilities
    can't reach inside, so the rendered HTML is styled here against theme tokens. */
 @layer components {
+  /* The one shared gutter look: a right-aligned, monospace line label with a
+     reveal-on-hover "+" add-comment affordance. Each view owns its own layout
+     (column vs. table cell) but paints the gutter with this class so colors,
+     width, and the hover/selected states stay identical everywhere. State is
+     driven by data-attributes so views can light the gutter from JS (cross-column
+     hover) as well as native :hover. */
+  .gutter-cell {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 2px;
+    width: var(--gutter-w);
+    min-width: var(--gutter-w);
+    padding-right: 0.5rem;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--gutter-fg);
+    background: var(--gutter-bg);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.12s;
+  }
+
+  .gutter-cell .gutter-plus {
+    display: none;
+    color: var(--gutter-fg-active);
+  }
+
+  /* Hover lights the gutter. `:hover` covers hovering the gutter itself;
+     `[data-hover]` is the JS-driven cross-column hover the code/raw scrollers set
+     when the pointer is over a content line in the other column; `.md-row` is the
+     single-block markdown row whose gutter and content share one grid element. */
+  .gutter-cell:hover,
+  .gutter-cell[data-hover="true"],
+  .md-row[aria-selected="false"]:hover .gutter-cell {
+    color: var(--gutter-fg-active);
+    background: var(--hover);
+  }
+
+  .gutter-cell:hover .gutter-plus,
+  .gutter-cell[data-hover="true"] .gutter-plus,
+  .md-row[aria-selected="false"]:hover .gutter-cell .gutter-plus {
+    display: inline-flex;
+  }
+
+  .gutter-cell[data-selected="true"] {
+    color: var(--gutter-fg-active);
+    background: var(--gutter-bg-active);
+  }
+
   .md-content {
     color: var(--text);
     font-size: 15.5px;
     line-height: 1.62;
     letter-spacing: -0.006em;
-  }
-
-  /* Magazine measure: prose stays at a book-comfortable line length while wide
-     media (tables, code, diagrams are separate blocks) span the full column. */
-  .md-content :is(h1, h2, h3, h4, p, ul, ol, blockquote) {
-    max-width: 70ch;
   }
 
   .md-content h1,
@@ -823,34 +880,36 @@
     margin: 0;
   }
 
-  /* The live document title is an h1 (`#`); section headings are h2 (`##`).
-     The mockup's title is 23px/760 and its sections are 16px/680, so the live
-     heading scale is shifted one level to land on those exact values. */
+  /* Monotonically descending scale: every level is visibly larger and heavier
+     than the next, and h4 still outsizes body text so headings never read as
+     smaller than the prose they introduce. Size, weight, and `--heading` color
+     each carry part of the hierarchy. */
   .md-content h1 {
-    font-size: 23px;
-    font-weight: 760;
-    line-height: 1.22;
-    letter-spacing: -0.022em;
+    font-size: 26px;
+    font-weight: 750;
+    line-height: 1.2;
+    letter-spacing: -0.021em;
   }
 
   .md-content h2 {
-    font-size: 16px;
-    font-weight: 680;
-    line-height: 1.3;
-    letter-spacing: -0.012em;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.016em;
   }
 
   .md-content h3 {
-    font-size: 14px;
-    font-weight: 660;
+    font-size: 18px;
+    font-weight: 670;
     line-height: 1.3;
-    letter-spacing: -0.008em;
+    letter-spacing: -0.011em;
   }
 
   .md-content h4 {
-    font-size: 13px;
-    font-weight: 640;
-    line-height: 1.3;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.34;
+    letter-spacing: -0.006em;
   }
 
   .md-content p,
@@ -973,6 +1032,20 @@
     margin: 0.4em 0;
   }
 
+  .md-content dl {
+    margin: 0;
+  }
+
+  .md-content dt {
+    font-weight: 650;
+    color: var(--heading);
+  }
+
+  .md-content dd {
+    margin: 0 0 0 1.25em;
+    color: var(--muted);
+  }
+
   .md-content table {
     border-collapse: collapse;
     width: 100%;
@@ -992,28 +1065,89 @@
     font-weight: 600;
   }
 
-  .md-code pre.shiki {
-    margin: 0;
-    padding: 0.85em 1em;
-    border-radius: 8px;
-    border: 1px solid var(--line-soft);
-    overflow-x: auto;
-    font-size: 0.86rem;
-    line-height: 1.6;
+  /* One real table per markdown table: content-proportional columns that scroll
+     as a single unit when wide, with a sticky per-row gutter for anchoring. */
+  .md-table {
+    border-collapse: collapse;
+    font-size: 0.92em;
   }
 
-  .md-code pre.shiki code {
-    font-family: var(--mono);
+  .md-table th,
+  .md-table td {
+    border: 1px solid var(--line);
+    padding: 0.35em 0.7em;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .md-table th {
+    background: var(--soft);
+    color: var(--heading);
+    font-weight: 600;
+  }
+
+  /* The gutter is a line-number column, not table content: strip the cell border
+     and padding it inherits from the `.md-table td` rule so it reads as a plain
+     gutter. A single markdown table is one horizontal-scroll unit, so the gutter
+     must travel with that scroll — hence `position: sticky; left: 0`, which holds
+     drift-free here because the gutter is the row's leftmost cell with nothing
+     before it. The `.gutter-cell` button inside supplies the shared look. */
+  .md-table .md-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    width: var(--gutter-w);
+    min-width: var(--gutter-w);
+    border: 0;
+    padding: 0;
+    background: var(--gutter-bg);
+  }
+
+  .md-table .md-gutter .gutter-cell {
+    align-items: center;
+    width: 100%;
+    padding-block: 0.35em;
+  }
+
+  /* Whole-row hover lights the gutter, mirroring the cross-column hover the
+     code/raw views drive from JS. */
+  .md-table tr:hover .gutter-cell {
+    color: var(--gutter-fg-active);
+  }
+
+  .md-table tr:hover .gutter-cell .gutter-plus {
+    display: inline-flex;
+  }
+
+  .md-table tr[aria-selected="false"]:hover > td,
+  .md-table tr[aria-selected="false"]:hover > th {
+    background: var(--hover);
+  }
+
+  .md-table tr[aria-selected="true"] > td,
+  .md-table tr[aria-selected="true"] > th {
+    background: var(--active-line);
+  }
+
+  .md-table tr[aria-selected="true"] .gutter-cell {
+    color: var(--gutter-fg-active);
+    background: var(--gutter-bg-active);
+  }
+
+  .md-table td.md-table-aside {
+    border: 0;
+    padding: 0;
+    background: var(--gutter-bg);
+    white-space: normal;
   }
 
   .md-mermaid {
-    display: flex;
-    justify-content: center;
+    overflow-x: auto;
     padding: 0.6em 0;
   }
 
   .md-mermaid svg {
-    max-width: 100%;
+    max-width: none;
     height: auto;
   }
 

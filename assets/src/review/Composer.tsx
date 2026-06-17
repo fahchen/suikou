@@ -23,26 +23,32 @@ export const Composer = observer(function Composer(props: {
   startLine: number;
   endLine: number;
   selectedText: string;
+  /** File scope this draft belongs to; `null` is single-file legacy scope. */
+  filePath?: string | null;
 }) {
   const ui = uiStore;
   const commands = useReviewCommands();
+  const path = props.filePath ?? null;
+  const draft = ui.draftFor(path);
+  const body = draft?.body ?? "";
+  const type = draft?.type ?? "note";
 
   // Seed a GitHub-style suggestion fence with the anchored lines' current text so
   // the reviewer edits from the existing source instead of an empty block.
   function suggest() {
     const fence = `\`\`\`suggestion\n${props.selectedText}\n\`\`\``;
-    ui.setComposerBody(`${ui.composerBody}${ui.composerBody ? "\n" : ""}${fence}`);
+    ui.setComposerBody(`${body}${body ? "\n" : ""}${fence}`, path);
   }
 
   function add() {
-    if (!ui.composerBody.trim()) return;
+    if (!body.trim()) return;
     void commands.addComment.dispatch({
-      scope: ui.composerScope,
-      critique_type: ui.composerType,
-      body: ui.composerBody.trim(),
+      scope: draft?.scope ?? "located",
+      critique_type: type,
+      body: body.trim(),
       anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
     });
-    ui.closeComposer();
+    ui.closeComposer(path);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -51,7 +57,7 @@ export const Composer = observer(function Composer(props: {
       add();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      ui.closeComposer();
+      ui.closeComposer(path);
     }
   }
 
@@ -74,19 +80,19 @@ export const Composer = observer(function Composer(props: {
           Tap another line to extend.
         </span>
         <div className="flex flex-wrap gap-1 sm:ml-auto">
-          {TYPES.map((type) => (
+          {TYPES.map((option) => (
             <button
-              key={type}
+              key={option}
               type="button"
-              aria-pressed={ui.composerType === type}
+              aria-pressed={type === option}
               className={`inline-flex h-6 cursor-pointer items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
-                ui.composerType === type
-                  ? TYPE_TONE[CRITIQUE_META[type].tone]
+                type === option
+                  ? TYPE_TONE[CRITIQUE_META[option].tone]
                   : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
               }`}
-              onClick={() => ui.setComposerType(type)}
+              onClick={() => ui.setComposerType(option, path)}
             >
-              {CRITIQUE_META[type].label}
+              {CRITIQUE_META[option].label}
             </button>
           ))}
         </div>
@@ -96,8 +102,8 @@ export const Composer = observer(function Composer(props: {
         autoFocus
         className="min-h-20 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         placeholder="Leave a comment. Markdown supported."
-        value={ui.composerBody}
-        onChange={(e) => ui.setComposerBody(e.target.value)}
+        value={body}
+        onChange={(e) => ui.setComposerBody(e.target.value, path)}
         onKeyDown={onKeyDown}
       />
 
@@ -121,14 +127,14 @@ export const Composer = observer(function Composer(props: {
             variant="ghost"
             size="sm"
             className="text-muted-foreground"
-            onClick={() => ui.closeComposer()}
+            onClick={() => ui.closeComposer(path)}
           >
             Cancel
           </Button>
           <Button
             type="button"
             size="sm"
-            disabled={commands.addComment.isPending || !ui.composerBody.trim()}
+            disabled={commands.addComment.isPending || !body.trim()}
             onClick={add}
           >
             Add comment

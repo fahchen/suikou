@@ -7,9 +7,10 @@ import { badgePop } from "../motion"
 import { CommentRail } from "../CommentRail"
 import { FileRenderHeader } from "../FileRenderHeader"
 import { FileScopeProvider } from "../file-scope"
+import { orderedReviewFiles } from "../file-order"
 import { uiStore } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
-import { useContent, useReviewFileContent, type ContentState } from "../use-content"
+import { contentErrorFrom, useContent, useReviewFileContent, type ContentState } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
@@ -68,9 +69,35 @@ export const AllFilesView = observer(function AllFilesView(props: {
   // later (server refreshes `:files`). Active card is unaffected — it reads
   // through the route shell's `verdict` prop.
   const [draftByPath, setDraftByPath] = useState<Record<string, Verdict>>({})
+  // Files start expanded; only explicit collapses are tracked so a new file
+  // entering the stack defaults open without seeding state for every path.
+  const [collapsedByPath, setCollapsedByPath] = useState<Record<string, boolean>>({})
+  // Stable article elements per path so the switcher can scroll any card into
+  // view even before its lazy body has mounted (the article always renders).
+  const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   function setInactiveDraft(path: string, verdict: Verdict) {
     setDraftByPath((prev) => ({ ...prev, [path]: verdict }))
+  }
+
+  function setExpanded(path: string, expanded: boolean) {
+    setCollapsedByPath((prev) => ({ ...prev, [path]: !expanded }))
+  }
+
+  function registerCard(path: string, el: HTMLElement | null) {
+    if (el) cardRefs.current.set(path, el)
+    else cardRefs.current.delete(path)
+  }
+
+  function selectFile(file: ReviewFileEntry) {
+    setExpanded(file.path, true)
+    // Defer the scroll a frame so the just-expanded card has its full height
+    // before we align it to the top of the viewport.
+    requestAnimationFrame(() => {
+      cardRefs.current
+        .get(file.path)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
   }
 
   if (files === null) {
@@ -83,6 +110,12 @@ export const AllFilesView = observer(function AllFilesView(props: {
   }
 
   const visible = uiStore.hideReviewed ? files.filter((f) => f.verdict === null) : files
+  // Switcher lists only what's on screen so every entry has a card to scroll to.
+  const switcherFiles = orderedReviewFiles(visible)
+
+  function commentCountFor(path: string): number {
+    return commentsForPath(snapshot, path).filter((c) => c.scope !== "review").length
+  }
 
   if (visible.length === 0) {
     return (
@@ -109,6 +142,12 @@ export const AllFilesView = observer(function AllFilesView(props: {
           onActiveVerdictChange={onVerdictChange}
           inactiveDraft={draftByPath[file.path]}
           onInactiveDraftChange={setInactiveDraft}
+          expanded={collapsedByPath[file.path] !== true}
+          onSetExpanded={setExpanded}
+          registerCard={registerCard}
+          switcherFiles={switcherFiles}
+          onSelectFile={selectFile}
+          commentCountFor={commentCountFor}
         />
       ))}
     </div>
@@ -125,6 +164,12 @@ const StackedFile = observer(function StackedFile(props: {
   onActiveVerdictChange: (verdict: Verdict) => void
   inactiveDraft: Verdict | undefined
   onInactiveDraftChange: (path: string, verdict: Verdict) => void
+  expanded: boolean
+  onSetExpanded: (path: string, expanded: boolean) => void
+  registerCard: (path: string, el: HTMLElement | null) => void
+  switcherFiles: ReviewFileEntry[]
+  onSelectFile: (file: ReviewFileEntry) => void
+  commentCountFor: (path: string) => number
 }) {
   const {
     file,
@@ -135,9 +180,14 @@ const StackedFile = observer(function StackedFile(props: {
     activeVerdict,
     onActiveVerdictChange,
     inactiveDraft,
-    onInactiveDraftChange
+    onInactiveDraftChange,
+    expanded,
+    onSetExpanded,
+    registerCard,
+    switcherFiles,
+    onSelectFile,
+    commentCountFor
   } = props
-  const [expanded, setExpanded] = useState(true)
   const cardRef = useRef<HTMLElement | null>(null)
   const nearViewport = useNearViewport(cardRef)
   const wide = useMediaQuery(WIDE_QUERY)
@@ -233,7 +283,10 @@ const StackedFile = observer(function StackedFile(props: {
   return (
     <ReviewCommandsOverrideContext.Provider value={commandsOverride}>
       <article
-        ref={cardRef}
+        ref={(el) => {
+          cardRef.current = el
+          registerCard(path, el)
+        }}
         className="overflow-hidden rounded-xl border border-line bg-editor transition-colors duration-150 hover:border-line-strong/90"
       >
         <FileRenderHeader
@@ -246,8 +299,11 @@ const StackedFile = observer(function StackedFile(props: {
           capabilities={capabilities}
           rawView={rawView}
           onRawViewChange={(next) => uiStore.setFileRawView(path, next)}
+          files={switcherFiles}
+          onSelectFile={onSelectFile}
+          commentCountFor={commentCountFor}
           expanded={expanded}
-          onToggleExpand={() => setExpanded((v) => !v)}
+          onToggleExpand={() => onSetExpanded(path, !expanded)}
           verdictChip={
             <FileVerdictMenu
               snapshot={snapshot}
@@ -396,6 +452,7 @@ const ScopedFileBody = observer(function ScopedFileBody(props: {
     snapshot,
     file,
     state.text,
+    contentErrorFrom(state),
     viewKind,
     previewable,
     blocks.blocks,
@@ -407,21 +464,13 @@ const ScopedFileBody = observer(function ScopedFileBody(props: {
   if (image) {
     return <StackedImage file={file} reviewId={reviewId} />
   }
-  if (state.missing) {
-    return (
-      <p className="px-3 py-4 text-[12px] text-muted-foreground">Content unavailable.</p>
-    )
-  }
-  if (state.error) {
-    return <p className="px-3 py-4 text-[12px] text-red">{state.error}</p>
-  }
   if (state.loading && state.text === "") {
     return <p className="px-3 py-4 text-[12px] text-muted-foreground">Loading…</p>
   }
 
   const ViewComponent = viewComponentFor(viewKind)
   return (
-    <FileScopeProvider filePath={path}>
+    <FileScopeProvider artifactId={snapshot.artifact.id} filePath={path}>
       <ReviewViewProvider value={view}>
         <ViewComponent view={view} forceRaw={rawView} inline={inline} nested />
       </ReviewViewProvider>
@@ -433,6 +482,7 @@ function useStackedFileView(
   snapshot: ReviewSnapshot,
   file: ReviewFileEntry,
   content: string,
+  contentError: string | null,
   viewKind: ViewKind,
   previewable: boolean,
   blocks: ReviewView["blocks"],
@@ -459,7 +509,7 @@ function useStackedFileView(
       }
     } as ReviewSnapshot,
     content,
-    contentError: null,
+    contentError,
     blocks,
     loading: blocksLoading,
     comments,

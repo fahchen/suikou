@@ -11,6 +11,24 @@ export interface ContentState {
 }
 
 /**
+ * Body shown when an artifact's source can't be found (the backend answered
+ * 404) — the file was deleted or moved after the review was created.
+ */
+export const MISSING_CONTENT_MESSAGE =
+  "It may have been deleted or moved since this review was created."
+
+/**
+ * Collapse a content fetch result into a single notice message for the view
+ * layer: the friendly missing-file copy for a 404, the raw failure for any
+ * other error, or null when the content is present. Keeps a deleted source from
+ * rendering as a blank editor.
+ */
+export function contentErrorFrom(state: ContentState): string | null {
+  if (state.missing) return MISSING_CONTENT_MESSAGE
+  return state.error
+}
+
+/**
  * Fetches an artifact's reviewed source text live from the backend content
  * route. Content is no longer carried in the Musubi snapshot. `revision` is the
  * round's content hash, so the fetch re-runs whenever the file changes (a new

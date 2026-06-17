@@ -34,7 +34,7 @@ describe("Composer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Suggest" }));
 
-    expect(uiStore.composerBody).toBe("```suggestion\nfirst line\nsecond line\n```");
+    expect(uiStore.draftFor(null)?.body).toBe("```suggestion\nfirst line\nsecond line\n```");
   });
 
   it("dispatches add_comment with the draft and anchor, then closes", () => {
@@ -52,6 +52,6 @@ describe("Composer", () => {
       body: "needs a fix",
       anchor: { type: "line_range", start_line: 3, end_line: 5 },
     });
-    expect(uiStore.selStart).toBeNull();
+    expect(uiStore.draftFor(null)).toBeUndefined();
   });
 });

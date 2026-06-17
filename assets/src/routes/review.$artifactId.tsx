@@ -5,7 +5,7 @@ import { observer } from "mobx-react-lite"
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
-import { useContent } from "../review/use-content"
+import { contentErrorFrom, useContent } from "../review/use-content"
 import { useRawHighlight } from "../review/use-raw-highlight"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import {
@@ -20,6 +20,7 @@ import { FileHeader } from "../review/FileHeader"
 import { useReviewCommands } from "../review/commands"
 import { CommentRail } from "../review/CommentRail"
 import { AllFilesView } from "../review/views/AllFilesView"
+import { useScrollRestore } from "../review/use-scroll-restore"
 import { HtmlAnchorComposer } from "../review/views/HtmlAnchorComposer"
 import { isPreviewable, isImagePath } from "../review/file-type"
 import { assetBase } from "../review/urls"
@@ -128,17 +129,20 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const image = isImagePath(title)
   const slash = title.lastIndexOf("/")
 
-  const { text: content, loading: contentLoading, error: contentError } = useContent(
+  const contentState = useContent(
     snapshot.artifact.id,
     snapshot.current_round.content_hash,
     !image
   )
+  const { text: content, loading: contentLoading } = contentState
+  const contentError = contentErrorFrom(contentState)
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
     base: assetBase(snapshot.artifact.id),
     dir: slash === -1 ? "" : title.slice(0, slash)
   })
   const rawLines = useRawHighlight(content, title, ui.theme)
+  const loading = blocks.loading || contentLoading
 
   // Reveal any comment that appears after this mount (e.g. one you just added)
   // so it shows immediately even under hide-all. The set lives only in this
@@ -163,6 +167,18 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const allFiles = ui.fileDisplayMode === "all"
   const sideMode = ui.commentMode === "side" && wide && !ui.hideComments && !allFiles
 
+  // Single-file mode: remember and restore each file's scroll offset (per
+  // rendered/raw view) across file switches and hard reloads. The all-files
+  // stacked view manages its own layout, so it opts out.
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null)
+  useScrollRestore({
+    container: mainEl,
+    artifactId: snapshot.artifact.id,
+    view: rawView ? "raw" : "rendered",
+    ready: !loading,
+    enabled: !allFiles
+  })
+
   // The artifact was deleted out from under this tab (its review was removed).
   if (!snapshot.artifact.id) {
     return (
@@ -176,7 +192,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   }
 
   return (
-    <main className="h-screen overflow-auto bg-canvas text-ink">
+    <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
       <TopBar
         snapshot={snapshot}
         previewable={previewable}
@@ -196,7 +212,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
               content,
               contentError,
               blocks: blocks.blocks,
-              loading: blocks.loading || contentLoading,
+              loading,
               comments,
               previewable,
               rawLines,

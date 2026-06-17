@@ -12,6 +12,15 @@ export type Density = "tight" | "normal" | "loose"
 export type DiffLayout = "unified" | "side"
 export type FileDisplayMode = "single" | "all"
 
+/** A file's unsaved comment composer: its line anchor plus body/type/scope. */
+export interface ComposerDraft {
+  selStart: number | null
+  selEnd: number | null
+  scope: CommentScope
+  type: CritiqueType
+  body: string
+}
+
 const THEME_KEY = "suikou-theme"
 const COMMENT_MODE_KEY = "suikou-comment-mode"
 const DENSITY_KEY = "suikou-density"
@@ -54,15 +63,13 @@ export class UiStore {
     note: true
   }
 
-  selStart: number | null = null
-  selEnd: number | null = null
-  composerScope: CommentScope = "located"
-  composerType: CritiqueType = "note"
-  composerBody = ""
-  // All-files mode scopes the active composer to one stacked file at a time
-  // so clicking line 12 in `foo.md` and line 12 in `bar.md` doesn't render two
-  // composers. Single-file mode passes `null` and keeps the legacy behavior.
-  composerFilePath: string | null = null
+  // In-progress comment drafts, one per file path. A draft is the unsaved
+  // composer for a file: its anchor selection plus body/type/scope. Keying by
+  // path means switching files never loses or bleeds a draft — the destination
+  // file's own draft is restored, and the file you left keeps its text. An
+  // entry is removed only on successful submit or an explicit cancel. The
+  // legacy single-file scope (`null`) maps to the empty-string key.
+  drafts: Record<string, ComposerDraft> = {}
 
   // Visible mint-on-click affordance: the path currently being minted into
   // an artifact by an `open_file` command. Survives the navigation that
@@ -201,53 +208,56 @@ export class UiStore {
     this.typeFilters[type] = !this.typeFilters[type]
   }
 
+  // The unsaved draft for a file, or undefined when the file has none open.
+  draftFor(filePath: string | null): ComposerDraft | undefined {
+    return this.drafts[filePath ?? ""]
+  }
+
   openComposer(
     start: number | null,
     end: number | null,
     scope: CommentScope,
     filePath: string | null = null
   ): void {
-    this.selStart = start
-    this.selEnd = end
-    this.composerScope = scope
-    this.composerType = "note"
-    this.composerBody = ""
-    this.composerFilePath = filePath
+    this.putDraft(filePath, { selStart: start, selEnd: end, scope, type: "note", body: "" })
   }
 
-  // Grow the active selection to cover [start, end], keeping the lowest start and
-  // highest end so shift-clicking any line above or below extends the range.
-  // In all-files mode, extending across files closes the cross-file selection
-  // and starts a fresh one in the new file scope.
+  // Grow a file's draft selection to cover [start, end], keeping the lowest
+  // start and highest end so shift-clicking any line above or below extends the
+  // range. Each file's draft is independent, so extending only touches its own.
   extendSelection(start: number, end: number, filePath: string | null = null): void {
-    if (this.composerFilePath !== filePath) {
-      this.composerFilePath = filePath
-      this.selStart = start
-      this.selEnd = end
+    const draft = this.draftFor(filePath)
+    if (!draft || draft.selStart === null || draft.selEnd === null) {
+      this.putDraft(filePath, {
+        selStart: start,
+        selEnd: end,
+        scope: draft?.scope ?? "located",
+        type: draft?.type ?? "note",
+        body: draft?.body ?? ""
+      })
       return
     }
-    if (this.selStart === null || this.selEnd === null) {
-      this.selStart = start
-      this.selEnd = end
-      return
-    }
-    this.selStart = Math.min(this.selStart, start)
-    this.selEnd = Math.max(this.selEnd, end)
+    this.putDraft(filePath, {
+      ...draft,
+      selStart: Math.min(draft.selStart, start),
+      selEnd: Math.max(draft.selEnd, end)
+    })
   }
 
-  closeComposer(): void {
-    this.selStart = null
-    this.selEnd = null
-    this.composerBody = ""
-    this.composerFilePath = null
+  closeComposer(filePath: string | null = null): void {
+    const key = filePath ?? ""
+    if (!(key in this.drafts)) return
+    const next = { ...this.drafts }
+    delete next[key]
+    this.drafts = next
   }
 
-  setComposerType(type: CritiqueType): void {
-    this.composerType = type
+  setComposerType(type: CritiqueType, filePath: string | null = null): void {
+    this.putDraft(filePath, { ...this.blankDraft(filePath), type })
   }
 
-  setComposerBody(body: string): void {
-    this.composerBody = body
+  setComposerBody(body: string, filePath: string | null = null): void {
+    this.putDraft(filePath, { ...this.blankDraft(filePath), body })
   }
 
   setMintingPath(path: string | null): void {
@@ -273,6 +283,24 @@ export class UiStore {
     target: { artifactId: string; selector: string; quote: string } | null
   ): void {
     this.htmlAnchorTarget = target
+  }
+
+  private putDraft(filePath: string | null, draft: ComposerDraft): void {
+    this.drafts = { ...this.drafts, [filePath ?? ""]: draft }
+  }
+
+  // The current draft for a file, or an empty one so a body/type edit can land
+  // even before a selection is opened (e.g. a test seeding text directly).
+  private blankDraft(filePath: string | null): ComposerDraft {
+    return (
+      this.draftFor(filePath) ?? {
+        selStart: null,
+        selEnd: null,
+        scope: "located",
+        type: "note",
+        body: ""
+      }
+    )
   }
 
   private applyTheme(): void {

@@ -81,7 +81,7 @@ export const CommentCard = observer(function CommentCard(props: {
         />
 
         <CollapsibleContent>
-          <div className="flex flex-col gap-2 px-3 py-2.5">
+          <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5">
             {outdated && (
               <p className="text-[12px] text-amber">
                 Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
@@ -91,7 +91,7 @@ export const CommentCard = observer(function CommentCard(props: {
             {editing ? (
               <CommentEditPanel comment={comment} onDone={() => setEditing(false)} />
             ) : (
-              <p className="whitespace-pre-wrap leading-relaxed text-text">{comment.body}</p>
+              <p className="whitespace-pre-wrap break-words leading-relaxed text-text">{comment.body}</p>
             )}
 
             <CommentReplies replies={comment.replies} />

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vite
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { AllFilesView } from "./AllFilesView"
+import { MISSING_CONTENT_MESSAGE } from "../use-content"
 import { uiStore } from "../../stores/ui-store"
 import type { ReviewSnapshot } from "../types"
 
@@ -206,14 +207,14 @@ describe("AllFilesView", () => {
     expect(url).toBe("/api/review/a-99/content")
   })
 
-  it("renders the content-unavailable placeholder when the content route 404s", async () => {
+  it("renders the missing-source notice when the content route 404s", async () => {
     fetchMock.mockResolvedValueOnce(notFoundResponse())
 
     renderAllFiles([
       { path: "deleted.md", artifact_id: null, approved: false, verdict: null, content_hash: null, change_status: null }
     ])
 
-    expect(await screen.findByText("Content unavailable.")).toBeInTheDocument()
+    expect(await screen.findByText(MISSING_CONTENT_MESSAGE)).toBeInTheDocument()
     // 404 must not retry — exactly one fetch.
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
