@@ -242,7 +242,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Comments.reply()",
       options: { body: { type: "string" }, "body-file": { type: "string" } },
       id: { name: "comment-id", required: true },
-      payload: () => ({}), // body resolved asynchronously in runGroupVerb
+      payload: ({ id }) => ({ comment_id: id }), // body resolved asynchronously in runGroupVerb
       summary: "reply to a comment (<comment-id> --body | --body-file | stdin)"
     }
   }
