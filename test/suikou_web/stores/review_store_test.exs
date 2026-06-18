@@ -3,10 +3,42 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   import Suikou.Factory
 
+  alias Musubi.Socket
   alias Musubi.Testing
   alias Suikou.Reads
+  alias Suikou.Schemas.Artifact
   alias Suikou.Submissions
+  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.ReviewStore
+
+  describe "submit wake broadcast" do
+    test "submitting via the command broadcasts :comments_changed on the review topic" do
+      round = insert(:round)
+      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+      CommentBroadcast.subscribe(review_id)
+
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} = Testing.dispatch_command(page, :submit_review, %{verdict: :comment})
+
+      assert_receive :comments_changed
+    end
+  end
+
+  describe "comments child fan-out on :comments_changed" do
+    # `Musubi.send_update/2` sends to `self()`; invoking the callback directly
+    # from the test process makes `self()` the test, so the fan-out message
+    # lands in this mailbox.
+    test "handle_info(:comments_changed) pushes a reload_token to the comments child" do
+      artifact = insert(:round).artifact
+      socket = %Socket{assigns: %{artifact_id: artifact.id}}
+
+      {:noreply, %Socket{}} = ReviewStore.handle_info(:comments_changed, socket)
+
+      assert_receive {:musubi_send_update, ["comments"], %{reload_token: token}}
+      assert is_integer(token)
+    end
+  end
 
   describe "missing artifact" do
     test "renders an empty snapshot instead of crashing when the artifact is gone" do

@@ -22,6 +22,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
   alias SuikouWeb.Iso8601
+  alias SuikouWeb.Stores.BoardBroadcast
   alias SuikouWeb.Stores.ProjectBoardContract
   require ProjectBoardContract
 
@@ -178,7 +179,20 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   @impl Musubi.Store
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
-  def mount(_params, socket), do: {:ok, refresh_review_files(socket)}
+  def mount(_params, socket) do
+    BoardBroadcast.subscribe()
+    {:ok, refresh_review_files(socket)}
+  end
+
+  # A board write on another connection (e.g. a CLI `review create`) does not
+  # dirty this open board, so it would push no patch. Recompute the review
+  # list and dirty an assign so the next render reflects the change live. As a
+  # root store with no children there is no `send_update` fan-out.
+  @impl Musubi.Store
+  @spec handle_info(BoardBroadcast.message(), Socket.t()) :: {:noreply, Socket.t()}
+  def handle_info(:board_changed, socket) do
+    {:noreply, socket |> refresh_review_files() |> touch()}
+  end
 
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
