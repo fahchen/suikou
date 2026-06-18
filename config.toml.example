@@ -40,3 +40,9 @@
 # Database connection pool size.
 # Default: 5.
 # pool_size = 5
+
+# TCP port the server listens on. The launcher reads this to bind, record, and
+# probe the daemon, then opens http://localhost:<port>. The PORT environment
+# variable, if set, overrides it for a single invocation.
+# Default: 47100.
+# port = 47100

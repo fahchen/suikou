@@ -854,8 +854,9 @@ async function ensureCookie(): Promise<string> {
   return cookie
 }
 
-// Honor an explicit PORT; otherwise use BASE_PORT and fail loudly if it is
-// occupied, rather than drifting to an unpredictable port.
+// Honor an explicit PORT; otherwise use the configured port (config.toml `port`,
+// defaulting to BASE_PORT) and fail loudly if it is occupied, rather than
+// drifting to an unpredictable port.
 async function pickPort(): Promise<number> {
   const explicit = process.env.PORT
   if (explicit) {
@@ -866,10 +867,37 @@ async function pickPort(): Promise<number> {
     return parsed
   }
 
-  if (await tcpUp(BASE_PORT)) {
-    throw new Error(`port ${BASE_PORT} is in use; stop whatever is using it or set PORT to override`)
+  const port = await configuredPort()
+  if (await tcpUp(port)) {
+    throw new Error(`port ${port} is in use; stop whatever is using it or set PORT to override`)
   }
-  return BASE_PORT
+  return port
+}
+
+// Read the `port` key from the same XDG config.toml runtime.exs reads. The
+// launcher must resolve it itself (not via the release) because it owns the
+// recorded daemon port, the browser URL, and the liveness probe — all of which
+// would desync if the release picked a different port. A malformed file or an
+// out-of-range value fails loudly; a missing file/key uses BASE_PORT.
+async function configuredPort(): Promise<number> {
+  const configHome = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
+  const path = join(configHome, "suikou", "config.toml")
+  const f = file(path)
+  if (!(await f.exists())) return BASE_PORT
+
+  let cfg: Record<string, unknown>
+  try {
+    cfg = Bun.TOML.parse(await f.text()) as Record<string, unknown>
+  } catch (e) {
+    throw new Error(`invalid Suikou config at ${path}: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  const raw = cfg.port
+  if (raw === undefined) return BASE_PORT
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 1 || raw > 65535) {
+    throw new Error(`invalid \`port\` at ${path}: ${JSON.stringify(raw)} (expected an integer in 1-65535)`)
+  }
+  return raw
 }
 
 async function waitForReady(p: number, timeoutMs = 20_000): Promise<boolean> {

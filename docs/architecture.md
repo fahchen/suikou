@@ -207,11 +207,10 @@ annotated template.
 | `bind` | `"all"` or `"loopback"` | `"all"` | Interfaces to listen on. `"all"` is reachable over the tailnet; `"loopback"` restricts to 127.0.0.1 (this machine only). Both keep the launcher's 127.0.0.1 liveness probe working. |
 | `database_path` | string | `<app support dir>/suikou.db` | SQLite database file location. Existing data is not migrated when changed. |
 | `pool_size` | integer | `5` | Database connection pool size. |
+| `port` | integer | `47100` | TCP port the server listens on. Read by the **launcher** (not `runtime.exs`), which binds, records, and probes the daemon on it; the `PORT` env var overrides it for one invocation. |
 
-`PORT` and `SECRET_KEY_BASE` are intentionally **not** TOML-configurable: the
-launcher binds a fixed port and records it (a TOML port would desync the
-launcher's recorded port from the bound one), and the secret is auto-generated
-and persisted by the launcher rather than stored in plaintext.
+`SECRET_KEY_BASE` is intentionally **not** TOML-configurable: the secret is
+auto-generated and persisted by the launcher rather than stored in plaintext.
 
 ### Development
 
