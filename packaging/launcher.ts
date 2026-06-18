@@ -12,10 +12,9 @@ import serverTarball from "./embed/server.tar.gz" with { type: "file" }
 
 const APP_NAME = "Suikou"
 // Fixed high base port (registered range, away from common dev ports and the
-// OS ephemeral range). Probe upward on collision so concurrent instances each
-// land on a stable, predictable port.
+// OS ephemeral range). If it is occupied, the launcher errors at startup
+// rather than drifting to a different, unpredictable port.
 const BASE_PORT = 47100
-const PORT_PROBE_LIMIT = 16
 
 const base = join(homedir(), "Library", "Application Support", APP_NAME)
 // Background lifecycle is delegated to the release's own OTP-native commands
@@ -845,8 +844,8 @@ async function ensureCookie(): Promise<string> {
   return cookie
 }
 
-// Honor an explicit PORT; otherwise probe BASE_PORT upward until one is free,
-// failing loudly rather than drifting to an unpredictable port.
+// Honor an explicit PORT; otherwise use BASE_PORT and fail loudly if it is
+// occupied, rather than drifting to an unpredictable port.
 async function pickPort(): Promise<number> {
   const explicit = process.env.PORT
   if (explicit) {
@@ -857,12 +856,10 @@ async function pickPort(): Promise<number> {
     return parsed
   }
 
-  for (let p = BASE_PORT; p < BASE_PORT + PORT_PROBE_LIMIT; p++) {
-    if (!(await tcpUp(p))) return p
+  if (await tcpUp(BASE_PORT)) {
+    throw new Error(`port ${BASE_PORT} is in use; stop whatever is using it or set PORT to override`)
   }
-
-  const last = BASE_PORT + PORT_PROBE_LIMIT - 1
-  throw new Error(`no free port in ${BASE_PORT}-${last}; set PORT to override`)
+  return BASE_PORT
 }
 
 async function waitForReady(p: number, timeoutMs = 20_000): Promise<boolean> {
