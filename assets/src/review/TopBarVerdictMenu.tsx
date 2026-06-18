@@ -182,7 +182,7 @@ export function FileVerdictMenu(props: {
         render={
           <Button
             variant="pill"
-            size="icon"
+            size="icon-xs"
             title={triggerLabel}
             aria-label={triggerLabel}
             className={`relative ${verdict ? VERDICT_TONE[verdict] : UNSET_TONE}`}

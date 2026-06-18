@@ -17,7 +17,7 @@ export function TopBarTocMenu(props: { content: string; path: string }) {
         render={
           <Button
             variant="pill"
-            size="icon"
+            size="icon-xs"
             title="Table of contents"
           >
             <List className="text-muted-foreground" />
