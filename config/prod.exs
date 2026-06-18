@@ -1,16 +1,8 @@
 import Config
 
-# Force using SSL in production. This also sets the "strict-security-transport" header,
-# known as HSTS. If you have a health check endpoint, you may want to exclude it below.
-# Note `:force_ssl` is required to be set at compile-time.
-config :suikou, SuikouWeb.Endpoint,
-  force_ssl: [
-    rewrite_on: [:x_forwarded_proto],
-    exclude: [
-      # paths: ["/health"],
-      hosts: ["localhost", "127.0.0.1"]
-    ]
-  ]
+# No force_ssl: this packaged app is served over plain HTTP on a private tailnet
+# (no TLS anywhere), so an https redirect + HSTS would only make it unreachable
+# from tailnet peers. Add force_ssl back if a TLS-terminating proxy is introduced.
 
 # Do not print debug messages in production
 config :logger, level: :info

@@ -1,0 +1,26 @@
+# Suikou runtime configuration.
+#
+# Location: $XDG_CONFIG_HOME/suikou/config.toml
+#           (defaults to ~/.config/suikou/config.toml)
+#
+# Read once at startup by the packaged binary (production only; the dev/test
+# servers ignore it). Copy this file to the location above, edit, then restart
+# with `suikou stop && suikou start`. Every key is optional: an omitted key uses
+# the default noted below. A syntactically invalid file fails startup loudly
+# rather than silently reverting to defaults.
+
+# Host used to build absolute URLs (e.g. links the server generates). Set it to
+# this machine's Tailscale MagicDNS name so URLs resolve for tailnet peers. The
+# server always binds every interface regardless of this value.
+# Default: the PHX_HOST environment variable, or "example.com" if unset.
+# host = "mybox.tailnet-name.ts.net"
+
+# WebSocket origin check for the Musubi socket.
+#   false                      accept any origin
+#   ["//host-a", "//host-b"]   allow only these origins ("//host" matches any
+#                              scheme/port, so it works for plain HTTP)
+# A tailnet peer may connect by raw IP or MagicDNS name interchangeably, so the
+# default accepts any origin: appropriate for a single-user app on a private,
+# tailscale-authenticated network. Tighten to a list if exposed more widely.
+# Default: false.
+# check_origin = false

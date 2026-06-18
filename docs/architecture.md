@@ -190,6 +190,21 @@ Bun installs deps and runs the Vite scripts (`bun install`, `bun run dev`,
   `index.html` for client routes.
 - The Musubi socket is served same-origin — no separate frontend host.
 
+### Runtime configuration
+
+The packaged binary reads optional runtime overrides from a TOML file at
+`$XDG_CONFIG_HOME/suikou/config.toml` (defaulting to
+`~/.config/suikou/config.toml`). It is read once at startup, **production only** —
+the dev and test servers ignore it. Restart (`suikou stop && suikou start`) to
+apply changes. A missing file or key uses the built-in default; a malformed file
+fails startup loudly. See [`config.toml.example`](../config.toml.example) for an
+annotated template.
+
+| Key | Type | Default | Purpose |
+|---|---|---|---|
+| `host` | string | `PHX_HOST` env, else `"example.com"` | Host used to build absolute URLs (e.g. a Tailscale MagicDNS name). The server binds all interfaces regardless. |
+| `check_origin` | bool or list of strings | `false` | Musubi WebSocket origin check. `false` accepts any origin; a list like `["//mybox.ts.net"]` restricts it. Default suits a single-user app on a private tailnet. |
+
 ### Development
 
 - `bun run dev` starts the Vite dev server (frontend, HMR).

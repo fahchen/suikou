@@ -21,6 +21,26 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # User-tunable overrides, read once at boot from an XDG-located TOML file
+  # ($XDG_CONFIG_HOME/suikou/config.toml, defaulting to ~/.config/suikou/config.toml).
+  # Production (the packaged release) only — dev/test never read it. A missing file
+  # or key falls back to the defaults below; a present-but-malformed file fails loudly
+  # so a typo can't silently leave the server on its defaults.
+  config_home =
+    System.get_env("XDG_CONFIG_HOME") || Path.join(System.user_home!(), ".config")
+
+  config_path = Path.join([config_home, "suikou", "config.toml"])
+
+  user_config =
+    if File.exists?(config_path) do
+      case Toml.decode_file(config_path, keys: :strings) do
+        {:ok, map} -> map
+        {:error, reason} -> raise "invalid Suikou config at #{config_path}: #{inspect(reason)}"
+      end
+    else
+      %{}
+    end
+
   database_path =
     System.get_env("DATABASE_PATH") ||
       raise """
@@ -44,17 +64,18 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = user_config["host"] || System.get_env("PHX_HOST") || "example.com"
 
   config :suikou, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :suikou, SuikouWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
-    # Allow websocket origins from both the local machine and whatever PHX_HOST
-    # resolves to (e.g. a Tailscale MagicDNS name passed at launch), so a remote
-    # tailnet device can connect while localhost keeps working. "//host" matches
-    # any scheme/port, so this stays correct for plain-http access.
-    check_origin: ["//localhost", "//127.0.0.1", "//[::1]", "//#{host}"],
+    # A tailnet peer reaches this by raw IP *or* MagicDNS name (varies per device),
+    # so a fixed origin allowlist can't cover every case. Default to accepting any
+    # websocket origin — a single-user app on a private, tailscale-authenticated
+    # network. Set `check_origin` in config.toml (a list of "//host" strings) to
+    # tighten it if the server is ever exposed beyond a trusted tailnet.
+    check_origin: Map.get(user_config, "check_origin", false),
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
