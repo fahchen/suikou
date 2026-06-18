@@ -223,10 +223,12 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   @doc """
   Long-polls `%{"review_id"}` for a new submission. Subscribes to the review's
-  comment topic, captures the current submission count, then blocks up to ~25 s.
-  On a wake that raises the count it emits the `export_review` snapshot for the
+  comment topic, captures the current submission count, then blocks up to the
+  poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
+  wake that raises the count it emits the `export_review` snapshot for the
   requested rounds scope (carrying the new `submission_version`); otherwise it
-  emits `%{status: "timeout", version}`.
+  emits `%{status: "timeout", version}`. Emits `%{error: "review_not_found"}`
+  when the review is unknown.
 
   ## Examples
 
@@ -241,15 +243,28 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     review_id = payload["review_id"]
     scope = scope(payload)
 
-    CommentBroadcast.subscribe(review_id)
-    version = Submissions.review_submission_count(review_id)
-    deadline = System.monotonic_time(:millisecond) + poll_window_ms()
+    reply =
+      with_review(review_id, fn _review ->
+        CommentBroadcast.subscribe(review_id)
+        version = Submissions.review_submission_count(review_id)
+        deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
+        await(review_id, scope, version, deadline)
+      end)
 
-    AgentCLI.emit(await(review_id, scope, version, deadline))
+    AgentCLI.emit(reply)
   end
 
-  defp poll_window_ms do
-    Application.get_env(:suikou, :agent_cli_poll_window_ms, @default_poll_window_ms)
+  # The server-configured window caps how long a single call blocks. An optional
+  # `"timeout_ms"` in the payload (the launcher's remaining --timeout budget) caps
+  # it further, so a short --timeout returns its timeout snapshot without waiting
+  # the full window.
+  defp poll_window_ms(payload) do
+    server = Application.get_env(:suikou, :agent_cli_poll_window_ms, @default_poll_window_ms)
+
+    case payload["timeout_ms"] do
+      ms when is_integer(ms) and ms >= 0 -> min(server, ms)
+      _absent -> server
+    end
   end
 
   # Blocks for what remains of the poll window. A wake that raised the submission

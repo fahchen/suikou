@@ -158,6 +158,11 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                run(%{"review_id" => review.id}, &CLI.poll/0)
     end
 
+    test "emits review_not_found for an unknown review" do
+      assert %{"error" => "review_not_found"} =
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.poll/0)
+    end
+
     test "emits the export snapshot when a submission raises the count" do
       round = insert(:round)
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
@@ -186,9 +191,16 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     |> Jason.decode!()
   end
 
+  # Block until the poll task is parked in `await/4`'s `receive` — i.e. it has
+  # already subscribed and captured the version. Matching on the current stacktrace
+  # (not a bare `:waiting` status) avoids racing the brief `:waiting` the earlier
+  # `Repo` lookup in `poll/0` produces, before the subscription exists.
   defp wait_until_waiting(pid) do
-    case Process.info(pid, :status) do
-      {:status, :waiting} -> :ok
+    with {:status, :waiting} <- Process.info(pid, :status),
+         {:current_stacktrace, stack} <- Process.info(pid, :current_stacktrace),
+         true <- Enum.any?(stack, &match?({CLI, :await, 4, _location}, &1)) do
+      :ok
+    else
       _other -> wait_until_waiting(pid)
     end
   end

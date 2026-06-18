@@ -371,11 +371,12 @@ async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): 
 }
 
 // poll re-issues the rpc until the backend returns a non-timeout snapshot. The
-// backend blocks ~25 s per call then emits {"status":"timeout","version":N}; we
-// loop on that. --timeout caps total wall-clock and, when it elapses, prints the
-// last timeout line and exits 0. ponytail: without --timeout we loop forever —
-// the caller is an agent waiting on a human, so no submission just means "keep
-// waiting".
+// backend blocks up to ~25 s per call then emits {"status":"timeout","version":N};
+// we loop on that. --timeout caps total wall-clock: each call passes the remaining
+// budget as timeout_ms so the backend bounds its block to it, and when it elapses
+// we print the last timeout line and exit 0. ponytail: without --timeout we loop
+// forever — the caller is an agent waiting on a human, so no submission just means
+// "keep waiting".
 async function runPoll(
   spec: CommandSpec,
   payload: Record<string, unknown>,
@@ -394,7 +395,9 @@ async function runPoll(
 
   let lastTimeout = ""
   for (;;) {
-    const { stdout, stderr, exitCode } = await rpcInvoke(bin, env, spec.expr, json)
+    const remainingMs = deadline === Infinity ? undefined : Math.max(deadline - Date.now(), 0)
+    const callJson = remainingMs === undefined ? json : JSON.stringify({ ...payload, timeout_ms: remainingMs })
+    const { stdout, stderr, exitCode } = await rpcInvoke(bin, env, spec.expr, callJson)
     const fail = rpcFailure(stderr, exitCode)
     if (fail !== null) return fail
 
