@@ -41,7 +41,7 @@ export const FileSwitcher = observer(function FileSwitcher(props: {
             type="button"
             title="Switch file"
             aria-label={`Switch file (current: ${props.currentPath})`}
-            className="flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-1 py-0.5 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+            className="flex h-9 min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-2 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
           />
         }
       >

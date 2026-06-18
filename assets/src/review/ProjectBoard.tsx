@@ -168,7 +168,7 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: stri
         <div className="flex shrink-0 items-center gap-1.5">
           <Button
             variant="pill"
-            size="icon-xs"
+            size="icon"
             onClick={() => setCreating(true)}
             title="New project"
             aria-label="New project"
@@ -219,7 +219,7 @@ function ProjectSection({
     <section>
       <div className="mb-3.5 flex items-baseline justify-between gap-3 px-0.5">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-heading">
+          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-heading">
             {project.name}
           </h2>
           <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-faint">
@@ -232,14 +232,14 @@ function ProjectSection({
               render={
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="-mr-1 shrink-0 text-[12px] text-muted-foreground hover:text-heading"
+                  size="default"
+                  className="-mr-1 shrink-0 text-muted-foreground hover:text-heading"
                   title="New review"
                   aria-label="New review"
                 />
               }
             >
-              <Plus size={13} />
+              <Plus />
               New review
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
@@ -504,7 +504,7 @@ function ReviewCard({
             render={
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 className="shrink-0 text-muted-foreground"
                 title="Review actions"
                 aria-label="Review actions"

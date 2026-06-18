@@ -66,7 +66,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
         render={
           <Button
             variant="pill"
-            size="icon-xs"
+            size="icon"
             title="Display settings"
           >
             <SlidersHorizontal className="text-muted-foreground" />

@@ -141,7 +141,7 @@ export const TopBar = observer(function TopBar(props: {
       <div className="pointer-events-auto flex min-w-0 items-center gap-2">
         <Button
           variant="pill"
-          size="icon-xs"
+          size="icon"
           title="Project board"
           aria-label="Project board"
           onClick={() => void navigate({ to: "/" })}
@@ -152,7 +152,7 @@ export const TopBar = observer(function TopBar(props: {
           <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
             <Button
               variant="pill"
-              size="icon-xs"
+              size="icon"
               title={prevFile ? `Previous file (${prevFile.path})` : "No previous file"}
               aria-label="Previous file"
               disabled={!prevFile || navPending !== null}
@@ -165,7 +165,7 @@ export const TopBar = observer(function TopBar(props: {
             <ButtonGroupSeparator />
             <Button
               variant="pill"
-              size="icon-xs"
+              size="icon"
               title={nextFile ? `Next file (${nextFile.path})` : "No next file"}
               aria-label="Next file"
               disabled={!nextFile || navPending !== null}
@@ -189,7 +189,7 @@ export const TopBar = observer(function TopBar(props: {
         {commentsSupported && (
           <Button
             variant="pill"
-            size="icon-xs"
+            size="icon"
             title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
             aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
             onClick={() => uiStore.toggleCollapseAll()}
@@ -212,7 +212,7 @@ export const TopBar = observer(function TopBar(props: {
 
         <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
           <Button
-            size="icon-xs"
+            size="icon"
             title="Submit review"
             aria-label="Submit review"
             onClick={() => setConfirmOpen(true)}
@@ -224,7 +224,7 @@ export const TopBar = observer(function TopBar(props: {
             <DropdownMenuTrigger
               render={
                 <Button
-                  size="icon-xs"
+                  size="icon"
                   title="Copy comments"
                   aria-label="Copy comments"
                 />
@@ -283,7 +283,7 @@ export const TopBar = observer(function TopBar(props: {
                   <DropdownMenuTrigger
                     render={
                       <Button
-                        size="icon-sm"
+                        size="icon-xs"
                         title="Submit and copy"
                         aria-label="Submit and copy"
                         disabled={commands.submitReview.isPending}

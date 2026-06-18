@@ -23,7 +23,7 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
         render={
           <Button
             variant="pill"
-            size="xs"
+            size="default"
             title={triggerLabel}
             aria-label={triggerLabel}
           >

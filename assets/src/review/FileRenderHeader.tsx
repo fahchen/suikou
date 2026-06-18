@@ -162,7 +162,7 @@ function RawViewToggle(props: {
   return (
     <Button
       variant="pill"
-      size="icon-xs"
+      size="icon"
       title={title}
       aria-label={title}
       aria-pressed={props.rawView}
