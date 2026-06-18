@@ -277,7 +277,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       :comments_changed ->
         case Submissions.review_submission_count(review_id) do
           ^version -> await(review_id, scope, version, deadline)
-          newer when newer > version -> Export.export_review(review_id, scope)
+          newer when newer > version -> snapshot(review_id, scope)
           _stale -> await(review_id, scope, version, deadline)
         end
     after

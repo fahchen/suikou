@@ -29,7 +29,7 @@ defmodule Suikou.Export do
   Which rounds an export draws published critique from: `:latest` (the standing
   round only), an inclusive round-number range `{from, to}`, or `:all`.
   """
-  @type rounds_scope :: :latest | {pos_integer(), pos_integer()} | :all
+  @type rounds_scope :: :latest | {non_neg_integer(), non_neg_integer()} | :all
 
   @type anchor_view :: %{
           start_line: pos_integer(),
