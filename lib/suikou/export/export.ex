@@ -131,7 +131,7 @@ defmodule Suikou.Export do
 
   defp build(artifact, scope) do
     round = Rounds.latest(artifact.id)
-    content = Artifacts.read_content_or_nil(artifact.id)
+    content = text_content(Artifacts.read_content_or_nil(artifact.id))
     lines = content && String.split(content, "\n")
 
     %{
@@ -145,6 +145,15 @@ defmodule Suikou.Export do
       comments: published_comments(artifact.id, round, scope, lines)
     }
   end
+
+  # Binary files (e.g. images) carry no scoped comments and can't be embedded in
+  # the JSON snapshot — non-UTF-8 bytes would crash the encoder. Treat them as
+  # having no reviewable text; the human surface previews them via the asset route.
+  defp text_content(content) when is_binary(content) do
+    if String.valid?(content), do: content, else: nil
+  end
+
+  defp text_content(nil), do: nil
 
   defp published_comments(artifact_id, latest_round, scope, lines) do
     from(c in Comment, as: :comment)

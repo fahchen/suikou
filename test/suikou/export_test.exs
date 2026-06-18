@@ -49,6 +49,13 @@ defmodule Suikou.ExportTest do
     assert {:ok, %{content: "snapshot body\n"}} = Export.export(artifact.id)
   end
 
+  test "a binary artifact exports empty content and stays JSON-encodable" do
+    artifact = source_round(<<137, 80, 78, 71, 13, 10, 26, 10, 0, 255>>).artifact
+
+    assert {:ok, %{content: ""} = export} = Export.export(artifact.id)
+    assert is_binary(Jason.encode!(export))
+  end
+
   test "an approved artifact reports its approval and verdict" do
     artifact = insert(:round).artifact
     %{round: round2} = advance(artifact.id, "v2\n")
