@@ -202,8 +202,16 @@ annotated template.
 
 | Key | Type | Default | Purpose |
 |---|---|---|---|
-| `host` | string | `PHX_HOST` env, else `"example.com"` | Host used to build absolute URLs (e.g. a Tailscale MagicDNS name). The server binds all interfaces regardless. |
+| `host` | string | `PHX_HOST` env, else `"example.com"` | Host used to build absolute URLs (e.g. a Tailscale MagicDNS name). |
 | `check_origin` | bool or list of strings | `false` | Musubi WebSocket origin check. `false` accepts any origin; a list like `["//mybox.ts.net"]` restricts it. Default suits a single-user app on a private tailnet. |
+| `bind` | `"all"` or `"loopback"` | `"all"` | Interfaces to listen on. `"all"` is reachable over the tailnet; `"loopback"` restricts to 127.0.0.1 (this machine only). Both keep the launcher's 127.0.0.1 liveness probe working. |
+| `database_path` | string | `<app support dir>/suikou.db` | SQLite database file location. Existing data is not migrated when changed. |
+| `pool_size` | integer | `5` | Database connection pool size. |
+
+`PORT` and `SECRET_KEY_BASE` are intentionally **not** TOML-configurable: the
+launcher binds a fixed port and records it (a TOML port would desync the
+launcher's recorded port from the bound one), and the secret is auto-generated
+and persisted by the launcher rather than stored in plaintext.
 
 ### Development
 

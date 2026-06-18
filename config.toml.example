@@ -24,3 +24,19 @@
 # tailscale-authenticated network. Tighten to a list if exposed more widely.
 # Default: false.
 # check_origin = false
+
+# Which interfaces the server listens on. A preset (raw addresses aren't
+# expressible in TOML); both keep this machine reachable on 127.0.0.1.
+#   "all"      every interface (reachable over the tailnet)
+#   "loopback" 127.0.0.1 only (this machine only; disables tailnet access)
+# Default: "all".
+# bind = "all"
+
+# Path to the SQLite database file. Override to relocate the database; existing
+# data is not moved for you.
+# Default: <app support dir>/suikou.db (set by the launcher).
+# database_path = "/Users/me/suikou/suikou.db"
+
+# Database connection pool size.
+# Default: 5.
+# pool_size = 5

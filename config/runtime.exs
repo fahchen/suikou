@@ -42,7 +42,7 @@ if config_env() == :prod do
     end
 
   database_path =
-    System.get_env("DATABASE_PATH") ||
+    user_config["database_path"] || System.get_env("DATABASE_PATH") ||
       raise """
       environment variable DATABASE_PATH is missing.
       For example: /etc/suikou/suikou.db
@@ -50,7 +50,7 @@ if config_env() == :prod do
 
   config :suikou, Suikou.Repo,
     database: database_path,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+    pool_size: user_config["pool_size"] || String.to_integer(System.get_env("POOL_SIZE") || "5")
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -68,6 +68,18 @@ if config_env() == :prod do
 
   config :suikou, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Which interfaces to listen on. Exposed as a preset rather than a raw address
+  # because TOML can't express an Erlang IP tuple, and because both presets keep
+  # 127.0.0.1 reachable — the launcher's liveness probe always hits 127.0.0.1.
+  #   "all"      bind every interface (IPv6 ::, dual-stack; reachable over tailnet)
+  #   "loopback" bind 127.0.0.1 only (this machine only; disables tailnet access)
+  bind_ip =
+    case user_config["bind"] || "all" do
+      "all" -> {0, 0, 0, 0, 0, 0, 0, 0}
+      "loopback" -> {127, 0, 0, 1}
+      other -> raise "invalid `bind` at #{config_path}: #{inspect(other)} (expected \"all\" or \"loopback\")"
+    end
+
   config :suikou, SuikouWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     # A tailnet peer reaches this by raw IP *or* MagicDNS name (varies per device),
@@ -77,11 +89,7 @@ if config_env() == :prod do
     # tighten it if the server is ever exposed beyond a trusted tailnet.
     check_origin: Map.get(user_config, "check_origin", false),
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      ip: bind_ip,
       port: String.to_integer(System.get_env("PORT") || "4000")
     ],
     secret_key_base: secret_key_base
