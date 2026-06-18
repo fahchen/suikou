@@ -325,7 +325,7 @@ const BlockRow = observer(function BlockRow(props: {
   return (
     <div className={props.marginClass ?? ""}>
       <div
-        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] ${props.kind === "mermaid" ? "items-start" : "items-baseline"} ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
@@ -333,7 +333,6 @@ const BlockRow = observer(function BlockRow(props: {
           startLine={startLine}
           endLine={endLine}
           selected={selected}
-          className="self-stretch"
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(startLine, endLine, fileScope);
@@ -734,7 +733,7 @@ const RawLine = observer(function RawLine(props: {
   return (
     <div>
       <div
-        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-baseline ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${lineNo}`}
         aria-selected={selected}
       >
@@ -742,7 +741,6 @@ const RawLine = observer(function RawLine(props: {
           startLine={lineNo}
           endLine={lineNo}
           selected={selected}
-          className="self-stretch"
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(lineNo, lineNo, fileScope);
