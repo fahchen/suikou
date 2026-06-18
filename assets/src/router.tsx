@@ -1,8 +1,17 @@
 import { createRouter } from "@tanstack/react-router"
 
+import { ErrorOverlay } from "./components/error-overlay"
+import { debug } from "./debug"
 import { routeTree } from "./routeTree.gen"
 
-export const router = createRouter({ routeTree })
+// In debug mode, replace the router's built-in route-error UI with the overlay
+// (stack + one-tap copy). Off (normal users): keep the default graceful UI.
+export const router = createRouter({
+  routeTree,
+  defaultErrorComponent: debug
+    ? ({ error, info }) => <ErrorOverlay error={error} componentStack={info?.componentStack} />
+    : undefined
+})
 
 declare module "@tanstack/react-router" {
   interface Register {
