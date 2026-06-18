@@ -34,7 +34,12 @@ export default defineConfig({
     outDir: "../priv/static",
     assetsDir: "assets",
     emptyOutDir: false,
-    manifest: true
+    manifest: true,
+    // Emit .map files for the Phoenix-served prod bundle (dev already has maps).
+    // Note: the browser does NOT remap a programmatically-read error.stack, so
+    // the overlay's copied stack stays at minified positions in prod — resolve
+    // it offline / in DevTools with these maps. Runtime remap would need a dep.
+    sourcemap: true
   },
   server: {
     host: true,
