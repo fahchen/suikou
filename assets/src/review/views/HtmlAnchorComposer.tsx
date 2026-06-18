@@ -121,7 +121,7 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
         <Button
           type="button"
           variant="ghost"
-          size="xs"
+          size="sm"
           className="text-muted-foreground"
           onClick={suggest}
           disabled={target.quote === ""}

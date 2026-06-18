@@ -111,7 +111,7 @@ export const Composer = observer(function Composer(props: {
         <Button
           type="button"
           variant="ghost"
-          size="xs"
+          size="sm"
           className="text-muted-foreground"
           onClick={suggest}
         >

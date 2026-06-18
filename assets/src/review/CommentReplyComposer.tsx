@@ -72,7 +72,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
       <div className="flex items-center">
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           className="text-muted-foreground"
           title="Insert suggestion block"
           onClick={() => setBody((b) => `${b}${b ? "\n" : ""}\`\`\`suggestion\n\n\`\`\``)}

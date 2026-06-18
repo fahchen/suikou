@@ -543,7 +543,7 @@ const DiffComposer = observer(function DiffComposer(props: {
         <Button
           type="button"
           variant="ghost"
-          size="xs"
+          size="sm"
           className="text-muted-foreground"
           onClick={suggest}
           disabled={selectedText === ""}
