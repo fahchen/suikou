@@ -243,23 +243,21 @@ export class ErrorBoundary extends Component<Props, State> {
     window.removeEventListener("unhandledrejection", this.handleRejection)
   }
 
+  // Global errors carry no component stack, so clear any stale one left by a
+  // prior render error — otherwise the overlay shows an unrelated component
+  // stack alongside the new error.
   private handleWindowError = (event: ErrorEvent): void => {
     const error =
       event.error instanceof Error
         ? event.error
         : new Error(event.message || String(event.error ?? "Unknown error"))
-    this.setState({ error })
+    this.setState({ error, componentStack: undefined })
   }
 
   private handleRejection = (event: PromiseRejectionEvent): void => {
     const reason = event.reason
-    const error =
-      reason instanceof Error
-        ? reason
-        : new Error(
-            typeof reason === "string" ? reason : JSON.stringify(reason ?? "Unknown rejection"),
-          )
-    this.setState({ error })
+    const error = reason instanceof Error ? reason : new Error(stringifyReason(reason))
+    this.setState({ error, componentStack: undefined })
   }
 
   render(): ReactNode {
@@ -270,6 +268,17 @@ export class ErrorBoundary extends Component<Props, State> {
         {this.props.children}
       </ErrorOverlay>
     )
+  }
+}
+
+// JSON.stringify throws on circular refs / BigInt, so guard it: a rejection
+// must still be captured even when its reason can't be serialized.
+function stringifyReason(reason: unknown): string {
+  if (typeof reason === "string") return reason
+  try {
+    return JSON.stringify(reason) ?? String(reason)
+  } catch {
+    return String(reason)
   }
 }
 
