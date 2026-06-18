@@ -43,7 +43,7 @@ async function dispatch(command: string | undefined): Promise<void> {
       // Never returns.
       return runServer({ openBrowser: false })
     case "start":
-      return process.exit(await start())
+      return process.exit(await start(process.argv.includes("--force") || process.argv.includes("-f")))
     case "stop":
       return process.exit(await stop())
     case "status":
@@ -437,7 +437,8 @@ function usage(group?: string, verb?: string): string {
   }
 
   const lifecycle = "  (bare)        start the foreground server and open the browser\n" +
-    "  start|stop|status   background daemon control\n" +
+    "  start [--force]     start the background daemon (--force relaunches a running one)\n" +
+    "  stop|status         background daemon control\n" +
     "  poll <review-id>    alias for `review poll`"
   const groups = Object.entries(registry)
     .map(([g, verbs]) =>
@@ -484,9 +485,11 @@ async function runServer({ openBrowser }: { openBrowser: boolean }): Promise<nev
   process.exit(await proc.exited)
 }
 
-// `suikou start`: start the release as an OTP daemon (run_erl), then open the
-// browser once it is serving. Returns promptly — `daemon` backgrounds itself.
-async function start(): Promise<number> {
+// `suikou start [--force]`: start the release as an OTP daemon (run_erl), then
+// open the browser once it is serving. Returns promptly — `daemon` backgrounds
+// itself. `--force` stops an already-running daemon first and relaunches it,
+// instead of reattaching to the existing one.
+async function start(force = false): Promise<number> {
   const releaseRoot = await ensureExtracted()
   const bin = join(releaseRoot, "suikou", "bin", "suikou")
   await mkdir(releaseTmp, { recursive: true })
@@ -502,7 +505,14 @@ async function start(): Promise<number> {
     // Re-check liveness under the lock: a peer may have started the daemon
     // between our pre-lock check and acquiring the lock.
     const runningPid = await daemonPid(bin, env)
-    if (runningPid !== null) {
+    if (runningPid !== null && force) {
+      // Relaunch from scratch: stop our own daemon and wait for it to vanish so
+      // the port frees before we re-pick it. Only touches the suikou daemon — a
+      // foreign process holding the port still makes pickPort fail loudly below.
+      console.log(`force: stopping running daemon (pid ${runningPid})`)
+      const stopCode = await stop()
+      if (stopCode !== 0) return stopCode
+    } else if (runningPid !== null) {
       const port = await loadDaemonPort()
       if (port === null) {
         // Running but we lost the port (missing/corrupt daemon.json); don't open
