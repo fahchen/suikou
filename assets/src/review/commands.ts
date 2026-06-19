@@ -32,7 +32,6 @@ function useDefaultReviewCommands() {
     editComment: useMusubiCommand(comments, "edit_comment"),
     deleteComment: useMusubiCommand(comments, "delete_comment"),
     resolveComment: useMusubiCommand(comments, "resolve_comment"),
-    unresolveComment: useMusubiCommand(comments, "unresolve_comment"),
     reply: useMusubiCommand(comments, "reply"),
     submitReview: useMusubiCommand(store, "submit_review"),
     setDraftVerdict: useMusubiCommand(store, "set_draft_verdict"),

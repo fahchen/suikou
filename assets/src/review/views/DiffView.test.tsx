@@ -36,7 +36,6 @@ vi.mock("../commands", () => ({
     editComment: stubCmd,
     deleteComment: stubCmd,
     resolveComment: stubCmd,
-    unresolveComment: stubCmd,
     reply: stubCmd,
     submitReview: stubCmd,
     setDraftVerdict: stubCmd,
@@ -140,8 +139,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment
@@ -159,8 +157,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment
@@ -187,8 +184,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment

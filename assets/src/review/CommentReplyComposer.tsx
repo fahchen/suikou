@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CircleCheck, CircleDot, MessageSquarePlus, SquarePlus } from "lucide-react";
+import { CircleCheck, MessageSquarePlus, SquarePlus } from "lucide-react";
 
 import type { Comment } from "./types";
 import { useReviewCommands } from "./commands";
@@ -25,30 +25,21 @@ export function CommentReplyComposer(props: { comment: Comment }) {
     setExpanded(false);
   }
 
-  const resolveAction = comment.status === "published" &&
-    (comment.resolved ? (
-      <Button
-        variant="outline"
-        size="sm"
-        className="text-muted-foreground"
-        disabled={commands.unresolveComment.isPending}
-        onClick={() => void commands.unresolveComment.dispatch({ comment_id: comment.id })}
-      >
-        <CircleDot size={14} />
-        Unresolve
-      </Button>
-    ) : (
-      <Button
-        variant="outline"
-        size="sm"
-        className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
-        disabled={commands.resolveComment.isPending}
-        onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
-      >
-        <CircleCheck size={14} />
-        Resolve
-      </Button>
-    ));
+  // A resolved comment reopens only when the human replies to it (which clears
+  // its resolved state), so it offers no explicit unresolve action — only an
+  // open published comment shows the Resolve button.
+  const resolveAction = comment.status === "published" && !comment.resolved && (
+    <Button
+      variant="outline"
+      size="sm"
+      className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
+      disabled={commands.resolveComment.isPending}
+      onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
+    >
+      <CircleCheck size={14} />
+      Resolve
+    </Button>
+  );
 
   if (!open) {
     return (

@@ -111,7 +111,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
         end_line: 1
       })
 
-      [comment] = Reads.list_comments(round.id)
+      [comment] = Reads.list_comments(round)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       {:ok, _reply} =
@@ -120,7 +120,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert %{items: [%{resolved: true}]} = Testing.render(page, ["comments"])
     end
 
-    test "unresolve_comment reopens a resolved comment" do
+    test "replying to a resolved comment reopens it" do
       round = source_round("line 1\nline 2\nline 3\n")
 
       published_comment(round.id, %{
@@ -131,14 +131,19 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
         end_line: 1
       })
 
-      [comment] = Reads.list_comments(round.id)
+      [comment] = Reads.list_comments(round)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       {:ok, _reply} =
         Testing.dispatch_command(page, :resolve_comment, %{comment_id: comment.id}, ["comments"])
 
       {:ok, _reply} =
-        Testing.dispatch_command(page, :unresolve_comment, %{comment_id: comment.id}, ["comments"])
+        Testing.dispatch_command(
+          page,
+          :reply,
+          %{comment_id: comment.id, body: "actually still broken"},
+          ["comments"]
+        )
 
       assert %{items: [%{resolved: false}]} = Testing.render(page, ["comments"])
     end
@@ -146,7 +151,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "reply appends a human reply to the thread" do
       round = insert(:round)
       published_comment(round.id, %{scope: :review, critique_type: :note, body: "q"})
-      [comment] = Reads.list_comments(round.id)
+      [comment] = Reads.list_comments(round)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       {:ok, _reply} =
@@ -164,7 +169,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "delete_comment removes it from the child render" do
       round = insert(:round)
       pending_comment(round.id, %{scope: :review, critique_type: :note, body: "drop me"})
-      [comment] = Reads.list_comments(round.id)
+      [comment] = Reads.list_comments(round)
       page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
 
       {:ok, _reply} =
@@ -188,7 +193,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       # The quoted "beta" no longer appears, so the carried comment can't be
       # located and renders outdated until it is manually re-pinned.
       %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nEPSILON\n")
-      [carried] = Reads.list_comments(round2.id)
+      [carried] = Reads.list_comments(round2)
 
       page = Testing.mount(ReviewStore, %{"artifact_id" => artifact.id})
       assert %{items: [%{outdated: true}]} = Testing.render(page, ["comments"])
@@ -308,7 +313,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     # The child broadcasts `:comments_changed`; the root's `handle_info/2`
     # dirties an assign so the next render recomputes the fan-out.
     test "a child resolve refreshes the parent files_comments fan-out", %{page: page, one: one} do
-      [comment] = Reads.list_comments(one.id)
+      [comment] = Reads.list_comments(one)
 
       {:ok, _reply} =
         Testing.dispatch_command(page, :resolve_comment, %{comment_id: comment.id}, ["comments"])

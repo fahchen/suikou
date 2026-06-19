@@ -57,14 +57,14 @@ defmodule SuikouWeb.Stores.CommentContract do
         resolved: boolean(),
         resolved_round: integer() | nil,
         outdated: boolean(),
-        original_round: integer() | nil,
-        carried: boolean(),
+        authored_round: integer(),
         inserted_at: String.t(),
         anchor: unquote(anchor_type_ast()),
         replies:
           list(%{
             id: String.t(),
             author: :human | :agent,
+            status: :pending | :published,
             body: String.t(),
             inserted_at: String.t()
           })

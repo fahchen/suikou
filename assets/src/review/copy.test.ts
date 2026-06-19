@@ -13,8 +13,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     resolved: false,
     resolved_round: null,
     outdated: false,
-    original_round: null,
-    carried: false,
+    authored_round: 0,
     inserted_at: "2026-01-01T00:00:00Z",
     anchor: null,
     replies: [],
@@ -59,8 +58,8 @@ describe("buildCopyText", () => {
       [
         comment({
           replies: [
-            { id: "r1", author: "agent", body: "fixed", inserted_at: "2026-01-01T00:00:00Z" },
-            { id: "r2", author: "human", body: "still broken", inserted_at: "2026-01-01T00:00:00Z" }
+            { id: "r1", author: "agent", status: "published", body: "fixed", inserted_at: "2026-01-01T00:00:00Z" },
+            { id: "r2", author: "human", status: "published", body: "still broken", inserted_at: "2026-01-01T00:00:00Z" }
           ]
         })
       ],
@@ -89,7 +88,7 @@ describe("buildCopyText", () => {
       [
         comment({
           resolved: true,
-          replies: [{ id: "r1", author: "human", body: "noise", inserted_at: "2026-01-01T00:00:00Z" }]
+          replies: [{ id: "r1", author: "human", status: "published", body: "noise", inserted_at: "2026-01-01T00:00:00Z" }]
         })
       ],
       "all"

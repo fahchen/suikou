@@ -79,8 +79,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
       resolved: not is_nil(comment.resolved_round),
       resolved_round: comment.resolved_round,
       outdated: outdated,
-      original_round: comment.original_round,
-      carried: not is_nil(comment.origin_id),
+      authored_round: comment.authored_round,
       inserted_at: Iso8601.utc(comment.inserted_at),
       anchor: tagged_anchor(comment.anchor, anchor),
       replies: Enum.map(comment.replies, &render_reply/1)
@@ -108,6 +107,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
     %{
       id: reply.id,
       author: reply.author,
+      status: reply.status,
       body: reply.body,
       inserted_at: Iso8601.utc(reply.inserted_at)
     }

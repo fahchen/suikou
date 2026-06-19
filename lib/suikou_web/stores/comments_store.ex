@@ -18,6 +18,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Reads
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.Round
   alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentRendering
@@ -52,12 +53,6 @@ defmodule SuikouWeb.Stores.CommentsStore do
   end
 
   command :resolve_comment do
-    payload do
-      field(:comment_id, String.t())
-    end
-  end
-
-  command :unresolve_comment do
     payload do
       field(:comment_id, String.t())
     end
@@ -132,11 +127,6 @@ defmodule SuikouWeb.Stores.CommentsStore do
     {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
-  def handle_command(:unresolve_comment, payload, socket) do
-    Critique.unresolve_comment(payload["comment_id"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
-  end
-
   def handle_command(:reply, payload, socket) do
     Critique.reply_as_human(payload["comment_id"], payload["body"])
     {:noreply, socket |> reload() |> broadcast_changed()}
@@ -151,9 +141,9 @@ defmodule SuikouWeb.Stores.CommentsStore do
   # diff after a DB mutation. Distinct struct values are the dirty signal.
   defp reload(socket) do
     comments =
-      case socket.assigns[:round_id] do
-        nil -> []
-        round_id -> Reads.list_comments(round_id)
+      case socket.assigns[:round_id] && Rounds.get(socket.assigns[:round_id]) do
+        %Round{} = round -> Reads.list_comments(round)
+        _no_round -> []
       end
 
     Socket.assign(socket, :comments, comments)

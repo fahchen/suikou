@@ -264,7 +264,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   defp render_file_thread(%Artifact{} = artifact) do
     case Rounds.latest(artifact.id) do
       %Round{} = round ->
-        items = Reads.list_comments(round.id)
+        items = Reads.list_comments(round)
 
         content =
           if items == [], do: nil, else: CommentRendering.live_content(artifact.id)
@@ -451,7 +451,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       number: round.number,
       content_hash: round.content_hash,
       verdict: Submissions.latest_verdict(round.id),
-      comment_count: Reads.count_comments(round.id)
+      comment_count: Reads.count_comments(round)
     }
   end
 
