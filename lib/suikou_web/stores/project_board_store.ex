@@ -142,6 +142,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  command :delete_project do
+    payload do
+      field(:project_id, String.t())
+    end
+
+    reply do
+      field(:error, String.t() | nil)
+    end
+  end
+
   command :list_dir do
     payload do
       field(:project_id, String.t())
@@ -293,6 +303,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
         nil ->
           {%{error: "review_not_found"}, socket}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
+  def handle_command(:delete_project, payload, socket) do
+    reply =
+      case Projects.delete_project(payload["project_id"]) do
+        {:ok, %Project{}} -> %{error: nil}
+        {:error, reason} -> %{error: project_error(reason)}
       end
 
     {:reply, reply, touch(socket)}

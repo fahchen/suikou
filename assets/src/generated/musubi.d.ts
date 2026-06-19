@@ -242,6 +242,14 @@ declare namespace Musubi {
             error: string | null
           }
         }
+        delete_project: {
+          payload: {
+            project_id: string
+          }
+          reply: {
+            error: string | null
+          }
+        }
         list_dir: {
           payload: {
             project_id: string
