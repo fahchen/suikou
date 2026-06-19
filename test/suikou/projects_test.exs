@@ -3,8 +3,15 @@ defmodule Suikou.ProjectsTest do
 
   import Suikou.Factory
 
+  alias Suikou.Critique
   alias Suikou.Projects
+  alias Suikou.Repo
+  alias Suikou.Reviews
+  alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Project
+  alias Suikou.Schemas.Reply
+  alias Suikou.Schemas.Round
 
   describe "register_project/1" do
     @tag :tmp_dir
@@ -40,6 +47,34 @@ defmodule Suikou.ProjectsTest do
       insert(:project, name: "Alpha")
 
       assert ["Alpha", "Zed"] = Enum.map(Projects.list_projects(), & &1.name)
+    end
+  end
+
+  describe "delete_project/1" do
+    @tag :tmp_dir
+    test "deletes the project and cascades reviews, artifacts, rounds, comments, and replies",
+         %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      {:ok, artifact} = Reviews.open_file(review, "plan.md")
+      round = Repo.get_by!(Round, artifact_id: artifact.id, number: 0)
+      comment = published_comment(round.id, %{body: "Needs a fix"})
+      {:ok, reply} = Critique.reply_as_human(comment.id, "On it")
+
+      assert {:ok, %Project{id: project_id}} = Projects.delete_project(project.id)
+      assert project_id == project.id
+      assert is_nil(Projects.get_project(project.id))
+      assert is_nil(Reviews.get_review(review.id))
+      assert is_nil(Repo.get(Artifact, artifact.id))
+      assert is_nil(Repo.get(Round, round.id))
+      assert is_nil(Repo.get(Comment, comment.id))
+      assert is_nil(Repo.get(Reply, reply.id))
+    end
+
+    test "returns an error when the project does not exist" do
+      assert {:error, :project_not_found} =
+               Projects.delete_project("00000000-0000-7000-8000-000000000000")
     end
   end
 

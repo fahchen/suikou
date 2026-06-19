@@ -378,6 +378,28 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
+  describe "delete_project" do
+    @tag :tmp_dir
+    test "removes the project from the next render", %{tmp_dir: dir} do
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :delete_project, %{project_id: project.id})
+
+      assert %{projects: []} = Testing.render(page)
+    end
+
+    test "an unknown project replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "project_not_found"}} =
+               Testing.dispatch_command(page, :delete_project, %{
+                 project_id: "00000000-0000-7000-8000-000000000000"
+               })
+    end
+  end
+
   describe "rename_review" do
     @tag :tmp_dir
     test "renames the review on the next render", %{tmp_dir: dir} do
