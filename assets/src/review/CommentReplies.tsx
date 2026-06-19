@@ -1,4 +1,5 @@
 import type { Comment } from "./types";
+import { CommentBody } from "./CommentBody";
 import { relativeTime, fullTimestamp } from "./time";
 
 /** Renders the reply thread under a comment. */
@@ -20,7 +21,7 @@ export function CommentReplies(props: { replies: Comment["replies"] }) {
               {relativeTime(reply.inserted_at)}
             </span>
           </div>
-          <p className="whitespace-pre-wrap break-words leading-relaxed text-text">{reply.body}</p>
+          <CommentBody body={reply.body} />
         </div>
       ))}
     </>

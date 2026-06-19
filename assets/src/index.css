@@ -1101,6 +1101,45 @@
     font-weight: 600;
   }
 
+  /* Compact variant for markdown rendered inside a comment/reply card: reuses
+     every `.md-content` element style but shrinks the type scale to the card's
+     13px rhythm and supplies its own block-flow spacing, since here the whole
+     body renders as one HTML string instead of the editor's per-block margins. */
+  .md-comment {
+    font-size: 13px;
+    line-height: 1.55;
+    letter-spacing: 0;
+  }
+
+  .md-comment > * + * {
+    margin-top: 0.5em;
+  }
+
+  .md-comment p,
+  .md-comment li,
+  .md-comment blockquote {
+    font-size: 13px;
+    line-height: 1.55;
+    letter-spacing: 0;
+  }
+
+  .md-comment h1 {
+    font-size: 17px;
+  }
+
+  .md-comment h2 {
+    font-size: 15px;
+  }
+
+  .md-comment h3,
+  .md-comment h4 {
+    font-size: 13.5px;
+  }
+
+  .md-comment table {
+    font-size: 0.95em;
+  }
+
   /* One real table per markdown table: content-proportional columns that scroll
      as a single unit when wide, with a sticky per-row gutter for anchoring. */
   .md-table {

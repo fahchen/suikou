@@ -56,6 +56,16 @@ const commonmark = new MarkdownIt("commonmark", { html: false, typographer: true
 assetImages(commonmark)
 
 /**
+ * Renders a comment or reply body to HTML reusing the GFM pipeline. Bodies are
+ * raw user input, so this leans on markdown-it's own sanitization: `html: false`
+ * escapes any embedded HTML (no tag passthrough) and the default `validateLink`
+ * rejects `javascript:`/`vbscript:`/`data:` URLs, so there is no XSS sink.
+ */
+export function renderCommentBody(text: string): string {
+  return gfm.render(text)
+}
+
+/**
  * Parses markdown into top-level blocks, each carrying its source line range so
  * the editor can render a line gutter and anchor comments. Code fences are
  * highlighted with Shiki; ```mermaid fences render to inline SVG. The `flavor`

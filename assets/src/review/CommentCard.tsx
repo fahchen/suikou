@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 
 import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
+import { CommentBody } from "./CommentBody";
 import { CommentCardHeader } from "./CommentCardHeader";
 import { CommentEditPanel } from "./CommentEditPanel";
 import { CommentReplies } from "./CommentReplies";
@@ -101,7 +102,7 @@ export const CommentCard = observer(function CommentCard(props: {
             {editing ? (
               <CommentEditPanel comment={comment} onDone={() => setEditing(false)} />
             ) : (
-              <p className="whitespace-pre-wrap break-words leading-relaxed text-text">{comment.body}</p>
+              <CommentBody body={comment.body} />
             )}
 
             <CommentReplies replies={comment.replies} />
