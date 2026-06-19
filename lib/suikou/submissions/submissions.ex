@@ -1,11 +1,12 @@
 defmodule Suikou.Submissions do
   @moduledoc """
   Round submission and approval. Submitting is what advances a round (see
-  BDR-0018): it publishes every pending comment across the round's review (all
-  files, not just the submitted file), records one verdict, and opens the next
-  draft round by copying the snapshot forward and carrying unresolved published
-  critique. Verdict and round advance stay per-artifact — only the submitted
-  round records a verdict and opens a next round. An `approve` verdict records the
+  BDR-0018): it publishes every pending comment and reply across the round's
+  review (all files, not just the submitted file), records one verdict, and opens
+  the next draft round by copying the snapshot forward. Comments are single rows
+  that stay visible across rounds until resolved, so no critique is copied
+  forward. Verdict and round advance stay per-artifact — only the submitted round
+  records a verdict and opens a next round. An `approve` verdict records the
   approved round; any other verdict clears a standing approval. Approval is a
   soft gate — it is allowed with open `fix_required` comments but returns a
   warning (see BDR-0012), and is reversible via `dismiss/1`.
@@ -13,11 +14,11 @@ defmodule Suikou.Submissions do
 
   import Ecto.Query
 
-  alias Suikou.Critique
   alias Suikou.Repo
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
   alias Suikou.Schemas.Submission
 
@@ -29,10 +30,10 @@ defmodule Suikou.Submissions do
 
   @doc """
   Submits the latest round, advancing the artifact. Publishes every pending
-  comment across the round's review (all files), records the verdict, opens the
-  next draft round (copying content forward and carrying unresolved published
-  critique), and sets or clears approval. An `approve` verdict warns (without
-  blocking) when open `fix_required` critique remains.
+  comment and reply across the round's review (all files), records the verdict,
+  opens the next draft round (copying content forward), and sets or clears
+  approval. An `approve` verdict warns (without blocking) when open
+  `fix_required` critique remains.
 
   ## Examples
 
@@ -203,7 +204,9 @@ defmodule Suikou.Submissions do
 
   defp apply_submission(round, changeset) do
     submission = Repo.insert!(changeset)
-    publish_pending(round)
+    review_id = review_id_for(round)
+    publish_pending_comments(review_id)
+    publish_pending_replies(review_id)
     update_approval(round, submission.verdict)
     next_round = open_next_round(round)
 
@@ -214,17 +217,28 @@ defmodule Suikou.Submissions do
     }
   end
 
-  defp publish_pending(round) do
-    review_id =
-      Artifact
-      |> where([a], a.id == ^round.artifact_id)
-      |> select([a], a.review_id)
-      |> Repo.one!()
+  defp review_id_for(round) do
+    Artifact
+    |> where([a], a.id == ^round.artifact_id)
+    |> select([a], a.review_id)
+    |> Repo.one!()
+  end
 
+  defp publish_pending_comments(review_id) do
     from(c in Comment, as: :comment)
     |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([comment: c], c.status == :pending)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> Repo.update_all(set: [status: :published])
+  end
+
+  defp publish_pending_replies(review_id) do
+    from(rep in Reply, as: :reply)
+    |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([reply: rep], rep.status == :pending)
     |> where([artifact: a], a.review_id == ^review_id)
     |> Repo.update_all(set: [status: :published])
   end
@@ -247,17 +261,13 @@ defmodule Suikou.Submissions do
   end
 
   defp open_next_round(round) do
-    next_round =
-      %{
-        artifact_id: round.artifact_id,
-        number: round.number + 1,
-        content_hash: round.content_hash
-      }
-      |> Round.changeset()
-      |> Repo.insert!()
-
-    Critique.carry_forward(round, next_round)
-    next_round
+    %{
+      artifact_id: round.artifact_id,
+      number: round.number + 1,
+      content_hash: round.content_hash
+    }
+    |> Round.changeset()
+    |> Repo.insert!()
   end
 
   defp warnings(round, :approve) do

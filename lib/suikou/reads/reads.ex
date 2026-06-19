@@ -8,6 +8,7 @@ defmodule Suikou.Reads do
 
   import Ecto.Query
 
+  alias Suikou.Critique.Queries
   alias Suikou.Repo
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
@@ -86,38 +87,51 @@ defmodule Suikou.Reads do
   end
 
   @doc """
-  Lists a round's comments in any status (pending included), oldest first, with
-  their thread replies preloaded in order.
+  Lists the comments visible in a round in any status (pending included), oldest
+  first, with their thread replies preloaded in order. A comment is a single row
+  visible in round N when it was authored on or before N and is still unresolved
+  or resolved in N or later, so an open comment shows in every round until
+  resolved without being copied forward.
 
   ## Examples
 
-      Suikou.Reads.list_comments(round.id)
+      Suikou.Reads.list_comments(round)
       #=> [%Suikou.Schemas.Comment{status: :published}, %Suikou.Schemas.Comment{status: :pending}]
 
   """
-  @spec list_comments(Ecto.UUID.t()) :: [Comment.t()]
-  def list_comments(round_id) do
-    from(c in Comment, as: :comment)
-    |> where([comment: c], c.round_id == ^round_id)
+  @spec list_comments(Round.t()) :: [Comment.t()]
+  def list_comments(%Round{} = round) do
+    round
+    |> visible_comments()
     |> order_by([comment: c], asc: c.id)
     |> preload(replies: ^thread_order())
     |> Repo.all()
   end
 
   @doc """
-  Counts a round's comments without loading them, for the round summary badge.
+  Counts the comments visible in a round without loading them, for the round
+  summary badge.
 
   ## Examples
 
-      Suikou.Reads.count_comments(round.id)
+      Suikou.Reads.count_comments(round)
       #=> 3
 
   """
-  @spec count_comments(Ecto.UUID.t()) :: non_neg_integer()
-  def count_comments(round_id) do
-    from(c in Comment, as: :comment)
-    |> where([comment: c], c.round_id == ^round_id)
+  @spec count_comments(Round.t()) :: non_neg_integer()
+  def count_comments(%Round{} = round) do
+    round
+    |> visible_comments()
     |> Repo.aggregate(:count)
+  end
+
+  defp visible_comments(%Round{artifact_id: artifact_id, number: number}) do
+    artifact_id
+    |> Queries.Comments.for_artifact()
+    |> where(
+      [comment: c],
+      c.authored_round <= ^number and (is_nil(c.resolved_round) or c.resolved_round >= ^number)
+    )
   end
 
   @doc """
