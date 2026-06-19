@@ -1,19 +1,24 @@
 defmodule Suikou.Export do
   @moduledoc """
   Read-only export for the agent. Per artifact (`export/1`) it reflects the
-  latest round: its snapshot content, its published critique (with thread
-  replies), and the artifact's standing verdict — the latest submitted round's
-  verdict, since the current round is always an unsubmitted draft (see
-  BDR-0014). `export_review/2` aggregates that view across a review's minted
+  latest round: its snapshot content, the published critique visible in that
+  round (with published thread replies), and the artifact's standing verdict —
+  the latest submitted round's verdict, since the current round is always an
+  unsubmitted draft (see BDR-0014). A comment is a single row visible in round N
+  when `authored_round <= N` and it is unresolved or resolved in round N or
+  later, so a still-open comment shows every round until resolved without being
+  copied. `export_review/2` aggregates that view across a review's minted
   artifacts for a rounds scope (`:latest` default, an inclusive `{from, to}`
   range, or `:all`), carrying the monotonic `submission_version` poll cursor.
-  Pending comments are never included; exporting changes no state.
+  Pending comments and pending replies are never included; exporting changes no
+  state.
   """
 
   import Ecto.Query
 
   alias Suikou.Artifacts
   alias Suikou.Critique
+  alias Suikou.Critique.Queries
   alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.Rounds
@@ -21,7 +26,6 @@ defmodule Suikou.Export do
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
-  alias Suikou.Schemas.Round
   alias Suikou.Schemas.Submission
   alias Suikou.Submissions
 
@@ -43,10 +47,11 @@ defmodule Suikou.Export do
           critique_type: Comment.critique_type(),
           body: String.t(),
           anchor: anchor_view() | nil,
-          original_round: integer() | nil,
+          authored_round: integer(),
           resolved_round: integer() | nil,
           resolved: boolean(),
           outdated: boolean(),
+          answered: boolean(),
           line_anchor: boolean(),
           replies: [%{author: Reply.author(), body: String.t()}]
         }
@@ -156,37 +161,41 @@ defmodule Suikou.Export do
   defp text_content(nil), do: nil
 
   defp published_comments(artifact_id, latest_round, scope, lines) do
-    from(c in Comment, as: :comment)
+    artifact_id
+    |> Queries.Comments.for_artifact()
     |> where([comment: c], c.status == :published)
-    |> scope_rounds(artifact_id, latest_round, scope)
+    |> scope_rounds(latest_round, scope)
     |> order_by([comment: c], asc: c.id)
     |> preload(replies: ^reply_thread())
     |> Repo.all()
     |> Enum.map(&comment_view(&1, lines))
   end
 
-  defp scope_rounds(query, _artifact_id, latest_round, :latest) do
-    where(query, [comment: c], c.round_id == ^latest_round.id)
+  # A comment is visible in round N when it was authored on or before N and is
+  # still unresolved or resolved in round N or later. `:latest` collapses the
+  # range to the standing round; `{from, to}` widens it; `:all` drops the filter.
+  defp scope_rounds(query, latest_round, :latest) do
+    visible_in_range(query, latest_round.number, latest_round.number)
   end
 
-  defp scope_rounds(query, artifact_id, _latest_round, :all) do
-    join_rounds(query, artifact_id)
+  defp scope_rounds(query, _latest_round, :all), do: query
+
+  defp scope_rounds(query, _latest_round, {from, to}) do
+    visible_in_range(query, from, to)
   end
 
-  defp scope_rounds(query, artifact_id, _latest_round, {from, to}) do
-    query
-    |> join_rounds(artifact_id)
-    |> where([round: r], r.number >= ^from and r.number <= ^to)
-  end
-
-  defp join_rounds(query, artifact_id) do
-    query
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> where([round: r], r.artifact_id == ^artifact_id)
+  defp visible_in_range(query, from, to) do
+    where(
+      query,
+      [comment: c],
+      c.authored_round <= ^to and (is_nil(c.resolved_round) or c.resolved_round >= ^from)
+    )
   end
 
   defp reply_thread do
-    order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
+    from(r in Reply, as: :reply)
+    |> where([reply: r], r.status == :published)
+    |> order_by([reply: r], asc: r.id)
   end
 
   defp comment_view(comment, lines) do
@@ -198,12 +207,21 @@ defmodule Suikou.Export do
       critique_type: comment.critique_type,
       body: comment.body,
       anchor: anchor,
-      original_round: comment.original_round,
+      authored_round: comment.authored_round,
       resolved_round: comment.resolved_round,
       resolved: not is_nil(comment.resolved_round),
       outdated: outdated,
+      answered: agent_answered?(comment),
       line_anchor: comment.scope == :located and not outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
+  end
+
+  # Whether the agent has the last word in the comment's discussion. The thread
+  # is a single row carrying its published replies in order, so the agent has
+  # answered when the most recent published reply is theirs; a trailing human
+  # reply (or no reply at all) means the human owes the next move.
+  defp agent_answered?(comment) do
+    match?(%Reply{author: :agent}, List.last(comment.replies))
   end
 end

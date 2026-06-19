@@ -73,19 +73,63 @@ defmodule Suikou.ExportTest do
     assert {:ok, %{verdict: :request_changes, approved: false}} = Export.export(artifact.id)
   end
 
-  test "a comment's replies travel with it" do
+  test "a comment's published replies travel with it" do
     round = insert(:round)
     artifact = round.artifact
     comment = published_comment(round.id)
+    # The human reply is pending until the round is submitted; the agent reply
+    # publishes immediately. Advancing the round publishes the pending one so
+    # both surface in the export.
     {:ok, _human} = Critique.reply_as_human(comment.id, "human reply")
     {:ok, _agent} = Critique.reply_as_agent(comment.id, "agent reply")
+    advance(artifact.id, "changed\n")
 
     assert {:ok, export} = Export.export(artifact.id)
     view = Enum.find(export.comments, &(&1.id == comment.id))
     assert Enum.map(view.replies, & &1.author) == [:human, :agent]
   end
 
-  test "a carried-forward outdated comment exports flagged with no valid anchor" do
+  test "answered reads the agent's last published reply on the single comment row" do
+    round = insert(:round)
+    artifact = round.artifact
+    comment = published_comment(round.id, %{body: "needs a fix"})
+    {:ok, _agent} = Critique.reply_as_agent(comment.id, "fixed it")
+
+    # The comment is a single row that stays visible across rounds, carrying its
+    # published replies; advancing does not strip the agent's last word.
+    advance(artifact.id, "changed\n")
+
+    assert {:ok, export} = Export.export(artifact.id)
+    [view] = export.comments
+    assert Enum.map(view.replies, & &1.author) == [:agent]
+    assert view.answered
+  end
+
+  test "answered is false when the human replies after the agent" do
+    round = insert(:round)
+    artifact = round.artifact
+    comment = published_comment(round.id, %{body: "needs a fix"})
+    {:ok, _agent} = Critique.reply_as_agent(comment.id, "fixed it")
+    {:ok, _human} = Critique.reply_as_human(comment.id, "still broken")
+
+    advance(artifact.id, "changed\n")
+
+    assert {:ok, export} = Export.export(artifact.id)
+    [view] = export.comments
+    refute view.answered
+  end
+
+  test "a comment the agent has not replied to is not answered" do
+    round = insert(:round)
+    artifact = round.artifact
+    published_comment(round.id, %{body: "needs a fix"})
+
+    assert {:ok, export} = Export.export(artifact.id)
+    [view] = export.comments
+    refute view.answered
+  end
+
+  test "a still-open comment whose anchor moved exports flagged with no valid anchor" do
     round = source_round("intro\nrate limit is 100 rps\n")
     artifact = round.artifact
 

@@ -4,6 +4,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   import ExUnit.CaptureIO
   import Suikou.Factory
 
+  alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Schemas.Artifact
@@ -182,6 +183,32 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
                task |> Task.await() |> Jason.decode!()
+    end
+
+    test "the default snapshot drops resolved and already-answered comments" do
+      round = insert(:round)
+      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+
+      answered = published_comment(round.id, %{body: "answered"})
+      {:ok, _agent} = Critique.reply_as_agent(answered.id, "fixed")
+      published_comment(round.id, %{body: "open"})
+
+      # Advance once so both comments carry forward; the wake submission below
+      # advances again, so the snapshot reflects that newest draft round, where
+      # the answered comment is a reply-less carry-forward copy.
+      %{round: round1} = advance(round.artifact_id, "v1\n")
+      payload = Jason.encode!(%{"review_id" => review_id})
+
+      task = Task.async(fn -> capture_io([input: payload], &CLI.poll/0) end)
+
+      wait_until_waiting(task.pid)
+      {:ok, _result} = Submissions.submit(round1.id, :comment)
+      CommentBroadcast.broadcast(review_id)
+
+      assert %{"artifacts" => [%{"comments" => comments}]} =
+               task |> Task.await() |> Jason.decode!()
+
+      assert Enum.map(comments, & &1["body"]) == ["open"]
     end
   end
 
