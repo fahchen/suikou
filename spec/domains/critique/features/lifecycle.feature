@@ -20,10 +20,15 @@ Feature: Critique lifecycle
       When the reviewer changes the comment type to "fix_required"
       Then the comment is stored with type "fix_required"
 
-  Rule: A pending comment can be deleted
+  Rule: A comment can be deleted in any lifecycle state
 
     Scenario: Deleting a pending comment
       Given a pending comment on the artifact
+      When the reviewer deletes the comment
+      Then the comment no longer exists
+
+    Scenario: Deleting a published comment
+      Given a published comment on the artifact
       When the reviewer deletes the comment
       Then the comment no longer exists
 
@@ -68,22 +73,16 @@ Feature: Critique lifecycle
       When the reviewer submits a review of round 1 with verdict "merge"
       Then the review is rejected
 
-  Rule: A published comment cannot be edited or deleted
+  Rule: A published comment cannot be edited
 
     Scenario: Editing a published comment is rejected
       Given a published comment on the artifact
       When the reviewer edits the comment body
       Then the edit is rejected
 
-    Scenario: Deleting a published comment is rejected
-      Given a published comment on the artifact
-      When the reviewer deletes the comment
-      Then the deletion is rejected
-      And the comment still exists
-
   # Resolution happens after the agent has responded in a later round, so it must
-  # stay available after a review is submitted; the freeze covers content and
-  # deletion only. Only an open comment can be resolved (see BDR-0023).
+  # stay available after a review is submitted; the freeze covers content only.
+  # Only an open comment can be resolved (see BDR-0023).
   Rule: Only an open comment can be resolved
 
     Scenario: Resolving a published comment records the round it was resolved at

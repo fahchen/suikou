@@ -4,9 +4,10 @@ defmodule Suikou.Critique.Comments do
   round only; a `:located` comment captures its quoted source on creation.
 
   A comment is Draft while pending, Open once published, and Resolved once a
-  `resolved_round` is set. Editing and deleting are confined to the Draft stage —
-  published comments are immutable. Resolving requires an Open comment; reopening
-  happens only as a side effect of a human reply (see `Suikou.Critique.Discussion`).
+  `resolved_round` is set. Editing is confined to the Draft stage, while
+  deletion remains available after publish. Resolving requires an Open comment;
+  reopening happens only as a side effect of a human reply (see
+  `Suikou.Critique.Discussion`).
   """
 
   alias Suikou.Artifacts
@@ -83,7 +84,7 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Deletes a Draft (pending) comment. A published comment is immutable.
+  Deletes a comment in any lifecycle state.
 
   ## Examples
 
@@ -91,13 +92,13 @@ defmodule Suikou.Critique.Comments do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
       Suikou.Critique.Comments.delete(published_comment.id)
-      #=> {:error, :not_pending}
+      #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
   @spec delete(Ecto.UUID.t()) ::
-          {:ok, Comment.t()} | {:error, :comment_not_found | :not_pending}
+          {:ok, Comment.t()} | {:error, :comment_not_found}
   def delete(comment_id) do
-    with {:ok, comment} <- fetch_pending(comment_id) do
+    with {:ok, comment} <- fetch_comment(comment_id) do
       Repo.delete(comment)
     end
   end
@@ -183,6 +184,13 @@ defmodule Suikou.Critique.Comments do
       nil -> {:error, :comment_not_found}
       %Comment{status: :pending} = comment -> {:ok, comment}
       %Comment{} -> {:error, :not_pending}
+    end
+  end
+
+  defp fetch_comment(comment_id) do
+    case Repo.get(Comment, comment_id) do
+      nil -> {:error, :comment_not_found}
+      %Comment{} = comment -> {:ok, comment}
     end
   end
 

@@ -166,6 +166,37 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
                Testing.render(page, ["comments"])
     end
 
+    test "edit_reply updates a pending human reply in the thread" do
+      round = insert(:round)
+      published_comment(round.id, %{scope: :review, critique_type: :note, body: "q"})
+      [comment] = Reads.list_comments(round)
+      {:ok, reply} = Suikou.Critique.reply_as_human(comment.id, "draft")
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(
+          page,
+          :edit_reply,
+          %{reply_id: reply.id, body: "revised"},
+          ["comments"]
+        )
+
+      assert %{items: [%{replies: [%{body: "revised"}]}]} = Testing.render(page, ["comments"])
+    end
+
+    test "delete_reply removes a pending human reply from the thread" do
+      round = insert(:round)
+      published_comment(round.id, %{scope: :review, critique_type: :note, body: "q"})
+      [comment] = Reads.list_comments(round)
+      {:ok, reply} = Suikou.Critique.reply_as_human(comment.id, "draft")
+      page = Testing.mount(ReviewStore, %{"artifact_id" => round.artifact_id})
+
+      {:ok, _reply} =
+        Testing.dispatch_command(page, :delete_reply, %{reply_id: reply.id}, ["comments"])
+
+      assert %{items: [%{replies: []}]} = Testing.render(page, ["comments"])
+    end
+
     test "delete_comment removes it from the child render" do
       round = insert(:round)
       pending_comment(round.id, %{scope: :review, critique_type: :note, body: "drop me"})

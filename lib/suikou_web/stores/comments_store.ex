@@ -65,6 +65,19 @@ defmodule SuikouWeb.Stores.CommentsStore do
     end
   end
 
+  command :edit_reply do
+    payload do
+      field(:reply_id, String.t())
+      field(:body, String.t())
+    end
+  end
+
+  command :delete_reply do
+    payload do
+      field(:reply_id, String.t())
+    end
+  end
+
   command :relocate_comment do
     payload do
       field(:comment_id, String.t())
@@ -129,6 +142,16 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   def handle_command(:reply, payload, socket) do
     Critique.reply_as_human(payload["comment_id"], payload["body"])
+    {:noreply, socket |> reload() |> broadcast_changed()}
+  end
+
+  def handle_command(:edit_reply, payload, socket) do
+    Critique.edit_reply(payload["reply_id"], payload["body"])
+    {:noreply, socket |> reload() |> broadcast_changed()}
+  end
+
+  def handle_command(:delete_reply, payload, socket) do
+    Critique.delete_reply(payload["reply_id"])
     {:noreply, socket |> reload() |> broadcast_changed()}
   end
 

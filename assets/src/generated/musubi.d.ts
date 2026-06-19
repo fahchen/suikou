@@ -140,6 +140,19 @@ declare namespace Musubi {
           }
           reply: never
         }
+        edit_reply: {
+          payload: {
+            reply_id: string
+            body: string
+          }
+          reply: never
+        }
+        delete_reply: {
+          payload: {
+            reply_id: string
+          }
+          reply: never
+        }
         relocate_comment: {
           payload: {
             comment_id: string

@@ -74,6 +74,10 @@ Consequences:
   which truncates the visibility range. Reopening clears it. Reopening happens only
   as a side effect of a human reply (see lifecycle), so the human always keeps the
   last word before the comment leaves the agent's view.
+- **Published comments keep one durable identity, but not hard immutability.**
+  Publishing freezes a comment's content fields on that row; the row itself may
+  still be deleted later if the reviewer decides the critique should leave the
+  review entirely.
 
 ## Rejected Alternatives
 

@@ -194,7 +194,7 @@ defmodule Suikou.Critique.CommentsTest do
     end
   end
 
-  describe "published comments are immutable" do
+  describe "published comment lifecycle after submission" do
     test "editing a published comment is rejected" do
       round = insert(:round)
       comment = published_comment(round.id, %{body: "old"})
@@ -203,12 +203,12 @@ defmodule Suikou.Critique.CommentsTest do
                Critique.edit_comment(comment.id, %{body: "new", critique_type: :note})
     end
 
-    test "deleting a published comment is rejected" do
+    test "a published comment can be deleted" do
       round = insert(:round)
       comment = published_comment(round.id)
 
-      assert {:error, :not_pending} = Critique.delete_comment(comment.id)
-      refute is_nil(Repo.get(Comment, comment.id))
+      assert {:ok, _deleted} = Critique.delete_comment(comment.id)
+      assert is_nil(Repo.get(Comment, comment.id))
     end
   end
 
