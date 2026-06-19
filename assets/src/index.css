@@ -823,7 +823,7 @@
      hover) as well as native :hover. */
   .gutter-cell {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: flex-end;
     gap: 2px;
     width: var(--gutter-w);
@@ -838,9 +838,45 @@
     transition: color 0.12s;
   }
 
+  /* Always laid out, hidden until hover. Toggling `display` here reflowed the
+     gutter cell's line box on reveal, which on a touch tap (first tap fires
+     :hover) grew the row and jumped the scroll position. Reserving the box and
+     flipping only `visibility` reveals with zero layout shift. */
   .gutter-cell .gutter-plus {
-    display: none;
+    display: inline-flex;
+    visibility: hidden;
     color: var(--gutter-fg-active);
+  }
+
+  /* Multi-line block: stretch the gutter to the block's height, pin the start
+     number to the top and the end number to the bottom, and run a vertical rule
+     between them. Replaces the "16-17" dash with a range that reads as a span. */
+  .gutter-cell[data-range="true"] {
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    align-self: stretch;
+    padding-top: 0.18rem;
+    padding-bottom: 0.18rem;
+  }
+
+  .gutter-cell .gutter-num {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* currentColor so the rule inherits the gutter's hover/selected color shift. */
+  .gutter-cell[data-range="true"] .gutter-conn {
+    flex: 1 1 auto;
+    width: 1px;
+    min-height: 8px;
+    /* Center the 1px rule under the flush-right digits: the digit column is
+       `--num-ch` monospace cells wide (set from the line number's digit count),
+       so its center sits half that width left of the edge, less half the rule. */
+    margin: 3px calc(var(--num-ch, 1) * 0.5ch - 0.5px) 3px 0;
+    background: currentColor;
+    opacity: 0.4;
   }
 
   /* Hover lights the gutter. `:hover` covers hovering the gutter itself;
@@ -857,7 +893,7 @@
   .gutter-cell:hover .gutter-plus,
   .gutter-cell[data-hover="true"] .gutter-plus,
   .md-row[aria-selected="false"]:hover .gutter-cell .gutter-plus {
-    display: inline-flex;
+    visibility: visible;
   }
 
   .gutter-cell[data-selected="true"] {
@@ -1116,7 +1152,7 @@
   }
 
   .md-table tr:hover .gutter-cell .gutter-plus {
-    display: inline-flex;
+    visibility: visible;
   }
 
   .md-table tr[aria-selected="false"]:hover > td,
