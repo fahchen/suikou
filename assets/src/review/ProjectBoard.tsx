@@ -213,6 +213,10 @@ function ProjectSection({
   onOpen: (reviewId: string, path: string) => void
 }) {
   const [composing, setComposing] = useState<"files" | "diff" | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const removeProject = useMusubiCommand(store, "delete_project")
+  const reviewCount = project.reviews.length
+  const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`
 
   return (
     <section>
@@ -226,32 +230,56 @@ function ProjectSection({
           </p>
         </div>
         {composing === null && (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="default"
-                  className="-mr-1 shrink-0 text-muted-foreground hover:text-heading"
-                  title="New review"
-                  aria-label="New review"
-                />
-              }
-            >
-              <Plus />
-              New review
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuItem onClick={() => setComposing("files")}>
-                <FilePlus2 />
-                Review files
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setComposing("diff")}>
-                <FileDiff />
-                Review diff
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex shrink-0 items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="default"
+                    className="shrink-0 text-muted-foreground hover:text-heading"
+                    title="New review"
+                    aria-label="New review"
+                  />
+                }
+              >
+                <Plus />
+                New review
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuItem onClick={() => setComposing("files")}>
+                  <FilePlus2 />
+                  Review files
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setComposing("diff")}>
+                  <FileDiff />
+                  Review diff
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="-mr-1 shrink-0 text-muted-foreground"
+                    title="Project actions"
+                    aria-label="Project actions"
+                  />
+                }
+              >
+                <MoreHorizontal size={15} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 size={14} />
+                  Delete project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
 
@@ -298,6 +326,46 @@ function ProjectSection({
           </AnimatePresence>
         </div>
       )}
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 size={16} className="text-red" />
+              Delete this project?
+            </DialogTitle>
+          </DialogHeader>
+          {reviewCount === 0 ? (
+            <p className="text-[13px] text-muted-foreground">
+              Permanently removes <b className="text-heading">{project.name}</b>. This project has
+              no reviews. This cannot be undone.
+            </p>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">
+              <b className="text-heading">{project.name}</b> has {reviewLabel}. Deleting it
+              permanently removes all {reviewLabel} and every artifact and comment under them. This
+              cannot be undone.
+            </p>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={removeProject.isPending}
+              onClick={() => {
+                void removeProject.dispatch({ project_id: project.id })
+                setConfirmDelete(false)
+              }}
+            >
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
