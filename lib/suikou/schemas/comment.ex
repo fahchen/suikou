@@ -1,11 +1,13 @@
 defmodule Suikou.Schemas.Comment do
   @moduledoc """
-  A unit of structured human critique on a round: a scope, a critique type, a
-  body, lifecycle status, and optional line anchor.
+  A unit of structured human critique: a scope, a critique type, a body,
+  lifecycle status, and optional line anchor.
 
-  A carried-forward comment is a new row whose `origin_id` links back to the
-  row it was carried from. Whether a line comment is outdated is derived live by
-  locating its quote in the current file, not stored.
+  A comment is a single row across every round. Its per-round visibility is
+  derived from `authored_round` (the round it was created in; denormalized and
+  immutable) and `resolved_round` (the round it was resolved in, or `nil` while
+  open). Whether a line comment is outdated is derived live by locating its quote
+  in the current file, not stored.
   """
 
   use Suikou.Schema
@@ -37,14 +39,13 @@ defmodule Suikou.Schemas.Comment do
       on_replace: :update
     )
 
-    field :original_round, :integer
+    field :authored_round, :integer, typed: [null: false]
     field :critique_type, Ecto.Enum, values: @critique_types, typed: [null: false]
     field :body, :string, typed: [null: false]
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
     field :resolved_round, :integer
 
     belongs_to :round, Round
-    belongs_to :origin, __MODULE__
     has_many :replies, Reply
 
     timestamps()
@@ -76,38 +77,32 @@ defmodule Suikou.Schemas.Comment do
 
   @doc """
   Builds a changeset for authoring a critique, requiring round, scope, critique
-  type, and a non-blank body. A `:located` comment also requires an `anchor` and
-  the `original_round` it was authored at; `:artifact` and `:review` comments
-  carry no anchor.
+  type, a non-blank body, and the `authored_round` it was created in (the
+  immutable round number every scope carries). A `:located` comment also
+  requires an `anchor`; `:artifact` and `:review` comments carry none.
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok"}).valid?
+      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
       true
 
-      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " "}).valid?
+      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " ", authored_round: 1}).valid?
       false
 
   """
   @spec author_changeset(map()) :: Ecto.Changeset.t()
   def author_changeset(params) do
     %__MODULE__{}
-    |> cast(params, [:round_id, :scope, :critique_type, :body])
-    |> validate_required([:round_id, :scope, :critique_type, :body])
+    |> cast(params, [:round_id, :scope, :critique_type, :body, :authored_round])
+    |> validate_required([:round_id, :scope, :critique_type, :body, :authored_round])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
-    |> cast_anchor(params)
+    |> cast_anchor()
   end
 
-  defp cast_anchor(changeset, params) do
+  defp cast_anchor(changeset) do
     case get_field(changeset, :scope) do
-      :located ->
-        changeset
-        |> put_change(:original_round, params[:original_round])
-        |> validate_required([:original_round])
-        |> cast_polymorphic_embed(:anchor, required: true)
-
-      _other ->
-        changeset
+      :located -> cast_polymorphic_embed(changeset, :anchor, required: true)
+      _other -> changeset
     end
   end
 
@@ -144,15 +139,16 @@ defmodule Suikou.Schemas.Comment do
 
   @doc """
   Builds a changeset reopening a resolved comment by clearing `resolved_round`.
+  Used by the human-reply path, which auto-reopens a resolved comment.
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.unresolve_changeset(%Suikou.Schemas.Comment{resolved_round: 2}).changes
+      iex> Suikou.Schemas.Comment.reopen_changeset(%Suikou.Schemas.Comment{resolved_round: 2}).changes
       %{resolved_round: nil}
 
   """
-  @spec unresolve_changeset(t()) :: Ecto.Changeset.t()
-  def unresolve_changeset(comment) do
+  @spec reopen_changeset(t()) :: Ecto.Changeset.t()
+  def reopen_changeset(comment) do
     change(comment, resolved_round: nil)
   end
 
