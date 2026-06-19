@@ -1140,6 +1140,27 @@
     font-size: 0.95em;
   }
 
+  /* Fenced code in a comment/reply body renders as a plain <pre><code> (no
+     gutter treatment like the editor view), so it needs its own contain rule:
+     a <pre> defaults to `white-space: pre`, which ignores the card's
+     `break-words` and lets a long formula or path push past the narrow rail and
+     clip. Wrap at whitespace, break unbreakable tokens, and strip the inline
+     `code` chip styling from the inner <code> so the block reads as one panel. */
+  .md-comment pre {
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .md-comment pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+  }
+
   /* One real table per markdown table: content-proportional columns that scroll
      as a single unit when wide, with a sticky per-row gutter for anchoring. */
   .md-table {
