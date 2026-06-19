@@ -2,8 +2,11 @@ defmodule Suikou.Critique.Comments do
   @moduledoc """
   Authoring and lifecycle of human critique. New comments attach to the latest
   round only; a `:located` comment captures its quoted source on creation.
-  Comments stay editable and deletable regardless of status; only `resolve` and
-  `unresolve` require a published comment.
+
+  A comment is Draft while pending, Open once published, and Resolved once a
+  `resolved_round` is set. Editing and deleting are confined to the Draft stage —
+  published comments are immutable. Resolving requires an Open comment; reopening
+  happens only as a side effect of a human reply (see `Suikou.Critique.Discussion`).
   """
 
   alias Suikou.Artifacts
@@ -49,72 +52,76 @@ defmodule Suikou.Critique.Comments do
 
       true ->
         with {:ok, params} <- put_anchor(params, round) do
-          params |> Comment.author_changeset() |> Repo.insert()
+          params
+          |> Map.put(:authored_round, round.number)
+          |> Comment.author_changeset()
+          |> Repo.insert()
         end
     end
   end
 
   @doc """
-  Edits a comment's body and critique type, regardless of status.
+  Edits a Draft (pending) comment's body and critique type. A published comment
+  is immutable.
 
   ## Examples
 
-      Suikou.Critique.Comments.edit(comment.id, %{body: "revised", critique_type: :note})
+      Suikou.Critique.Comments.edit(pending_comment.id, %{body: "revised", critique_type: :note})
       #=> {:ok, %Suikou.Schemas.Comment{body: "revised"}}
 
-      Suikou.Critique.Comments.edit("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", %{body: "x", critique_type: :note})
-      #=> {:error, :comment_not_found}
+      Suikou.Critique.Comments.edit(published_comment.id, %{body: "x", critique_type: :note})
+      #=> {:error, :not_pending}
 
   """
   @spec edit(Ecto.UUID.t(), map()) ::
           {:ok, Comment.t()}
-          | {:error, Ecto.Changeset.t() | :comment_not_found}
+          | {:error, Ecto.Changeset.t() | :comment_not_found | :not_pending}
   def edit(comment_id, params) do
-    with {:ok, comment} <- fetch(comment_id) do
+    with {:ok, comment} <- fetch_pending(comment_id) do
       comment |> Comment.edit_changeset(params) |> Repo.update()
     end
   end
 
   @doc """
-  Deletes a comment, regardless of status.
+  Deletes a Draft (pending) comment. A published comment is immutable.
 
   ## Examples
 
-      Suikou.Critique.Comments.delete(comment.id)
+      Suikou.Critique.Comments.delete(pending_comment.id)
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
-      Suikou.Critique.Comments.delete("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
-      #=> {:error, :comment_not_found}
+      Suikou.Critique.Comments.delete(published_comment.id)
+      #=> {:error, :not_pending}
 
   """
   @spec delete(Ecto.UUID.t()) ::
-          {:ok, Comment.t()} | {:error, :comment_not_found}
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_pending}
   def delete(comment_id) do
-    with {:ok, comment} <- fetch(comment_id) do
+    with {:ok, comment} <- fetch_pending(comment_id) do
       Repo.delete(comment)
     end
   end
 
   @doc """
-  Marks a published comment resolved at the latest round. A pending comment
-  cannot be resolved.
+  Marks an Open comment resolved at the latest round. Only an Open comment
+  (published and not already resolved) can be resolved.
 
   ## Examples
 
-      Suikou.Critique.Comments.resolve(published_comment.id)
+      Suikou.Critique.Comments.resolve(open_comment.id)
       #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1}}
 
       Suikou.Critique.Comments.resolve(pending_comment.id)
-      #=> {:error, :not_published}
+      #=> {:error, :not_open}
 
   """
   @spec resolve(Ecto.UUID.t()) ::
-          {:ok, Comment.t()} | {:error, :comment_not_found | :not_published}
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
   def resolve(comment_id) do
     case Repo.get(Comment, comment_id) do
       nil -> {:error, :comment_not_found}
-      %Comment{status: :pending} -> {:error, :not_published}
-      %Comment{} = comment -> mark_resolved(comment)
+      %Comment{status: :published, resolved_round: nil} = comment -> mark_resolved(comment)
+      %Comment{} -> {:error, :not_open}
     end
   end
 
@@ -125,29 +132,6 @@ defmodule Suikou.Critique.Comments do
     comment
     |> Comment.resolve_changeset(resolved_round)
     |> Repo.update()
-  end
-
-  @doc """
-  Reopens a published comment by clearing its `resolved_round`. A pending comment
-  cannot be unresolved; reopening an already-open comment is a no-op.
-
-  ## Examples
-
-      Suikou.Critique.Comments.unresolve(resolved_comment.id)
-      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: nil}}
-
-      Suikou.Critique.Comments.unresolve(pending_comment.id)
-      #=> {:error, :not_published}
-
-  """
-  @spec unresolve(Ecto.UUID.t()) ::
-          {:ok, Comment.t()} | {:error, :comment_not_found | :not_published}
-  def unresolve(comment_id) do
-    case Repo.get(Comment, comment_id) do
-      nil -> {:error, :comment_not_found}
-      %Comment{status: :pending} -> {:error, :not_published}
-      %Comment{} = comment -> comment |> Comment.unresolve_changeset() |> Repo.update()
-    end
   end
 
   @doc """
@@ -194,20 +178,18 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp fetch(comment_id) do
+  defp fetch_pending(comment_id) do
     case Repo.get(Comment, comment_id) do
       nil -> {:error, :comment_not_found}
-      %Comment{} = comment -> {:ok, comment}
+      %Comment{status: :pending} = comment -> {:ok, comment}
+      %Comment{} -> {:error, :not_pending}
     end
   end
 
   defp put_anchor(params, round) do
     if located_scope?(params[:scope]) do
       with {:ok, anchor} <- build_anchor(params[:anchor], round) do
-        {:ok,
-         params
-         |> Map.put(:anchor, anchor)
-         |> Map.put(:original_round, round.number)}
+        {:ok, Map.put(params, :anchor, anchor)}
       end
     else
       {:ok, params}
