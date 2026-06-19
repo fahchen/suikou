@@ -13,6 +13,7 @@ import type {
 } from "../stores/ui-store";
 import { CRITIQUE_META } from "./types";
 import type { ViewCapabilities, ViewKind } from "./view-kind";
+import { reviewFileTarget } from "./review-navigation";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -42,7 +43,8 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
  * flavor for diffs, no diff layout for files, no wrap for images, etc).
  */
 export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
-  artifactId: string;
+  reviewId: string;
+  filePath: string;
   rawView: boolean;
   capabilities: ViewCapabilities;
   viewKind: ViewKind;
@@ -54,7 +56,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
    */
   sideCommentsAllowed: boolean;
 }) {
-  const { artifactId, rawView, capabilities, viewKind, diffLayoutAllowed, sideCommentsAllowed } =
+  const { reviewId, filePath, rawView, capabilities, viewKind, diffLayoutAllowed, sideCommentsAllowed } =
     props;
   const sourceLabel = viewKind === "html" ? "HTML" : "Markdown";
   const ui = uiStore;
@@ -159,10 +161,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
                 value={[rawView ? "raw" : "rendered"]}
                 onValueChange={(v) =>
                   v[0] &&
-                  void navigate({
-                    to: v[0] === "raw" ? "/review/$artifactId/raw" : "/review/$artifactId",
-                    params: { artifactId },
-                  })
+                  void navigate(reviewFileTarget(reviewId, filePath, v[0] === "raw"))
                 }
               >
                 <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>

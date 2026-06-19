@@ -32,7 +32,6 @@ import {
   usePrefetchReviewStore
 } from "../musubi"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
-import { uiStore } from "../stores/ui-store"
 import { FileTree } from "./FileTree"
 import { ReviewFileTree } from "./ReviewFileTree"
 import { ThemeMenu } from "./ThemeMenu"
@@ -129,7 +128,7 @@ function boardCacheIsWarm(): boolean {
 }
 
 /** Project board: register directories, then group files into reviews. */
-export function ProjectBoard({ onOpen }: { onOpen: (artifactId: string) => void }) {
+export function ProjectBoard({ onOpen }: { onOpen: (reviewId: string, path: string) => void }) {
   const warmRef = useRef<boolean | null>(null)
   if (warmRef.current === null) warmRef.current = boardCacheIsWarm()
 
@@ -151,7 +150,7 @@ export function ProjectBoard({ onOpen }: { onOpen: (artifactId: string) => void 
   return <Board store={root.store} onOpen={onOpen} />
 }
 
-function Board({ store, onOpen }: { store: BoardStore; onOpen: (artifactId: string) => void }) {
+function Board({ store, onOpen }: { store: BoardStore; onOpen: (reviewId: string, path: string) => void }) {
   const snapshot = useMusubiSnapshot(store)
   const hasProjects = snapshot.projects.length > 0
   const [creating, setCreating] = useState(false)
@@ -211,7 +210,7 @@ function ProjectSection({
   store: BoardStore
   project: BoardProject
   reviewFiles: ReviewFilesAsync
-  onOpen: (artifactId: string) => void
+  onOpen: (reviewId: string, path: string) => void
 }) {
   const [composing, setComposing] = useState<"files" | "diff" | null>(null)
 
@@ -318,7 +317,7 @@ function ReviewCard({
   files: ReviewFileEntry[] | null
   filesStatus: ReviewFilesAsync["status"]
   index: number
-  onOpen: (artifactId: string) => void
+  onOpen: (reviewId: string, path: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -330,10 +329,8 @@ function ReviewCard({
   const narrow = !useMediaQuery(WIDE_QUERY)
   const remove = useMusubiCommand(store, "delete_review")
   const rename = useMusubiCommand(store, "rename_review")
-  const openFile = useMusubiCommand(store, "open_review_file")
   const prefetchReview = usePrefetchReviewStore()
   const open = editing || expanded
-  const [openError, setOpenError] = useState<string | null>(null)
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const fileCount = files?.length ?? 0
   const filesLoading = files === null && filesStatus !== "failed"
@@ -348,17 +345,9 @@ function ReviewCard({
     files.every((file) => isHtmlPath(file.path))
 
   async function handleOpen(path: string) {
-    setOpenError(null)
     setPendingPath(path)
-    uiStore.setMintingPath(path)
     try {
-      const reply = await openFile.dispatch({ review_id: review.id, path })
-      if (reply.artifact_id) {
-        onOpen(reply.artifact_id)
-      } else {
-        setOpenError(reply.error)
-        uiStore.setMintingPath(null)
-      }
+      onOpen(review.id, path)
     } finally {
       setPendingPath(null)
     }
@@ -370,8 +359,8 @@ function ReviewCard({
   }
 
   // Warm the ReviewStore cache for the file `openReview` would open, so a
-  // hover-then-click paints instantly. Unminted files have no artifact id
-  // until `open_review_file` dispatches, so they're skipped.
+  // hover-then-click paints instantly. Unminted files stay skipped because
+  // route entry is now the only place that mints `artifact_id`s.
   function prefetchFirstFile() {
     const first = files?.[0]
     if (first?.artifact_id) prefetchReview(first.artifact_id)
@@ -573,9 +562,6 @@ function ReviewCard({
                 </p>
               ) : (
                 <div className="border-t border-line py-1">
-                  {openError && (
-                    <p className="px-3.5 pb-1 text-[12px] text-red">{openError}</p>
-                  )}
                   <ReviewFileTree
                     files={files}
                     pendingPath={pendingPath}

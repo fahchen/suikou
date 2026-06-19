@@ -3,11 +3,10 @@ import { useNavigate } from "@tanstack/react-router"
 
 import { FileRenderHeader } from "./FileRenderHeader"
 import { FileVerdictMenu } from "./TopBarVerdictMenu"
-import { useReviewCommands } from "./commands"
 import { orderedReviewFiles } from "./file-order"
+import { reviewFileTarget } from "./review-navigation"
 import { resolveViewKind, viewCapabilities } from "./view-kind"
 import { isImagePath, isBinaryContent } from "./file-type"
-import { uiStore } from "../stores/ui-store"
 import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { ReviewFileEntry, ReviewSnapshot, Verdict } from "./types"
 
@@ -26,7 +25,6 @@ export const FileHeader = observer(function FileHeader(props: {
 }) {
   const { snapshot, rawView, content, verdict, onVerdictChange } = props
   const navigate = useNavigate()
-  const commands = useReviewCommands()
   const viewKind = resolveViewKind(snapshot.artifact)
   const title = snapshot.artifact.title
   const image = isImagePath(title)
@@ -48,10 +46,7 @@ export const FileHeader = observer(function FileHeader(props: {
   ).length
 
   function setRawView(next: boolean) {
-    void navigate({
-      to: next ? "/review/$artifactId/raw" : "/review/$artifactId",
-      params: { artifactId: snapshot.artifact.id }
-    })
+    void navigate(reviewFileTarget(snapshot.review_id, snapshot.artifact.title, next))
   }
 
   const files = orderedReviewFiles(snapshot.files.data ?? [])
@@ -61,24 +56,10 @@ export const FileHeader = observer(function FileHeader(props: {
     return (thread?.items ?? []).filter((c) => c.scope !== "review").length
   }
 
-  // Switching files navigates to the target artifact, minting it first when the
-  // file has never been opened (so it has no artifact id yet), mirroring the
-  // top bar's prev/next stepping.
+  // Switching files changes the route only; the route layer resolves/mints the
+  // target artifact from `(review_id, path)` before mounting the review store.
   async function selectFile(file: ReviewFileEntry) {
-    let id = file.artifact_id
-    if (!id) {
-      uiStore.setMintingPath(file.path)
-      const reply = await commands.openFile.dispatch({ path: file.path })
-      if (!reply.artifact_id) {
-        uiStore.setMintingPath(null)
-        return
-      }
-      id = reply.artifact_id
-    }
-    void navigate({
-      to: rawView ? "/review/$artifactId/raw" : "/review/$artifactId",
-      params: { artifactId: id }
-    })
+    void navigate(reviewFileTarget(snapshot.review_id, file.path, rawView))
   }
 
   return (

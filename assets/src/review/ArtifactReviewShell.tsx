@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router"
+import { Outlet, useSearch } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { useMarkdown } from "../markdown/use-markdown"
-import { contentErrorFrom, useContent } from "../review/use-content"
-import { useRawHighlight } from "../review/use-raw-highlight"
+import { contentErrorFrom, useContent } from "./use-content"
+import { useRawHighlight } from "./use-raw-highlight"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import {
   isFiltering,
@@ -14,25 +14,21 @@ import {
   ReviewViewProvider,
   useReviewStore,
   visibleComments
-} from "../review/store-context"
-import { TopBar } from "../review/TopBar"
-import { FileHeader } from "../review/FileHeader"
-import { useReviewCommands } from "../review/commands"
-import { CommentRail } from "../review/CommentRail"
-import { AllFilesView } from "../review/views/AllFilesView"
-import { useScrollRestore } from "../review/use-scroll-restore"
-import { HtmlAnchorComposer } from "../review/views/HtmlAnchorComposer"
-import { isPreviewable, isImagePath } from "../review/file-type"
-import { assetBase } from "../review/urls"
-import type { ReviewSnapshot, ReviewStore, Verdict } from "../review/types"
-
-export const Route = createFileRoute("/review/$artifactId")({
-  component: ReviewLayout
-})
+} from "./store-context"
+import { TopBar } from "./TopBar"
+import { FileHeader } from "./FileHeader"
+import { useReviewCommands } from "./commands"
+import { CommentRail } from "./CommentRail"
+import { AllFilesView } from "./views/AllFilesView"
+import { useScrollRestore } from "./use-scroll-restore"
+import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer"
+import { isPreviewable, isImagePath } from "./file-type"
+import { assetBase } from "./urls"
+import type { ReviewSnapshot, ReviewStore, Verdict } from "./types"
 
 /** Mounts the ReviewStore for an artifact and frames the rendered/raw child routes. */
-function ReviewLayout() {
-  const { artifactId } = Route.useParams()
+export function ArtifactReviewShell(props: { artifactId: string }) {
+  const { artifactId } = props
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: artifactId,
@@ -56,9 +52,6 @@ const ReviewShell = observer(function ReviewShell() {
   const snapshot = useMusubiSnapshot(store)
   const minting = uiStore.mintingPath
 
-  // Store-swap during prev/next navigation can momentarily surface a snapshot
-  // before the new store hydrates its fields — `snapshot.artifact` is
-  // undefined in that window. Render a hold instead of crashing the shell.
   if (!snapshot.artifact) {
     return (
       <>
@@ -97,21 +90,13 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const { snapshot } = props
   const ui = uiStore
   const commands = useReviewCommands()
-  const rawView = useLocation().pathname.endsWith("/raw")
+  const search = useSearch({ strict: false }) as { view?: string }
+  const rawView = search.view === "raw"
 
-  // Mint-on-click affordance (B3): when this shell mounts for the freshly
-  // minted artifact, clear the global minting strip set by the upstream
-  // openFile dispatcher.
   useEffect(() => {
     if (uiStore.mintingPath) uiStore.setMintingPath(null)
   }, [snapshot.artifact.id])
 
-  // Server is authoritative: the displayed verdict tracks the snapshot's
-  // per-file draft (or submitted) verdict. Local state exists only for
-  // optimistic feedback between a click and the patch landing — it resyncs
-  // whenever the snapshot's verdict changes (own write round-trip, cache
-  // revalidation, or store-swap on file switch), so switching files never
-  // shows a stale value frozen at mount time.
   const serverVerdict = snapshot.draft_verdict ?? snapshot.latest_verdict ?? null
   const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict)
   useEffect(() => {
@@ -144,9 +129,6 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const rawLines = useRawHighlight(content, title, ui.theme)
   const loading = blocks.loading || contentLoading
 
-  // Reveal any comment that appears after this mount (e.g. one you just added)
-  // so it shows immediately even under hide-all. The set lives only in this
-  // session, so a refresh re-seeds the baseline and re-hides everything.
   const seenIds = useRef<Set<string> | null>(null)
   useEffect(() => {
     const ids = snapshot.comments.items.map((c) => c.id)
@@ -167,9 +149,6 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const allFiles = ui.fileDisplayMode === "all"
   const sideMode = ui.commentMode === "side" && wide && !ui.hideComments && !allFiles
 
-  // Single-file mode: remember and restore each file's scroll offset (per
-  // rendered/raw view) across file switches and hard reloads. The all-files
-  // stacked view manages its own layout, so it opts out.
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null)
   useScrollRestore({
     container: mainEl,
@@ -179,7 +158,6 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
     enabled: !allFiles
   })
 
-  // The artifact was deleted out from under this tab (its review was removed).
   if (!snapshot.artifact.id) {
     return (
       <Centered tone="error">
@@ -260,14 +238,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   )
 })
 
-/**
- * Skeleton shell shown while the review store is still resolving (cold
- * navigation) or while a store-swap is mid-flight. Mirrors the real layout
- * — top bar shape, file card frame, comment rail column — so the page
- * doesn't reflow when content arrives. Uses the same `animate-pulse / bg-soft`
- * idiom as the board's loading rows.
- */
-function ReviewShellSkeleton(props: { label: string }) {
+export function ReviewShellSkeleton(props: { label: string }) {
   return (
     <main
       className="h-screen overflow-hidden bg-canvas text-ink"
@@ -309,7 +280,7 @@ function ReviewShellSkeleton(props: { label: string }) {
   )
 }
 
-function Centered(props: { children: React.ReactNode; tone?: "error" }) {
+export function Centered(props: { children: React.ReactNode; tone?: "error" }) {
   return (
     <div className="flex h-screen items-center justify-center text-sm" data-tone={props.tone}>
       <span className={props.tone === "error" ? "text-red" : "text-muted-foreground"}>

@@ -21,6 +21,7 @@ import { useReviewCommands } from "./commands";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
+import { reviewFileTarget } from "./review-navigation";
 import { VERDICT_META, type ReviewFileEntry, type ReviewSnapshot, type Verdict } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
@@ -74,7 +75,6 @@ export const TopBar = observer(function TopBar(props: {
     rawView,
     binary,
   });
-  const [navError, setNavError] = useState<string | null>(null);
   const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -113,24 +113,9 @@ export const TopBar = observer(function TopBar(props: {
   const showFileNav = uiStore.fileDisplayMode === "single";
 
   async function navigateToFile(file: ReviewFileEntry, dir: "prev" | "next") {
-    setNavError(null);
     setNavPending(dir);
     try {
-      let id = file.artifact_id;
-      if (!id) {
-        uiStore.setMintingPath(file.path);
-        const reply = await commands.openFile.dispatch({ path: file.path });
-        if (!reply.artifact_id) {
-          setNavError(reply.error ?? "Could not open file");
-          uiStore.setMintingPath(null);
-          return;
-        }
-        id = reply.artifact_id;
-      }
-      void navigate({
-        to: rawView ? "/review/$artifactId/raw" : "/review/$artifactId",
-        params: { artifactId: id },
-      });
+      void navigate(reviewFileTarget(snapshot.review_id, file.path, rawView));
     } finally {
       setNavPending(null);
     }
@@ -177,11 +162,6 @@ export const TopBar = observer(function TopBar(props: {
             </Button>
           </ButtonGroup>
         )}
-        {navError && (
-          <span className="hidden text-[11px] text-red sm:inline" role="alert">
-            {navError}
-          </span>
-        )}
       </div>
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
@@ -202,7 +182,8 @@ export const TopBar = observer(function TopBar(props: {
           </Button>
         )}
         <TopBarDisplayMenu
-          artifactId={snapshot.artifact.id}
+          reviewId={snapshot.review_id}
+          filePath={snapshot.artifact.title}
           rawView={rawView}
           capabilities={capabilities}
           viewKind={viewKind}
