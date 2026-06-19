@@ -29,16 +29,17 @@ Feature: Authoring structured critique
       Then the comment is stored with review scope
       And the comment has no anchor
 
-  # The location captured at authoring is frozen as the comment's original anchor
-  # so an outdated comment can always report where it began (see BDR-0017).
-  Rule: A line-scoped comment records its original anchor
+  # The location is captured as the comment's live anchor; the round it was
+  # authored on is denormalized onto the one row as its immutable authored round
+  # (see BDR-0022, BDR-0023).
+  Rule: A line-scoped comment records its authored round
 
-    Scenario: Authoring captures the original anchor at the current round
+    Scenario: Authoring captures the anchor and authored round at the current round
       Given the artifact is at round 1
       And the reviewer selects lines 10 through 12 of the artifact
       When the reviewer adds a comment scoped to those lines
-      Then the comment's original anchor is a line range from line 10 to line 12
-      And the comment's original round is 1
+      Then the comment's anchor is a line range from line 10 to line 12
+      And the comment's authored round is 1
 
   # A single dimension, not type + severity. Three agent-readable values so an
   # agent knows the expected action at a glance (see BDR-0005).
@@ -65,9 +66,9 @@ Feature: Authoring structured critique
       Then the comment is rejected
       And no comment is stored
 
-  # New critique always lands on the version in front of the reviewer; earlier
-  # rounds are frozen history (see BDR-0011) and open feedback reaches later
-  # rounds via carry-forward (see BDR-0009), not by authoring onto old rounds.
+  # New critique always lands on the version in front of the reviewer. Open
+  # feedback reaches later rounds as the same single row (see BDR-0023), not by
+  # authoring onto old rounds.
   Rule: A new comment attaches to the latest round
 
     Scenario: A comment attaches to the current round

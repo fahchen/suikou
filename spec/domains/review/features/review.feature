@@ -9,8 +9,9 @@ Feature: Review verdict
     And a markdown artifact under review
 
   # Submitting is what advances the round (see BDR-0018): it publishes the draft
-  # round's pending comments, records the verdict, and opens the next draft round
-  # carrying forward unresolved comments (see BDR-0009). Rounds are numbered from 0.
+  # round's pending comments, records the verdict, and opens the next draft round.
+  # Unresolved comments stay visible on the next round as the same single rows, by
+  # derived visibility rather than copying (see BDR-0023). Rounds are numbered from 0.
   Rule: Submitting a review advances the round
 
     Scenario: Submitting the current draft round publishes it and opens the next
@@ -19,7 +20,7 @@ Feature: Review verdict
       Then the review is attached to round 1
       And round 1's pending comments are published
       And round 2 is opened as the next draft round
-      And round 2 carries forward round 1's unresolved comments
+      And round 1's unresolved comments stay visible on round 2
 
     Scenario: Submitting a superseded round is rejected
       Given the artifact's current draft round is round 1

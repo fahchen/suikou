@@ -1,10 +1,17 @@
 ---
 id: BDR-0011
 title: Carried comments are new per-round rows linked to an origin
-status: accepted
+status: superseded
+superseded_by: BDR-0023
 date: 2026-06-06
 summary: A carried-forward comment is a new row on the new round that links back to its origin, so each round keeps an immutable record of its critique
 ---
+
+> **Superseded by [BDR-0023](BDR-0023-single-row-comment-across-rounds.md).** A
+> comment is now one row across all rounds — no per-round copy and no origin link.
+> The per-round-history goal below is reconstructed from the single row's
+> `authored_round`, `resolved_round`, and the round snapshots rather than from
+> stored per-round rows.
 
 ## Scope
 

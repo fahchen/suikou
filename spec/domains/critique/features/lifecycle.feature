@@ -83,8 +83,8 @@ Feature: Critique lifecycle
 
   # Resolution happens after the agent has responded in a later round, so it must
   # stay available after a review is submitted; the freeze covers content and
-  # deletion only.
-  Rule: A published comment can be resolved
+  # deletion only. Only an open comment can be resolved (see BDR-0023).
+  Rule: Only an open comment can be resolved
 
     Scenario: Resolving a published comment records the round it was resolved at
       Given a published comment on round 1
@@ -92,3 +92,13 @@ Feature: Critique lifecycle
       When the reviewer marks the comment resolved
       Then the comment is resolved
       And the comment records round 2 as its resolved round
+
+    Scenario: Resolving a pending comment is rejected
+      Given a pending comment on the artifact
+      When the reviewer marks the comment resolved
+      Then the resolution is rejected
+
+    Scenario: Resolving an already-resolved comment is rejected
+      Given a resolved published comment on the artifact
+      When the reviewer marks the comment resolved
+      Then the resolution is rejected

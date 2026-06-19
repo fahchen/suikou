@@ -28,3 +28,31 @@ Feature: Threaded discussion
     Scenario: The agent cannot author a top-level comment
       When the agent attempts to author a top-level comment
       Then the attempt is rejected
+
+  # Replies are gated by the comment's lifecycle. A human reply is created pending
+  # and publishes on the next submit; an agent reply publishes immediately
+  # (see BDR-0023).
+  Rule: A reply's publication follows its author
+
+    Scenario: A human reply is created pending
+      When the reviewer replies to the comment
+      Then the reply is pending
+
+    Scenario: An agent reply publishes immediately
+      When the agent replies to the comment through the reply API
+      Then the reply is published
+
+  # The agent reaches only open comments; a draft or resolved target is rejected.
+  # The human may reply to a resolved comment, which reopens it so the human keeps
+  # the last word before the comment leaves the agent's view (see BDR-0023).
+  Rule: A human reply to a resolved comment reopens it
+
+    Scenario: Replying to a resolved comment clears its resolution
+      Given the comment has been resolved
+      When the reviewer replies to the comment
+      Then the comment is no longer resolved
+
+    Scenario: The agent cannot reply to a resolved comment
+      Given the comment has been resolved
+      When the agent replies to the comment through the reply API
+      Then the attempt is rejected

@@ -1,10 +1,19 @@
 ---
 id: BDR-0009
 title: Only unresolved published critique carries forward to a new round
-status: accepted
+status: superseded
+superseded_by: BDR-0023
 date: 2026-06-06
 summary: When a round advances, unresolved published comments re-anchor onto the new round; resolved comments stay on their round and pending comments never carry
 ---
+
+> **Superseded by [BDR-0023](BDR-0023-single-row-comment-across-rounds.md).**
+> Open feedback still reaches later rounds, but a comment is now one row whose
+> per-round visibility is derived from `authored_round` and `resolved_round`;
+> nothing is copied or re-anchored onto a new round. The "resolved stays put,
+> pending never reaches the agent" intent below still holds — a resolved comment
+> drops out of later rounds when its `resolved_round` truncates the range, and a
+> pending comment is invisible until submitted.
 
 ## Scope
 
