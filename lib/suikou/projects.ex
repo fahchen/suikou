@@ -62,6 +62,28 @@ defmodule Suikou.Projects do
   def get_project(project_id), do: Repo.get(Project, project_id)
 
   @doc """
+  Deletes a project by id.
+
+  Returns `{:error, :project_not_found}` when no project exists for the given id.
+
+  ## Examples
+
+      Suikou.Projects.delete_project(project.id)
+      #=> {:ok, %Suikou.Schemas.Project{}}
+
+      Suikou.Projects.delete_project("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {:error, :project_not_found}
+
+  """
+  @spec delete_project(Ecto.UUID.t()) :: {:ok, Project.t()} | {:error, :project_not_found}
+  def delete_project(project_id) do
+    case get_project(project_id) do
+      %Project{} = project -> Repo.delete(project)
+      nil -> {:error, :project_not_found}
+    end
+  end
+
+  @doc """
   Lists all projects, ordered by name.
 
   ## Examples
