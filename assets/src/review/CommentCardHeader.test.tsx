@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Comment } from "./types";
 import { Collapsible } from "@/components/ui/collapsible";
@@ -39,6 +39,20 @@ function renderHeader(c: Comment) {
 }
 
 describe("CommentCardHeader", () => {
+  it("shows Edit for a pending comment", () => {
+    renderHeader(comment({ status: "pending" }));
+    fireEvent.click(screen.getByTitle("Comment actions"));
+    expect(screen.getByText("Edit")).toBeInTheDocument();
+    expect(screen.getByText("Delete")).toBeInTheDocument();
+  });
+
+  it("omits Edit for a published comment", () => {
+    renderHeader(comment({ status: "published" }));
+    fireEvent.click(screen.getByTitle("Comment actions"));
+    expect(screen.queryByText("Edit")).not.toBeInTheDocument();
+    expect(screen.getByText("Delete")).toBeInTheDocument();
+  });
+
   it("shows the actions menu for a pending comment", () => {
     renderHeader(comment({ status: "pending" }));
     expect(screen.getByTitle("Comment actions")).toBeInTheDocument();

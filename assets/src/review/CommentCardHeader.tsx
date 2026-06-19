@@ -160,10 +160,12 @@ export function CommentCardHeader(props: {
             }
           />
           <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil size={14} />
-              Edit
-            </DropdownMenuItem>
+            {comment.status === "pending" && (
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil size={14} />
+                Edit
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant="destructive"
               onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}
