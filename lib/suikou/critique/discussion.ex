@@ -15,10 +15,8 @@ defmodule Suikou.Critique.Discussion do
   """
 
   alias Suikou.Repo
-  alias Suikou.Rounds
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
-  alias Suikou.Schemas.Round
 
   @doc """
   Appends a human reply to an Open or Resolved comment. A Resolved target is
@@ -129,7 +127,7 @@ defmodule Suikou.Critique.Discussion do
   end
 
   defp insert_reply(comment, author, status, body) do
-    %Reply{author: author, status: status, round_id: writing_round_id(comment)}
+    %Reply{author: author, status: status}
     |> Reply.changeset(%{comment_id: comment.id, body: body})
     |> Repo.insert()
   end
@@ -139,13 +137,6 @@ defmodule Suikou.Critique.Discussion do
       {:ok, reply} -> reply
       {:error, changeset} -> Repo.rollback(changeset)
     end
-  end
-
-  # The round a reply is written in is the artifact's current (latest) round.
-  defp writing_round_id(%Comment{round_id: round_id}) do
-    %Round{artifact_id: artifact_id} = Rounds.get(round_id)
-    %Round{id: id} = Rounds.latest(artifact_id)
-    id
   end
 
   defp fetch_editable_reply(reply_id) do

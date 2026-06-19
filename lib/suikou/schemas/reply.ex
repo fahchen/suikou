@@ -4,15 +4,13 @@ defmodule Suikou.Schemas.Reply do
   replies; the agent may only reply, via a dedicated reply path.
 
   Replies share the comment lifecycle: a human reply is `:pending` until its
-  round is submitted, an agent reply is `:published` immediately. `round_id`
-  records the round a reply was written in. `author` and `status` are set by the
-  reply path, never cast from input.
+  round is submitted, an agent reply is `:published` immediately. `author` and
+  `status` are set by the reply path, never cast from input.
   """
 
   use Suikou.Schema
 
   alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.Round
 
   @authors [:human, :agent]
   @statuses [:pending, :published]
@@ -26,15 +24,14 @@ defmodule Suikou.Schemas.Reply do
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
 
     belongs_to :comment, Comment
-    belongs_to :round, Round
 
     timestamps()
   end
 
   @doc """
   Builds a changeset for a reply on `reply` (a struct that already carries the
-  programmatic `author`, `status`, and `round_id`, set when the struct is built),
-  casting `comment_id` and a non-blank `body` from `params`.
+  programmatic `author` and `status`, set when the struct is built), casting
+  `comment_id` and a non-blank `body` from `params`.
 
   ## Examples
 
@@ -48,7 +45,7 @@ defmodule Suikou.Schemas.Reply do
 
   """
   @spec changeset(Ecto.Schema.t(), map()) :: Ecto.Changeset.t()
-  def changeset(reply \\ %__MODULE__{}, params) do
+  def changeset(reply, params) do
     reply
     |> cast(params, [:comment_id, :body])
     |> validate_required([:comment_id, :body])
