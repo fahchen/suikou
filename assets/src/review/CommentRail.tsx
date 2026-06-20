@@ -23,6 +23,7 @@ export function CommentRail(props: {
   filtered?: boolean;
   variant?: RailVariant;
   header?: ReactNode;
+  emptyHint?: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const variant: RailVariant = props.variant ?? "page";
@@ -34,7 +35,7 @@ export function CommentRail(props: {
         className="self-start lg:sticky lg:top-16 lg:border-l lg:border-line lg:pl-6"
         aria-label="Comments"
       >
-        <RailEmpty filtered={!!props.filtered} />
+        <RailEmpty filtered={!!props.filtered} hint={props.emptyHint} />
       </aside>
     );
   }
@@ -61,7 +62,7 @@ export function CommentRail(props: {
   );
 }
 
-function RailEmpty({ filtered }: { filtered: boolean }) {
+function RailEmpty({ filtered, hint }: { filtered: boolean; hint?: string }) {
   if (filtered) {
     return (
       <div className="flex flex-col items-start gap-2 px-1 pt-2">
@@ -76,7 +77,7 @@ function RailEmpty({ filtered }: { filtered: boolean }) {
     <div className="flex flex-col items-start gap-2 px-1 pt-2">
       <MessageSquarePlus size={14} className="text-faint" aria-hidden />
       <p className="text-[12px] leading-snug text-muted-foreground">
-        Click any line number to start a comment. Threads land here.
+        {hint ?? "Click any line number to start a comment. Threads land here."}
       </p>
     </div>
   );

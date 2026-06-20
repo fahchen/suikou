@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router"
-import { ArrowLeft, Compass } from "lucide-react"
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, Compass } from "lucide-react";
 
-import { buttonVariants } from "./ui/button"
+import { buttonVariants } from "./ui/button";
 
 /**
  * Full-screen fallback for any route the router can't resolve. Echoes the
@@ -9,11 +9,11 @@ import { buttonVariants } from "./ui/button"
  * exactly what failed, and offers the one way back that always exists.
  */
 export function NotFound() {
-  const path = typeof window === "undefined" ? "" : window.location.pathname
+  const path = typeof window === "undefined" ? "" : window.location.pathname;
 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas px-6 text-ink">
-      <div className="flex max-w-sm animate-in flex-col items-center gap-5 text-center fade-in slide-in-from-bottom-2 duration-500">
+      <div className="flex w-full min-w-0 max-w-sm animate-in flex-col items-center gap-5 text-center fade-in slide-in-from-bottom-2 duration-500">
         <span className="grid size-14 place-items-center rounded-full bg-soft text-muted-foreground shadow-[inset_0_0_0_1px_var(--line)]">
           <Compass className="size-6" strokeWidth={1.75} aria-hidden />
         </span>
@@ -38,5 +38,5 @@ export function NotFound() {
         </Link>
       </div>
     </div>
-  )
+  );
 }

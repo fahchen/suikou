@@ -1,56 +1,58 @@
-import { useEffect, useRef, useState } from "react"
-import { Outlet, useSearch } from "@tanstack/react-router"
-import { observer } from "mobx-react-lite"
+import { useEffect, useRef, useState } from "react";
+import { Outlet, useSearch } from "@tanstack/react-router";
+import { observer } from "mobx-react-lite";
 
-import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi"
-import { uiStore } from "../stores/ui-store"
-import { useMarkdown } from "../markdown/use-markdown"
-import { contentErrorFrom, useContent } from "./use-content"
-import { useRawHighlight } from "./use-raw-highlight"
-import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
+import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
+import { uiStore } from "../stores/ui-store";
+import { useMarkdown } from "../markdown/use-markdown";
+import { contentErrorFrom, useContent } from "./use-content";
+import { useRawHighlight } from "./use-raw-highlight";
+import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import {
   isFiltering,
   ReviewStoreProvider,
   ReviewViewProvider,
   useReviewStore,
-  visibleComments
-} from "./store-context"
-import { TopBar } from "./TopBar"
-import { FileHeader } from "./FileHeader"
-import { useReviewCommands } from "./commands"
-import { CommentRail } from "./CommentRail"
-import { AllFilesView } from "./views/AllFilesView"
-import { useScrollRestore } from "./use-scroll-restore"
-import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer"
-import { isPreviewable, isImagePath } from "./file-type"
-import { assetBase } from "./urls"
-import type { ReviewSnapshot, ReviewStore, Verdict } from "./types"
+  visibleComments,
+} from "./store-context";
+import { TopBar } from "./TopBar";
+import { FileHeader } from "./FileHeader";
+import { useReviewCommands } from "./commands";
+import { CommentRail } from "./CommentRail";
+import { AllFilesView } from "./views/AllFilesView";
+import { useScrollRestore } from "./use-scroll-restore";
+import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer";
+import { isPreviewable, isImagePath } from "./file-type";
+import { isHtmlPath } from "./view-kind";
+import { assetBase } from "./urls";
+import { ErrorPage, errorCopy } from "@/components/error-page";
+import type { ReviewSnapshot, ReviewStore, Verdict } from "./types";
 
 /** Mounts the ReviewStore for an artifact and frames the rendered/raw child routes. */
 export function ArtifactReviewShell(props: { artifactId: string }) {
-  const { artifactId } = props
+  const { artifactId } = props;
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: artifactId,
     params: { artifact_id: artifactId },
     cache: storeCache,
-    keepPreviousData: true
-  })
+    keepPreviousData: true,
+  });
 
-  if (root.status === "loading") return <ReviewShellSkeleton label="Connecting…" />
-  if (root.status === "error") return <Centered tone="error">{root.error.message}</Centered>
+  if (root.status === "loading") return <ReviewShellSkeleton label="Connecting…" />;
+  if (root.status === "error") return <ErrorPage {...errorCopy(root.error.message)} />;
 
   return (
     <ReviewStoreProvider key={artifactId} store={root.store}>
       <ReviewShell />
     </ReviewStoreProvider>
-  )
+  );
 }
 
 const ReviewShell = observer(function ReviewShell() {
-  const store = useReviewStore()
-  const snapshot = useMusubiSnapshot(store)
-  const minting = uiStore.mintingPath
+  const store = useReviewStore();
+  const snapshot = useMusubiSnapshot(store);
+  const minting = uiStore.mintingPath;
 
   if (!snapshot.artifact) {
     return (
@@ -58,19 +60,19 @@ const ReviewShell = observer(function ReviewShell() {
         <MintProgressStrip path={minting} />
         <ReviewShellSkeleton label={minting ? `Opening ${minting}…` : "Loading file…"} />
       </>
-    )
+    );
   }
   return (
     <>
       <MintProgressStrip path={minting} />
       <HydratedReviewShell store={store} snapshot={snapshot} />
     </>
-  )
-})
+  );
+});
 
 /** Indeterminate top progress bar while an `open_file` mint is in flight. */
 const MintProgressStrip = observer(function MintProgressStrip(props: { path: string | null }) {
-  if (!props.path) return null
+  if (!props.path) return null;
   return (
     <div
       role="status"
@@ -80,103 +82,97 @@ const MintProgressStrip = observer(function MintProgressStrip(props: { path: str
     >
       <div className="h-full w-1/3 animate-[mint-strip_1.1s_ease-in-out_infinite] bg-blue" />
     </div>
-  )
-})
+  );
+});
 
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
-  store: ReviewStore
-  snapshot: ReviewSnapshot
+  store: ReviewStore;
+  snapshot: ReviewSnapshot;
 }) {
-  const { snapshot } = props
-  const ui = uiStore
-  const commands = useReviewCommands()
-  const search = useSearch({ strict: false }) as { view?: string }
-  const rawView = search.view === "raw"
+  const { snapshot } = props;
+  const ui = uiStore;
+  const commands = useReviewCommands();
+  const search = useSearch({ strict: false }) as { view?: string };
+  const rawView = search.view === "raw";
 
   useEffect(() => {
-    if (uiStore.mintingPath) uiStore.setMintingPath(null)
-  }, [snapshot.artifact.id])
+    if (uiStore.mintingPath) uiStore.setMintingPath(null);
+  }, [snapshot.artifact.id]);
 
-  const serverVerdict = snapshot.draft_verdict ?? snapshot.latest_verdict ?? null
-  const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict)
+  const serverVerdict = snapshot.draft_verdict ?? snapshot.latest_verdict ?? null;
+  const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict);
   useEffect(() => {
-    setVerdict(serverVerdict)
-  }, [serverVerdict])
+    setVerdict(serverVerdict);
+  }, [serverVerdict]);
 
   function changeVerdict(next: Verdict) {
-    setVerdict(next)
-    void commands.setDraftVerdict.dispatch({ verdict: next })
+    setVerdict(next);
+    void commands.setDraftVerdict.dispatch({ verdict: next });
   }
 
-  const wide = useMediaQuery(WIDE_QUERY)
-  const title = snapshot.artifact.title
-  const previewable = isPreviewable(title)
-  const image = isImagePath(title)
-  const slash = title.lastIndexOf("/")
+  const wide = useMediaQuery(WIDE_QUERY);
+  const title = snapshot.artifact.title;
+  const previewable = isPreviewable(title);
+  const image = isImagePath(title);
+  const slash = title.lastIndexOf("/");
 
   const contentState = useContent(
     snapshot.artifact.id,
     snapshot.current_round.content_hash,
-    !image
-  )
-  const { text: content, loading: contentLoading } = contentState
-  const contentError = contentErrorFrom(contentState)
+    !image,
+  );
+  const { text: content, loading: contentLoading } = contentState;
+  const contentError = contentErrorFrom(contentState);
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
     base: assetBase(snapshot.artifact.id),
-    dir: slash === -1 ? "" : title.slice(0, slash)
-  })
-  const rawLines = useRawHighlight(content, title, ui.theme)
-  const loading = blocks.loading || contentLoading
+    dir: slash === -1 ? "" : title.slice(0, slash),
+  });
+  const rawLines = useRawHighlight(content, title, ui.theme);
+  const loading = blocks.loading || contentLoading;
 
-  const seenIds = useRef<Set<string> | null>(null)
+  const seenIds = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const ids = snapshot.comments.items.map((c) => c.id)
+    const ids = snapshot.comments.items.map((c) => c.id);
     if (seenIds.current === null) {
-      seenIds.current = new Set(ids)
-      return
+      seenIds.current = new Set(ids);
+      return;
     }
     for (const id of ids) {
-      if (!seenIds.current.has(id)) ui.revealComment(id)
-      seenIds.current.add(id)
+      if (!seenIds.current.has(id)) ui.revealComment(id);
+      seenIds.current.add(id);
     }
-  })
+  });
 
-  const visible = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters)
+  const visible = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters);
   const comments = ui.hideComments
     ? visible.filter((c) => ui.revealedCommentIds.includes(c.id))
-    : visible
-  const allFiles = ui.fileDisplayMode === "all"
-  const sideMode = ui.commentMode === "side" && wide && !ui.hideComments && !allFiles
+    : visible;
+  const allFiles = ui.fileDisplayMode === "all";
+  const sideMode = ui.commentMode === "side" && wide && !ui.hideComments && !allFiles;
 
-  const [mainEl, setMainEl] = useState<HTMLElement | null>(null)
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   useScrollRestore({
     container: mainEl,
     artifactId: snapshot.artifact.id,
     view: rawView ? "raw" : "rendered",
     ready: !loading,
-    enabled: !allFiles
-  })
+    enabled: !allFiles,
+  });
 
   if (!snapshot.artifact.id) {
     return (
-      <Centered tone="error">
-        This review no longer exists.{" "}
-        <a href="/" className="underline">
-          Back to board
-        </a>
-      </Centered>
-    )
+      <ErrorPage
+        label="Gone"
+        title="This review no longer exists"
+        body="It was deleted while you were viewing it. Head back to the board to pick another."
+      />
+    );
   }
 
   return (
     <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
-      <TopBar
-        snapshot={snapshot}
-        previewable={previewable}
-        content={content}
-        verdict={verdict}
-      />
+      <TopBar snapshot={snapshot} previewable={previewable} content={content} verdict={verdict} />
 
       <div
         className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
@@ -195,15 +191,11 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
               previewable,
               rawLines,
               verdict,
-              onVerdictChange: changeVerdict
+              onVerdictChange: changeVerdict,
             }}
           >
             {allFiles ? (
-              <AllFilesView
-                snapshot={snapshot}
-                verdict={verdict}
-                onVerdictChange={changeVerdict}
-              />
+              <AllFilesView snapshot={snapshot} verdict={verdict} onVerdictChange={changeVerdict} />
             ) : (
               <article className="overflow-hidden rounded-xl border border-line bg-editor">
                 <FileHeader
@@ -222,6 +214,11 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
           <CommentRail
             comments={comments}
             filtered={isFiltering(ui.statusFilter, ui.typeFilters) || ui.hideComments}
+            emptyHint={
+              isHtmlPath(title)
+                ? "Click any element in the document to start a comment. Threads land here."
+                : undefined
+            }
             header={
               ui.htmlAnchorTarget && ui.htmlAnchorTarget.artifactId === snapshot.artifact.id ? (
                 <HtmlAnchorComposer
@@ -235,8 +232,8 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
         )}
       </div>
     </main>
-  )
-})
+  );
+});
 
 export function ReviewShellSkeleton(props: { label: string }) {
   return (
@@ -277,15 +274,5 @@ export function ReviewShellSkeleton(props: { label: string }) {
       </div>
       <span className="sr-only">{props.label}</span>
     </main>
-  )
-}
-
-export function Centered(props: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="flex h-screen items-center justify-center text-sm" data-tone={props.tone}>
-      <span className={props.tone === "error" ? "text-red" : "text-muted-foreground"}>
-        {props.children}
-      </span>
-    </div>
-  )
+  );
 }

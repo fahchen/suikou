@@ -1,29 +1,34 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router"
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 
-import { useMusubiConnectionStatus } from "../musubi"
+import { useMusubiConnectionStatus } from "../musubi";
+import { Centered } from "../components/centered";
+import { ErrorPage } from "../components/error-page";
+import { Button } from "@/components/ui/button";
 
 export const Route = createRootRoute({
-  component: RootLayout
-})
+  component: RootLayout,
+});
 
 /** Holds every route behind a single socket-connection gate. */
 function RootLayout() {
-  const connection = useMusubiConnectionStatus()
+  const connection = useMusubiConnectionStatus();
 
-  if (connection.state === "connecting") return <Centered>Connecting…</Centered>
+  if (connection.state === "connecting") return <Centered>Connecting…</Centered>;
   if (connection.state === "error") {
-    return <Centered tone="error">{connection.error.message}</Centered>
+    return (
+      <ErrorPage
+        label="Disconnected"
+        title="Can't reach Suikou"
+        body="The connection dropped. Make sure Suikou is still running, then reload."
+        detail={connection.error.message}
+        action={
+          <Button variant="pill" size="sm" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
+        }
+      />
+    );
   }
 
-  return <Outlet />
-}
-
-function Centered(props: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="flex h-screen items-center justify-center text-sm" data-tone={props.tone}>
-      <span className={props.tone === "error" ? "text-red" : "text-muted-foreground"}>
-        {props.children}
-      </span>
-    </div>
-  )
+  return <Outlet />;
 }

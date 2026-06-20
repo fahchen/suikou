@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
   Check,
@@ -19,60 +19,58 @@ import {
   PenLine,
   Plus,
   Search,
-  Trash2
-} from "lucide-react"
+  Trash2,
+} from "lucide-react";
 
-import type { StoreProxy, StoreSnapshot } from "@musubi/react"
+import type { StoreProxy, StoreSnapshot } from "@musubi/react";
 
 import {
   storeCache,
   useMusubiCommand,
   useMusubiRoot,
   useMusubiSnapshot,
-  usePrefetchReviewStore
-} from "../musubi"
-import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
-import { FileTree } from "./FileTree"
-import { ReviewFileTree } from "./ReviewFileTree"
-import { ThemeMenu } from "./ThemeMenu"
-import { isHtmlPath } from "./view-kind"
-import { elapsed, fullTimestamp } from "./time"
-import { Button } from "@/components/ui/button"
+  usePrefetchReviewStore,
+} from "../musubi";
+import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
+import { FileTree } from "./FileTree";
+import { ReviewFileTree } from "./ReviewFileTree";
+import { ThemeMenu } from "./ThemeMenu";
+import { isHtmlPath } from "./view-kind";
+import { elapsed, fullTimestamp } from "./time";
+import { Centered } from "@/components/centered";
+import { ErrorPage, errorCopy } from "@/components/error-page";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from "@/components/ui/popover"
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
-type BoardSnapshot = StoreSnapshot<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
-type BoardProject = BoardSnapshot["projects"][number]
-type BoardReview = BoardProject["reviews"][number]
-type ReviewFilesAsync = BoardSnapshot["review_files"]
-type ReviewFileEntry = NonNullable<ReviewFilesAsync["data"]>[number]["files"][number]
+type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
+type BoardSnapshot = StoreSnapshot<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
+type BoardProject = BoardSnapshot["projects"][number];
+type BoardReview = BoardProject["reviews"][number];
+type ReviewFilesAsync = BoardSnapshot["review_files"];
+type ReviewFileEntry = NonNullable<ReviewFilesAsync["data"]>[number]["files"][number];
 
 const KIND_META: Record<
   BoardReview["kind"],
   {
-    icon: typeof FileText
-    badgeIcon: typeof FileText
-    badge: string
-    title: string
-    badgeClass: string
+    icon: typeof FileText;
+    badgeIcon: typeof FileText;
+    badge: string;
+    title: string;
+    badgeClass: string;
   }
 > = {
   file_selection: {
@@ -80,31 +78,30 @@ const KIND_META: Record<
     badgeIcon: FileText,
     badge: "Files",
     title: "File selection review",
-    badgeClass:
-      "bg-kind-files-bg text-kind-files-fg ring-1 ring-inset ring-kind-files-ring"
+    badgeClass: "bg-kind-files-bg text-kind-files-fg ring-1 ring-inset ring-kind-files-ring",
   },
   git_diff: {
     icon: GitCompare,
     badgeIcon: GitCompare,
     badge: "Diff",
     title: "Git diff review",
-    badgeClass: "bg-kind-diff-bg text-kind-diff-fg ring-1 ring-inset ring-kind-diff-ring"
-  }
-}
+    badgeClass: "bg-kind-diff-bg text-kind-diff-fg ring-1 ring-inset ring-kind-diff-ring",
+  },
+};
 
 /** Per-review file list from the async board field — `null` until it resolves. */
 function filesForReview(reviewFiles: ReviewFilesAsync, reviewId: string): ReviewFileEntry[] | null {
-  const entry = reviewFiles.data?.find((e) => e.review_id === reviewId)
-  return entry ? entry.files : null
+  const entry = reviewFiles.data?.find((e) => e.review_id === reviewId);
+  return entry ? entry.files : null;
 }
 
 function fileCountLabel(
   files: ReviewFileEntry[] | null,
-  status: ReviewFilesAsync["status"]
+  status: ReviewFilesAsync["status"],
 ): string {
-  if (files) return `${files.length} ${files.length === 1 ? "file" : "files"}`
-  if (status === "failed") return "–"
-  return "Loading…"
+  if (files) return `${files.length} ${files.length === 1 ? "file" : "files"}`;
+  if (status === "failed") return "–";
+  return "Loading…";
 }
 
 // Synchronous cache probe used to decide whether the board has a warm snapshot
@@ -113,47 +110,57 @@ function fileCountLabel(
 // projects…" centered screen we used to show during that microtask is replaced
 // by a transparent placeholder so the warm-cache transition reads as instant.
 function boardCacheIsWarm(): boolean {
-  const persister = storeCache.persister
-  if (!persister) return false
-  const key = "board|SuikouWeb.Stores.ProjectBoardStore|{}"
-  let entry: ReturnType<typeof persister.getEntry>
+  const persister = storeCache.persister;
+  if (!persister) return false;
+  const key = "board|SuikouWeb.Stores.ProjectBoardStore|{}";
+  let entry: ReturnType<typeof persister.getEntry>;
   try {
-    entry = persister.getEntry(key)
+    entry = persister.getEntry(key);
   } catch {
-    return false
+    return false;
   }
-  if (entry === undefined || entry === null) return false
-  if (entry instanceof Promise) return false
-  return entry.buster === storeCache.buster
+  if (entry === undefined || entry === null) return false;
+  if (entry instanceof Promise) return false;
+  return entry.buster === storeCache.buster;
 }
 
 /** Project board: register directories, then group files into reviews. */
 export function ProjectBoard({ onOpen }: { onOpen: (reviewId: string, path: string) => void }) {
-  const warmRef = useRef<boolean | null>(null)
-  if (warmRef.current === null) warmRef.current = boardCacheIsWarm()
+  const warmRef = useRef<boolean | null>(null);
+  if (warmRef.current === null) warmRef.current = boardCacheIsWarm();
 
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ProjectBoardStore",
     id: "board",
     params: {},
-    cache: storeCache
-  })
+    cache: storeCache,
+  });
 
   if (root.status === "loading") {
     // Warm cache: SDK mount resolves with cached snapshot on the next tick.
     // Render a transparent placeholder so the projects appear without the
     // centered loading screen flashing over the chrome.
-    return warmRef.current ? <div aria-hidden className="h-screen" /> : <Centered>Loading projects…</Centered>
+    return warmRef.current ? (
+      <div aria-hidden className="h-screen" />
+    ) : (
+      <Centered>Loading projects…</Centered>
+    );
   }
-  if (root.status === "error") return <Centered tone="error">{root.error.message}</Centered>
+  if (root.status === "error") return <ErrorPage {...errorCopy(root.error.message)} />;
 
-  return <Board store={root.store} onOpen={onOpen} />
+  return <Board store={root.store} onOpen={onOpen} />;
 }
 
-function Board({ store, onOpen }: { store: BoardStore; onOpen: (reviewId: string, path: string) => void }) {
-  const snapshot = useMusubiSnapshot(store)
-  const hasProjects = snapshot.projects.length > 0
-  const [creating, setCreating] = useState(false)
+function Board({
+  store,
+  onOpen,
+}: {
+  store: BoardStore;
+  onOpen: (reviewId: string, path: string) => void;
+}) {
+  const snapshot = useMusubiSnapshot(store);
+  const hasProjects = snapshot.projects.length > 0;
+  const [creating, setCreating] = useState(false);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 sm:px-7 sm:py-16">
@@ -198,25 +205,25 @@ function Board({ store, onOpen }: { store: BoardStore; onOpen: (reviewId: string
 
       <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
     </div>
-  )
+  );
 }
 
 function ProjectSection({
   store,
   project,
   reviewFiles,
-  onOpen
+  onOpen,
 }: {
-  store: BoardStore
-  project: BoardProject
-  reviewFiles: ReviewFilesAsync
-  onOpen: (reviewId: string, path: string) => void
+  store: BoardStore;
+  project: BoardProject;
+  reviewFiles: ReviewFilesAsync;
+  onOpen: (reviewId: string, path: string) => void;
 }) {
-  const [composing, setComposing] = useState<"files" | "diff" | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const removeProject = useMusubiCommand(store, "delete_project")
-  const reviewCount = project.reviews.length
-  const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`
+  const [composing, setComposing] = useState<"files" | "diff" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const removeProject = useMusubiCommand(store, "delete_project");
+  const reviewCount = project.reviews.length;
+  const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
 
   return (
     <section>
@@ -295,11 +302,7 @@ function ProjectSection({
       )}
 
       {composing === "diff" && (
-        <DiffReviewComposer
-          store={store}
-          project={project}
-          onClose={() => setComposing(null)}
-        />
+        <DiffReviewComposer store={store} project={project} onClose={() => setComposing(null)} />
       )}
 
       {project.reviews.length === 0 ? (
@@ -348,16 +351,14 @@ function ProjectSection({
             </p>
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" size="sm" />}>
-              Cancel
-            </DialogClose>
+            <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
             <Button
               variant="destructive"
               size="sm"
               disabled={removeProject.isPending}
               onClick={() => {
-                void removeProject.dispatch({ project_id: project.id })
-                setConfirmDelete(false)
+                void removeProject.dispatch({ project_id: project.id });
+                setConfirmDelete(false);
               }}
             >
               <Trash2 size={14} />
@@ -367,7 +368,7 @@ function ProjectSection({
         </DialogContent>
       </Dialog>
     </section>
-  )
+  );
 }
 
 function ReviewCard({
@@ -377,32 +378,32 @@ function ReviewCard({
   files,
   filesStatus,
   index,
-  onOpen
+  onOpen,
 }: {
-  store: BoardStore
-  project: BoardProject
-  review: BoardReview
-  files: ReviewFileEntry[] | null
-  filesStatus: ReviewFilesAsync["status"]
-  index: number
-  onOpen: (reviewId: string, path: string) => void
+  store: BoardStore;
+  project: BoardProject;
+  review: BoardReview;
+  files: ReviewFileEntry[] | null;
+  filesStatus: ReviewFilesAsync["status"];
+  index: number;
+  onOpen: (reviewId: string, path: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [renaming, setRenaming] = useState(false)
-  const [draftName, setDraftName] = useState(review.name)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const cardRef = useRef<HTMLDivElement | null>(null)
-  const pickerRef = useRef<HTMLDivElement | null>(null)
-  const narrow = !useMediaQuery(WIDE_QUERY)
-  const remove = useMusubiCommand(store, "delete_review")
-  const rename = useMusubiCommand(store, "rename_review")
-  const prefetchReview = usePrefetchReviewStore()
-  const open = editing || expanded
-  const [pendingPath, setPendingPath] = useState<string | null>(null)
-  const fileCount = files?.length ?? 0
-  const filesLoading = files === null && filesStatus !== "failed"
-  const canOpen = fileCount > 0
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(review.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const narrow = !useMediaQuery(WIDE_QUERY);
+  const remove = useMusubiCommand(store, "delete_review");
+  const rename = useMusubiCommand(store, "rename_review");
+  const prefetchReview = usePrefetchReviewStore();
+  const open = editing || expanded;
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const fileCount = files?.length ?? 0;
+  const filesLoading = files === null && filesStatus !== "failed";
+  const canOpen = fileCount > 0;
   // An HTML review is a file-selection review whose files are all HTML docs;
   // there is no distinct board `kind` for it, so detect it from the resolved
   // file list to set it apart from a generic file selection at a glance.
@@ -410,41 +411,41 @@ function ReviewCard({
     review.kind === "file_selection" &&
     files !== null &&
     files.length > 0 &&
-    files.every((file) => isHtmlPath(file.path))
+    files.every((file) => isHtmlPath(file.path));
 
   async function handleOpen(path: string) {
-    setPendingPath(path)
+    setPendingPath(path);
     try {
-      onOpen(review.id, path)
+      onOpen(review.id, path);
     } finally {
-      setPendingPath(null)
+      setPendingPath(null);
     }
   }
 
   function openReview() {
-    if (!files || files.length === 0) return
-    void handleOpen(files[0].path)
+    if (!files || files.length === 0) return;
+    void handleOpen(files[0].path);
   }
 
   // Warm the ReviewStore cache for the file `openReview` would open, so a
   // hover-then-click paints instantly. Unminted files stay skipped because
   // route entry is now the only place that mints `artifact_id`s.
   function prefetchFirstFile() {
-    const first = files?.[0]
-    if (first?.artifact_id) prefetchReview(first.artifact_id)
+    const first = files?.[0];
+    if (first?.artifact_id) prefetchReview(first.artifact_id);
   }
 
   function startRename() {
-    setDraftName(review.name)
-    setRenaming(true)
+    setDraftName(review.name);
+    setRenaming(true);
   }
 
   function saveRename() {
-    if (!renaming) return
-    const next = draftName.trim()
-    setRenaming(false)
+    if (!renaming) return;
+    const next = draftName.trim();
+    setRenaming(false);
     if (next && next !== review.name) {
-      void rename.dispatch({ review_id: review.id, name: next })
+      void rename.dispatch({ review_id: review.id, name: next });
     }
   }
 
@@ -453,14 +454,14 @@ function ReviewCard({
   // a long project/review list. Desktop layouts already have the picker on the
   // expanded card visible; skip the scroll there to keep the page steady.
   useEffect(() => {
-    if (!open || !narrow) return
+    if (!open || !narrow) return;
     const handle = window.requestAnimationFrame(() => {
-      const target = pickerRef.current ?? cardRef.current
-      if (!target) return
-      target.scrollIntoView({ block: "start", behavior: "smooth" })
-    })
-    return () => window.cancelAnimationFrame(handle)
-  }, [open, narrow])
+      const target = pickerRef.current ?? cardRef.current;
+      if (!target) return;
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(handle);
+  }, [open, narrow]);
 
   return (
     <motion.div
@@ -476,7 +477,7 @@ function ReviewCard({
         <button
           type="button"
           onClick={() => {
-            if (!editing) setExpanded((value) => !value)
+            if (!editing) setExpanded((value) => !value);
           }}
           aria-expanded={open}
           aria-label={open ? "Collapse files" : "Expand files"}
@@ -497,11 +498,11 @@ function ReviewCard({
             onBlur={saveRename}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                event.preventDefault()
-                saveRename()
+                event.preventDefault();
+                saveRename();
               } else if (event.key === "Escape") {
-                event.preventDefault()
-                setRenaming(false)
+                event.preventDefault();
+                setRenaming(false);
               }
             }}
             className="min-w-0 flex-1 rounded-md border border-line bg-control px-2 py-1 text-[13px] font-semibold text-heading focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
@@ -513,11 +514,7 @@ function ReviewCard({
             aria-busy={filesLoading}
             aria-label={`Open ${review.name}`}
             title={
-              filesLoading
-                ? "Loading review files…"
-                : canOpen
-                  ? "Open review"
-                  : "No files to open"
+              filesLoading ? "Loading review files…" : canOpen ? "Open review" : "No files to open"
             }
             onClick={openReview}
             onMouseEnter={prefetchFirstFile}
@@ -550,7 +547,9 @@ function ReviewCard({
                   {fileCountLabel(files, filesStatus)}
                 </span>
               )}
-              <span aria-hidden className="text-line-strong">·</span>
+              <span aria-hidden className="text-line-strong">
+                ·
+              </span>
               <span>{elapsed(review.inserted_at)}</span>
             </span>
           </button>
@@ -578,8 +577,8 @@ function ReviewCard({
             {review.kind === "file_selection" && (
               <DropdownMenuItem
                 onClick={() => {
-                  setExpanded(true)
-                  setEditing(true)
+                  setExpanded(true);
+                  setEditing(true);
                 }}
               >
                 <FileStack size={14} />
@@ -594,9 +593,7 @@ function ReviewCard({
         </DropdownMenu>
       </div>
 
-      {review.kind === "git_diff" && (
-        <DiffRefsLine review={review} />
-      )}
+      {review.kind === "git_diff" && <DiffRefsLine review={review} />}
 
       {editing ? (
         <div ref={pickerRef} className="border-t border-line p-3.5">
@@ -635,7 +632,7 @@ function ReviewCard({
                     pendingPath={pendingPath}
                     onOpen={handleOpen}
                     onHover={(file) => {
-                      if (file.artifact_id) prefetchReview(file.artifact_id)
+                      if (file.artifact_id) prefetchReview(file.artifact_id);
                     }}
                   />
                 </div>
@@ -658,16 +655,14 @@ function ReviewCard({
             comment under it. This cannot be undone.
           </p>
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" size="sm" />}>
-              Cancel
-            </DialogClose>
+            <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
             <Button
               variant="destructive"
               size="sm"
               disabled={remove.isPending}
               onClick={() => {
-                void remove.dispatch({ review_id: review.id })
-                setConfirmDelete(false)
+                void remove.dispatch({ review_id: review.id });
+                setConfirmDelete(false);
               }}
             >
               <Trash2 size={14} />
@@ -677,12 +672,12 @@ function ReviewCard({
         </DialogContent>
       </Dialog>
     </motion.div>
-  )
+  );
 }
 
 function BadgeChip({ kind }: { kind: BoardReview["kind"] }) {
-  const meta = KIND_META[kind]
-  const Icon = meta.badgeIcon
+  const meta = KIND_META[kind];
+  const Icon = meta.badgeIcon;
   return (
     <span
       className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] ${meta.badgeClass}`}
@@ -691,7 +686,7 @@ function BadgeChip({ kind }: { kind: BoardReview["kind"] }) {
       <Icon size={10} aria-hidden />
       {meta.badge}
     </span>
-  )
+  );
 }
 
 /** Subtle sub-badge marking a review whose files are HTML documents. */
@@ -704,24 +699,24 @@ function HtmlBadge() {
       <Code2 size={10} aria-hidden />
       HTML
     </span>
-  )
+  );
 }
 
 function DiffRefsLine({ review }: { review: BoardReview }) {
   const baseChanged =
     review.creation_base_sha !== null &&
     review.base_sha !== null &&
-    review.creation_base_sha !== review.base_sha
+    review.creation_base_sha !== review.base_sha;
   const headChanged =
     review.creation_head_sha !== null &&
     review.head_sha !== null &&
-    review.creation_head_sha !== review.head_sha
-  const baseVanished = review.creation_base_sha !== null && review.base_sha === null
-  const headVanished = review.creation_head_sha !== null && review.head_sha === null
-  const vanished = baseVanished || headVanished
+    review.creation_head_sha !== review.head_sha;
+  const baseVanished = review.creation_base_sha !== null && review.base_sha === null;
+  const headVanished = review.creation_head_sha !== null && review.head_sha === null;
+  const vanished = baseVanished || headVanished;
 
-  const baseLabel = formatRefLabel(review.base_ref, review.base_sha, review.creation_base_sha)
-  const headLabel = formatRefLabel(review.head_ref, review.head_sha, review.creation_head_sha)
+  const baseLabel = formatRefLabel(review.base_ref, review.base_sha, review.creation_base_sha);
+  const headLabel = formatRefLabel(review.head_ref, review.head_sha, review.creation_head_sha);
 
   return (
     <div className="-mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2.5 pl-8 text-[11px] text-muted-foreground">
@@ -747,56 +742,48 @@ function DiffRefsLine({ review }: { review: BoardReview }) {
         </span>
       )}
     </div>
-  )
+  );
 }
 
 function shortSha(sha: string | null): string | null {
-  return sha ? sha.slice(0, 7) : null
+  return sha ? sha.slice(0, 7) : null;
 }
 
 function formatRefLabel(
   ref: string | null,
   currentSha: string | null,
-  creationSha: string | null
+  creationSha: string | null,
 ): string {
-  const short = shortSha(currentSha) ?? shortSha(creationSha)
-  if (ref === null) return short ?? "–"
-  if (short === null) return ref
-  return `${ref}@${short}`
+  const short = shortSha(currentSha) ?? shortSha(creationSha);
+  if (ref === null) return short ?? "–";
+  if (short === null) return ref;
+  return `${ref}@${short}`;
 }
 
-function formatMovedTitle(
-  review: BoardReview,
-  baseChanged: boolean,
-  headChanged: boolean
-): string {
-  const parts: string[] = []
+function formatMovedTitle(review: BoardReview, baseChanged: boolean, headChanged: boolean): string {
+  const parts: string[] = [];
   if (baseChanged) {
-    parts.push(
-      `base ${shortSha(review.creation_base_sha)} → ${shortSha(review.base_sha)}`
-    )
+    parts.push(`base ${shortSha(review.creation_base_sha)} → ${shortSha(review.base_sha)}`);
   }
   if (headChanged) {
-    parts.push(
-      `head ${shortSha(review.creation_head_sha)} → ${shortSha(review.head_sha)}`
-    )
+    parts.push(`head ${shortSha(review.creation_head_sha)} → ${shortSha(review.head_sha)}`);
   }
-  return parts.length === 0 ? "Refs moved since this review was created" : parts.join("; ")
+  return parts.length === 0 ? "Refs moved since this review was created" : parts.join("; ");
 }
 
 function formatVanishedTitle(
   review: BoardReview,
   baseVanished: boolean,
-  headVanished: boolean
+  headVanished: boolean,
 ): string {
-  const parts: string[] = []
+  const parts: string[] = [];
   if (baseVanished) {
-    parts.push(`base branch deleted; diff frozen at ${shortSha(review.creation_base_sha)}`)
+    parts.push(`base branch deleted; diff frozen at ${shortSha(review.creation_base_sha)}`);
   }
   if (headVanished) {
-    parts.push(`head branch deleted; diff frozen at ${shortSha(review.creation_head_sha)}`)
+    parts.push(`head branch deleted; diff frozen at ${shortSha(review.creation_head_sha)}`);
   }
-  return parts.join("; ")
+  return parts.join("; ");
 }
 
 function ReviewComposer({
@@ -806,53 +793,53 @@ function ReviewComposer({
   reviewId,
   initial,
   title,
-  onClose
+  onClose,
 }: {
-  store: BoardStore
-  project: BoardProject
-  command: "create_review" | "update_review_files"
-  reviewId?: string
-  initial: Set<string>
-  title?: string
-  onClose: () => void
+  store: BoardStore;
+  project: BoardProject;
+  command: "create_review" | "update_review_files";
+  reviewId?: string;
+  initial: Set<string>;
+  title?: string;
+  onClose: () => void;
 }) {
-  const create = useMusubiCommand(store, "create_review")
-  const update = useMusubiCommand(store, "update_review_files")
-  const list = useMusubiCommand(store, "list_dir")
-  const [name, setName] = useState("")
-  const [selected, setSelected] = useState<Set<string>>(initial)
-  const [error, setError] = useState<string | null>(null)
+  const create = useMusubiCommand(store, "create_review");
+  const update = useMusubiCommand(store, "update_review_files");
+  const list = useMusubiCommand(store, "list_dir");
+  const [name, setName] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(initial);
+  const [error, setError] = useState<string | null>(null);
 
   // Read one directory level on demand, so opening the picker never walks the
   // whole working directory.
   const loadDir = useCallback(
-    (path: string) => list.dispatch({ project_id: project.id, path }).then((reply) => reply.entries),
+    (path: string) =>
+      list.dispatch({ project_id: project.id, path }).then((reply) => reply.entries),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project.id]
-  )
+    [project.id],
+  );
 
-  const isCreate = command === "create_review"
-  const pending = isCreate ? create.isPending : update.isPending
-  const disabled =
-    pending || selected.size === 0 || (isCreate && name.trim() === "")
+  const isCreate = command === "create_review";
+  const pending = isCreate ? create.isPending : update.isPending;
+  const disabled = pending || selected.size === 0 || (isCreate && name.trim() === "");
 
   async function save() {
-    setError(null)
-    const selections = [...selected]
+    setError(null);
+    const selections = [...selected];
 
     try {
       const reply = isCreate
         ? await create.dispatch({ project_id: project.id, name: name.trim(), selections })
-        : await update.dispatch({ review_id: reviewId as string, selections })
+        : await update.dispatch({ review_id: reviewId as string, selections });
 
       if (reply.error) {
-        setError(reply.error)
-        return
+        setError(reply.error);
+        return;
       }
 
-      onClose()
+      onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save review")
+      setError(cause instanceof Error ? cause.message : "Could not save review");
     }
   }
 
@@ -884,93 +871,87 @@ function ReviewComposer({
       <FileTree loadDir={loadDir} selected={selected} onChange={setSelected} />
 
       {error && (
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2.5 text-[12px] text-red">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-2.5 text-[12px] text-red"
+        >
           {error}
         </motion.p>
       )}
 
       <div className="mt-3 flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="text-muted-foreground"
-        >
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
           Cancel
         </Button>
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => void save()}
-        >
+        <Button size="sm" disabled={disabled} onClick={() => void save()}>
           {pending ? "Saving…" : isCreate ? "Create review" : "Save files"}
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function DiffReviewComposer({
   store,
   project,
-  onClose
+  onClose,
 }: {
-  store: BoardStore
-  project: BoardProject
-  onClose: () => void
+  store: BoardStore;
+  project: BoardProject;
+  onClose: () => void;
 }) {
-  const listBranches = useMusubiCommand(store, "list_branches")
-  const create = useMusubiCommand(store, "create_diff_review")
-  const [name, setName] = useState("")
-  const [branches, setBranches] = useState<BranchGroups | null>(null)
-  const [defaultBranch, setDefaultBranch] = useState<string | null>(null)
-  const [baseRef, setBaseRef] = useState<string | null>(null)
-  const [headRef, setHeadRef] = useState<string | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const listBranches = useMusubiCommand(store, "list_branches");
+  const create = useMusubiCommand(store, "create_diff_review");
+  const [name, setName] = useState("");
+  const [branches, setBranches] = useState<BranchGroups | null>(null);
+  const [defaultBranch, setDefaultBranch] = useState<string | null>(null);
+  const [baseRef, setBaseRef] = useState<string | null>(null);
+  const [headRef, setHeadRef] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     void listBranches.dispatch({ project_id: project.id }).then((reply) => {
-      if (cancelled) return
+      if (cancelled) return;
       if (reply.error) {
-        setLoadError(reply.error)
-        setBranches({ local: [], remote: [] })
-        return
+        setLoadError(reply.error);
+        setBranches({ local: [], remote: [] });
+        return;
       }
       setBranches({
         local: reply.branches,
-        remote: reply.remote_branches ?? []
-      })
-      setDefaultBranch(reply.default)
-      setBaseRef(reply.default)
-    })
+        remote: reply.remote_branches ?? [],
+      });
+      setDefaultBranch(reply.default);
+      setBaseRef(reply.default);
+    });
     return () => {
-      cancelled = true
-    }
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id])
+  }, [project.id]);
 
-  const disabled =
-    create.isPending || branches === null || name.trim() === "" || !headRef
+  const disabled = create.isPending || branches === null || name.trim() === "" || !headRef;
 
   async function save() {
-    if (!headRef) return
-    setError(null)
+    if (!headRef) return;
+    setError(null);
     try {
       const reply = await create.dispatch({
         project_id: project.id,
         name: name.trim(),
         base_ref: baseRef,
-        head_ref: headRef
-      })
+        head_ref: headRef,
+      });
       if (reply.error) {
-        setError(reply.error)
-        return
+        setError(reply.error);
+        return;
       }
-      onClose()
+      onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create diff review")
+      setError(cause instanceof Error ? cause.message : "Could not create diff review");
     }
   }
 
@@ -1038,53 +1019,44 @@ function DiffReviewComposer({
       )}
 
       <div className="mt-3 flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          className="text-muted-foreground"
-        >
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
           Cancel
         </Button>
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => void save()}
-        >
+        <Button size="sm" disabled={disabled} onClick={() => void save()}>
           {create.isPending ? "Creating…" : "Create diff review"}
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function CreateProjectDialog({
   store,
   open,
-  onOpenChange
+  onOpenChange,
 }: {
-  store: BoardStore
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  store: BoardStore;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const { dispatch, isPending } = useMusubiCommand(store, "create_project")
-  const [name, setName] = useState("")
-  const [path, setPath] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const { dispatch, isPending } = useMusubiCommand(store, "create_project");
+  const [name, setName] = useState("");
+  const [path, setPath] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   async function submit() {
-    setError(null)
-    const reply = await dispatch({ name: name.trim(), path: path.trim() })
+    setError(null);
+    const reply = await dispatch({ name: name.trim(), path: path.trim() });
     if (reply.project_id) {
-      setName("")
-      setPath("")
-      onOpenChange(false)
+      setName("");
+      setPath("");
+      onOpenChange(false);
     } else {
-      setError(reply.error ?? "Could not create project")
+      setError(reply.error ?? "Could not create project");
     }
   }
 
-  const disabled = isPending || name.trim() === "" || path.trim() === ""
+  const disabled = isPending || name.trim() === "" || path.trim() === "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1098,8 +1070,8 @@ function CreateProjectDialog({
 
         <form
           onSubmit={(event) => {
-            event.preventDefault()
-            void submit()
+            event.preventDefault();
+            void submit();
           }}
           className="flex flex-col gap-3"
         >
@@ -1137,24 +1109,18 @@ function CreateProjectDialog({
           )}
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" size="sm" />}>
-              Cancel
-            </DialogClose>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={disabled}
-            >
+            <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
+            <Button type="submit" size="sm" disabled={disabled}>
               {isPending ? "Creating…" : "Create project"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
-type BranchGroups = { local: string[]; remote: string[] }
+type BranchGroups = { local: string[]; remote: string[] };
 
 /**
  * Branch picker with type-ahead search and Local / Remote grouping. Built as
@@ -1167,31 +1133,31 @@ function BranchCombobox({
   defaultBranch,
   value,
   onChange,
-  placeholder
+  placeholder,
 }: {
-  ariaLabel: string
-  groups: BranchGroups | null
-  defaultBranch: string | null
-  value: string | null
-  onChange: (value: string) => void
-  placeholder: string
+  ariaLabel: string;
+  groups: BranchGroups | null;
+  defaultBranch: string | null;
+  value: string | null;
+  onChange: (value: string) => void;
+  placeholder: string;
 }) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState("")
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const filtered = useMemo(() => filterBranchGroups(groups, query), [groups, query])
-  const total = filtered.local.length + filtered.remote.length
+  const filtered = useMemo(() => filterBranchGroups(groups, query), [groups, query]);
+  const total = filtered.local.length + filtered.remote.length;
 
   useEffect(() => {
     if (open) {
-      setQuery("")
+      setQuery("");
       // Focus the search input on next paint so type-to-search works
       // immediately.
-      const id = requestAnimationFrame(() => inputRef.current?.focus())
-      return () => cancelAnimationFrame(id)
+      const id = requestAnimationFrame(() => inputRef.current?.focus());
+      return () => cancelAnimationFrame(id);
     }
-  }, [open])
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -1218,10 +1184,7 @@ function BranchCombobox({
         )}
         <ChevronsUpDown size={13} className="shrink-0 text-faint" aria-hidden="true" />
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-(--anchor-width) min-w-56 max-w-80 gap-0 p-0"
-      >
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-56 max-w-80 gap-0 p-0">
         <div className="flex items-center gap-1.5 border-b border-line px-2.5 py-1.5">
           <Search size={12} className="shrink-0 text-faint" aria-hidden="true" />
           <input
@@ -1246,8 +1209,8 @@ function BranchCombobox({
                   value={value}
                   defaultBranch={defaultBranch}
                   onPick={(branch) => {
-                    onChange(branch)
-                    setOpen(false)
+                    onChange(branch);
+                    setOpen(false);
                   }}
                 />
               )}
@@ -1258,8 +1221,8 @@ function BranchCombobox({
                   value={value}
                   defaultBranch={defaultBranch}
                   onPick={(branch) => {
-                    onChange(branch)
-                    setOpen(false)
+                    onChange(branch);
+                    setOpen(false);
                   }}
                 />
               )}
@@ -1268,7 +1231,7 @@ function BranchCombobox({
         </div>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 function BranchGroup({
@@ -1276,13 +1239,13 @@ function BranchGroup({
   branches,
   value,
   defaultBranch,
-  onPick
+  onPick,
 }: {
-  label: string
-  branches: string[]
-  value: string | null
-  defaultBranch: string | null
-  onPick: (branch: string) => void
+  label: string;
+  branches: string[];
+  value: string | null;
+  defaultBranch: string | null;
+  onPick: (branch: string) => void;
 }) {
   return (
     <div className="px-1 pb-1">
@@ -1290,8 +1253,8 @@ function BranchGroup({
         {label}
       </p>
       {branches.map((branch) => {
-        const selected = branch === value
-        const isDefault = branch === defaultBranch
+        const selected = branch === value;
+        const isDefault = branch === defaultBranch;
         return (
           <button
             key={branch}
@@ -1314,26 +1277,16 @@ function BranchGroup({
               </span>
             )}
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 function filterBranchGroups(groups: BranchGroups | null, query: string): BranchGroups {
-  if (groups === null) return { local: [], remote: [] }
-  const q = query.trim().toLowerCase()
-  if (q === "") return groups
-  const match = (branch: string) => branch.toLowerCase().includes(q)
-  return { local: groups.local.filter(match), remote: groups.remote.filter(match) }
-}
-
-function Centered(props: { children: React.ReactNode; tone?: "error" }) {
-  return (
-    <div className="flex h-screen items-center justify-center text-sm" data-tone={props.tone}>
-      <span className={props.tone === "error" ? "text-red" : "text-muted-foreground"}>
-        {props.children}
-      </span>
-    </div>
-  )
+  if (groups === null) return { local: [], remote: [] };
+  const q = query.trim().toLowerCase();
+  if (q === "") return groups;
+  const match = (branch: string) => branch.toLowerCase().includes(q);
+  return { local: groups.local.filter(match), remote: groups.remote.filter(match) };
 }
