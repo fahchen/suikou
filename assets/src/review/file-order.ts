@@ -1,25 +1,57 @@
 import type { ReviewFileEntry } from "./types"
 
+interface FileNode {
+  type: "file"
+  name: string
+  entry: ReviewFileEntry
+}
+
+interface FolderNode {
+  type: "folder"
+  name: string
+  children: TreeNode[]
+}
+
+type TreeNode = FileNode | FolderNode
+
 /**
- * Canonical review-file order: a flat list sorted by full path. Every file-list
- * surface (switcher, all-files stack, board card) renders this same order so
- * what you see, step through, and open all line up.
+ * Flattens a review's files into the exact order the artifact-switcher tree
+ * presents them: depth-first, folders before files at each level, each group
+ * alphabetical by name. This is NOT the same as sorting full paths, so prev/next
+ * stepping stays in lockstep with what the file tree shows.
  *
  * ## Examples
  *
- *     orderedReviewFiles([{ path: "src/b.ts" }, { path: "a.ts" }])
- *     //=> [{ path: "a.ts" }, { path: "src/b.ts" }]
+ *     orderedReviewFiles([{ path: "a.txt" }, { path: "dir/b.txt" }])
+ *     //=> [{ path: "dir/b.txt" }, { path: "a.txt" }]
  */
 export function orderedReviewFiles(
   files: ReadonlyArray<ReviewFileEntry>
 ): ReviewFileEntry[] {
-  return [...files].sort((a, b) => a.path.localeCompare(b.path))
+  const root: FolderNode = { type: "folder", name: "", children: [] }
+  for (const entry of files) {
+    const parts = entry.path.split("/")
+    let dir = root
+    for (const segment of parts.slice(0, -1)) {
+      let next = dir.children.find(
+        (c): c is FolderNode => c.type === "folder" && c.name === segment
+      )
+      if (!next) {
+        next = { type: "folder", name: segment, children: [] }
+        dir.children.push(next)
+      }
+      dir = next
+    }
+    dir.children.push({ type: "file", name: parts[parts.length - 1], entry })
+  }
+  sortNodes(root.children)
+  return flatten(root.children)
 }
 
 /**
  * Returns the files immediately before/after the one matching `artifactId` in
- * canonical order. Yields `null` at each end, or for both when the artifact
- * isn't in the list (so callers can simply disable the corresponding control).
+ * tree order. Yields `null` at each end, or for both when the artifact isn't in
+ * the list (so callers can simply disable the corresponding control).
  *
  * ## Examples
  *
@@ -37,4 +69,21 @@ export function adjacentReviewFiles(
     prev: index > 0 ? ordered[index - 1] : null,
     next: index < ordered.length - 1 ? ordered[index + 1] : null
   }
+}
+
+// Folders before files, each alphabetical by name — mirrors the tree popover.
+function sortNodes(nodes: TreeNode[]): void {
+  nodes.sort((a, b) =>
+    a.type !== b.type ? (a.type === "folder" ? -1 : 1) : a.name.localeCompare(b.name)
+  )
+  for (const node of nodes) if (node.type === "folder") sortNodes(node.children)
+}
+
+function flatten(nodes: ReadonlyArray<TreeNode>): ReviewFileEntry[] {
+  const out: ReviewFileEntry[] = []
+  for (const node of nodes) {
+    if (node.type === "folder") out.push(...flatten(node.children))
+    else out.push(node.entry)
+  }
+  return out
 }
