@@ -46,14 +46,7 @@ function Harness(props: { onDispatch: (p: Promise<unknown>) => void }) {
   return (
     <button
       onClick={() =>
-        props.onDispatch(
-          commands.addComment.dispatch({
-            scope: "located",
-            critique_type: "note",
-            body: "x",
-            anchor: { type: "line_range", start_line: 1, end_line: 1 }
-          })
-        )
+        props.onDispatch(commands.reply.dispatch({ comment_id: "c1", body: "x" }))
       }
     >
       add
@@ -99,11 +92,9 @@ describe("useReviewCommands comment dispatch resilience", () => {
     // (reading '__musubi_store_id__')" because the dispatch was bound to an
     // undefined proxy. After the fix the dispatch targets the retained child.
     await expect(captured!).resolves.toBeDefined()
-    expect(child.dispatchCommand).toHaveBeenCalledWith("add_comment", {
-      scope: "located",
-      critique_type: "note",
-      body: "x",
-      anchor: { type: "line_range", start_line: 1, end_line: 1 }
+    expect(child.dispatchCommand).toHaveBeenCalledWith("reply", {
+      comment_id: "c1",
+      body: "x"
     })
   })
 })
