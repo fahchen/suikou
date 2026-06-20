@@ -38,6 +38,8 @@ suikou-*.tar
 /priv/static/assets/
 /priv/static/index.html
 /priv/static/.vite/
+# Vite dev cache at the repo root (separate from the prod build dir above).
+/.vite/
 
 # Single-file packaging (mix suikou.package)
 /dist/
