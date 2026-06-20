@@ -127,5 +127,16 @@ defmodule Suikou.ProjectsTest do
 
       assert [".gitignore", "keep.md"] = Projects.list_files(project)
     end
+
+    @tag :tmp_dir
+    test "never exposes .git contents even when respect_gitignore is false", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, ".git"))
+      File.write!(Path.join(dir, ".git/config"), "[core]\n")
+
+      project = build(:project, path: dir, respect_gitignore: false)
+
+      assert [] = Projects.list_files(project, ".git")
+      assert [] = Projects.list_dir(project, ".git")
+    end
   end
 end

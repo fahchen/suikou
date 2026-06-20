@@ -138,11 +138,15 @@ defmodule Suikou.Projects do
   """
   @spec list_files(Project.t(), String.t()) :: [String.t()]
   def list_files(%Project{path: path, respect_gitignore: respect}, rel \\ "") do
-    rules = if respect, do: ignore_rules(path), else: []
+    if git_root?(rel) do
+      []
+    else
+      rules = if respect, do: ignore_rules(path), else: []
 
-    path
-    |> walk(rel, rules)
-    |> Enum.sort()
+      path
+      |> walk(rel, rules)
+      |> Enum.sort()
+    end
   end
 
   @doc """
@@ -162,6 +166,10 @@ defmodule Suikou.Projects do
   """
   @spec list_dir(Project.t(), String.t()) :: [%{path: String.t(), dir: boolean()}]
   def list_dir(%Project{path: path, respect_gitignore: respect}, rel) do
+    if git_root?(rel), do: [], else: read_dir(path, rel, respect)
+  end
+
+  defp read_dir(path, rel, respect) do
     rules = if respect, do: ignore_rules(path), else: []
     dir = if rel == "", do: path, else: Path.join(path, rel)
 
@@ -174,6 +182,13 @@ defmodule Suikou.Projects do
       {:error, _reason} ->
         []
     end
+  end
+
+  # `.git` is never reviewable, so reject it as an explicit root regardless of
+  # `respect_gitignore` — the child-entry exclusion only fires during a walk.
+  defp git_root?(rel) do
+    normalized = String.replace(rel, "\\", "/")
+    normalized == ".git" or String.starts_with?(normalized, ".git/")
   end
 
   defp dir_entry(_root, _rel, ".git", _rules), do: []
