@@ -318,6 +318,35 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert %{projects: [%{id: ^project_id, name: "Docs"}]} = Testing.render(page)
     end
 
+    @tag :tmp_dir
+    test "persists respect_gitignore from the payload", %{tmp_dir: dir} do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: project_id, error: nil}} =
+               Testing.dispatch_command(page, :create_project, %{
+                 name: "Docs",
+                 path: dir,
+                 respect_gitignore: false
+               })
+
+      assert %{respect_gitignore: false} = Projects.get_project(project_id)
+      assert %{projects: [%{respect_gitignore: false}]} = Testing.render(page)
+    end
+
+    @tag :tmp_dir
+    test "defaults respect_gitignore to true when the payload omits it", %{tmp_dir: dir} do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{project_id: project_id, error: nil}} =
+               Testing.dispatch_command(page, :create_project, %{
+                 name: "Docs",
+                 path: dir,
+                 respect_gitignore: nil
+               })
+
+      assert %{respect_gitignore: true} = Projects.get_project(project_id)
+    end
+
     test "a path that is not a directory replies with an error" do
       page = Testing.mount(ProjectBoardStore)
 
@@ -350,6 +379,35 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :create_project, %{name: "Second", path: dir})
 
       assert error =~ "path"
+    end
+  end
+
+  describe "update_project" do
+    @tag :tmp_dir
+    test "flips respect_gitignore and surfaces it on the next render", %{tmp_dir: dir} do
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{projects: [%{respect_gitignore: true}]} = Testing.render(page)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :update_project, %{
+                 project_id: project.id,
+                 respect_gitignore: false
+               })
+
+      assert %{respect_gitignore: false} = Projects.get_project(project.id)
+      assert %{projects: [%{respect_gitignore: false}]} = Testing.render(page)
+    end
+
+    test "an unknown project replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "project_not_found"}} =
+               Testing.dispatch_command(page, :update_project, %{
+                 project_id: "00000000-0000-7000-8000-000000000000",
+                 respect_gitignore: false
+               })
     end
   end
 

@@ -34,7 +34,8 @@ defmodule Suikou.Factories.ReviewFactory do
       def project_factory do
         %Project{
           name: sequence(:name, &"Project #{&1}"),
-          path: sequence(:path, &Path.join(System.tmp_dir!(), "suikou-project-#{&1}"))
+          path: sequence(:path, &Path.join(System.tmp_dir!(), "suikou-project-#{&1}")),
+          respect_gitignore: true
         }
       end
 
