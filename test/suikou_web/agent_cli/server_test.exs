@@ -4,19 +4,12 @@ defmodule SuikouWeb.AgentCLI.ServerTest do
   import ExUnit.CaptureIO
 
   alias SuikouWeb.AgentCLI.Server
-
-  describe "base_url/0" do
-    test "builds a local http URL with the endpoint's bound port" do
-      url = Server.base_url()
-
-      assert url =~ ~r"^http://[^/]+:\d+$"
-    end
-  end
+  alias SuikouWeb.Endpoint
 
   describe "url/0" do
-    test "emits the board root URL" do
+    test "emits the endpoint's configured canonical URL" do
       assert %{"url" => url, "error" => nil} = run(%{}, &Server.url/0)
-      assert url == Server.base_url()
+      assert url == Endpoint.url()
     end
   end
 

@@ -86,9 +86,9 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 {"files":[{"path":"doc.md","artifact_id":null}],"error":null}
 ```
 
-`review url` / `review open` (`open` also spawns the browser; `suikou open` with no id emits the board root URL the same way)
+`review url` / `review open` (`open` also spawns the browser; `suikou open` with no id emits the board root URL the same way). The host/scheme follow the endpoint's configured URL.
 ```json
-{"url":"http://localhost:4317/reviews/0192…","error":null}
+{"url":"https://suikou.example/reviews/0192…","error":null}
 ```
 
 `review rename` / `set-files` / `delete` (`error` is `null` on success, else an error atom string like `"review_not_found"`)

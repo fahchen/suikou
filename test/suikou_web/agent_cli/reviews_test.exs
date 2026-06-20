@@ -10,6 +10,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias Suikou.Schemas.Artifact
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI.Reviews, as: CLI
+  alias SuikouWeb.Endpoint
   alias SuikouWeb.Stores.BoardBroadcast
   alias SuikouWeb.Stores.CommentBroadcast
 
@@ -81,12 +82,11 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   end
 
   describe "url/0" do
-    test "emits the review's URL ending in /reviews/<id>" do
+    test "emits the endpoint URL joined with /reviews/<id>" do
       review = insert(:review)
 
       assert %{"url" => url, "error" => nil} = run(%{"review_id" => review.id}, &CLI.url/0)
-      assert String.starts_with?(url, "http://")
-      assert String.ends_with?(url, "/reviews/#{review.id}")
+      assert url == Endpoint.url() <> "/reviews/#{review.id}"
     end
   end
 
