@@ -1,16 +1,15 @@
 defmodule SuikouWeb.Stores.CommentBroadcast do
   @moduledoc """
-  PubSub bridge that lets the `SuikouWeb.Stores.ReviewStore` root refresh its
-  all-files `files_comments` fan-out when a comment mutation lands on the
-  `SuikouWeb.Stores.CommentsStore` child.
+  PubSub bridge that lets the `SuikouWeb.Stores.ReviewStore` root react when a
+  comment or verdict mutation lands on one of its `SuikouWeb.Stores.FileStore`
+  children (or their `SuikouWeb.Stores.CommentsStore` grandchild).
 
-  A child command (resolve/edit/reply/…) only re-derives the child's own
-  `:items` assign, so the runtime never re-renders the root — its parent-owned
-  `files_comments` (computed fresh in `render/1`) would stay stale until a full
-  reload. The child broadcasts `:comments_changed` on the review-scoped topic
-  after every mutation, the root subscribes at mount, and its `handle_info/2`
-  dirties an assign to force the next render to recompute the fan-out. Tabs
-  open on sibling artifacts of the same review refresh for free.
+  A child command only re-derives its own assigns, so the runtime never
+  re-renders the root on its own. The child broadcasts `:comments_changed` on the
+  review-scoped topic after every mutation; the root subscribes at mount and its
+  `handle_info/2` refreshes the file list and bumps the reload token, so the file
+  rows and every child thread pick up the change. Tabs open on the same review
+  refresh for free.
   """
 
   @pubsub Suikou.PubSub

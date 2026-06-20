@@ -82,27 +82,21 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
-    root_pid = self()
     CommentBroadcast.subscribe(review_id)
 
     socket =
       socket
       |> Socket.assign(:review_id, review_id)
       |> Socket.assign(:reload_token, 0)
-      |> Socket.assign(:refresh_files, fn -> send(root_pid, :refresh_files) end)
       |> refresh_files()
 
     {:ok, socket}
   end
 
   @impl Musubi.Store
-  @spec handle_info(:comments_changed | :refresh_files, Socket.t()) :: {:noreply, Socket.t()}
+  @spec handle_info(:comments_changed, Socket.t()) :: {:noreply, Socket.t()}
   def handle_info(:comments_changed, socket) do
     {:noreply, socket |> refresh_files() |> bump_reload_token()}
-  end
-
-  def handle_info(:refresh_files, socket) do
-    {:noreply, refresh_files(socket)}
   end
 
   @impl Musubi.Store
@@ -192,8 +186,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
         artifact_id: file.artifact_id,
         content_hash: file.content_hash,
         change_status: file.change_status,
-        reload_token: socket.assigns.reload_token,
-        refresh_files: socket.assigns.refresh_files
+        reload_token: socket.assigns.reload_token
       )
     end)
   end

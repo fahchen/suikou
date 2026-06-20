@@ -121,7 +121,6 @@ defmodule SuikouWeb.Stores.FileStore do
         {:ok, artifact_id, socket} ->
           case Rounds.latest(artifact_id) do
             %Round{id: round_id} ->
-              maybe_refresh_files(socket)
               _result = Submissions.set_draft_verdict(round_id, payload["verdict"])
               CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
@@ -143,8 +142,6 @@ defmodule SuikouWeb.Stores.FileStore do
         {:ok, artifact_id, socket} ->
           case Rounds.latest(artifact_id) do
             %Round{id: round_id} ->
-              maybe_refresh_files(socket)
-
               _result =
                 Critique.add_comment(%{
                   round_id: round_id,
@@ -191,13 +188,6 @@ defmodule SuikouWeb.Stores.FileStore do
     else
       nil -> {:error, socket}
       {:error, _reason} -> {:error, socket}
-    end
-  end
-
-  defp maybe_refresh_files(socket) do
-    case socket.assigns[:refresh_files] do
-      fun when is_function(fun, 0) -> fun.()
-      _other -> :ok
     end
   end
 
