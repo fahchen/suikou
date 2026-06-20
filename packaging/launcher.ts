@@ -319,14 +319,36 @@ async function resolveBody(values: Values): Promise<string> {
   return await new Response(Bun.stdin.stream()).text()
 }
 
-// Spawn `bin/suikou rpc <expr>`, piping the JSON payload on stdin (EOF on close —
-// exactly what the remote `IO.read(:stdio, :eof)` waits for) and capturing both
-// streams plus the exit code.
-async function rpcInvoke(bin: string, env: Record<string, string>, expr: string, json: string) {
+// Resolve how to evaluate an rpc expr. Default: extract the bundled release and
+// shell into `bin/suikou rpc`. Dev escape hatch: when SUIKOU_RPC_NODE is set,
+// route through a running `mix phx.server` started AS that distributed node via
+// `elixir --rpc-eval` — so the agent CLI drives the dev backend (its own DB, and
+// live PubSub that `poll` blocks on) without touching the packaged binary.
+// SUIKOU_RPC_COOKIE must match the dev node's --cookie. Both forms append the
+// expr last, so `rpcInvoke` just spawns `[...argv, expr]`.
+async function rpcTarget(): Promise<{ argv: string[]; env: Record<string, string> }> {
+  const node = process.env.SUIKOU_RPC_NODE
+  if (node) {
+    const cookie = process.env.SUIKOU_RPC_COOKIE
+    if (!cookie) throw new UsageError("SUIKOU_RPC_NODE set but SUIKOU_RPC_COOKIE missing")
+    const client = `suikou_cli_${process.pid}@127.0.0.1`
+    return {
+      argv: ["elixir", "--name", client, "--cookie", cookie, "--rpc-eval", node],
+      env: process.env as Record<string, string>
+    }
+  }
+  const releaseRoot = await ensureExtracted()
+  return { argv: [join(releaseRoot, "suikou", "bin", "suikou"), "rpc"], env: await releaseEnv() }
+}
+
+// Spawn the resolved rpc command with `<expr>` appended, piping the JSON payload
+// on stdin (EOF on close — exactly what the remote `IO.read(:stdio, :eof)` waits
+// for) and capturing both streams plus the exit code.
+async function rpcInvoke(argv: string[], env: Record<string, string>, expr: string, json: string) {
   // The rpc transport reads stdin in latin1; escape non-ASCII to \uXXXX so the
   // payload survives as valid JSON (mirrors the backend's escape: :unicode_safe).
   const ascii = json.replace(/[^\x00-\x7F]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"))
-  const proc = spawn([bin, "rpc", expr], {
+  const proc = spawn([...argv, expr], {
     env,
     stdin: new TextEncoder().encode(ascii),
     stdout: "pipe",
@@ -354,19 +376,18 @@ function rpcFailure(stderr: string, exitCode: number): number | null {
 // child's stdin (EOF on close), capture its one JSON line, pass it straight
 // through on success. A downed node prints the friendly "not running" line.
 async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): Promise<number> {
-  const releaseRoot = await ensureExtracted()
-  const bin = join(releaseRoot, "suikou", "bin", "suikou")
+  const { argv, env } = await rpcTarget()
 
   const { stdout, stderr, exitCode } = await rpcInvoke(
-    bin,
-    await releaseEnv(),
+    argv,
+    env,
     spec.expr,
     JSON.stringify(payload)
   )
   const fail = rpcFailure(stderr, exitCode)
   if (fail !== null) return fail
 
-  process.stdout.write(stdout)
+  process.stdout.write(resultLine(stdout) + "\n")
   return 0
 }
 
@@ -382,9 +403,7 @@ async function runPoll(
   payload: Record<string, unknown>,
   values: Values
 ): Promise<number> {
-  const releaseRoot = await ensureExtracted()
-  const bin = join(releaseRoot, "suikou", "bin", "suikou")
-  const env = await releaseEnv()
+  const { argv, env } = await rpcTarget()
   const json = JSON.stringify(payload)
 
   const timeoutSecs = typeof values.timeout === "string" ? Number(values.timeout) : undefined
@@ -397,21 +416,43 @@ async function runPoll(
   for (;;) {
     const remainingMs = deadline === Infinity ? undefined : Math.max(deadline - Date.now(), 0)
     const callJson = remainingMs === undefined ? json : JSON.stringify({ ...payload, timeout_ms: remainingMs })
-    const { stdout, stderr, exitCode } = await rpcInvoke(bin, env, spec.expr, callJson)
+    const { stdout, stderr, exitCode } = await rpcInvoke(argv, env, spec.expr, callJson)
     const fail = rpcFailure(stderr, exitCode)
     if (fail !== null) return fail
 
-    if (!isTimeout(stdout)) {
-      process.stdout.write(stdout)
+    const line = resultLine(stdout)
+    if (!isTimeout(line)) {
+      process.stdout.write(line + "\n")
       return 0
     }
-    lastTimeout = stdout
+    lastTimeout = line
 
     if (Date.now() >= deadline) {
-      process.stdout.write(lastTimeout)
+      process.stdout.write(lastTimeout + "\n")
       return 0
     }
   }
+}
+
+// The backend emits its one JSON result among stdout's lines. In dev, the
+// rpc-eval transport forwards the eval process's group leader, so Ecto debug
+// logs flushed during the call land on stdout interleaved with that line —
+// before AND after it (a broadcast log can flush after the result is written).
+// Take the last line that parses as JSON; in prod (quiet release) the result is
+// the only line, so this is a no-op there. Falls back to the last non-empty
+// line so a genuine non-JSON error still surfaces rather than vanishing.
+function resultLine(stdout: string): string {
+  const lines = stdout.split("\n").filter((l) => l.trim() !== "")
+  if (lines.length === 0) return ""
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      JSON.parse(lines[i])
+      return lines[i]
+    } catch {
+      // not JSON — keep scanning earlier lines
+    }
+  }
+  return lines[lines.length - 1]
 }
 
 // A poll round-trip is a timeout when the JSON line says so.
