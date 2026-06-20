@@ -10,8 +10,10 @@ import { useRawHighlight } from "./use-raw-highlight";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import {
   isFiltering,
+  FileStoreProvider,
   ReviewStoreProvider,
   ReviewViewProvider,
+  useFileStore,
   useReviewStore,
   visibleComments,
 } from "./store-context";
@@ -19,22 +21,21 @@ import { TopBar } from "./TopBar";
 import { FileHeader } from "./FileHeader";
 import { useReviewCommands } from "./commands";
 import { CommentRail } from "./CommentRail";
-import { AllFilesView } from "./views/AllFilesView";
 import { useScrollRestore } from "./use-scroll-restore";
 import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer";
 import { isPreviewable, isImagePath } from "./file-type";
 import { isHtmlPath } from "./view-kind";
 import { assetBase } from "./urls";
 import { ErrorPage, errorCopy } from "@/components/error-page";
-import type { ReviewSnapshot, ReviewStore, Verdict } from "./types";
+import type { ReviewSnapshot, Verdict } from "./types";
 
-/** Mounts the ReviewStore for an artifact and frames the rendered/raw child routes. */
-export function ArtifactReviewShell(props: { artifactId: string }) {
-  const { artifactId } = props;
+/** Mounts the ReviewStore by reviewId and finds the FileStore proxy for `path`. */
+export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
+  const { reviewId, path } = props;
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
-    id: artifactId,
-    params: { artifact_id: artifactId },
+    id: reviewId,
+    params: { review_id: reviewId },
     cache: storeCache,
     keepPreviousData: true,
   });
@@ -43,18 +44,24 @@ export function ArtifactReviewShell(props: { artifactId: string }) {
   if (root.status === "error") return <ErrorPage {...errorCopy(root.error.message)} />;
 
   return (
-    <ReviewStoreProvider key={artifactId} store={root.store}>
-      <ReviewShell />
+    <ReviewStoreProvider key={reviewId} store={root.store}>
+      <ReviewShell path={path} />
     </ReviewStoreProvider>
   );
 }
 
-const ReviewShell = observer(function ReviewShell() {
-  const store = useReviewStore();
-  const snapshot = useMusubiSnapshot(store);
+const ReviewShell = observer(function ReviewShell(props: { path: string }) {
+  const reviewStore = useReviewStore();
+  const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const minting = uiStore.mintingPath;
 
-  if (!snapshot.artifact) {
+  // Find the FileStore proxy and its snapshot by matching path.
+  // snapshot.files[i] and reviewStore.files[i] are parallel arrays.
+  const fileIndex = reviewSnapshot.files.findIndex((fs) => fs.path === props.path);
+  const fileSnapshot = fileIndex >= 0 ? reviewSnapshot.files[fileIndex] : undefined;
+  const fileProxy = fileIndex >= 0 ? reviewStore.files[fileIndex] : undefined;
+
+  if (!fileSnapshot || !fileProxy) {
     return (
       <>
         <MintProgressStrip path={minting} />
@@ -62,15 +69,18 @@ const ReviewShell = observer(function ReviewShell() {
       </>
     );
   }
+
   return (
     <>
       <MintProgressStrip path={minting} />
-      <HydratedReviewShell store={store} snapshot={snapshot} />
+      <FileStoreProvider store={fileProxy}>
+        <HydratedReviewShell reviewSnapshot={reviewSnapshot} />
+      </FileStoreProvider>
     </>
   );
 });
 
-/** Indeterminate top progress bar while an `open_file` mint is in flight. */
+/** Indeterminate top progress bar while a mint is in flight. */
 const MintProgressStrip = observer(function MintProgressStrip(props: { path: string | null }) {
   if (!props.path) return null;
   return (
@@ -86,20 +96,21 @@ const MintProgressStrip = observer(function MintProgressStrip(props: { path: str
 });
 
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
-  store: ReviewStore;
-  snapshot: ReviewSnapshot;
+  reviewSnapshot: ReviewSnapshot;
 }) {
-  const { snapshot } = props;
+  const { reviewSnapshot } = props;
   const ui = uiStore;
   const commands = useReviewCommands();
   const search = useSearch({ strict: false }) as { view?: string };
   const rawView = search.view === "raw";
+  const fileStore = useFileStore();
+  const fileSnapshotLive = useMusubiSnapshot(fileStore);
 
   useEffect(() => {
     if (uiStore.mintingPath) uiStore.setMintingPath(null);
-  }, [snapshot.artifact.id]);
+  }, [fileSnapshotLive.artifact.id]);
 
-  const serverVerdict = snapshot.draft_verdict ?? snapshot.latest_verdict ?? null;
+  const serverVerdict = fileSnapshotLive.draft_verdict ?? fileSnapshotLive.latest_verdict ?? null;
   const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict);
   useEffect(() => {
     setVerdict(serverVerdict);
@@ -111,21 +122,23 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   }
 
   const wide = useMediaQuery(WIDE_QUERY);
-  const title = snapshot.artifact.title;
+  const title = fileSnapshotLive.artifact.title;
   const previewable = isPreviewable(title);
   const image = isImagePath(title);
   const slash = title.lastIndexOf("/");
 
   const contentState = useContent(
-    snapshot.artifact.id,
-    snapshot.current_round.content_hash,
+    fileSnapshotLive.artifact.id,
+    fileSnapshotLive.current_round.content_hash,
     !image,
   );
   const { text: content, loading: contentLoading } = contentState;
   const contentError = contentErrorFrom(contentState);
 
+  const reviewKind = reviewSnapshot.kind;
+
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
-    base: assetBase(snapshot.artifact.id),
+    base: assetBase(fileSnapshotLive.artifact.id),
     dir: slash === -1 ? "" : title.slice(0, slash),
   });
   const rawLines = useRawHighlight(content, title, ui.theme);
@@ -133,7 +146,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
 
   const seenIds = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const ids = snapshot.comments.items.map((c) => c.id);
+    const ids = fileSnapshotLive.comments.items.map((c) => c.id);
     if (seenIds.current === null) {
       seenIds.current = new Set(ids);
       return;
@@ -144,23 +157,22 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
     }
   });
 
-  const visible = visibleComments(snapshot.comments.items, ui.statusFilter, ui.typeFilters);
+  const visible = visibleComments(fileSnapshotLive.comments.items, ui.statusFilter, ui.typeFilters);
   const comments = ui.hideComments
     ? visible.filter((c) => ui.revealedCommentIds.includes(c.id))
     : visible;
-  const allFiles = ui.fileDisplayMode === "all";
-  const sideMode = ui.commentMode === "side" && wide && !ui.hideComments && !allFiles;
+  const sideMode = ui.commentMode === "side" && wide && !ui.hideComments;
 
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   useScrollRestore({
     container: mainEl,
-    artifactId: snapshot.artifact.id,
+    artifactId: fileSnapshotLive.artifact.id,
     view: rawView ? "raw" : "rendered",
     ready: !loading,
-    enabled: !allFiles,
+    enabled: true,
   });
 
-  if (!snapshot.artifact.id) {
+  if (!fileSnapshotLive.artifact.id) {
     return (
       <ErrorPage
         label="Gone"
@@ -172,7 +184,12 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
 
   return (
     <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
-      <TopBar snapshot={snapshot} previewable={previewable} content={content} verdict={verdict} />
+      <TopBar
+        reviewSnapshot={reviewSnapshot}
+        previewable={previewable}
+        content={content}
+        verdict={verdict}
+      />
 
       <div
         className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
@@ -182,7 +199,9 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
         <div className="min-w-0">
           <ReviewViewProvider
             value={{
-              snapshot,
+              snapshot: fileSnapshotLive,
+              reviewKind,
+              reviewSnapshot,
               content,
               contentError,
               blocks: blocks.blocks,
@@ -194,20 +213,16 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
               onVerdictChange: changeVerdict,
             }}
           >
-            {allFiles ? (
-              <AllFilesView snapshot={snapshot} verdict={verdict} onVerdictChange={changeVerdict} />
-            ) : (
-              <article className="overflow-hidden rounded-xl border border-line bg-editor">
-                <FileHeader
-                  snapshot={snapshot}
-                  rawView={rawView}
-                  content={content}
-                  verdict={verdict}
-                  onVerdictChange={changeVerdict}
-                />
-                <Outlet />
-              </article>
-            )}
+            <article className="overflow-hidden rounded-xl border border-line bg-editor">
+              <FileHeader
+                reviewSnapshot={reviewSnapshot}
+                rawView={rawView}
+                content={content}
+                verdict={verdict}
+                onVerdictChange={changeVerdict}
+              />
+              <Outlet />
+            </article>
           </ReviewViewProvider>
         </div>
         {sideMode && (
@@ -220,7 +235,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
                 : undefined
             }
             header={
-              ui.htmlAnchorTarget && ui.htmlAnchorTarget.artifactId === snapshot.artifact.id ? (
+              ui.htmlAnchorTarget && ui.htmlAnchorTarget.artifactId === fileSnapshotLive.artifact.id ? (
                 <HtmlAnchorComposer
                   target={ui.htmlAnchorTarget}
                   onClose={() => ui.setHtmlAnchorTarget(null)}
