@@ -150,6 +150,34 @@ defmodule Suikou.Projects do
   end
 
   @doc """
+  Answers whether a single relative path is reviewable for a project: `.git` is
+  always excluded, and when `respect_gitignore` is true a path matched by the
+  project's `.gitignore` (directly or via an ignored ancestor directory) is
+  excluded too. When `respect_gitignore` is false, only `.git` is excluded.
+
+  This lets an explicit file selection be filtered by the same gitignore
+  decision that directory expansion already respects, so a stale selection (a
+  file picked while the toggle was off) never leaks once the toggle is on.
+
+  ## Examples
+
+      Suikou.Projects.listable?(project, "lib/app.ex")
+      #=> true
+
+      Suikou.Projects.listable?(project, "secret.txt")
+      #=> false
+
+  """
+  @spec listable?(Project.t(), String.t()) :: boolean()
+  def listable?(%Project{path: path, respect_gitignore: respect}, rel) do
+    cond do
+      git_root?(rel) -> false
+      respect -> not ignored?(rel, ignore_rules(path), false)
+      true -> true
+    end
+  end
+
+  @doc """
   Lists the immediate children of a project subdirectory, each tagged as a file
   or directory, with directories first then names sorted. Ignored entries are
   skipped. This backs lazy file-tree browsing: a level is read only when opened,

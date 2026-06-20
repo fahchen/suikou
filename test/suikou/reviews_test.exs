@@ -195,6 +195,43 @@ defmodule Suikou.ReviewsTest do
       paths = review.id |> Reviews.get_review() |> Reviews.list_files() |> Enum.map(& &1.path)
       assert paths == ["docs/later.md", "docs/plan.md"]
     end
+
+    @tag :tmp_dir
+    test "excludes a gitignored file lingering in the selection when respect_gitignore is true",
+         %{tmp_dir: dir} do
+      File.write!(Path.join(dir, ".gitignore"), "secret.txt\n")
+      File.write!(Path.join(dir, "secret.txt"), "shh\n")
+      File.write!(Path.join(dir, "visible.md"), "# Visible\n")
+      project = insert(:project, path: dir, respect_gitignore: true)
+
+      {:ok, review} =
+        Reviews.create_review(project, %{name: "Launch", selections: ["secret.txt", "visible.md"]})
+
+      paths = review.id |> Reviews.get_review() |> Reviews.list_files() |> Enum.map(& &1.path)
+
+      assert paths == ["visible.md"]
+    end
+
+    @tag :tmp_dir
+    test "includes a gitignored file in the selection when respect_gitignore is false",
+         %{tmp_dir: dir} do
+      File.write!(Path.join(dir, ".gitignore"), "secret.txt\n")
+      File.write!(Path.join(dir, "secret.txt"), "shh\n")
+      File.write!(Path.join(dir, "visible.md"), "# Visible\n")
+      project = insert(:project, path: dir, respect_gitignore: false)
+
+      {:ok, review} =
+        Reviews.create_review(project, %{name: "Launch", selections: ["secret.txt", "visible.md"]})
+
+      paths =
+        review.id
+        |> Reviews.get_review()
+        |> Reviews.list_files()
+        |> Enum.map(& &1.path)
+        |> Enum.sort()
+
+      assert paths == ["secret.txt", "visible.md"]
+    end
   end
 
   describe "delete_review/1" do

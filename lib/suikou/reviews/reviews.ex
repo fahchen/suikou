@@ -561,13 +561,17 @@ defmodule Suikou.Reviews do
 
   # A selected directory stands for every file beneath it; a selected file is
   # itself. Expansion reads the directory live, so membership is dynamic — files
-  # added under a selected directory appear without editing the selection.
+  # added under a selected directory appear without editing the selection. A
+  # selected file is dropped when the project no longer lists it (gitignored or
+  # under `.git`), so a stale selection never leaks once the toggle is on.
   defp expand(%Project{} = project, paths) do
     paths
     |> Enum.flat_map(fn path ->
-      if File.dir?(Path.join(project.path, path)),
-        do: Projects.list_files(project, path),
-        else: [path]
+      cond do
+        File.dir?(Path.join(project.path, path)) -> Projects.list_files(project, path)
+        Projects.listable?(project, path) -> [path]
+        true -> []
+      end
     end)
     |> Enum.uniq()
   end
