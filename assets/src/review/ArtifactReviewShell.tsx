@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Outlet, useSearch } from "@tanstack/react-router";
+import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
+import { ArrowRight, FileX, Home, Trash2 } from "lucide-react";
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { useMarkdown } from "../markdown/use-markdown";
-import { contentErrorFrom, useContent } from "./use-content";
+import { contentErrorFrom, useContent, useReviewFileContent } from "./use-content";
 import { useRawHighlight } from "./use-raw-highlight";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import {
@@ -24,9 +25,12 @@ import { CommentRail } from "./CommentRail";
 import { useScrollRestore } from "./use-scroll-restore";
 import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer";
 import { isPreviewable, isImagePath } from "./file-type";
+import { orderedReviewFiles } from "./file-order";
+import { reviewFileParams } from "./review-navigation";
 import { isHtmlPath } from "./view-kind";
 import { assetBase } from "./urls";
 import { ErrorPage, errorCopy } from "@/components/error-page";
+import { Button } from "@/components/ui/button";
 import type { ReviewSnapshot, Verdict } from "./types";
 
 /** Mounts the ReviewStore by reviewId and finds the FileStore proxy for `path`. */
@@ -62,6 +66,15 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   const fileProxy = fileIndex >= 0 ? reviewStore.files[fileIndex] : undefined;
 
   if (!fileSnapshot || !fileProxy) {
+    // The path resolves to no file row. While the file list is still loading or
+    // a mint is in flight the skeleton is correct; once the list has settled the
+    // path is genuinely absent (deleted/renamed under a directory selection, or a
+    // stale link). The review itself is intact, so prompt the user to jump to one
+    // of its files rather than auto-redirecting or stranding them on a dead URL.
+    const settled = reviewSnapshot.file_entries.status === "ok" && minting === null;
+    if (settled) {
+      return <MissingFilePrompt reviewSnapshot={reviewSnapshot} path={props.path} />;
+    }
     return (
       <>
         <MintProgressStrip path={minting} />
@@ -127,18 +140,29 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const image = isImagePath(title);
   const slash = title.lastIndexOf("/");
 
-  const contentState = useContent(
+  // Minted files fetch their reviewed source by artifact; unminted rows (no
+  // verdict/comment yet) fetch the live file by path, mirroring all-files mode
+  // so a single-file deep link renders before the row is ever touched.
+  const minted = Boolean(fileSnapshotLive.artifact.id);
+  const mintedContent = useContent(
     fileSnapshotLive.artifact.id,
     fileSnapshotLive.current_round.content_hash,
-    !image,
+    minted && !image,
   );
+  const unmintedContent = useReviewFileContent(
+    reviewSnapshot.review_id,
+    fileSnapshotLive.path,
+    fileSnapshotLive.content_hash,
+    !minted && !image,
+  );
+  const contentState = minted ? mintedContent : unmintedContent;
   const { text: content, loading: contentLoading } = contentState;
   const contentError = contentErrorFrom(contentState);
 
   const reviewKind = reviewSnapshot.kind;
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
-    base: assetBase(fileSnapshotLive.artifact.id),
+    base: minted ? assetBase(fileSnapshotLive.artifact.id) : "",
     dir: slash === -1 ? "" : title.slice(0, slash),
   });
   const rawLines = useRawHighlight(content, title, ui.theme);
@@ -172,15 +196,10 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
     enabled: true,
   });
 
-  if (!fileSnapshotLive.artifact.id) {
-    return (
-      <ErrorPage
-        label="Gone"
-        title="This review no longer exists"
-        body="It was deleted while you were viewing it. Head back to the board to pick another."
-      />
-    );
-  }
+  // Genuinely gone: an untouched row whose source is missing at head (no blob
+  // hash). A present-but-unminted file still has a hash and renders normally.
+  // The review chrome stays; only the content body reports the missing file.
+  const missing = !minted && fileSnapshotLive.content_hash === null;
 
   return (
     <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
@@ -220,7 +239,15 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
                 verdict={verdict}
                 onVerdictChange={changeVerdict}
               />
-              <Outlet />
+              {missing ? (
+                <MissingFilePanel
+                  reviewId={reviewSnapshot.review_id}
+                  path={fileSnapshotLive.path}
+                  kind={reviewSnapshot.kind}
+                />
+              ) : (
+                <Outlet />
+              )}
             </article>
           </ReviewViewProvider>
         </div>
@@ -243,6 +270,116 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
               ) : null
             }
           />
+        )}
+      </div>
+    </main>
+  );
+});
+
+/**
+ * File-scoped "no reviewable content" panel: the review itself is intact, but
+ * this one file has no artifact — its source was deleted or moved since the
+ * review was created. Renders inside the file card so the review chrome stays.
+ * File-selection reviews offer to drop the row; diff reviews derive their file
+ * list from the diff, so the action is omitted there.
+ */
+const MissingFilePanel = observer(function MissingFilePanel(props: {
+  reviewId: string;
+  path: string;
+  kind: "file" | "diff";
+}) {
+  const commands = useReviewCommands();
+  const navigate = useNavigate();
+
+  async function remove() {
+    await commands.removeFile.dispatch({ path: props.path });
+    void navigate({ to: "/reviews/$reviewId", params: { reviewId: props.reviewId } });
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <FileX className="size-7 text-faint" aria-hidden />
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-heading">This file is no longer available</p>
+        <p className="mx-auto max-w-xs text-[13px] text-muted-foreground">
+          It was likely deleted or moved since this review was created.
+        </p>
+      </div>
+      {props.kind === "file" && (
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => void remove()}
+          disabled={commands.removeFile.isPending}
+        >
+          <Trash2 aria-hidden />
+          Remove from review
+        </Button>
+      )}
+    </div>
+  );
+});
+
+/**
+ * Prompt for a deep link whose path is absent from the resolved file list (its
+ * source was deleted or renamed under a directory selection, or the link is
+ * stale). The review is intact, so a minimal header keeps the way out and the
+ * panel offers to jump to the review's first file (in tree order); when the
+ * review has no files at all, only the back-to-review action is shown.
+ */
+const MissingFilePrompt = observer(function MissingFilePrompt(props: {
+  reviewSnapshot: ReviewSnapshot;
+  path: string;
+}) {
+  const navigate = useNavigate();
+  const reviewId = props.reviewSnapshot.review_id;
+  const firstFile = orderedReviewFiles(props.reviewSnapshot.file_entries.data ?? [])[0];
+
+  return (
+    <main className="h-screen overflow-auto bg-canvas text-ink">
+      <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:px-4">
+        <Button
+          variant="pill"
+          size="icon"
+          title="Project board"
+          aria-label="Project board"
+          onClick={() => void navigate({ to: "/" })}
+        >
+          <Home className="text-muted-foreground" />
+        </Button>
+        <span className="truncate text-sm font-medium text-heading">
+          {props.reviewSnapshot.name}
+        </span>
+      </header>
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">
+        <FileX className="size-7 text-faint" aria-hidden />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-heading">This file isn’t part of this review</p>
+          <p className="mx-auto max-w-xs break-all font-mono text-[12px] text-muted-foreground">
+            {props.path}
+          </p>
+        </div>
+        {firstFile ? (
+          <Button
+            size="sm"
+            onClick={() =>
+              void navigate({
+                to: "/reviews/$reviewId/files/$",
+                params: reviewFileParams(reviewId, firstFile.path),
+              })
+            }
+          >
+            Open first file
+            <ArrowRight aria-hidden />
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate({ to: "/reviews/$reviewId", params: { reviewId } })}
+          >
+            Back to review
+          </Button>
         )}
       </div>
     </main>
