@@ -1,5 +1,3 @@
-import type { ReviewSnapshot } from "./types"
-
 /**
  * What kind of view should render the current artifact. Keyed off the
  * server-supplied `artifact.kind` hint and (for the `"file"` kind) the path
@@ -20,7 +18,7 @@ export function isHtmlPath(path: string): boolean {
   return HTML_EXTENSIONS.has(extname(path))
 }
 
-type ArtifactHint = Pick<ReviewSnapshot["artifact"], "kind" | "title">
+type ArtifactHint = { kind: "file" | "diff"; title: string }
 
 /**
  * Map an artifact to its view kind. Diff-kind artifacts route to the diff view

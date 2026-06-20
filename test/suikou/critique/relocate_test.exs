@@ -21,10 +21,10 @@ defmodule Suikou.Critique.RelocateTest do
     # The quoted "beta" is gone; the human re-pins the comment to a fresh line,
     # which re-captures the quote there from the current file.
     %{round: round2} = advance(artifact.id, "alpha\nDELTA\ngamma\nEPSILON\n")
-    [carried] = Reads.list_comments(round2.id)
+    [comment] = Reads.list_comments(round2)
 
     assert {:ok, relocated} =
-             Critique.relocate_comment(carried.id, %{
+             Critique.relocate_comment(comment.id, %{
                type: "line_range",
                start_line: 4,
                end_line: 4

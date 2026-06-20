@@ -56,10 +56,10 @@ Feature: Critique export
       When the agent exports the artifact
       Then the comment's replies are included
 
-  Rule: A carried-forward outdated comment is exported flagged outdated
+  Rule: A still-open comment whose anchor moved is exported flagged outdated
 
     Scenario: An outdated comment exports without a valid line anchor
-      Given a carried-forward comment on the latest round marked outdated
+      Given a still-open line-scoped comment whose anchored line was changed in a later round
       When the agent exports the artifact
       Then the comment is included
       And it is flagged outdated

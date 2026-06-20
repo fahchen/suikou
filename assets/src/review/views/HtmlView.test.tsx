@@ -34,7 +34,6 @@ vi.mock("../commands", () => ({
     editComment: stubCmd,
     deleteComment: stubCmd,
     resolveComment: stubCmd,
-    unresolveComment: stubCmd,
     reply: stubCmd,
     submitReview: stubCmd,
     setDraftVerdict: stubCmd,
@@ -55,7 +54,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     rawLines: null,
     snapshot: {
       artifact: { id: "art1", title: "page.html" }
-    } as ReviewView["snapshot"],
+    } as unknown as ReviewView["snapshot"],
+    reviewKind: "file",
+    reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",
     onVerdictChange: () => undefined
   }
@@ -170,7 +171,7 @@ describe("HtmlView", () => {
     doc.dispatchEvent(new doc.defaultView!.Event("mouseup", { bubbles: true }))
     await flushMicrotasks()
 
-    await screen.findByText(/New comment on selected region/)
+    await screen.findByRole("dialog", { name: /element comment/i })
 
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
       target: { value: "fix this heading" }
@@ -186,7 +187,7 @@ describe("HtmlView", () => {
     })
     // Composer closes after dispatch.
     await waitFor(() =>
-      expect(screen.queryByText(/New comment on selected region/)).toBeNull()
+      expect(screen.queryByRole("dialog", { name: /element comment/i })).toBeNull()
     )
   })
 
@@ -206,7 +207,7 @@ describe("HtmlView", () => {
     // Touch text-selection finalizes via selectionchange, never a mouseup.
     doc.dispatchEvent(new doc.defaultView!.Event("selectionchange", { bubbles: true }))
 
-    await screen.findByText(/New comment on selected region/, undefined, { timeout: 2000 })
+    await screen.findByRole("dialog", { name: /element comment/i }, { timeout: 2000 })
   })
 
   it("renders an element comment as outdated when its selector misses", async () => {
@@ -218,8 +219,7 @@ describe("HtmlView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: true,
-      original_round: 1,
+      authored_round: 1,
       resolved_round: null,
       inserted_at: "2026-06-14T00:00:00Z",
       scope: "located",
@@ -249,8 +249,7 @@ describe("HtmlView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: true,
-      original_round: 1,
+      authored_round: 1,
       resolved_round: null,
       inserted_at: "2026-06-14T00:00:00Z",
       scope: "located",
@@ -354,8 +353,7 @@ describe("HtmlView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       resolved_round: null,
       inserted_at: "2026-06-14T00:00:00Z",
       scope: "located",
@@ -384,7 +382,7 @@ describe("HtmlView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
     expect(screen.getByText("110%")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom to 100%" }))
     expect(screen.getByText("100%")).toBeInTheDocument()
 
     // Step down to the 50% floor; the button disables once clamped.

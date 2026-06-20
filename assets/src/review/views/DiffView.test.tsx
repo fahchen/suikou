@@ -36,7 +36,6 @@ vi.mock("../commands", () => ({
     editComment: stubCmd,
     deleteComment: stubCmd,
     resolveComment: stubCmd,
-    unresolveComment: stubCmd,
     reply: stubCmd,
     submitReview: stubCmd,
     setDraftVerdict: stubCmd,
@@ -55,7 +54,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     blocks: [],
     previewable: false,
     rawLines: null,
-    snapshot: {} as ReviewView["snapshot"],
+    snapshot: {} as unknown as ReviewView["snapshot"],
+    reviewKind: "file",
+    reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",
     onVerdictChange: () => undefined
   }
@@ -140,8 +141,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment
@@ -159,8 +159,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment
@@ -187,8 +186,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
-      carried: false,
-      original_round: null,
+      authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
     } as unknown as Comment

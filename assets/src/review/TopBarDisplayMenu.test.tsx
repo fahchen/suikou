@@ -40,7 +40,8 @@ const capabilities: ViewCapabilities = {
 function renderMenu(sideCommentsAllowed: boolean) {
   return render(
     <TopBarDisplayMenu
-      artifactId="a-1"
+      reviewId="r-1"
+      filePath="docs/plan.md"
       rawView={false}
       capabilities={capabilities}
       viewKind="file"

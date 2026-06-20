@@ -224,21 +224,42 @@ function GutterCell(props: {
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
 }) {
-  const label =
-    props.startLine === props.endLine ? `${props.startLine}` : `${props.startLine}-${props.endLine}`;
+  const isRange = props.startLine !== props.endLine;
   return (
     <button
       type="button"
       data-line={props.startLine}
       data-selected={props.selected ? "true" : undefined}
       data-hover={props.hovered ? "true" : undefined}
+      data-range={isRange ? "true" : undefined}
       title={`Add a comment on line ${props.startLine} (Shift-click to extend)`}
       aria-label={`Add a comment on line ${props.startLine}`}
       className={`gutter-cell ${props.className ?? ""}`}
       onClick={props.onClick}
     >
-      <Plus size={12} className="gutter-plus" aria-hidden />
-      {label}
+      {isRange ? (
+        // A multi-line block: pin the start number to the top and the end number
+        // to the bottom, joined by a vertical rule that spans the block's height
+        // (the gutter stretches to match). Reads as a range without the ambiguous
+        // "16-17" dash.
+        <>
+          <span className="gutter-num">
+            <Plus size={12} className="gutter-plus" aria-hidden />
+            {props.startLine}
+          </span>
+          <span
+            className="gutter-conn"
+            aria-hidden
+            style={{ "--num-ch": String(props.endLine).length } as React.CSSProperties}
+          />
+          <span className="gutter-num">{props.endLine}</span>
+        </>
+      ) : (
+        <>
+          <Plus size={12} className="gutter-plus" aria-hidden />
+          {props.startLine}
+        </>
+      )}
     </button>
   );
 }
@@ -325,7 +346,7 @@ const BlockRow = observer(function BlockRow(props: {
   return (
     <div className={props.marginClass ?? ""}>
       <div
-        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] ${props.kind === "mermaid" ? "items-start" : "items-baseline"} ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${startLine}`}
         aria-selected={selected}
       >
@@ -333,7 +354,6 @@ const BlockRow = observer(function BlockRow(props: {
           startLine={startLine}
           endLine={endLine}
           selected={selected}
-          className="self-stretch"
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(startLine, endLine, fileScope);
@@ -734,7 +754,7 @@ const RawLine = observer(function RawLine(props: {
   return (
     <div>
       <div
-        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-start ${selected ? "bg-active-line" : "hover:bg-hover"}`}
+        className={`md-row grid grid-cols-[var(--gutter-w)_minmax(0,1fr)] items-baseline ${selected ? "bg-active-line" : "hover:bg-hover"}`}
         id={`line-${lineNo}`}
         aria-selected={selected}
       >
@@ -742,7 +762,6 @@ const RawLine = observer(function RawLine(props: {
           startLine={lineNo}
           endLine={lineNo}
           selected={selected}
-          className="self-stretch"
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(lineNo, lineNo, fileScope);

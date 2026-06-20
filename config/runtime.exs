@@ -75,9 +75,14 @@ if config_env() == :prod do
   #   "loopback" bind 127.0.0.1 only (this machine only; disables tailnet access)
   bind_ip =
     case user_config["bind"] || "all" do
-      "all" -> {0, 0, 0, 0, 0, 0, 0, 0}
-      "loopback" -> {127, 0, 0, 1}
-      other -> raise "invalid `bind` at #{config_path}: #{inspect(other)} (expected \"all\" or \"loopback\")"
+      "all" ->
+        {0, 0, 0, 0, 0, 0, 0, 0}
+
+      "loopback" ->
+        {127, 0, 0, 1}
+
+      other ->
+        raise "invalid `bind` at #{config_path}: #{inspect(other)} (expected \"all\" or \"loopback\")"
     end
 
   config :suikou, SuikouWeb.Endpoint,

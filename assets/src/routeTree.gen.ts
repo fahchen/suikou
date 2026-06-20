@@ -10,69 +10,81 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ReviewArtifactIdRouteImport } from './routes/review.$artifactId'
-import { Route as ReviewArtifactIdIndexRouteImport } from './routes/review.$artifactId.index'
-import { Route as ReviewArtifactIdRawRouteImport } from './routes/review.$artifactId.raw'
+import { Route as ReviewsReviewIdRouteImport } from './routes/reviews.$reviewId'
+import { Route as ReviewsReviewIdIndexRouteImport } from './routes/reviews.$reviewId.index'
+import { Route as ReviewsReviewIdFilesSplatRouteImport } from './routes/reviews.$reviewId.files.$'
+import { Route as ReviewsReviewIdFilesSplatIndexRouteImport } from './routes/reviews.$reviewId.files.$.index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReviewArtifactIdRoute = ReviewArtifactIdRouteImport.update({
-  id: '/review/$artifactId',
-  path: '/review/$artifactId',
+const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
+  id: '/reviews/$reviewId',
+  path: '/reviews/$reviewId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReviewArtifactIdIndexRoute = ReviewArtifactIdIndexRouteImport.update({
+const ReviewsReviewIdIndexRoute = ReviewsReviewIdIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ReviewArtifactIdRoute,
+  getParentRoute: () => ReviewsReviewIdRoute,
 } as any)
-const ReviewArtifactIdRawRoute = ReviewArtifactIdRawRouteImport.update({
-  id: '/raw',
-  path: '/raw',
-  getParentRoute: () => ReviewArtifactIdRoute,
-} as any)
+const ReviewsReviewIdFilesSplatRoute =
+  ReviewsReviewIdFilesSplatRouteImport.update({
+    id: '/files/$',
+    path: '/files/$',
+    getParentRoute: () => ReviewsReviewIdRoute,
+  } as any)
+const ReviewsReviewIdFilesSplatIndexRoute =
+  ReviewsReviewIdFilesSplatIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ReviewsReviewIdFilesSplatRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/review/$artifactId': typeof ReviewArtifactIdRouteWithChildren
-  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
-  '/review/$artifactId/': typeof ReviewArtifactIdIndexRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRouteWithChildren
+  '/reviews/$reviewId/': typeof ReviewsReviewIdIndexRoute
+  '/reviews/$reviewId/files/$': typeof ReviewsReviewIdFilesSplatRouteWithChildren
+  '/reviews/$reviewId/files/$/': typeof ReviewsReviewIdFilesSplatIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
-  '/review/$artifactId': typeof ReviewArtifactIdIndexRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdIndexRoute
+  '/reviews/$reviewId/files/$': typeof ReviewsReviewIdFilesSplatIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/review/$artifactId': typeof ReviewArtifactIdRouteWithChildren
-  '/review/$artifactId/raw': typeof ReviewArtifactIdRawRoute
-  '/review/$artifactId/': typeof ReviewArtifactIdIndexRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRouteWithChildren
+  '/reviews/$reviewId/': typeof ReviewsReviewIdIndexRoute
+  '/reviews/$reviewId/files/$': typeof ReviewsReviewIdFilesSplatRouteWithChildren
+  '/reviews/$reviewId/files/$/': typeof ReviewsReviewIdFilesSplatIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/review/$artifactId'
-    | '/review/$artifactId/raw'
-    | '/review/$artifactId/'
+    | '/reviews/$reviewId'
+    | '/reviews/$reviewId/'
+    | '/reviews/$reviewId/files/$'
+    | '/reviews/$reviewId/files/$/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/review/$artifactId/raw' | '/review/$artifactId'
+  to: '/' | '/reviews/$reviewId' | '/reviews/$reviewId/files/$'
   id:
     | '__root__'
     | '/'
-    | '/review/$artifactId'
-    | '/review/$artifactId/raw'
-    | '/review/$artifactId/'
+    | '/reviews/$reviewId'
+    | '/reviews/$reviewId/'
+    | '/reviews/$reviewId/files/$'
+    | '/reviews/$reviewId/files/$/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ReviewArtifactIdRoute: typeof ReviewArtifactIdRouteWithChildren
+  ReviewsReviewIdRoute: typeof ReviewsReviewIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -84,46 +96,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/review/$artifactId': {
-      id: '/review/$artifactId'
-      path: '/review/$artifactId'
-      fullPath: '/review/$artifactId'
-      preLoaderRoute: typeof ReviewArtifactIdRouteImport
+    '/reviews/$reviewId': {
+      id: '/reviews/$reviewId'
+      path: '/reviews/$reviewId'
+      fullPath: '/reviews/$reviewId'
+      preLoaderRoute: typeof ReviewsReviewIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/review/$artifactId/': {
-      id: '/review/$artifactId/'
+    '/reviews/$reviewId/': {
+      id: '/reviews/$reviewId/'
       path: '/'
-      fullPath: '/review/$artifactId/'
-      preLoaderRoute: typeof ReviewArtifactIdIndexRouteImport
-      parentRoute: typeof ReviewArtifactIdRoute
+      fullPath: '/reviews/$reviewId/'
+      preLoaderRoute: typeof ReviewsReviewIdIndexRouteImport
+      parentRoute: typeof ReviewsReviewIdRoute
     }
-    '/review/$artifactId/raw': {
-      id: '/review/$artifactId/raw'
-      path: '/raw'
-      fullPath: '/review/$artifactId/raw'
-      preLoaderRoute: typeof ReviewArtifactIdRawRouteImport
-      parentRoute: typeof ReviewArtifactIdRoute
+    '/reviews/$reviewId/files/$': {
+      id: '/reviews/$reviewId/files/$'
+      path: '/files/$'
+      fullPath: '/reviews/$reviewId/files/$'
+      preLoaderRoute: typeof ReviewsReviewIdFilesSplatRouteImport
+      parentRoute: typeof ReviewsReviewIdRoute
+    }
+    '/reviews/$reviewId/files/$/': {
+      id: '/reviews/$reviewId/files/$/'
+      path: '/'
+      fullPath: '/reviews/$reviewId/files/$/'
+      preLoaderRoute: typeof ReviewsReviewIdFilesSplatIndexRouteImport
+      parentRoute: typeof ReviewsReviewIdFilesSplatRoute
     }
   }
 }
 
-interface ReviewArtifactIdRouteChildren {
-  ReviewArtifactIdRawRoute: typeof ReviewArtifactIdRawRoute
-  ReviewArtifactIdIndexRoute: typeof ReviewArtifactIdIndexRoute
+interface ReviewsReviewIdFilesSplatRouteChildren {
+  ReviewsReviewIdFilesSplatIndexRoute: typeof ReviewsReviewIdFilesSplatIndexRoute
 }
 
-const ReviewArtifactIdRouteChildren: ReviewArtifactIdRouteChildren = {
-  ReviewArtifactIdRawRoute: ReviewArtifactIdRawRoute,
-  ReviewArtifactIdIndexRoute: ReviewArtifactIdIndexRoute,
+const ReviewsReviewIdFilesSplatRouteChildren: ReviewsReviewIdFilesSplatRouteChildren =
+  {
+    ReviewsReviewIdFilesSplatIndexRoute: ReviewsReviewIdFilesSplatIndexRoute,
+  }
+
+const ReviewsReviewIdFilesSplatRouteWithChildren =
+  ReviewsReviewIdFilesSplatRoute._addFileChildren(
+    ReviewsReviewIdFilesSplatRouteChildren,
+  )
+
+interface ReviewsReviewIdRouteChildren {
+  ReviewsReviewIdIndexRoute: typeof ReviewsReviewIdIndexRoute
+  ReviewsReviewIdFilesSplatRoute: typeof ReviewsReviewIdFilesSplatRouteWithChildren
 }
 
-const ReviewArtifactIdRouteWithChildren =
-  ReviewArtifactIdRoute._addFileChildren(ReviewArtifactIdRouteChildren)
+const ReviewsReviewIdRouteChildren: ReviewsReviewIdRouteChildren = {
+  ReviewsReviewIdIndexRoute: ReviewsReviewIdIndexRoute,
+  ReviewsReviewIdFilesSplatRoute: ReviewsReviewIdFilesSplatRouteWithChildren,
+}
+
+const ReviewsReviewIdRouteWithChildren = ReviewsReviewIdRoute._addFileChildren(
+  ReviewsReviewIdRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ReviewArtifactIdRoute: ReviewArtifactIdRouteWithChildren,
+  ReviewsReviewIdRoute: ReviewsReviewIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

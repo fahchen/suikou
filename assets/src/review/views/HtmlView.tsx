@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import { AnimatePresence, motion } from "motion/react"
-import { FileText, Maximize2, Minimize2, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react"
+import { FileText, Maximize2, Minimize2, X, ZoomIn, ZoomOut } from "lucide-react"
 
 import { CommentCard } from "../CommentCard"
 import { Editor } from "../Editor"
@@ -10,6 +10,7 @@ import { isOutdated, locate, selectorFor } from "../element-selector"
 import { assetBase } from "../urls"
 import { uiStore } from "../../stores/ui-store"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import type { Comment } from "../types"
 import type { ViewProps } from "./registry"
 import { HtmlAnchorComposer, type HtmlAnchorTarget } from "./HtmlAnchorComposer"
@@ -87,7 +88,6 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [docVersion, setDocVersion] = useState(0)
   const [target, setTarget] = useState<HtmlAnchorTarget | null>(null)
-  const [hoverEl, setHoverEl] = useState<Element | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [zoom, setZoom] = useState(1)
   const [fullscreen, setFullscreen] = useState(false)
@@ -187,7 +187,6 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     function paintHover(el: Element | null): void {
       clearHover()
       if (el) el.classList.add(HOVER_HIGHLIGHT_CLASS)
-      setHoverEl(el)
     }
 
     function onMove(e: Event): void {
@@ -394,50 +393,46 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
       : "block h-[calc(100vh-12rem)] min-h-[480px] w-full rounded-md bg-white"
 
   const toolbar = (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1.5">
+      <ButtonGroup>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Zoom out"
+          onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+          disabled={zoom <= ZOOM_MIN}
+        >
+          <ZoomOut size={13} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Reset zoom to 100%"
+          aria-live="polite"
+          onClick={() => setZoom(1)}
+          className="min-w-[3.25rem] justify-center px-0 tabular-nums text-muted-foreground"
+        >
+          {Math.round(zoom * 100)}%
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Zoom in"
+          onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+          disabled={zoom >= ZOOM_MAX}
+        >
+          <ZoomIn size={13} />
+        </Button>
+      </ButtonGroup>
       <Button
         type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Zoom out"
-        onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
-        disabled={zoom <= ZOOM_MIN}
-        className="text-faint"
-      >
-        <ZoomOut size={13} />
-      </Button>
-      <span className="min-w-[3rem] text-center text-[11px] tabular-nums text-faint" aria-live="polite">
-        {Math.round(zoom * 100)}%
-      </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Zoom in"
-        onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
-        disabled={zoom >= ZOOM_MAX}
-        className="text-faint"
-      >
-        <ZoomIn size={13} />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Reset zoom"
-        onClick={() => setZoom(1)}
-        disabled={zoom === 1}
-        className="text-faint"
-      >
-        <RotateCcw size={13} />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
+        variant="outline"
         size="icon-xs"
         aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
         onClick={() => setFullscreen((f) => !f)}
-        className="text-faint"
       >
         {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
       </Button>
@@ -446,7 +441,12 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
 
   return (
     <div className={containerClass}>
-      <HtmlPaperFrame nested={nested} fullscreen={fullscreen} toolbar={toolbar}>
+      <HtmlPaperFrame
+        nested={nested}
+        fullscreen={fullscreen}
+        toolbar={toolbar}
+        hint="Click any element to comment"
+      >
         <iframe
           ref={iframeRef}
           title={snapshot.artifact.title}
@@ -477,11 +477,6 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
             variant="popover"
           />
         </HtmlAnchorPopover>
-      )}
-
-      {/* Hover hint: dim badge appears while a non-targeted element is hovered. */}
-      {inline && hoverEl && !target && (
-        <p className="text-[12px] text-faint">Click any element in the document to comment on it.</p>
       )}
 
       {/* Comments that can't be anchored in the iframe (no anchor + element
@@ -527,6 +522,10 @@ function HtmlAnchorPopover(props: {
   const margin = 12
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 768
+  // Narrow screens can't host a floating popover without covering the very
+  // element being commented on, so dock it as a bottom sheet instead. The
+  // element keeps its sticky highlight, so the anchor stays visible above.
+  const narrow = viewportW < 640
   // Prefer below the target; flip above when the bottom would overflow.
   const preferAbove = rect.bottom + 240 + margin > viewportH && rect.top > 240
   const top = preferAbove ? Math.max(margin, rect.top - margin) : rect.bottom + 8
@@ -535,23 +534,25 @@ function HtmlAnchorPopover(props: {
     left = Math.max(margin, viewportW - POPOVER_WIDTH - margin)
   }
 
-  const style: React.CSSProperties = {
-    position: "fixed",
-    top,
-    left,
-    width: POPOVER_WIDTH,
-    transform: preferAbove ? "translateY(-100%)" : undefined,
-    zIndex: 60
-  }
+  const style: React.CSSProperties = narrow
+    ? { position: "fixed", left: margin, right: margin, bottom: margin, width: "auto", zIndex: 60 }
+    : {
+        position: "fixed",
+        top,
+        left,
+        width: POPOVER_WIDTH,
+        transform: preferAbove ? "translateY(-100%)" : undefined,
+        zIndex: 60
+      }
 
   return createPortal(
     <motion.div
       ref={popoverRef}
       role="dialog"
       aria-label="Element comment"
-      initial={{ opacity: 0, y: preferAbove ? 4 : -4 }}
+      initial={{ opacity: 0, y: narrow ? 12 : preferAbove ? 4 : -4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      exit={{ opacity: 0, y: narrow ? 12 : 0 }}
       transition={{ duration: 0.16, ease: "easeOut" }}
       style={style}
       className="flex flex-col gap-2 rounded-xl border border-line-strong bg-popover p-3 text-popover-foreground shadow-[var(--elev-overlay)] ring-1 ring-inset ring-line-soft"
@@ -589,6 +590,7 @@ function HtmlPaperFrame(props: {
   nested?: boolean
   fullscreen?: boolean
   toolbar?: React.ReactNode
+  hint?: React.ReactNode
 }) {
   const outer = props.fullscreen
     ? "fixed inset-0 z-50 flex flex-col bg-soft p-3 sm:p-4"
@@ -601,9 +603,16 @@ function HtmlPaperFrame(props: {
   return (
     <section aria-label="Rendered HTML preview" className={outer}>
       <header className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-faint">
-          <FileText size={11} aria-hidden />
-          <span>Rendered HTML</span>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-1.5 text-[10px] uppercase tracking-wide text-faint">
+            <FileText size={11} aria-hidden />
+            <span>Rendered HTML</span>
+          </div>
+          {props.hint && (
+            <span className="hidden min-w-0 truncate text-[11px] text-faint sm:inline">
+              {props.hint}
+            </span>
+          )}
         </div>
         {props.toolbar}
       </header>

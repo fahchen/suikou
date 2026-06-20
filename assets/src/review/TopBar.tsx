@@ -15,16 +15,17 @@ import {
   Send,
 } from "lucide-react";
 
-import { usePrefetchReviewStore } from "../musubi";
+import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { useReviewCommands } from "./commands";
+import { useFileStore } from "./store-context";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
-import { VERDICT_META, type ReviewFileEntry, type ReviewSnapshot, type Verdict } from "./types";
+import { reviewFileTarget } from "./review-navigation";
+import { type ReviewFileEntry, type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
-import { VerdictIcon } from "./TopBarVerdictMenu";
 import { resolveViewKind, viewCapabilities } from "./view-kind";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -45,28 +46,30 @@ import {
 } from "@/components/ui/dialog";
 
 // Split-button seam: a darker step of the theme's primary so the divider reads
-// as a deliberate seam on the filled button. `--accent-seam` is derived per
-// theme via relative-OKLCH so the seam tracks light vs. dark palettes.
+// as a deliberate seam on the filled button.
 const SPLIT_SEAM = "bg-accent-seam";
 
 export const TopBar = observer(function TopBar(props: {
-  snapshot: ReviewSnapshot;
+  reviewSnapshot: ReviewSnapshot;
   previewable: boolean;
   content: string;
-  verdict: Verdict | null;
 }) {
-  const { snapshot, previewable, content, verdict } = props;
+  const { reviewSnapshot, previewable, content } = props;
   const commands = useReviewCommands();
   const navigate = useNavigate();
   const prefetchReview = usePrefetchReviewStore();
   const rawView = useLocation().pathname.endsWith("/raw");
   const wide = useMediaQuery(WIDE_QUERY);
-  const title = snapshot.artifact.title;
+
+  // Per-file data from the FileStore context (always present in single-file view).
+  const fileStore = useFileStore();
+  const fileSnapshot = useMusubiSnapshot(fileStore);
+
+  const title = fileSnapshot.artifact.title;
   const image = isImagePath(title);
   const binary = isBinaryContent(content);
-  // Comments anchor to editor lines; an image or other binary has none.
   const commentsSupported = !image && !binary;
-  const viewKind = resolveViewKind(snapshot.artifact);
+  const viewKind = resolveViewKind({ kind: reviewSnapshot.kind, title });
   const capabilities = viewCapabilities({
     kind: viewKind,
     previewable,
@@ -74,26 +77,27 @@ export const TopBar = observer(function TopBar(props: {
     rawView,
     binary,
   });
-  const [navError, setNavError] = useState<string | null>(null);
   const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   function copyComments(mode: CopyMode) {
     const text = buildCopyText(
-      snapshot.artifact.title,
-      snapshot.current_round.number,
-      snapshot.comments.items,
+      title,
+      fileSnapshot.current_round.number,
+      fileSnapshot.comments.items,
       mode,
     );
     void copyToClipboard(text);
   }
 
-  // An untouched file has no verdict (`null`); submitting it records a plain
-  // comment rather than blocking the review.
-  const submitVerdict: Verdict = verdict ?? "comment";
+  // Review-level Submit gates on any unpublished work — a draft verdict on any
+  // file, or a pending (not-yet-published) comment or reply anywhere in the
+  // review. Computed server-side on the root so it tracks every file, not just
+  // the active one.
+  const hasUnpublishedWork = reviewSnapshot.has_unpublished;
 
   function submit() {
-    void commands.submitReview.dispatch({ verdict: submitVerdict });
+    void commands.submitReview.dispatch({});
     setConfirmOpen(false);
   }
 
@@ -102,35 +106,17 @@ export const TopBar = observer(function TopBar(props: {
     submit();
   }
 
-  // Tree-order neighbours (folders before files, alphabetical) so prev/next
-  // steps in lockstep with the file tree — not raw array order.
+  const fileEntries = reviewSnapshot.file_entries.data ?? [];
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(
-    snapshot.files.data ?? [],
-    snapshot.artifact.id,
+    fileEntries,
+    fileSnapshot.path,
   );
-  // Single-file mode only: in all-files mode the user already sees every file
-  // stacked, so stepping is meaningless.
   const showFileNav = uiStore.fileDisplayMode === "single";
 
   async function navigateToFile(file: ReviewFileEntry, dir: "prev" | "next") {
-    setNavError(null);
     setNavPending(dir);
     try {
-      let id = file.artifact_id;
-      if (!id) {
-        uiStore.setMintingPath(file.path);
-        const reply = await commands.openFile.dispatch({ path: file.path });
-        if (!reply.artifact_id) {
-          setNavError(reply.error ?? "Could not open file");
-          uiStore.setMintingPath(null);
-          return;
-        }
-        id = reply.artifact_id;
-      }
-      void navigate({
-        to: rawView ? "/review/$artifactId/raw" : "/review/$artifactId",
-        params: { artifactId: id },
-      });
+      void navigate(reviewFileTarget(reviewSnapshot.review_id, file.path, rawView));
     } finally {
       setNavPending(null);
     }
@@ -157,8 +143,8 @@ export const TopBar = observer(function TopBar(props: {
               aria-label="Previous file"
               disabled={!prevFile || navPending !== null}
               onClick={() => prevFile && void navigateToFile(prevFile, "prev")}
-              onMouseEnter={() => prevFile?.artifact_id && prefetchReview(prevFile.artifact_id)}
-              onFocus={() => prevFile?.artifact_id && prefetchReview(prevFile.artifact_id)}
+              onMouseEnter={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
+              onFocus={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
             >
               <ChevronLeft className="text-muted-foreground" />
             </Button>
@@ -170,22 +156,17 @@ export const TopBar = observer(function TopBar(props: {
               aria-label="Next file"
               disabled={!nextFile || navPending !== null}
               onClick={() => nextFile && void navigateToFile(nextFile, "next")}
-              onMouseEnter={() => nextFile?.artifact_id && prefetchReview(nextFile.artifact_id)}
-              onFocus={() => nextFile?.artifact_id && prefetchReview(nextFile.artifact_id)}
+              onMouseEnter={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
+              onFocus={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
             >
               <ChevronRight className="text-muted-foreground" />
             </Button>
           </ButtonGroup>
         )}
-        {navError && (
-          <span className="hidden text-[11px] text-red sm:inline" role="alert">
-            {navError}
-          </span>
-        )}
       </div>
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
-        <TopBarRoundMenu snapshot={snapshot} />
+        <TopBarRoundMenu />
         {commentsSupported && (
           <Button
             variant="pill"
@@ -202,7 +183,8 @@ export const TopBar = observer(function TopBar(props: {
           </Button>
         )}
         <TopBarDisplayMenu
-          artifactId={snapshot.artifact.id}
+          reviewId={reviewSnapshot.review_id}
+          filePath={title}
           rawView={rawView}
           capabilities={capabilities}
           viewKind={viewKind}
@@ -215,6 +197,7 @@ export const TopBar = observer(function TopBar(props: {
             size="icon"
             title="Submit review"
             aria-label="Submit review"
+            disabled={!hasUnpublishedWork || commands.submitReview.isPending}
             onClick={() => setConfirmOpen(true)}
           >
             <Send size={14} />
@@ -248,14 +231,11 @@ export const TopBar = observer(function TopBar(props: {
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <VerdictIcon verdict={submitVerdict} size={16} />
-                Submit this review?
-              </DialogTitle>
+              <DialogTitle>Submit this review?</DialogTitle>
             </DialogHeader>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              Applies <b className="text-heading">{VERDICT_META[submitVerdict].label}</b> to this file
-              and publishes every pending comment across the review.
+              Applies every verdict chip you have set and publishes all pending comments across
+              the review.
             </p>
 
             <DialogFooter>
@@ -273,7 +253,7 @@ export const TopBar = observer(function TopBar(props: {
                 <Button
                   size="sm"
                   className="grow sm:grow-0"
-                  disabled={commands.submitReview.isPending}
+                  disabled={!hasUnpublishedWork || commands.submitReview.isPending}
                   onClick={submit}
                 >
                   <Check size={14} /> Submit
@@ -286,7 +266,7 @@ export const TopBar = observer(function TopBar(props: {
                         size="icon-xs"
                         title="Submit and copy"
                         aria-label="Submit and copy"
-                        disabled={commands.submitReview.isPending}
+                        disabled={!hasUnpublishedWork || commands.submitReview.isPending}
                       />
                     }
                   >

@@ -49,6 +49,31 @@ defmodule Suikou.Critique.DiscussionTest do
     assert authors == [:human, :agent]
   end
 
+  test "the reviewer can edit a pending reply", %{comment: comment} do
+    {:ok, reply} = Critique.reply_as_human(comment.id, "draft")
+
+    assert {:ok, %{body: "revised"}} = Critique.edit_reply(reply.id, "revised")
+  end
+
+  test "the reviewer can delete a pending reply", %{comment: comment} do
+    {:ok, reply} = Critique.reply_as_human(comment.id, "draft")
+
+    assert {:ok, _reply} = Critique.delete_reply(reply.id)
+    assert is_nil(Repo.get(Reply, reply.id))
+  end
+
+  test "editing a published reply is rejected", %{comment: comment} do
+    {:ok, reply} = Critique.reply_as_agent(comment.id, "published")
+
+    assert {:error, :not_editable} = Critique.edit_reply(reply.id, "revised")
+  end
+
+  test "deleting an agent reply is rejected", %{comment: comment} do
+    {:ok, reply} = Critique.reply_as_agent(comment.id, "published")
+
+    assert {:error, :not_editable} = Critique.delete_reply(reply.id)
+  end
+
   setup do
     round = insert(:round)
     comment = published_comment(round.id)

@@ -1,14 +1,13 @@
 import { createContext, useContext, useRef } from "react"
 
 import { useMusubiCommand } from "../musubi"
-import { useReviewStore } from "./store-context"
-import type { ReviewStore } from "./types"
+import { useFileStore, useReviewStore } from "./store-context"
+import type { CommentsStore, FileStore } from "./types"
 
 /**
- * Built dispatchers returned by `useReviewCommands`. Per-file frames in
- * all-files mode override `addComment` so its dispatch lands on whichever
- * stacked file the gutter belongs to, via `add_file_comment` rather than the
- * CommentsStore child (which is bound to the mounted artifact).
+ * Built dispatchers returned by `useReviewCommands`. Stacked-file frames in
+ * all-files mode are inside a per-file FileStoreProvider, so every dispatcher
+ * here already routes to the correct FileStore child.
  */
 export type ReviewCommands = ReturnType<typeof useDefaultReviewCommands>
 
@@ -16,7 +15,8 @@ export const ReviewCommandsOverrideContext = createContext<
   Partial<ReviewCommands> | null
 >(null)
 
-/** ReviewStore command dispatchers — comment commands route to the CommentsStore child. */
+/** ReviewStore + FileStore command dispatchers. Comment commands route to the
+ * CommentsStore grandchild of the active FileStore. */
 export function useReviewCommands(): ReviewCommands {
   const base = useDefaultReviewCommands()
   const override = useContext(ReviewCommandsOverrideContext)
@@ -25,44 +25,37 @@ export function useReviewCommands(): ReviewCommands {
 }
 
 function useDefaultReviewCommands() {
-  const store = useReviewStore()
-  const comments = useStableComments(store)
+  const reviewStore = useReviewStore()
+  const fileStore = useFileStore()
+  const comments = useStableComments(fileStore)
   return {
-    addComment: useMusubiCommand(comments, "add_comment"),
+    addComment: useMusubiCommand(fileStore, "add_comment"),
     editComment: useMusubiCommand(comments, "edit_comment"),
     deleteComment: useMusubiCommand(comments, "delete_comment"),
     resolveComment: useMusubiCommand(comments, "resolve_comment"),
-    unresolveComment: useMusubiCommand(comments, "unresolve_comment"),
     reply: useMusubiCommand(comments, "reply"),
-    submitReview: useMusubiCommand(store, "submit_review"),
-    setDraftVerdict: useMusubiCommand(store, "set_draft_verdict"),
-    selectRound: useMusubiCommand(store, "select_round"),
-    openFile: useMusubiCommand(store, "open_file"),
-    addFileComment: useMusubiCommand(store, "add_file_comment"),
-    setFileDraftVerdict: useMusubiCommand(store, "set_file_draft_verdict")
+    editReply: useMusubiCommand(comments, "edit_reply"),
+    deleteReply: useMusubiCommand(comments, "delete_reply"),
+    submitReview: useMusubiCommand(reviewStore, "submit_review"),
+    removeFile: useMusubiCommand(reviewStore, "remove_file"),
+    setDraftVerdict: useMusubiCommand(fileStore, "set_draft_verdict"),
+    selectRound: useMusubiCommand(fileStore, "select_round"),
   }
 }
 
 /**
- * The CommentsStore child handle, stabilized across teardown windows.
+ * The CommentsStore grandchild handle, stabilized across teardown windows.
  *
- * `store.comments` is a *live* lazily-resolved proxy field: while the active
- * artifact swaps (or the root mount is evicted after its grace period), it can
- * momentarily read `undefined` — even on the same frame the snapshot still
- * reports `artifact`, so the shell's snapshot guard keeps the comment composer
- * mounted. Passing that `undefined` straight into `useMusubiCommand` binds the
- * command's dispatch to an undefined proxy, which later throws inside the
- * library's error path (`[...proxy.__musubi_store_id__]`).
- *
- * Retaining the last resolved child (reset when the root store identity itself
- * changes) keeps every comment dispatcher targeting a real store through that
- * window, while still following a genuine artifact switch to the new child.
+ * `fileStore.comments` is a live lazily-resolved proxy field: while the active
+ * FileStore swaps (route change), it can momentarily read `undefined` — the
+ * snapshot guard keeps the composer mounted through that window. Retaining the
+ * last resolved child keeps every comment dispatcher targeting a real store.
  */
-function useStableComments(store: ReviewStore): ReviewStore["comments"] {
-  const held = useRef<{ store: ReviewStore; comments: ReviewStore["comments"] } | null>(null)
-  const live = store.comments
-  if (!held.current || held.current.store !== store || live !== undefined) {
-    held.current = { store, comments: live }
+function useStableComments(fileStore: FileStore): CommentsStore {
+  const held = useRef<{ fileStore: FileStore; comments: CommentsStore } | null>(null)
+  const live = fileStore.comments as CommentsStore | undefined
+  if (!held.current || held.current.fileStore !== fileStore || live !== undefined) {
+    held.current = { fileStore, comments: live ?? held.current?.comments ?? fileStore.comments as CommentsStore }
   }
   return held.current.comments
 }

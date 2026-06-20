@@ -1,6 +1,7 @@
 import { createRouter } from "@tanstack/react-router"
 
 import { ErrorOverlay } from "./components/error-overlay"
+import { NotFound } from "./components/not-found"
 import { debug } from "./debug"
 import { routeTree } from "./routeTree.gen"
 
@@ -8,6 +9,7 @@ import { routeTree } from "./routeTree.gen"
 // (stack + one-tap copy). Off (normal users): keep the default graceful UI.
 export const router = createRouter({
   routeTree,
+  defaultNotFoundComponent: NotFound,
   defaultErrorComponent: debug
     ? ({ error, info }) => <ErrorOverlay error={error} componentStack={info?.componentStack} />
     : undefined

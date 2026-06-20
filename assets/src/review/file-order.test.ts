@@ -37,17 +37,24 @@ describe("adjacentReviewFiles", () => {
   ]
 
   it("returns the surrounding files in tree order", () => {
-    const { prev, next } = adjacentReviewFiles(files, "art-2")
-    expect(prev?.artifact_id).toBe("art-1")
-    expect(next?.artifact_id).toBe("art-3")
+    const { prev, next } = adjacentReviewFiles(files, "dir/b.txt")
+    expect(prev?.path).toBe("dir/a.txt")
+    expect(next?.path).toBe("a.txt")
   })
 
   it("yields null past each end", () => {
-    expect(adjacentReviewFiles(files, "art-1").prev).toBeNull()
-    expect(adjacentReviewFiles(files, "art-3").next).toBeNull()
+    expect(adjacentReviewFiles(files, "dir/a.txt").prev).toBeNull()
+    expect(adjacentReviewFiles(files, "a.txt").next).toBeNull()
   })
 
-  it("disables both ends when the artifact is not in the list", () => {
-    expect(adjacentReviewFiles(files, "missing")).toEqual({ prev: null, next: null })
+  it("finds neighbours for an unminted file with no artifact id", () => {
+    const withUnminted = [file("dir/a.txt", "art-1"), file("dir/b.txt", null), file("a.txt", "art-3")]
+    const { prev, next } = adjacentReviewFiles(withUnminted, "dir/b.txt")
+    expect(prev?.path).toBe("dir/a.txt")
+    expect(next?.path).toBe("a.txt")
+  })
+
+  it("disables both ends when the path is not in the list", () => {
+    expect(adjacentReviewFiles(files, "missing.txt")).toEqual({ prev: null, next: null })
   })
 })

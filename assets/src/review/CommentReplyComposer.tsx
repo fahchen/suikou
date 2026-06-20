@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CircleCheck, CircleDot, MessageSquarePlus, SquarePlus } from "lucide-react";
+import { CircleCheck, MessageSquarePlus, SquarePlus } from "lucide-react";
 
 import type { Comment } from "./types";
 import { useReviewCommands } from "./commands";
@@ -13,6 +13,9 @@ export function CommentReplyComposer(props: { comment: Comment }) {
   const wide = useMediaQuery(WIDE_QUERY);
   const [body, setBody] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const replyLabel = comment.resolved ? "Unresolve" : "Reply";
+  const replyHint = comment.resolved ? "Reply and reopen this comment" : null;
+  const placeholder = comment.resolved ? "Reply to reopen this comment…" : "Reply…";
 
   // Wide screens keep the full composer open; narrow ones collapse it to a
   // one-tap Reply so a column of inline cards stays scannable.
@@ -25,30 +28,18 @@ export function CommentReplyComposer(props: { comment: Comment }) {
     setExpanded(false);
   }
 
-  const resolveAction = comment.status === "published" &&
-    (comment.resolved ? (
-      <Button
-        variant="outline"
-        size="sm"
-        className="text-muted-foreground"
-        disabled={commands.unresolveComment.isPending}
-        onClick={() => void commands.unresolveComment.dispatch({ comment_id: comment.id })}
-      >
-        <CircleDot size={14} />
-        Unresolve
-      </Button>
-    ) : (
-      <Button
-        variant="outline"
-        size="sm"
-        className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
-        disabled={commands.resolveComment.isPending}
-        onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
-      >
-        <CircleCheck size={14} />
-        Resolve
-      </Button>
-    ));
+  const resolveAction = comment.status === "published" && !comment.resolved && (
+    <Button
+      variant="outline"
+      size="sm"
+      className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
+      disabled={commands.resolveComment.isPending}
+      onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
+    >
+      <CircleCheck size={14} />
+      Resolve
+    </Button>
+  );
 
   if (!open) {
     return (
@@ -58,10 +49,11 @@ export function CommentReplyComposer(props: { comment: Comment }) {
           variant="outline"
           size="sm"
           className="ml-auto text-muted-foreground"
+          title={replyHint ?? undefined}
           onClick={() => setExpanded(true)}
         >
           <MessageSquarePlus size={14} />
-          Reply
+          {replyLabel}
         </Button>
       </div>
     );
@@ -69,6 +61,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
 
   return (
     <div className="mt-1 flex flex-col gap-2 rounded-lg border border-line-soft bg-panel p-2">
+      {replyHint && <p className="text-[12px] text-faint">{replyHint}.</p>}
       <div className="flex items-center">
         <Button
           variant="ghost"
@@ -85,7 +78,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         autoFocus={expanded}
         className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         rows={2}
-        placeholder="Reply…"
+        placeholder={placeholder}
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />
@@ -97,7 +90,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
           disabled={commands.reply.isPending || !body.trim()}
           onClick={send}
         >
-          Reply
+          {replyLabel}
         </Button>
       </div>
     </div>

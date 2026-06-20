@@ -25,8 +25,9 @@ decision is only about the pending→published lifecycle.
 ### Option A: Explicit submit-review, batched on submit
 A comment is `pending` (editable, deletable, invisible to the agent) until the
 human submits a review. Submitting a review transitions pending comments to
-`published` at once. Published comments are frozen in content and cannot be
-deleted; the agent only ever exports the published set.
+`published` at once. Published comments are frozen in content, while deletion
+remains a human-controlled cleanup action; the agent only ever exports the
+published set.
 
 The publish batch's *scope* — the submitted round alone versus every file in the
 review — is revisited and widened to review-wide by
@@ -49,10 +50,11 @@ critique at once rather than a trickle, keeping the agent's view consistent. (Th
 batch's scope is widened from the submitted round to the whole review by
 [[BDR-0019-submit-publishes-review-wide-pending]].)
 
-The freeze covers content and deletion only: `body`, `type`, `scope`, and the
-line anchor become immutable. The `resolved` flag and `resolved_round` stay
-mutable after publish, because resolution happens later — after the agent has
-responded in a subsequent round.
+The freeze covers comment content only: `body`, `type`, `scope`, and the line
+anchor become immutable after publish. Deletion remains allowed in any state as
+a human-controlled cleanup action. The `resolved` flag and `resolved_round`
+stay mutable after publish, because resolution happens later — after the agent
+has responded in a subsequent round.
 
 ## Rejected Alternatives
 

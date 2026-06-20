@@ -30,6 +30,7 @@ const MARKDOWN_FLAVOR_KEY = "suikou-markdown-flavor"
 const DIFF_LAYOUT_KEY = "suikou-diff-layout"
 const FILE_DISPLAY_MODE_KEY = "suikou-file-display-mode"
 const HIDE_REVIEWED_KEY = "suikou-hide-reviewed"
+const COLLAPSED_FILES_KEY = "suikou-collapsed-files"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -82,6 +83,12 @@ export class UiStore {
   // unset means the file falls back to its default (rendered). Transient
   // session state — not persisted.
   fileRawView: Record<string, boolean> = {}
+
+  // Per-file collapse state in all-files (stacked) mode, keyed by review then
+  // path. Persisted so a reviewer's collapsed files survive reload. Only
+  // explicit collapses are stored; an absent entry means expanded, so a file
+  // new to the stack defaults open.
+  collapsedFiles: Record<string, Record<string, boolean>> = {}
 
   // Client-computed outdated state for element-anchored comments. The server
   // never relocates element anchors (Plan B: re-anchoring is client-only), so
@@ -138,6 +145,15 @@ export class UiStore {
 
     if (localStorage.getItem(HIDE_REVIEWED_KEY) === "true") {
       this.hideReviewed = true
+    }
+
+    const savedCollapsed = localStorage.getItem(COLLAPSED_FILES_KEY)
+    if (savedCollapsed) {
+      try {
+        this.collapsedFiles = JSON.parse(savedCollapsed)
+      } catch {
+        // Corrupt JSON: ignore and start from an empty collapse map.
+      }
     }
 
     this.applyTheme()
@@ -270,6 +286,18 @@ export class UiStore {
 
   getFileRawView(path: string): boolean {
     return this.fileRawView[path] ?? false
+  }
+
+  setFileCollapsed(reviewId: string, path: string, collapsed: boolean): void {
+    const forReview = { ...(this.collapsedFiles[reviewId] ?? {}) }
+    if (collapsed) forReview[path] = true
+    else delete forReview[path]
+    this.collapsedFiles = { ...this.collapsedFiles, [reviewId]: forReview }
+    localStorage.setItem(COLLAPSED_FILES_KEY, JSON.stringify(this.collapsedFiles))
+  }
+
+  isFileCollapsed(reviewId: string, path: string): boolean {
+    return this.collapsedFiles[reviewId]?.[path] ?? false
   }
 
   // Replace the set in one shot so observers see a single change. Identity-

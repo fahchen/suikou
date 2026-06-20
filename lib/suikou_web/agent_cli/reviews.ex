@@ -222,23 +222,25 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
-  Long-polls `%{"review_id"}` for a new submission. Subscribes to the review's
+  Waits for the next submission on `%{"review_id"}`. Subscribes to the review's
   comment topic, captures the current submission count, then blocks up to the
   poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
   wake that raises the count it emits the `export_review` snapshot for the
   requested rounds scope (carrying the new `submission_version`); otherwise it
-  emits `%{status: "timeout", version}`. Emits `%{error: "review_not_found"}`
-  when the review is unknown.
+  emits `%{status: "timeout", submission_version}`. The default latest-round
+  snapshot is filtered to comments the agent still owes a move on (drops resolved
+  and already-answered comments); an explicit `"rounds"` scope is returned in
+  full. Emits `%{error: "review_not_found"}` when the review is unknown.
 
   ## Examples
 
       # stdin: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.poll()
-      #=> :ok  # emits {"status":"timeout","version":1} or the snapshot on a wake
+      SuikouWeb.AgentCLI.Reviews.wait()
+      #=> :ok  # emits {"status":"timeout","submission_version":1} or the snapshot on a wake
 
   """
-  @spec poll() :: :ok
-  def poll do
+  @spec wait() :: :ok
+  def wait do
     payload = AgentCLI.read_payload()
     review_id = payload["review_id"]
     scope = scope(payload)
@@ -277,12 +279,34 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       :comments_changed ->
         case Submissions.review_submission_count(review_id) do
           ^version -> await(review_id, scope, version, deadline)
-          newer when newer > version -> snapshot(review_id, scope)
+          newer when newer > version -> worthy_snapshot(review_id, scope)
           _stale -> await(review_id, scope, version, deadline)
         end
     after
-      timeout -> %{status: "timeout", version: version}
+      timeout -> %{status: "timeout", submission_version: version}
     end
+  end
+
+  # A poll wake delivers the working set, not the whole record: the default
+  # latest-round snapshot is filtered to comments the agent still owes a move on,
+  # dropping resolved ones and any whose discussion the agent already answered
+  # (a single comment row stays visible across rounds until resolved — see
+  # `Suikou.Export`). An explicit rounds scope is a history request, so it passes
+  # through unfiltered; so does `export`, which mirrors the human export.
+  defp worthy_snapshot(review_id, :latest) do
+    case snapshot(review_id, :latest) do
+      %{artifacts: artifacts} = export ->
+        %{export | artifacts: Enum.map(artifacts, &drop_addressed/1)}
+
+      other ->
+        other
+    end
+  end
+
+  defp worthy_snapshot(review_id, scope), do: snapshot(review_id, scope)
+
+  defp drop_addressed(%{comments: comments} = artifact) do
+    %{artifact | comments: Enum.reject(comments, &(&1.resolved or &1.answered))}
   end
 
   defp with_project(project_id, fun) do

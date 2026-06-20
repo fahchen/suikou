@@ -20,9 +20,9 @@ Feature: Round diff
     Scenario: Critique transitions are rendered alongside the text diff
       Given a round 1 comment was resolved going into round 2
       And a new comment was added on round 2
-      And an open round 1 comment was carried forward onto round 2
+      And a round 1 comment is still open on round 2
       When the reviewer views the diff between round 1 and round 2
-      Then the resolved, newly added, and carried-forward comments are shown
+      Then the resolved, newly added, and still-open comments are shown
 
   Rule: A round diff shows the verdict change
 

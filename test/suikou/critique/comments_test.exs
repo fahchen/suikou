@@ -42,7 +42,7 @@ defmodule Suikou.Critique.CommentsTest do
                  body: "fix this"
                })
 
-      assert %{original_round: 0} = comment
+      assert %{authored_round: 0} = comment
     end
 
     test "a single-line comment stores equal start and end lines" do
@@ -194,12 +194,12 @@ defmodule Suikou.Critique.CommentsTest do
     end
   end
 
-  describe "published comments stay mutable" do
-    test "a published comment body can be edited" do
+  describe "published comment lifecycle after submission" do
+    test "editing a published comment is rejected" do
       round = insert(:round)
       comment = published_comment(round.id, %{body: "old"})
 
-      assert {:ok, %{body: "new"}} =
+      assert {:error, :not_pending} =
                Critique.edit_comment(comment.id, %{body: "new", critique_type: :note})
     end
 
@@ -227,24 +227,17 @@ defmodule Suikou.Critique.CommentsTest do
       round = insert(:round)
       comment = pending_comment(round.id)
 
-      assert {:error, :not_published} = Critique.resolve_comment(comment.id)
+      assert {:error, :not_open} = Critique.resolve_comment(comment.id)
     end
 
-    test "unresolving a resolved comment clears its round" do
+    test "resolving an already-resolved comment is rejected" do
       round = insert(:round)
       artifact = round.artifact
       comment = published_comment(round.id)
       advance(artifact.id, "changed\n")
       {:ok, _comment} = Critique.resolve_comment(comment.id)
 
-      assert {:ok, %{resolved_round: nil}} = Critique.unresolve_comment(comment.id)
-    end
-
-    test "unresolving a pending comment is rejected" do
-      round = insert(:round)
-      comment = pending_comment(round.id)
-
-      assert {:error, :not_published} = Critique.unresolve_comment(comment.id)
+      assert {:error, :not_open} = Critique.resolve_comment(comment.id)
     end
   end
 
@@ -275,11 +268,6 @@ defmodule Suikou.Critique.CommentsTest do
     test "resolving a non-existent comment is rejected" do
       assert {:error, :comment_not_found} =
                Critique.resolve_comment("00000000-0000-7000-8000-000000000000")
-    end
-
-    test "unresolving a non-existent comment is rejected" do
-      assert {:error, :comment_not_found} =
-               Critique.unresolve_comment("00000000-0000-7000-8000-000000000000")
     end
   end
 end

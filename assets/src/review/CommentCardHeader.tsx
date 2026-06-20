@@ -2,7 +2,6 @@ import {
   Crosshair,
   Link2,
   Unlink,
-  RefreshCw,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -122,15 +121,6 @@ export function CommentCardHeader(props: {
           {relativeTime(comment.inserted_at)}
         </span>
 
-        {comment.carried && comment.original_round != null && (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-soft px-1.5 py-0.5 text-[11px] text-muted-foreground"
-            title={`Carried from round ${comment.original_round}`}
-          >
-            <RefreshCw size={11} />R{comment.original_round}
-          </span>
-        )}
-
         <span
           className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}
         >
@@ -170,10 +160,12 @@ export function CommentCardHeader(props: {
             }
           />
           <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil size={14} />
-              Edit
-            </DropdownMenuItem>
+            {comment.status === "pending" && (
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil size={14} />
+                Edit
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant="destructive"
               onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}

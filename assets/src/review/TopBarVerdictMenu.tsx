@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { CircleCheck, CircleDashed, PencilLine } from "lucide-react";
+import { CircleDashed, ClipboardCheck, Construction, MessageCircleMore } from "lucide-react";
 import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 
 import { useReviewCommands } from "./commands";
 import { COMMIT_PULSE_TRANSITION, commitPulse } from "./motion";
 import { hasUnresolvedBlocker } from "./store-context";
-import { VERDICT_META, type Comment, type ReviewSnapshot, type Verdict } from "./types";
+import { VERDICT_META, type Comment, type Verdict } from "./types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -16,15 +16,11 @@ export type VerdictScope = "file" | "review";
 
 const VERDICTS: Verdict[] = ["comment", "request_changes", "approve"];
 
-// GitHub octicon `comment` glyph (16px), inlined so no runtime icon dependency
-// (mirrors the inline-octicon approach in `ChangeStatusIcon`).
-const COMMENT_OCTICON =
-  "M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 11H4.06l-2.573 2.573A1.458 1.458 0 0 1 1 12.543Zm1.75-.25a.25.25 0 0 0-.25.25v9.793l1.97-1.97a.749.749 0 0 1 .53-.22h8.25a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z";
-
-/** Verdict icon used in the trigger and each option row. Purely verdict-driven:
- * `approve` is a green check, `request_changes` a red pencil, `comment` the
- * speech-bubble octicon, and an unset verdict (`null`) the dashed empty ring —
- * so an untouched file reads as "no verdict yet" rather than a neutral comment. */
+/** Verdict icon used in the trigger and each option row. `approve` a green
+ * clipboard-check (signed off), `request_changes` a red construction barrier
+ * (work in progress), `comment` a speech bubble with ellipsis (feedback), and
+ * an unset verdict (`null`) the dashed empty ring — so an untouched file reads
+ * as "no verdict yet" rather than a neutral comment. */
 export function VerdictIcon(props: {
   verdict: Verdict | null;
   size?: number;
@@ -32,30 +28,22 @@ export function VerdictIcon(props: {
 }) {
   if (props.verdict === "approve")
     return (
-      <CircleCheck
+      <ClipboardCheck
         size={props.size ?? 15}
-        className={`fill-green/20 text-green-text ${props.className ?? ""}`}
+        className={`text-green-text ${props.className ?? ""}`}
       />
     );
   if (props.verdict === "request_changes")
-    return <PencilLine size={props.size ?? 15} className={`text-red ${props.className ?? ""}`} />;
+    return <Construction size={props.size ?? 15} className={`text-red ${props.className ?? ""}`} />;
   if (props.verdict === "comment")
     return (
-      <svg
-        width={props.size ?? 15}
-        height={props.size ?? 15}
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        role="img"
-        aria-label="Comment"
-        className={`shrink-0 text-muted-foreground ${props.className ?? ""}`}
-      >
-        <title>Comment</title>
-        <path d={COMMENT_OCTICON} />
-      </svg>
+      <MessageCircleMore
+        size={props.size ?? 15}
+        className={`text-muted-foreground ${props.className ?? ""}`}
+      />
     );
   return (
-    <CircleDashed size={props.size ?? 15} className={`text-muted-foreground ${props.className ?? ""}`} />
+    <CircleDashed size={props.size ?? 15} className={`text-faint ${props.className ?? ""}`} />
   );
 }
 
@@ -75,7 +63,6 @@ const UNSET_TONE = "bg-tint text-heading ring-1 ring-inset ring-line";
  * `showNote={false}` for cramped per-file headers in all-files mode.
  */
 export function FileVerdictMenu(props: {
-  snapshot: ReviewSnapshot;
   verdict: Verdict | null;
   onVerdictChange: (verdict: Verdict) => void;
   /** The comment thread this menu's note belongs to. Drives the optional
@@ -89,10 +76,10 @@ export function FileVerdictMenu(props: {
    * file-scope note. */
   scope?: VerdictScope;
 }) {
-  const { snapshot, verdict, onVerdictChange, comments, showNote = true, scope = "file" } = props;
+  const { verdict, onVerdictChange, comments, showNote = true, scope = "file" } = props;
   const commands = useReviewCommands();
   const draft = noteDraft(comments, scope);
-  const blocker = hasUnresolvedBlocker(snapshot.comments.items);
+  const blocker = hasUnresolvedBlocker(comments);
 
   // Acknowledge a verdict *change* with a single pulse. Tracked against the
   // previous verdict so the chip stays still on mount (the all-files stack

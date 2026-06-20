@@ -50,7 +50,7 @@ defmodule Suikou.ReadsTest do
       pending = pending_comment(round.id, %{body: "pending"})
       {:ok, _reply} = Critique.reply_as_human(published.id, "noted")
 
-      comments = Reads.list_comments(round.id)
+      comments = Reads.list_comments(round)
       assert Enum.map(comments, & &1.id) == [published.id, pending.id]
 
       statuses = Enum.map(comments, & &1.status)
@@ -63,7 +63,7 @@ defmodule Suikou.ReadsTest do
 
     test "returns an empty list for a round with no comments" do
       round = insert(:round)
-      assert Reads.list_comments(round.id) == []
+      assert Reads.list_comments(round) == []
     end
   end
 

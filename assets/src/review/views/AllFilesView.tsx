@@ -1,365 +1,258 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
-import { motion, useReducedMotion } from "motion/react"
 import { CheckCircle2 } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { badgePop } from "../motion"
 import { CommentRail } from "../CommentRail"
 import { FileRenderHeader } from "../FileRenderHeader"
 import { FileScopeProvider } from "../file-scope"
-import { orderedReviewFiles } from "../file-order"
 import { uiStore } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
-import { contentErrorFrom, useContent, useReviewFileContent, type ContentState } from "../use-content"
+import { contentErrorFrom, useContent, useReviewFileContent } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
 import { assetBase, reviewFileRawUrl } from "../urls"
 import {
   isFiltering,
+  FileStoreProvider,
   ReviewViewProvider,
+  useFileStore,
   visibleComments,
-  type ReviewView
 } from "../store-context"
-import {
-  ReviewCommandsOverrideContext,
-  useReviewCommands,
-  type ReviewCommands
-} from "../commands"
+import { useReviewCommands } from "../commands"
 import { viewComponentFor } from "./registry"
-import type { ViewKind } from "../view-kind"
 import { FileVerdictMenu } from "../TopBarVerdictMenu"
-import {
-  type Comment,
-  type ReviewFileEntry,
-  type ReviewSnapshot,
-  type Verdict
-} from "../types"
+import { useMusubiSnapshot } from "../../musubi"
+import type { FileStore, FileSnapshot, ReviewSnapshot, ReviewStore, Comment, Verdict } from "../types"
+import type { ViewKind } from "../view-kind"
 
 /**
- * Stacks every file in the review on one page. Each file gets its own scoped
- * frame: the registered view component (file/diff/html) is mounted with a
- * per-file `ReviewView` so its existing line gutters, composer, and comment
- * cards work inline without the user navigating away. Comments belonging to
- * other stacked files don't bleed in — the per-file `comments` array is
- * carved out of the snapshot's `files_comments` fan-out, keyed by path.
- *
- * Unminted files render the same view shell. The first comment dispatches
- * `add_file_comment`, which mints the artifact server-side and lands the
- * thread on round 0.
- *
- * Heavy bodies (diff rows, syntax-highlighted code, markdown renders) only
- * mount once their card scrolls near the viewport. The card header is cheap
- * and always rendered so the stack's outline is correct from frame one; once
- * mounted, a body stays mounted so scrolling back to it is instant and
- * doesn't lose its expansion / composer state.
+ * Stacks every file in the review on one page. Each file gets its own
+ * FileStoreProvider so the registered view component, line gutters, composer,
+ * and comment cards work inline — backed by the real FileStore child proxy
+ * rather than a fabricated snapshot.
  */
 export const AllFilesView = observer(function AllFilesView(props: {
-  snapshot: ReviewSnapshot
-  verdict: Verdict | null
-  onVerdictChange: (verdict: Verdict) => void
+  reviewId: string
+  reviewSnapshot: ReviewSnapshot
+  reviewStore: ReviewStore
 }) {
-  const { snapshot, verdict, onVerdictChange } = props
-  const files = snapshot.files.data
-  const reviewId = snapshot.review_id
-  const reviewKind: "diff" | "file" =
-    snapshot.artifact.kind === "diff" ? "diff" : "file"
-  // Optimistic per-path verdict override for inactive cards. The chip flips
-  // immediately on click; the snapshot's `file.verdict` round-trips a frame
-  // later (server refreshes `:files`). Active card is unaffected — it reads
-  // through the route shell's `verdict` prop.
-  const [draftByPath, setDraftByPath] = useState<Record<string, Verdict>>({})
-  // Files start expanded; only explicit collapses are tracked so a new file
-  // entering the stack defaults open without seeding state for every path.
-  const [collapsedByPath, setCollapsedByPath] = useState<Record<string, boolean>>({})
-  // Stable article elements per path so the switcher can scroll any card into
-  // view even before its lazy body has mounted (the article always renders).
-  const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const { reviewId, reviewSnapshot, reviewStore } = props
+  const count = reviewSnapshot.files.length
 
-  function setInactiveDraft(path: string, verdict: Verdict) {
-    setDraftByPath((prev) => ({ ...prev, [path]: verdict }))
-  }
-
-  function setExpanded(path: string, expanded: boolean) {
-    setCollapsedByPath((prev) => ({ ...prev, [path]: !expanded }))
-  }
-
-  function registerCard(path: string, el: HTMLElement | null) {
-    if (el) cardRefs.current.set(path, el)
-    else cardRefs.current.delete(path)
-  }
-
-  function selectFile(file: ReviewFileEntry) {
-    setExpanded(file.path, true)
-    // Defer the scroll a frame so the just-expanded card has its full height
-    // before we align it to the top of the viewport.
-    requestAnimationFrame(() => {
-      cardRefs.current
-        .get(file.path)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" })
-    })
-  }
-
-  if (files === null) {
-    return (
-      <Notice title="Loading files…" message="Fetching the review's file list." />
-    )
-  }
-  if (files.length === 0) {
+  if (count === 0) {
+    if (reviewSnapshot.file_entries.status === "loading") {
+      return <Notice title="Loading files…" message="Fetching the review's file list." />
+    }
     return <Notice title="No files" message="This review has no files yet." />
   }
 
-  const visible = uiStore.hideReviewed ? files.filter((f) => f.verdict === null) : files
-  // Switcher lists only what's on screen so every entry has a card to scroll to.
-  const switcherFiles = orderedReviewFiles(visible)
+  // reviewSnapshot.files[i] and reviewStore.files[i] are parallel: same index
+  // is the same file. Merge into pairs and sort by path for a stable visual order.
+  const pairs = Array.from({ length: count }, (_, i) => ({
+    snapshot: reviewSnapshot.files[i] as unknown as FileSnapshot,
+    proxy: reviewStore.files[i] as unknown as FileStore,
+  })).sort((a, b) => a.snapshot.path.localeCompare(b.snapshot.path))
 
-  function commentCountFor(path: string): number {
-    return commentsForPath(snapshot, path).filter((c) => c.scope !== "review").length
-  }
+  const visible = uiStore.hideReviewed
+    ? pairs.filter(
+        ({ snapshot }) => snapshot.draft_verdict === null && snapshot.latest_verdict === null,
+      )
+    : pairs
 
-  if (visible.length === 0) {
+  if (uiStore.hideReviewed && visible.length === 0) {
     return (
       <Notice
         tone="success"
         icon={<CheckCircle2 size={22} aria-hidden />}
         title="All files reviewed"
-        message="Every file in this review has a verdict. Toggle “Reviewed” off in the display menu to see them again."
+        message={'Every file has a verdict. Toggle "Reviewed" off in the display menu to see them again.'}
       />
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {visible.map((file) => (
-        <StackedFile
-          key={file.path}
-          file={file}
+      {visible.map(({ snapshot, proxy }) => (
+        <StackedFileCard
+          key={snapshot.path}
+          fileProxy={proxy}
           reviewId={reviewId}
-          reviewKind={reviewKind}
-          activeArtifactId={snapshot.artifact.id}
-          snapshot={snapshot}
-          activeVerdict={verdict}
-          onActiveVerdictChange={onVerdictChange}
-          inactiveDraft={draftByPath[file.path]}
-          onInactiveDraftChange={setInactiveDraft}
-          expanded={collapsedByPath[file.path] !== true}
-          onSetExpanded={setExpanded}
-          registerCard={registerCard}
-          switcherFiles={switcherFiles}
-          onSelectFile={selectFile}
-          commentCountFor={commentCountFor}
+          reviewSnapshot={reviewSnapshot}
         />
       ))}
     </div>
   )
 })
 
-const StackedFile = observer(function StackedFile(props: {
-  file: ReviewFileEntry
+const StackedFileCard = observer(function StackedFileCard(props: {
+  fileProxy: FileStore
   reviewId: string
-  reviewKind: "diff" | "file"
-  activeArtifactId: string
-  snapshot: ReviewSnapshot
-  activeVerdict: Verdict | null
-  onActiveVerdictChange: (verdict: Verdict) => void
-  inactiveDraft: Verdict | undefined
-  onInactiveDraftChange: (path: string, verdict: Verdict) => void
-  expanded: boolean
-  onSetExpanded: (path: string, expanded: boolean) => void
-  registerCard: (path: string, el: HTMLElement | null) => void
-  switcherFiles: ReviewFileEntry[]
-  onSelectFile: (file: ReviewFileEntry) => void
-  commentCountFor: (path: string) => number
+  reviewSnapshot: ReviewSnapshot
 }) {
-  const {
-    file,
-    reviewId,
-    reviewKind,
-    activeArtifactId,
-    snapshot,
-    activeVerdict,
-    onActiveVerdictChange,
-    inactiveDraft,
-    onInactiveDraftChange,
-    expanded,
-    onSetExpanded,
-    registerCard,
-    switcherFiles,
-    onSelectFile,
-    commentCountFor
-  } = props
-  const cardRef = useRef<HTMLElement | null>(null)
-  const nearViewport = useNearViewport(cardRef)
-  const wide = useMediaQuery(WIDE_QUERY)
-  const baseCommands = useReviewCommands()
-  const minted = file.artifact_id !== null
-  const isActive = minted && file.artifact_id === activeArtifactId
-  const live = expanded && nearViewport
-  const inactiveVerdict: Verdict | null =
-    inactiveDraft ?? file.verdict ?? null
-  const fileVerdict: Verdict | null = isActive ? activeVerdict : inactiveVerdict
-
-  function changeFileVerdict(next: Verdict) {
-    if (isActive) {
-      onActiveVerdictChange(next)
-      return
-    }
-    onInactiveDraftChange(file.path, next)
-    void applyVerdictToInactive(next)
-  }
-
-  async function applyVerdictToInactive(next: Verdict) {
-    // Unminted rows still need a mint progress affordance because the
-    // server-side write goes through `Reviews.open_file` first; the strip is
-    // cleared on the dispatch's reply rather than on a route swap.
-    const needsMint = !file.artifact_id
-    if (needsMint) uiStore.setMintingPath(file.path)
-    try {
-      await baseCommands.setFileDraftVerdict.dispatch({
-        path: file.path,
-        verdict: next
-      })
-    } finally {
-      if (needsMint) uiStore.setMintingPath(null)
-    }
-  }
-
-  const commandsOverride = useFileScopedCommands(file)
-
-  // Hoisted content + view-kind so the header (TOC) and the body share the
-  // exact same text. Content fetch only runs once the card scrolls in.
-  const path = file.path
-  const image = isImagePath(path)
-  const viewKind: ViewKind =
-    reviewKind === "diff" ? "diff" : isHtmlPath(path) ? "html" : "file"
-  const minStat = useContent(file.artifact_id ?? "", file.artifact_id ?? "", live && minted && !image)
-  const unminStat = useReviewFileContent(reviewId, path, file.content_hash, live && !minted && !image)
-  const contentState: ContentState = minted ? minStat : unminStat
-
-  // Per-file render state — flipping one card doesn't touch the others.
-  const rawView = uiStore.getFileRawView(path)
-  const binary = isBinaryContent(contentState.text)
-  const previewable = isPreviewable(path) && viewKind === "file"
-  const capabilities = viewCapabilities({
-    kind: viewKind,
-    previewable,
-    image,
-    rawView,
-    binary
-  })
-
-  // Visible comments for THIS file under the global filter rules — drives both
-  // the header count chip and the per-file rail body.
-  const fileComments = useMemo(
-    () => commentsForPath(snapshot, file.path),
-    [snapshot.files_comments, file.path]
-  )
-  const visibleFileComments = useMemo(
-    () => visibleComments(fileComments, uiStore.statusFilter, uiStore.typeFilters),
-    [fileComments, uiStore.statusFilter, uiStore.typeFilters]
-  )
-  const railComments = uiStore.hideComments
-    ? visibleFileComments.filter((c) => uiStore.revealedCommentIds.includes(c.id))
-    : visibleFileComments
-  const sideMode =
-    capabilities.comments &&
-    uiStore.commentMode === "side" &&
-    wide &&
-    !uiStore.hideComments
-  const filtered =
-    isFiltering(uiStore.statusFilter, uiStore.typeFilters) || uiStore.hideComments
-  // The rail is only worth its 320px when it has something to say. An empty,
-  // unfiltered rail reserves whitespace that adds up across a 75-file stack.
-  // Cards without comments collapse to single-column; the user's "side"
-  // preference re-applies the moment a comment lands in the file.
-  const railActive = sideMode && (railComments.length > 0 || filtered)
-
-  // Comment-count chip is redundant when the side rail is showing the same
-  // comments next to the body, so suppress it then. Otherwise (inline mode,
-  // narrow viewport, side-hidden, or empty-rail card) the chip is the only
-  // count signal.
-  const headerCount = railActive ? 0 : railComments.length
-
   return (
-    <ReviewCommandsOverrideContext.Provider value={commandsOverride}>
-      <article
-        ref={(el) => {
-          cardRef.current = el
-          registerCard(path, el)
-        }}
-        className="overflow-hidden rounded-xl border border-line bg-editor transition-colors duration-150 hover:border-line-strong/90"
-      >
-        <FileRenderHeader
-          variant="stacked"
-          filePath={path}
-          changeStatus={file.change_status ?? null}
-          outlineContent={live && !image ? contentState.text : ""}
-          viewKind={viewKind}
-          commentCount={headerCount}
-          capabilities={capabilities}
-          rawView={rawView}
-          onRawViewChange={(next) => uiStore.setFileRawView(path, next)}
-          files={switcherFiles}
-          onSelectFile={onSelectFile}
-          commentCountFor={commentCountFor}
-          expanded={expanded}
-          onToggleExpand={() => onSetExpanded(path, !expanded)}
-          verdictChip={
-            <FileVerdictMenu
-              snapshot={snapshot}
-              verdict={fileVerdict}
-              onVerdictChange={changeFileVerdict}
-              comments={fileComments}
-            />
-          }
-        />
-        {live && (
-          <div
-            className={
-              railActive
-                ? "grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_320px] sm:pr-3"
-                : ""
-            }
-          >
-            <div className="min-w-0">
-              <ScopedFileBody
-                file={file}
-                reviewId={reviewId}
-                viewKind={viewKind}
-                state={contentState}
-                snapshot={snapshot}
-                rawView={rawView}
-                inline={!railActive}
-                fileVerdict={fileVerdict}
-                onFileVerdictChange={changeFileVerdict}
-              />
-            </div>
-            {railActive && (
-              <div className="hidden sm:block">
-                <CommentRail comments={railComments} filtered={filtered} variant="card" />
-              </div>
-            )}
-          </div>
-        )}
-        {expanded && !nearViewport && <BodyPlaceholder />}
-      </article>
-    </ReviewCommandsOverrideContext.Provider>
+    <FileStoreProvider store={props.fileProxy}>
+      <StackedFileCardBody reviewId={props.reviewId} reviewSnapshot={props.reviewSnapshot} />
+    </FileStoreProvider>
   )
 })
 
-/**
- * IntersectionObserver-backed lazy mount. The body of a stacked file only
- * mounts once its card scrolls within `rootMargin` of the viewport, so a 75-
- * file diff doesn't mount 75 heavy bodies at once. Once visible, stays
- * visible — scrolling back to an already-mounted card is instant and never
- * tears its body down.
- */
+const StackedFileCardBody = observer(function StackedFileCardBody(props: {
+  reviewId: string
+  reviewSnapshot: ReviewSnapshot
+}) {
+  const fileStore = useFileStore()
+  const fileSnapshot = useMusubiSnapshot(fileStore) as FileSnapshot
+  const commands = useReviewCommands()
+  const wide = useMediaQuery(WIDE_QUERY)
+
+  const path = fileSnapshot.path
+  const minted = fileSnapshot.artifact_id !== null
+  const expanded = !uiStore.isFileCollapsed(props.reviewId, path)
+
+  const serverVerdict = fileSnapshot.draft_verdict ?? fileSnapshot.latest_verdict ?? null
+  const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict)
+  useEffect(() => {
+    setVerdict(serverVerdict)
+  }, [serverVerdict])
+
+  function changeVerdict(next: Verdict) {
+    setVerdict(next)
+    void commands.setDraftVerdict.dispatch({ verdict: next })
+  }
+
+  const reviewKind = props.reviewSnapshot.kind
+  const image = isImagePath(path)
+  const viewKind: ViewKind = reviewKind === "diff" ? "diff" : isHtmlPath(path) ? "html" : "file"
+
+  const cardRef = useRef<HTMLElement | null>(null)
+  const nearViewport = useNearViewport(cardRef)
+  const live = expanded && nearViewport
+
+  const minStat = useContent(
+    fileSnapshot.artifact_id ?? "",
+    fileSnapshot.current_round.content_hash,
+    live && minted && !image,
+  )
+  const unminStat = useReviewFileContent(
+    props.reviewId,
+    path,
+    fileSnapshot.content_hash,
+    live && !minted && !image,
+  )
+  const contentState = minted ? minStat : unminStat
+
+  const previewable = isPreviewable(path) && viewKind === "file"
+  const slash = path.lastIndexOf("/")
+  const blocks = useMarkdown(
+    previewable && !image ? contentState.text : "",
+    uiStore.theme,
+    uiStore.markdownFlavor,
+    {
+      base: fileSnapshot.artifact_id ? assetBase(fileSnapshot.artifact_id) : "",
+      dir: slash === -1 ? "" : path.slice(0, slash),
+    },
+  )
+
+  const comments = (fileSnapshot.comments as unknown as { items: Comment[] }).items
+  const filteredVisible = visibleComments(comments, uiStore.statusFilter, uiStore.typeFilters)
+  const railComments = uiStore.hideComments
+    ? filteredVisible.filter((c) => uiStore.revealedCommentIds.includes(c.id))
+    : filteredVisible
+
+  const binary = isBinaryContent(contentState.text)
+  const capabilities = viewCapabilities({ kind: viewKind, previewable, image, rawView: false, binary })
+  const sideMode = uiStore.commentMode === "side" && wide && !uiStore.hideComments
+  const filtered = isFiltering(uiStore.statusFilter, uiStore.typeFilters) || uiStore.hideComments
+  const railActive = sideMode && (railComments.length > 0 || filtered)
+  const headerCommentCount = railActive ? 0 : railComments.length
+  const contentError = contentErrorFrom(contentState)
+  const loading = blocks.loading || contentState.loading
+
+  const view = {
+    snapshot: fileSnapshot,
+    reviewKind,
+    reviewSnapshot: props.reviewSnapshot,
+    content: contentState.text,
+    contentError,
+    blocks: blocks.blocks,
+    loading,
+    comments: railComments,
+    previewable,
+    rawLines: null,
+    verdict,
+    onVerdictChange: changeVerdict,
+  }
+  const ViewComponent = viewComponentFor(viewKind)
+
+  return (
+    <article
+      ref={(el) => {
+        cardRef.current = el
+      }}
+      className="overflow-hidden rounded-xl border border-line bg-editor transition-colors duration-150 hover:border-line-strong/90"
+    >
+      <FileRenderHeader
+        variant="stacked"
+        filePath={path}
+        changeStatus={fileSnapshot.change_status ?? null}
+        outlineContent={live && !image ? contentState.text : ""}
+        viewKind={viewKind}
+        commentCount={headerCommentCount}
+        capabilities={capabilities}
+        rawView={false}
+        onRawViewChange={() => {}}
+        expanded={expanded}
+        onToggleExpand={() => uiStore.setFileCollapsed(props.reviewId, path, expanded)}
+        verdictChip={
+          <FileVerdictMenu
+            verdict={verdict}
+            onVerdictChange={changeVerdict}
+            comments={comments}
+            showNote={false}
+          />
+        }
+      />
+      {live && (
+        <div
+          className={
+            railActive
+              ? "grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_320px] sm:pr-3"
+              : ""
+          }
+        >
+          <div className="min-w-0">
+            {image ? (
+              <StackedImage fileSnapshot={fileSnapshot} reviewId={props.reviewId} />
+            ) : (
+              <ReviewViewProvider value={view}>
+                <FileScopeProvider
+                  artifactId={(fileSnapshot.artifact as unknown as { id: string }).id}
+                  filePath={path}
+                >
+                  <ViewComponent view={view} forceRaw={false} inline={!railActive} nested />
+                </FileScopeProvider>
+              </ReviewViewProvider>
+            )}
+          </div>
+          {railActive && (
+            <div className="hidden sm:block">
+              <CommentRail comments={railComments} filtered={filtered} variant="card" />
+            </div>
+          )}
+        </div>
+      )}
+      {expanded && !nearViewport && <BodyPlaceholder />}
+    </article>
+  )
+})
+
 function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
   const [visible, setVisible] = useState(false)
-  // Above-the-fold cards: flip to visible synchronously before paint so the
-  // first frame already renders the real body, avoiding a placeholder → body
-  // layout jump on initial load. Offscreen cards stay false and wait for the
-  // IntersectionObserver.
+  // Above-fold cards flip to visible synchronously before paint to avoid a
+  // placeholder → body layout jump on initial load.
   useLayoutEffect(() => {
     if (visible) return
     const node = ref.current
@@ -388,7 +281,7 @@ function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
           }
         }
       },
-      { rootMargin: "600px 0px" }
+      { rootMargin: "600px 0px" },
     )
     observer.observe(node)
     return () => observer.disconnect()
@@ -396,168 +289,22 @@ function useNearViewport(ref: React.RefObject<HTMLElement | null>): boolean {
   return visible
 }
 
-/** Approximate-height filler reserving room while a body waits to mount. */
 function BodyPlaceholder() {
   return <div aria-hidden className="h-40 bg-editor" />
 }
 
-/**
- * Mounts the registered view component for a stacked file with the prefetched
- * content. The view kind decides the registered component (file/diff/html);
- * the per-file `ReviewView` carves `comments` out of the snapshot's
- * `files_comments` fan-out and the command override routes `addComment`
- * through `add_file_comment` (mint-on-first-comment).
- */
-const ScopedFileBody = observer(function ScopedFileBody(props: {
-  file: ReviewFileEntry
-  reviewId: string
-  viewKind: ViewKind
-  state: ContentState
-  snapshot: ReviewSnapshot
-  rawView: boolean
-  inline: boolean
-  fileVerdict: Verdict | null
-  onFileVerdictChange: (verdict: Verdict) => void
-}) {
-  const {
-    file,
-    reviewId,
-    viewKind,
-    state,
-    snapshot,
-    rawView,
-    inline,
-    fileVerdict,
-    onFileVerdictChange
-  } = props
-  const path = file.path
-  const image = isImagePath(path)
-  const previewable = isPreviewable(path) && viewKind === "file"
-
-  // Markdown rendering reuses the same hook the single-file route uses, so
-  // previewable stacked files keep their rendered preview. Unminted rows pass
-  // an empty asset base — relative image refs won't resolve until the file is
-  // minted, which matches the prior all-files behavior.
-  const blocks = useMarkdown(
-    previewable && !image ? state.text : "",
-    uiStore.theme,
-    uiStore.markdownFlavor,
-    {
-      base: file.artifact_id ? assetBase(file.artifact_id) : "",
-      dir: path.lastIndexOf("/") === -1 ? "" : path.slice(0, path.lastIndexOf("/"))
-    }
-  )
-
-  const view = useStackedFileView(
-    snapshot,
-    file,
-    state.text,
-    contentErrorFrom(state),
-    viewKind,
-    previewable,
-    blocks.blocks,
-    blocks.loading,
-    fileVerdict,
-    onFileVerdictChange
-  )
-
-  if (image) {
-    return <StackedImage file={file} reviewId={reviewId} />
-  }
-  if (state.loading && state.text === "") {
-    return <p className="px-3 py-4 text-[12px] text-muted-foreground">Loading…</p>
-  }
-
-  const ViewComponent = viewComponentFor(viewKind)
-  return (
-    <FileScopeProvider artifactId={snapshot.artifact.id} filePath={path}>
-      <ReviewViewProvider value={view}>
-        <ViewComponent view={view} forceRaw={rawView} inline={inline} nested />
-      </ReviewViewProvider>
-    </FileScopeProvider>
-  )
-})
-
-function useStackedFileView(
-  snapshot: ReviewSnapshot,
-  file: ReviewFileEntry,
-  content: string,
-  contentError: string | null,
-  viewKind: ViewKind,
-  previewable: boolean,
-  blocks: ReviewView["blocks"],
-  blocksLoading: boolean,
-  verdict: Verdict | null,
-  onVerdictChange: (verdict: Verdict) => void
-): ReviewView {
-  const comments = useMemo(
-    () => commentsForPath(snapshot, file.path),
-    [snapshot.files_comments, file.path]
-  )
-
-  return {
-    snapshot: {
-      ...snapshot,
-      // Surface the stacked file as the "current" artifact for downstream
-      // hooks that read snapshot.artifact (asset urls, kind, etc.).
-      artifact: {
-        id: file.artifact_id ?? "",
-        title: file.path,
-        kind: viewKind === "diff" ? "diff" : "file",
-        approved: file.approved,
-        approved_round: null
-      }
-    } as ReviewSnapshot,
-    content,
-    contentError,
-    blocks,
-    loading: blocksLoading,
-    comments,
-    previewable,
-    rawLines: null,
-    verdict,
-    onVerdictChange
-  }
-}
-
-function commentsForPath(snapshot: ReviewSnapshot, path: string): Comment[] {
-  const fan = snapshot.files_comments ?? []
-  const thread = fan.find((entry) => entry.path === path)
-  return (thread?.items ?? []) as Comment[]
-}
-
-function useFileScopedCommands(file: ReviewFileEntry): Partial<ReviewCommands> {
-  const base = useReviewCommands()
-  return {
-    addComment: {
-      ...base.addFileComment,
-      dispatch: (payload) =>
-        base.addFileComment.dispatch({
-          path: file.path,
-          scope: payload.scope,
-          critique_type: payload.critique_type,
-          body: payload.body,
-          anchor: payload.anchor
-        })
-    } as ReviewCommands["addComment"]
-  }
-}
-
 const StackedImage = observer(function StackedImage(props: {
-  file: ReviewFileEntry
+  fileSnapshot: FileSnapshot
   reviewId: string
 }) {
-  const { file, reviewId } = props
-  const minted = file.artifact_id !== null
-  // Minted images: serve via the artifact's asset route, which resolves the
-  // request path relative to the artifact's own directory — so the file's
-  // basename, not its full repo-relative path, is the correct segment. Mirrors
-  // the single-file path's `imageAssetSrc()` to keep subdirectory images from
-  // 404-ing the all-files render.
+  const { fileSnapshot, reviewId } = props
+  const path = fileSnapshot.path
+  const minted = fileSnapshot.artifact_id !== null
   const src = minted
-    ? imageAssetSrc(file.artifact_id ?? "", file.path) ?? reviewFileRawUrl(reviewId, file.path)
-    : reviewFileRawUrl(reviewId, file.path)
-  if (file.content_hash === null && !minted) {
+    ? (imageAssetSrc(fileSnapshot.artifact_id!, path) ?? reviewFileRawUrl(reviewId, path))
+    : reviewFileRawUrl(reviewId, path)
+
+  if (fileSnapshot.content_hash === null && !minted) {
     return (
       <p className="px-3 py-4 text-[12px] text-muted-foreground">
         File deleted at head, no preview available.
@@ -566,29 +313,14 @@ const StackedImage = observer(function StackedImage(props: {
   }
   return (
     <div className="flex justify-center px-3 py-4">
-      <ImagePreview src={src} alt={file.path} />
+      <img
+        src={src}
+        alt={path}
+        className="max-h-[60vh] max-w-full rounded object-contain"
+      />
     </div>
   )
 })
-
-function ImagePreview(props: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) {
-    return (
-      <p className="text-[12px] text-muted-foreground">
-        Image preview unavailable.
-      </p>
-    )
-  }
-  return (
-    <img
-      src={props.src}
-      alt={props.alt}
-      onError={() => setFailed(true)}
-      className="max-h-[60vh] max-w-full rounded object-contain"
-    />
-  )
-}
 
 function Notice(props: {
   title: string
@@ -615,9 +347,7 @@ function Notice(props: {
       <div className="text-[14px] font-semibold tracking-[-0.005em] text-heading">
         {props.title}
       </div>
-      <p className="max-w-sm text-[13px] leading-relaxed text-muted-foreground">
-        {props.message}
-      </p>
+      <p className="max-w-sm text-[13px] leading-relaxed text-muted-foreground">{props.message}</p>
     </article>
   )
 }

@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 
 import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
+import { CommentBody } from "./CommentBody";
 import { CommentCardHeader } from "./CommentCardHeader";
 import { CommentEditPanel } from "./CommentEditPanel";
 import { CommentReplies } from "./CommentReplies";
@@ -83,15 +84,25 @@ export const CommentCard = observer(function CommentCard(props: {
         <CollapsibleContent>
           <div className="flex min-w-0 flex-col gap-2 px-3 py-2.5">
             {outdated && (
-              <p className="text-[12px] text-amber">
-                Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
-              </p>
+              <div className="flex flex-col gap-1">
+                <p className="text-[12px] text-amber">
+                  Lost its anchor; the quoted line changed. Delete it or leave it as a general note.
+                </p>
+                {comment.anchor?.quote && (
+                  <div className="text-[11px] text-faint">
+                    <span className="uppercase tracking-wide">Originally anchored to:</span>
+                    <p className="mt-0.5 whitespace-pre-wrap break-words font-mono text-muted-foreground">
+                      {comment.anchor.quote}
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             {editing ? (
               <CommentEditPanel comment={comment} onDone={() => setEditing(false)} />
             ) : (
-              <p className="whitespace-pre-wrap break-words leading-relaxed text-text">{comment.body}</p>
+              <CommentBody body={comment.body} />
             )}
 
             <CommentReplies replies={comment.replies} />

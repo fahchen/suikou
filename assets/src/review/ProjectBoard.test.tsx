@@ -267,25 +267,23 @@ describe("ProjectBoard", () => {
     expect(await screen.findByText("design.md")).toBeInTheDocument()
   })
 
-  it("opens a review file by resolving its path to an artifact id", async () => {
-    dispatch.mockResolvedValue({ artifact_id: "a-99", error: null })
+  it("opens a review file with review id + path", async () => {
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
     fireEvent.click(screen.getByLabelText("Expand files"))
     fireEvent.click(await screen.findByText("design.md"))
 
-    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("a-99"))
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r1", "design.md"))
   })
 
   it("opens a review by its title without expanding", async () => {
-    dispatch.mockResolvedValue({ artifact_id: "a-99", error: null })
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
     fireEvent.click(screen.getByRole("button", { name: "Open Launch" }))
 
-    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("a-99"))
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r1", "design.md"))
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
   })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { renderMarkdown } from "./render"
+import { renderMarkdown, renderCommentBody } from "./render"
 
 function items(blocks: Awaited<ReturnType<typeof renderMarkdown>>) {
   return blocks.filter((b) => b.tag === "li")
@@ -244,5 +244,22 @@ describe("renderMarkdown definition-list splitting", () => {
       (b) => b.tag === "dt" || b.tag === "dd"
     )
     expect(items.map((b) => b.startLine)).toEqual([1, 2, 4, 5, 6])
+  })
+})
+
+describe("renderCommentBody", () => {
+  it("renders GFM (tables, code, bold)", () => {
+    const html = renderCommentBody("**hi** `x`\n\n| a | b |\n| - | - |\n| 1 | 2 |")
+    expect(html).toContain("<strong>hi</strong>")
+    expect(html).toContain("<code>x</code>")
+    expect(html).toContain("<table>")
+  })
+
+  it("escapes raw HTML and drops script URLs (XSS boundary)", () => {
+    const html = renderCommentBody('<img src=x onerror=alert(1)>\n\n[c](javascript:alert(1))')
+    expect(html).not.toContain("<img")
+    expect(html).toContain("&lt;img")
+    // markdown-it's validateLink refuses the script URL, so no executable href.
+    expect(html).not.toContain('href="javascript:')
   })
 })

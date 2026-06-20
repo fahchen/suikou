@@ -2,3 +2,26 @@
 elixir = "1.20.0-otp-29"
 erlang = "29.0"
 bun = "latest"
+
+# Dev = Phoenix (port 4710) + Vite (port 5173) together. Phoenix runs as a
+# distributed node so the agent CLI can rpc into the *live* BEAM (its PubSub is
+# what `review poll` blocks on); plain `mix phx.server` is non-distributed and
+# unreachable. Vite proxies /socket + /api to 4710. Ctrl-C stops both.
+[tasks.dev]
+description = "Dev: Phoenix (distributed node suikou_dev@127.0.0.1) + Vite"
+run = """
+elixir --name suikou_dev@127.0.0.1 --cookie suikou_dev -S mix phx.server &
+phx=$!
+(cd assets && bun run dev) &
+vite=$!
+trap 'kill $phx $vite 2>/dev/null' INT TERM EXIT
+wait
+"""
+
+# Agent CLI against the dev node: routes packaging/launcher.ts through
+# `elixir --rpc-eval` (SUIKOU_RPC_NODE branch) instead of the bundled release.
+# Args pass through, e.g. `mise run cli -- review poll <id>`.
+[tasks.cli]
+description = "Agent CLI (bun source) targeting the dev node"
+env = { SUIKOU_RPC_NODE = "suikou_dev@127.0.0.1", SUIKOU_RPC_COOKIE = "suikou_dev" }
+run = "bun packaging/launcher.ts"

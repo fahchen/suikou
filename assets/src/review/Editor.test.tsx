@@ -31,7 +31,6 @@ vi.mock("./commands", () => ({
     editComment: stubCmd,
     deleteComment: stubCmd,
     resolveComment: stubCmd,
-    unresolveComment: stubCmd,
     reply: stubCmd,
     submitReview: stubCmd,
     setDraftVerdict: stubCmd,

@@ -49,21 +49,22 @@ export function orderedReviewFiles(
 }
 
 /**
- * Returns the files immediately before/after the one matching `artifactId` in
- * tree order. Yields `null` at each end, or for both when the artifact isn't in
- * the list (so callers can simply disable the corresponding control).
+ * Returns the files immediately before/after the one at `path` in tree order.
+ * Yields `null` at each end, or for both when the path isn't in the list (so
+ * callers can simply disable the corresponding control). Keyed on path, not
+ * artifact id, so an unminted file (no artifact yet) still finds its neighbours.
  *
  * ## Examples
  *
- *     adjacentReviewFiles(files, "art-2")
- *     //=> { prev: <entry art-1>, next: <entry art-3> }
+ *     adjacentReviewFiles(files, "src/b.ts")
+ *     //=> { prev: <entry src/a.ts>, next: <entry src/c.ts> }
  */
 export function adjacentReviewFiles(
   files: ReadonlyArray<ReviewFileEntry>,
-  artifactId: string
+  path: string
 ): { prev: ReviewFileEntry | null; next: ReviewFileEntry | null } {
   const ordered = orderedReviewFiles(files)
-  const index = ordered.findIndex((f) => f.artifact_id === artifactId)
+  const index = ordered.findIndex((f) => f.path === path)
   if (index === -1) return { prev: null, next: null }
   return {
     prev: index > 0 ? ordered[index - 1] : null,
