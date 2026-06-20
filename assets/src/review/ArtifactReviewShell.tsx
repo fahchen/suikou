@@ -188,7 +188,6 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
         reviewSnapshot={reviewSnapshot}
         previewable={previewable}
         content={content}
-        verdict={verdict}
       />
 
       <div

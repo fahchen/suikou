@@ -23,10 +23,9 @@ import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
 import { reviewFileTarget } from "./review-navigation";
-import { VERDICT_META, type ReviewFileEntry, type ReviewSnapshot, type Verdict } from "./types";
+import { type FileSnapshot, type ReviewFileEntry, type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
-import { VerdictIcon } from "./TopBarVerdictMenu";
 import { resolveViewKind, viewCapabilities } from "./view-kind";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -54,9 +53,8 @@ export const TopBar = observer(function TopBar(props: {
   reviewSnapshot: ReviewSnapshot;
   previewable: boolean;
   content: string;
-  verdict: Verdict | null;
 }) {
-  const { reviewSnapshot, previewable, content, verdict } = props;
+  const { reviewSnapshot, previewable, content } = props;
   const commands = useReviewCommands();
   const navigate = useNavigate();
   const prefetchReview = usePrefetchReviewStore();
@@ -92,7 +90,10 @@ export const TopBar = observer(function TopBar(props: {
     void copyToClipboard(text);
   }
 
-  const submitVerdict: Verdict = verdict ?? "comment";
+  // Review-level Submit gates on any file carrying a draft verdict chip, read
+  // from the review root's FileStore children — identical to the all-files shell.
+  const reviewFiles = reviewSnapshot.files as unknown as FileSnapshot[];
+  const hasAnyDraftVerdict = reviewFiles.some((f) => f.draft_verdict !== null);
 
   function submit() {
     void commands.submitReview.dispatch({});
@@ -195,6 +196,7 @@ export const TopBar = observer(function TopBar(props: {
             size="icon"
             title="Submit review"
             aria-label="Submit review"
+            disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
             onClick={() => setConfirmOpen(true)}
           >
             <Send size={14} />
@@ -228,14 +230,11 @@ export const TopBar = observer(function TopBar(props: {
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <VerdictIcon verdict={submitVerdict} size={16} />
-                Submit this review?
-              </DialogTitle>
+              <DialogTitle>Submit this review?</DialogTitle>
             </DialogHeader>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              Applies <b className="text-heading">{VERDICT_META[submitVerdict].label}</b> to this file
-              and publishes every pending comment across the review.
+              Applies every verdict chip you have set and publishes all pending comments across
+              the review.
             </p>
 
             <DialogFooter>
@@ -253,7 +252,7 @@ export const TopBar = observer(function TopBar(props: {
                 <Button
                   size="sm"
                   className="grow sm:grow-0"
-                  disabled={commands.submitReview.isPending}
+                  disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
                   onClick={submit}
                 >
                   <Check size={14} /> Submit
@@ -266,7 +265,7 @@ export const TopBar = observer(function TopBar(props: {
                         size="icon-xs"
                         title="Submit and copy"
                         aria-label="Submit and copy"
-                        disabled={commands.submitReview.isPending}
+                        disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
                       />
                     }
                   >
