@@ -80,6 +80,16 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     end
   end
 
+  describe "url/0" do
+    test "emits the review's URL ending in /reviews/<id>" do
+      review = insert(:review)
+
+      assert %{"url" => url, "error" => nil} = run(%{"review_id" => review.id}, &CLI.url/0)
+      assert String.starts_with?(url, "http://")
+      assert String.ends_with?(url, "/reviews/#{review.id}")
+    end
+  end
+
   describe "rename/0" do
     test "renames the review and broadcasts the board" do
       review = insert(:review)

@@ -16,6 +16,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI
+  alias SuikouWeb.AgentCLI.Server
   alias SuikouWeb.Stores.BoardBroadcast
   alias SuikouWeb.Stores.CommentBroadcast
 
@@ -151,6 +152,25 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       )
 
     AgentCLI.emit(reply)
+  end
+
+  @doc """
+  Emits a review's human-facing URL as `%{url, error}` from `%{"review_id"}`.
+
+  Builds `<board base>/reviews/<id>`; the id is the one `create` just returned, so
+  the verb only concatenates a path and never hits `Repo`.
+
+  ## Examples
+
+      # stdin: {"review_id": "0192…"}
+      SuikouWeb.AgentCLI.Reviews.url()
+      #=> :ok  # emits {"url":"http://localhost:4317/reviews/0192…","error":null}
+
+  """
+  @spec url() :: :ok
+  def url do
+    payload = AgentCLI.read_payload()
+    AgentCLI.emit(%{url: Server.base_url() <> "/reviews/" <> payload["review_id"], error: nil})
   end
 
   @doc """
