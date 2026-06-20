@@ -82,7 +82,9 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
       className={frame}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-[12px] font-medium text-heading">New comment on selected region</span>
+        {variant === "rail" && (
+          <span className="text-[12px] font-medium text-heading">New comment on selected region</span>
+        )}
         <div className="flex flex-wrap gap-1 sm:ml-auto">
           {TYPES.map((kind) => (
             <button
