@@ -83,9 +83,15 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
               variant="outline"
               spacing={0}
               value={[ui.fileDisplayMode]}
-              onValueChange={(v) =>
-                v[0] && ui.setFileDisplayMode(v[0] as FileDisplayMode)
-              }
+              onValueChange={(v) => {
+                if (!v[0]) return;
+                ui.setFileDisplayMode(v[0] as FileDisplayMode);
+                if (v[0] === "all") {
+                  void navigate({ to: "/reviews/$reviewId", params: { reviewId } });
+                } else {
+                  void navigate(reviewFileTarget(reviewId, filePath, false));
+                }
+              }}
             >
               <ToggleGroupItem value="single">One</ToggleGroupItem>
               <ToggleGroupItem value="all">All</ToggleGroupItem>
