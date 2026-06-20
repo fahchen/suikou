@@ -62,6 +62,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
+  command :remove_file do
+    payload do
+      field(:path, String.t())
+    end
+  end
+
   @impl Musubi.Store
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(params, socket) do
@@ -118,6 +124,19 @@ defmodule SuikouWeb.Stores.ReviewStore do
       end
 
     {:reply, %{warnings: warnings}, next_socket}
+  end
+
+  @spec handle_command(:remove_file, map(), Socket.t()) :: {:noreply, Socket.t()}
+  def handle_command(:remove_file, payload, socket) do
+    case Reviews.get_review(socket.assigns.review_id) do
+      %Review{} = review ->
+        _result = Reviews.remove_file(review, payload["path"])
+        CommentBroadcast.broadcast(socket.assigns.review_id)
+        {:noreply, socket |> refresh_files() |> bump_reload_token()}
+
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   defp present_snapshot(%Review{} = review, socket) do

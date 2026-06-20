@@ -38,6 +38,7 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
         path: String.t(),
         artifact_id: String.t() | nil,
         approved: boolean(),
+        verdict: :approve | :request_changes | :comment | nil,
         content_hash: String.t() | nil,
         change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
       }

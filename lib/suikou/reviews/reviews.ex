@@ -200,6 +200,30 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Drops a single path from a file-selection review, soft-removing its artifact
+  if one was minted (history preserved) and shrinking the stored selection so
+  the file stops appearing in the file list. Used to clear a row whose source
+  was deleted or moved. Errors for diff reviews, whose file list is derived from
+  the diff and can't be edited by hand.
+
+  ## Examples
+
+      Suikou.Reviews.remove_file(review, "docs/old.md")
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec remove_file(Review.t(), String.t()) ::
+          {:ok, Review.t()} | {:error, :not_a_file_selection}
+  def remove_file(%Review{source: %FileSelection{selection_paths: paths}} = review, path) do
+    # ponytail: literal-path removal. A file covered only via a parent directory
+    # in the selection stays listed; explicit-path selections (the common case)
+    # drop cleanly.
+    set_selection(review, paths -- [path])
+  end
+
+  def remove_file(%Review{source: %GitDiff{}}, _path), do: {:error, :not_a_file_selection}
+
+  @doc """
   Opens a covered file in the review, returning its artifact — minting it (round
   0) on first open, restoring it if it was soft-removed, or returning the
   existing one. Rejects a path not covered by the stored selection.

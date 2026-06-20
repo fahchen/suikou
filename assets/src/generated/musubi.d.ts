@@ -221,7 +221,7 @@ declare namespace Musubi {
       "SuikouWeb.Stores.ProjectBoardStore",
       {
         projects: Array<{ id: string; name: string; path: string; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; base_ref: string | null; head_ref: string | null; base_sha: string | null; head_sha: string | null; creation_base_sha: string | null; creation_head_sha: string | null; refs_moved: boolean }> }>
-        review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }> }>>
+        review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }> }>>
       },
       {
         create_project: {
@@ -316,7 +316,7 @@ declare namespace Musubi {
             review_id: string
           }
           reply: {
-            files: Array<{ path: string; artifact_id: string | null; approved: boolean; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>
+            files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>
             error: string | null
           }
         }
@@ -349,6 +349,12 @@ declare namespace Musubi {
           reply: {
             warnings: string[]
           }
+        }
+        remove_file: {
+          payload: {
+            path: string
+          }
+          reply: never
         }
       }
     >
