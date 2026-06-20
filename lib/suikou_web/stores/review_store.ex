@@ -201,7 +201,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   defp render_file_children(_other, _socket), do: []
 
   defp submit_artifact(%Artifact{} = artifact, {warnings, submitted?}) do
-    case {Submissions.draft_verdict_for_artifact(artifact.id), Rounds.latest(artifact.id)} do
+    case {verdict_to_submit(artifact), Rounds.latest(artifact.id)} do
       {nil, _round} ->
         {warnings, submitted?}
 
@@ -219,6 +219,16 @@ defmodule SuikouWeb.Stores.ReviewStore do
           {:error, _reason} ->
             {warnings, submitted?}
         end
+    end
+  end
+
+  # A file's submit verdict: its draft chip, or an implicit `comment` when it has
+  # only pending comments — so submitting a review with feedback but no verdicts
+  # still publishes that critique. Untouched files stay nil and are skipped.
+  defp verdict_to_submit(%Artifact{} = artifact) do
+    case Submissions.draft_verdict_for_artifact(artifact.id) do
+      nil -> if Submissions.comments_pending?(artifact.id), do: :comment
+      verdict -> verdict
     end
   end
 

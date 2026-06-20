@@ -199,11 +199,58 @@ defmodule Suikou.Submissions do
     draft_verdict?(review_id) or pending_comment?(review_id) or pending_reply?(review_id)
   end
 
+  @doc """
+  Returns whether `artifact_id` carries any pending (not-yet-published) comment
+  or reply on its rounds. Lets the review-level submit treat a file that only
+  has comments as an implicit `comment` verdict, publishing its critique.
+
+  ## Examples
+
+      Suikou.Submissions.comments_pending?(artifact.id)
+      #=> true
+
+  """
+  @spec comments_pending?(Ecto.UUID.t()) :: boolean()
+  def comments_pending?(artifact_id) do
+    artifact_pending_comment?(artifact_id) or artifact_pending_reply?(artifact_id)
+  end
+
+  defp artifact_pending_comment?(artifact_id) do
+    from(c in Comment, as: :comment)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> where([comment: c], c.status == :pending)
+    |> Repo.exists?()
+  end
+
+  defp artifact_pending_reply?(artifact_id) do
+    from(rep in Reply, as: :reply)
+    |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> where([round: r], r.artifact_id == ^artifact_id)
+    |> where([reply: rep], rep.status == :pending)
+    |> Repo.exists?()
+  end
+
   defp draft_verdict?(review_id) do
+    # A draft verdict only counts on an artifact's latest (unsubmitted) round.
+    # A submitted round keeps its historical draft_verdict, so exclude any round
+    # that has a later round — otherwise the gate would stay on forever after the
+    # first submit.
     from(r in Round, as: :round)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([artifact: a], a.review_id == ^review_id)
     |> where([round: r], not is_nil(r.draft_verdict))
+    |> where(
+      [round: r],
+      not exists(
+        from(later in Round,
+          where:
+            later.artifact_id == parent_as(:round).artifact_id and
+              later.number > parent_as(:round).number
+        )
+      )
+    )
     |> Repo.exists?()
   end
 
