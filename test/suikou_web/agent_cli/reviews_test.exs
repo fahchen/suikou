@@ -149,19 +149,19 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     end
   end
 
-  describe "poll/0" do
+  describe "wait/0" do
     # config/test.exs caps the poll window at 200ms, so the timeout branch
     # returns promptly when no submission lands.
     test "emits a timeout snapshot when no submission lands in the window" do
       review = insert(:review)
 
-      assert %{"status" => "timeout", "version" => 0} =
-               run(%{"review_id" => review.id}, &CLI.poll/0)
+      assert %{"status" => "timeout", "submission_version" => 0} =
+               run(%{"review_id" => review.id}, &CLI.wait/0)
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.poll/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.wait/0)
     end
 
     test "emits the export snapshot when a submission raises the count" do
@@ -171,7 +171,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       task =
         Task.async(fn ->
-          capture_io([input: payload], &CLI.poll/0)
+          capture_io([input: payload], &CLI.wait/0)
         end)
 
       # Wait until the poll task is blocked in its `receive` (version captured at
@@ -199,7 +199,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       %{round: round1} = advance(round.artifact_id, "v1\n")
       payload = Jason.encode!(%{"review_id" => review_id})
 
-      task = Task.async(fn -> capture_io([input: payload], &CLI.poll/0) end)
+      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
 
       wait_until_waiting(task.pid)
       {:ok, _result} = Submissions.submit(round1.id, :comment)
