@@ -27,6 +27,8 @@ suikou review  create      --project <id> --name <name> --files <a,b,c>
 suikou review  create-diff --project <id> --name <name> --base <ref> --head <ref>
 suikou review  show        <review-id>
 suikou review  files       <review-id>
+suikou review  url         <review-id>
+suikou review  open        <review-id>
 suikou review  rename      <review-id> --name <name>
 suikou review  set-files   <review-id> --files <a,b,c>
 suikou review  delete      <review-id>
@@ -34,6 +36,7 @@ suikou review  export      <review-id> [--rounds <a-b>] [--all]
 suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
 suikou wait  <review-id> [...]          # alias for `review wait`
+suikou open                             # open the board root in the browser
 ```
 
 - `--files` is **comma-separated** paths (trimmed; empties dropped), e.g. `--files lib/a.ex,lib/b.ex,README.md`. Paths are relative to the project's root path.
@@ -81,6 +84,11 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 `review files`
 ```json
 {"files":[{"path":"doc.md","artifact_id":null}],"error":null}
+```
+
+`review url` / `review open` (`open` also spawns the browser; `suikou open` with no id emits the board root URL the same way)
+```json
+{"url":"http://localhost:4317/reviews/0192…","error":null}
 ```
 
 `review rename` / `set-files` / `delete` (`error` is `null` on success, else an error atom string like `"review_not_found"`)
@@ -143,11 +151,12 @@ Without `--timeout`, `wait` blocks across rounds until a submission lands (each 
 
 ## The review loop (the core workflow)
 
-1. **Pick the project & files.** `project list` to find the `project_id` (or `project create` with the repo's name + absolute path). Decide the files / diff to submit.
+1. **Resolve the project.** `project list`, then get the current repo root (`git rev-parse --show-toplevel`) and match it against `projects[].path`. If one matches, use its `id`. **If none matches, stop and ask the human** whether to register it — only on a yes run `suikou project create --name <repo-name> --path <abs-repo-path>`. **Never auto-create a project.** Then decide the files / diff to submit.
 2. **Create the review.**
    - file selection: `suikou review create --project <id> --name "<name>" --files a,b,c`
    - git diff: `suikou review create-diff --project <id> --name "<name>" --base <ref> --head <ref>`
    - Capture `review_id` from the result.
+   - **Show the human the URL.** Run `suikou review url <review-id>` and surface the `url`. Offer to open it; only run `suikou review open <review-id>` if the human says yes — never open unprompted.
 3. **Wait for the human.** `suikou review wait <review-id>` (or `suikou wait <review-id>`). This **blocks** until a human submits verdicts/comments, then prints the critique snapshot above. It keeps waiting across rounds with no work from you. Add `--timeout <secs>` only if you want it to give up and print a `timeout` line.
 4. **Read & fix.** Walk `artifacts[].comments[]`. Address each one in the code (use `anchor.start_line`/`quote` to locate it, unless `outdated`). Skip comments already `resolved` if you want, but you may still reply.
 5. **Reply per addressed comment.** Write your reply markdown to a file and:
@@ -166,3 +175,5 @@ The agent's sole authoring verb is `comment reply` on an **existing** comment. T
 - submit a verdict or resolve a comment.
 
 Those are **human-only**. If a task asks you to "leave a review comment" or "approve", that is out of scope — surface it to the human; do not try to fake it through another command.
+
+`review url`, `review open`, and top-level `open` are **read-only navigation** (they print or open a URL, never author), so they're fine to use — but only open the browser when the human asks.
