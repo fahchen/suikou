@@ -69,9 +69,6 @@ export const AllFilesView = observer(function AllFilesView(props: {
   // later (server refreshes `:files`). Active card is unaffected — it reads
   // through the route shell's `verdict` prop.
   const [draftByPath, setDraftByPath] = useState<Record<string, Verdict>>({})
-  // Files start expanded; only explicit collapses are tracked so a new file
-  // entering the stack defaults open without seeding state for every path.
-  const [collapsedByPath, setCollapsedByPath] = useState<Record<string, boolean>>({})
   // Stable article elements per path so the switcher can scroll any card into
   // view even before its lazy body has mounted (the article always renders).
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map())
@@ -81,7 +78,7 @@ export const AllFilesView = observer(function AllFilesView(props: {
   }
 
   function setExpanded(path: string, expanded: boolean) {
-    setCollapsedByPath((prev) => ({ ...prev, [path]: !expanded }))
+    uiStore.setFileCollapsed(reviewId, path, !expanded)
   }
 
   function registerCard(path: string, el: HTMLElement | null) {
@@ -110,8 +107,9 @@ export const AllFilesView = observer(function AllFilesView(props: {
   }
 
   const visible = uiStore.hideReviewed ? files.filter((f) => f.verdict === null) : files
-  // Switcher lists only what's on screen so every entry has a card to scroll to.
-  const switcherFiles = orderedReviewFiles(visible)
+  // One canonical path order drives both the stack and the switcher so what you
+  // scroll past matches what you jump to.
+  const ordered = orderedReviewFiles(visible)
 
   function commentCountFor(path: string): number {
     return commentsForPath(snapshot, path).filter((c) => c.scope !== "review").length
@@ -130,7 +128,7 @@ export const AllFilesView = observer(function AllFilesView(props: {
 
   return (
     <div className="flex flex-col gap-3">
-      {visible.map((file) => (
+      {ordered.map((file) => (
         <StackedFile
           key={file.path}
           file={file}
@@ -142,10 +140,10 @@ export const AllFilesView = observer(function AllFilesView(props: {
           onActiveVerdictChange={onVerdictChange}
           inactiveDraft={draftByPath[file.path]}
           onInactiveDraftChange={setInactiveDraft}
-          expanded={collapsedByPath[file.path] !== true}
+          expanded={!uiStore.isFileCollapsed(reviewId, file.path)}
           onSetExpanded={setExpanded}
           registerCard={registerCard}
-          switcherFiles={switcherFiles}
+          switcherFiles={ordered}
           onSelectFile={selectFile}
           commentCountFor={commentCountFor}
         />
