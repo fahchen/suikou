@@ -84,6 +84,24 @@ defmodule Suikou.Projects do
   end
 
   @doc """
+  Updates an existing project's settings. Only `respect_gitignore` is editable;
+  `name` and `path` are fixed (see `Project.update_changeset/2`).
+
+  ## Examples
+
+      Suikou.Projects.update_project(project, %{respect_gitignore: false})
+      #=> {:ok, %Suikou.Schemas.Project{respect_gitignore: false}}
+
+  """
+  @spec update_project(Project.t(), map()) ::
+          {:ok, Project.t()} | {:error, Ecto.Changeset.t()}
+  def update_project(%Project{} = project, params) do
+    project
+    |> Project.update_changeset(params)
+    |> Repo.update()
+  end
+
+  @doc """
   Lists all projects, ordered by name.
 
   ## Examples
@@ -104,9 +122,10 @@ defmodule Suikou.Projects do
   subdirectory; the default `""` lists the whole project. Every file type is
   reviewable; only the preview differs (markdown renders, others are raw-only).
 
-  When a `.gitignore` lives at the project root, its patterns filter the
-  result so ignored files are skipped. Otherwise every regular file under the
-  directory is listed.
+  When the project's `respect_gitignore` is true and a `.gitignore` lives at
+  the project root, its patterns filter the result so ignored files are
+  skipped. When the flag is false, every regular file under the directory is
+  listed (`.git` is always excluded regardless of the flag).
 
   ## Examples
 
@@ -118,8 +137,8 @@ defmodule Suikou.Projects do
 
   """
   @spec list_files(Project.t(), String.t()) :: [String.t()]
-  def list_files(%Project{path: path}, rel \\ "") do
-    rules = ignore_rules(path)
+  def list_files(%Project{path: path, respect_gitignore: respect}, rel \\ "") do
+    rules = if respect, do: ignore_rules(path), else: []
 
     path
     |> walk(rel, rules)
@@ -142,8 +161,8 @@ defmodule Suikou.Projects do
 
   """
   @spec list_dir(Project.t(), String.t()) :: [%{path: String.t(), dir: boolean()}]
-  def list_dir(%Project{path: path}, rel) do
-    rules = ignore_rules(path)
+  def list_dir(%Project{path: path, respect_gitignore: respect}, rel) do
+    rules = if respect, do: ignore_rules(path), else: []
     dir = if rel == "", do: path, else: Path.join(path, rel)
 
     case File.ls(dir) do
