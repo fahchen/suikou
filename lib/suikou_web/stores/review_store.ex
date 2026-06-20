@@ -166,7 +166,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
     }
   end
 
-  defp render_file_children(%AsyncResult{status: :ok, result: files}, socket)
+  # Match on the result list regardless of status: a refresh transitions the
+  # field to `:loading` while preserving the prior list (assign_async reset:
+  # false), so rendering from it keeps the child set stable instead of emptying
+  # `files` mid-refresh — which would tear the active file view down to the
+  # loading skeleton and remount it (a visible flash on every comment write).
+  defp render_file_children(%AsyncResult{result: files}, socket)
        when is_list(files) do
     Enum.map(files, fn file ->
       Child.child(FileStore,
