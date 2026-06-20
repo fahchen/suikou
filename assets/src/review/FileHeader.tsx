@@ -8,7 +8,8 @@ import { orderedReviewFiles } from "./file-order"
 import { reviewFileTarget } from "./review-navigation"
 import { resolveViewKind, viewCapabilities } from "./view-kind"
 import { isImagePath, isBinaryContent } from "./file-type"
-import { useFileStore } from "./store-context"
+import { useFileStore, visibleComments } from "./store-context"
+import { uiStore } from "../stores/ui-store"
 import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { ReviewFileEntry, ReviewSnapshot, Verdict } from "./types"
 
@@ -42,7 +43,9 @@ export const FileHeader = observer(function FileHeader(props: {
   })
 
   const comments = fileSnapshot.comments.items
-  const commentCount = comments.filter((c) => c.scope !== "review").length
+  const commentCount = visibleComments(comments, uiStore.statusFilter, uiStore.typeFilters).filter(
+    (c) => c.scope !== "review"
+  ).length
 
   function setRawView(next: boolean) {
     void navigate(reviewFileTarget(reviewSnapshot.review_id, title, next))
