@@ -5,7 +5,7 @@ description: Drive the Suikou code-review tool from its CLI to run the agent sid
 
 # Suikou agent CLI
 
-`suikou` is a single binary. Every `<group> <verb>` shells into the running server and prints exactly **one line of JSON** to stdout. Parse that line. On failure it writes a message to stderr and exits non-zero. (The one exception is `suikou skill`, which prints raw markdown — see below.)
+`suikou` is a single binary. Every `<group> <verb>` shells into the running server and prints exactly **one line of JSON** to stdout. Parse that line. On failure it writes a message to stderr and exits non-zero.
 
 ## Prerequisite: the server must be running
 
@@ -15,7 +15,7 @@ If any command prints
 Suikou is not running — start it first with `suikou`.
 ```
 
-the human starts it — `suikou` (foreground, opens the browser) or `suikou start` (background daemon). **Do not start it unprompted**; ask the user to. (`suikou skill` is the only command that works without a running server.)
+the human starts it — `suikou` (foreground, opens the browser) or `suikou start` (background daemon). **Do not start it unprompted**; ask the user to.
 
 ## Command tree
 
@@ -34,12 +34,10 @@ suikou review  export      <review-id> [--rounds <a-b>] [--all]
 suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
 suikou wait  <review-id> [...]          # alias for `review wait`
-suikou skill [--output <path>] [--force]  # print/install this skill (no server needed)
 ```
 
 - `--files` is **comma-separated** paths (trimmed; empties dropped), e.g. `--files lib/a.ex,lib/b.ex,README.md`. Paths are relative to the project's root path.
 - `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
-- `suikou skill` prints this skill's markdown to stdout (so `suikou skill > path/SKILL.md` installs it); `--output <path>` writes it to a file instead (refusing an existing path unless `--force`). It reads the doc embedded in the binary, so it works even when the server is down — an agent can bootstrap the skill before anything else runs.
 
 ## Rounds scope
 
