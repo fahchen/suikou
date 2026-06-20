@@ -54,7 +54,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     rawLines: null,
     snapshot: {
       artifact: { id: "art1", title: "page.html" }
-    } as ReviewView["snapshot"],
+    } as unknown as ReviewView["snapshot"],
+    reviewKind: "file",
+    reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",
     onVerdictChange: () => undefined
   }

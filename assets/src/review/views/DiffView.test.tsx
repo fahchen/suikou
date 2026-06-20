@@ -54,7 +54,9 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     blocks: [],
     previewable: false,
     rawLines: null,
-    snapshot: {} as ReviewView["snapshot"],
+    snapshot: {} as unknown as ReviewView["snapshot"],
+    reviewKind: "file",
+    reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",
     onVerdictChange: () => undefined
   }
