@@ -8,12 +8,12 @@ see the human's critique, or answer back. We want a **git-style CLI** so an agen
 can run the full loop:
 
 1. create a project + review pointing at its work,
-2. `suikou review poll <review-id>` — **block until the human submits**, then print
+2. `suikou review wait <review-id>` — **block until the human submits**, then print
    the latest published critique,
 3. fix the code,
 4. `suikou comment reply <comment-id> --body "…"` — answer threads (BDR-0007 /
    BDR-0018: agent **only replies**, never authors top-level comments, never submits),
-5. loop back to `poll` for the next round.
+5. loop back to `wait` for the next round.
 
 Plus project/review management. We also ship a **skill** so a Claude-Code-style
 agent knows how to drive it.
@@ -58,22 +58,23 @@ suikou review  rename    <review-id> --name <name>
 suikou review  set-files <review-id> --files <a,b,c>
 suikou review  delete    <review-id>
 suikou review  export    <review-id> [--rounds <a-b>] [--all]
-suikou review  poll      <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
+suikou review  wait      <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
 
 suikou comment reply     <comment-id> (--body <text> | --body-file <path> | stdin)
 
+suikou skill [--output <path>] [--force]   # emit the agent skill (no server needed)
 suikou help [<group> [<verb>]]      # also: --help / -h on any node
 ```
 
-(`suikou poll <id>` kept as a thin alias for `review poll`, since that was the
+(`suikou wait <id>` kept as a thin alias for `review wait`, since that was the
 original ask.) Any unrecognized first token → fall through to **boot the server**
 (today's behavior, unchanged).
 
-**`export` / `poll` rounds scope.** Default is the **latest round's published
+**`export` / `wait` rounds scope.** Default is the **latest round's published
 critique** — aligned with today's `Suikou.Export.export/1` (`status == :published`
 comments, resolved/outdated flags retained; no critique-type filtering). `--rounds
 <a-b>` widens it to a round range (single round `--rounds 3` allowed); `--all`
-returns every round. These flags scope **content only** — `poll`'s wake/timeout is
+returns every round. These flags scope **content only** — `wait`'s wake/timeout is
 driven internally by `submission_version` (below), not by a user cursor.
 
 ### Backend mapping (each verb → one function, no giant dispatch)
@@ -91,10 +92,10 @@ driven internally by `submission_version` (below), not by a user cursor.
 | `review set-files` | `AgentCLI.Reviews.set_files/1` | `Reviews.set_selection/2` | `{error}` |
 | `review delete` | `AgentCLI.Reviews.delete/1` | `Reviews.delete_review/1` | `{error}` |
 | `review export` | `AgentCLI.Reviews.export/1` | **new** `Export.export_review/2` | critique snapshot for the rounds scope (default latest; one-shot) |
-| `review poll` | `AgentCLI.Reviews.poll/1` | long-poll (below) | scoped snapshot incl. `submission_version`, or `{status:"timeout",version}` |
+| `review wait` | `AgentCLI.Reviews.wait/1` | long-poll (below) | scoped snapshot incl. `submission_version`, or `{status:"timeout",submission_version}` |
 | `comment reply` | `AgentCLI.Comments.reply/1` | `Critique.reply_as_agent/2` + broadcast | `{reply_id}` \| `{error}` |
 
-Comment ids for `reply` come from `export`/`poll` output (each comment view carries
+Comment ids for `reply` come from `export`/`wait` output (each comment view carries
 `id`). Agent gets no `open_file`/`add_comment`/`submit` — human-only per BDR-0018.
 
 ### Argument passing (rpc-safe) — JSON over stdin, no encoding
@@ -103,7 +104,7 @@ Comment ids for `reply` come from `export`/`poll` output (each comment view carr
 content** — all parameters travel as a JSON payload piped over **stdin**:
 
 ```
-echo '<json>' | bin/suikou rpc 'SuikouWeb.AgentCLI.Reviews.poll()'
+echo '<json>' | bin/suikou rpc 'SuikouWeb.AgentCLI.Reviews.wait()'
 ```
 
 Why it works: an rpc'd function executes on the running node, but its group leader is
@@ -121,7 +122,7 @@ its own stdin for the body, then re-emits the full payload to the child).
 > Key risk to verify (see Verification): that the release `rpc` command forwards
 > stdin to the evaluated code. If it does not, fall back to a **temp file**: bun
 > writes the JSON to `mkdtemp`, passes only the **bun-generated path** in the
-> expression (`…poll("/tmp/…/payload.json")` — path chars are controlled, still no
+> expression (`…wait("/tmp/…/payload.json")` — path chars are controlled, still no
 > escaping), Elixir `File.read!` + decodes, bun deletes after. Same safety property.
 
 ## Live reflection into the web (the reactivity contract)
@@ -184,12 +185,12 @@ so stdlib `JSON` isn't guaranteed — project-specific exception to the global r
 
 2. **`Suikou.Submissions.review_submission_count/1`** — `lib/suikou/submissions/submissions.ex`.
    `Submission` ⋈ `Round` ⋈ `Artifact` by `review_id`, `Repo.aggregate(:count)`.
-   Monotonic per submit → the poll "version". Returns `non_neg_integer()`.
+   Monotonic per submit → the wait "version". Returns `non_neg_integer()`.
 
 3. **Wake broadcast on submit** — `lib/suikou_web/stores/review_store.ex`,
    `handle_command(:submit_review, …)` success branch (lines 282–297). After a
    successful `Submissions.submit/2`, call `CommentBroadcast.broadcast(review_id)`
-   (review id via `Reads.get_artifact(artifact_id).review_id`). Wakes the poll **and**
+   (review id via `Reads.get_artifact(artifact_id).review_id`). Wakes the wait **and**
    refreshes sibling browser tabs. Reuse the existing `CommentBroadcast` review topic.
 
 4. **AgentCLI modules** (rpc delivery boundary, parallel to controllers/stores; one
@@ -200,13 +201,13 @@ so stdlib `JSON` isn't guaranteed — project-specific exception to the global r
      `"field message, …"`, mirroring the stores' `review_error/1`). No command logic.
    - **`SuikouWeb.AgentCLI.Projects`** — `list/0`, `create/1`.
    - **`SuikouWeb.AgentCLI.Reviews`** — `list/1`, `create/1`, `create_diff/1`, `show/1`,
-     `files/1`, `rename/1`, `set_files/1`, `delete/1`, `export/1`, `poll/1`.
+     `files/1`, `rename/1`, `set_files/1`, `delete/1`, `export/1`, `wait/1`.
    - **`SuikouWeb.AgentCLI.Comments`** — `reply/1`. After `Critique.reply_as_agent/2`,
      resolve review id (`get_comment` → round → artifact) and `CommentBroadcast.broadcast/1`
      so the human's open thread shows the reply live.
    - **`SuikouWeb.AgentCLI.Projects`/`Reviews` writes** — after the context call,
      `BoardBroadcast.broadcast/0` (item 6) so an open board reflects the change.
-   - **`poll/1`** runs *on the running node* (rpc), so it `CommentBroadcast.subscribe`s
+   - **`wait/1`** runs *on the running node* (rpc), so it `CommentBroadcast.subscribe`s
      and `receive`s `:comments_changed`. Capture
      `version = Submissions.review_submission_count(review_id)` at call start, then block
      in `receive … after` **capped ~25 s per call**, recomputing version on each
@@ -247,21 +248,23 @@ No router/controller/view/auth changes.
   take the id from `positionals[0]`, resolve `--body`/`--body-file`/stdin for replies,
   then `runCommand`: `ensureExtracted()` → build the JSON payload object →
   `spawn([bin, "rpc", spec.expr], { stdin: <json string>, stdout: "inherit", stderr: "inherit" })`
-  where `spec.expr` is the **static** call (e.g. `SuikouWeb.AgentCLI.Reviews.poll()`).
+  where `spec.expr` is the **static** call (e.g. `SuikouWeb.AgentCLI.Reviews.wait()`).
   bun feeds the JSON on the child's stdin and closes it (EOF) → exit with child status.
-- The `poll` alias maps to the `review poll` spec.
+- The `wait` alias maps to the `review wait` spec.
 - Detect "server not running" (non-zero rpc exit / node-down stderr) → print
   `Suikou is not running — start it first with \`suikou\`.` and exit non-zero.
 - Unknown/empty first token → `runServer()` (unchanged).
 - `suikou help` / per-node `--help` print the tree from the same registry.
 
-## Skill — `.claude/skills/suikou/SKILL.md` (committed, English)
+## Skill — `packaging/embed/skill.md` (embedded, English)
 
-Documents: prerequisite (app running), the full command tree + flags, JSON output
-shapes, and the **review loop** (`review create` → `review poll` → fix →
-`comment reply` → poll again). The default snapshot is the **latest round's published
+Embedded into the launcher binary and emitted by `suikou skill` (raw markdown to
+stdout, or `--output <path>` to write it), so any agent can install the skill —
+even with the server down. Documents: prerequisite (app running), the full
+command tree + flags, JSON output shapes, and the **review loop**
+(`review create` → `review wait` → fix → `comment reply` → wait again). The default snapshot is the **latest round's published
 critique**; `--rounds <a-b>` widens it to a round range and `--all` returns every
-round. poll's wake is server-managed (`submission_version`), so no round is missed
+round. wait's wake is server-managed (`submission_version`), so no round is missed
 between calls. Note the agent only replies — never submits or authors comments.
 
 ## Verification
@@ -282,8 +285,8 @@ between calls. Note the agent only replies — never submits or authors comments
    `{:musubi_send_update, ["comments"], _}` (via `Musubi.Testing`).
 3. **End-to-end + live reflection**: `dist/suikou` (server) with the board open in a
    browser. `dist/suikou review create …` → the new review **pops onto the open board**
-   (board broadcast). `dist/suikou review poll …`; submit a verdict + comment in the
-   browser → `poll` unblocks and prints critique. `dist/suikou comment reply …` → the
+   (board broadcast). `dist/suikou review wait …`; submit a verdict + comment in the
+   browser → `wait` unblocks and prints critique. `dist/suikou comment reply …` → the
    reply **appears live in the open thread** (root `send_update`) and in the all-files
    fan-out. Flag parsing exercised (missing required flag → friendly error; `--help`).
 4. `mix precommit` clean (format, credo --strict, dialyzer, ex_dna, reach.check, tests).
@@ -296,4 +299,4 @@ between calls. Note the agent only replies — never submits or authors comments
 3. `SuikouWeb.AgentCLI` shared runtime + `Projects` / `Reviews` / `Comments` command
    modules, each broadcasting the right topic after its write (+ tests).
 4. `packaging/launcher.ts` command registry + `util.parseArgs` routing + stdin payload.
-5. `.claude/skills/suikou/SKILL.md`.
+5. `packaging/embed/skill.md` + `suikou skill` launcher command.
