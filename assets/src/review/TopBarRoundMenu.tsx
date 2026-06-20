@@ -1,13 +1,15 @@
 import { GitCompare, ChevronDown } from "lucide-react";
 
-import type { ReviewSnapshot } from "./types";
+import { useMusubiSnapshot } from "../musubi";
+import { useFileStore } from "./store-context";
 import { useReviewCommands } from "./commands";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-/** Round picker. */
-export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
-  const { snapshot } = props;
+/** Round picker — reads from the active FileStore context. */
+export function TopBarRoundMenu() {
+  const fileStore = useFileStore();
+  const snapshot = useMusubiSnapshot(fileStore);
   const commands = useReviewCommands();
   const rounds = snapshot.rounds;
   const latest = rounds[rounds.length - 1].number;
@@ -38,12 +40,12 @@ export function TopBarRoundMenu(props: { snapshot: ReviewSnapshot }) {
       <PopoverContent align="end" className="w-60 p-2">
         <div className="flex flex-col gap-0.5">
           {[...rounds].reverse().map((round) => {
-            const current = round.number === snapshot.current_round.number;
+            const isCurrent = round.number === snapshot.current_round.number;
             return (
               <button
                 key={round.number}
                 type="button"
-                className={`flex cursor-pointer flex-col rounded px-2 py-1.5 text-left transition-colors ${current ? "bg-tint" : "hover:bg-hover"}`}
+                className={`flex cursor-pointer flex-col rounded px-2 py-1.5 text-left transition-colors ${isCurrent ? "bg-tint" : "hover:bg-hover"}`}
                 onClick={() => void commands.selectRound.dispatch({ number: round.number })}
               >
                 <span className="flex items-center gap-2 text-[13px] font-medium text-heading">

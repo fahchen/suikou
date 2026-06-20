@@ -5,7 +5,7 @@ import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 import { useReviewCommands } from "./commands";
 import { COMMIT_PULSE_TRANSITION, commitPulse } from "./motion";
 import { hasUnresolvedBlocker } from "./store-context";
-import { VERDICT_META, type Comment, type ReviewSnapshot, type Verdict } from "./types";
+import { VERDICT_META, type Comment, type Verdict } from "./types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -75,7 +75,6 @@ const UNSET_TONE = "bg-tint text-heading ring-1 ring-inset ring-line";
  * `showNote={false}` for cramped per-file headers in all-files mode.
  */
 export function FileVerdictMenu(props: {
-  snapshot: ReviewSnapshot;
   verdict: Verdict | null;
   onVerdictChange: (verdict: Verdict) => void;
   /** The comment thread this menu's note belongs to. Drives the optional
@@ -89,10 +88,10 @@ export function FileVerdictMenu(props: {
    * file-scope note. */
   scope?: VerdictScope;
 }) {
-  const { snapshot, verdict, onVerdictChange, comments, showNote = true, scope = "file" } = props;
+  const { verdict, onVerdictChange, comments, showNote = true, scope = "file" } = props;
   const commands = useReviewCommands();
   const draft = noteDraft(comments, scope);
-  const blocker = hasUnresolvedBlocker(snapshot.comments.items);
+  const blocker = hasUnresolvedBlocker(comments);
 
   // Acknowledge a verdict *change* with a single pulse. Tracked against the
   // previous verdict so the chip stays still on mount (the all-files stack

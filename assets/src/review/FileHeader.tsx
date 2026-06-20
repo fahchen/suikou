@@ -1,36 +1,35 @@
 import { observer } from "mobx-react-lite"
 import { useNavigate } from "@tanstack/react-router"
 
+import { useMusubiSnapshot } from "../musubi"
 import { FileRenderHeader } from "./FileRenderHeader"
 import { FileVerdictMenu } from "./TopBarVerdictMenu"
 import { orderedReviewFiles } from "./file-order"
 import { reviewFileTarget } from "./review-navigation"
 import { resolveViewKind, viewCapabilities } from "./view-kind"
 import { isImagePath, isBinaryContent } from "./file-type"
+import { useFileStore } from "./store-context"
 import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { ReviewFileEntry, ReviewSnapshot, Verdict } from "./types"
 
-/**
- * Persistent per-file header for single-file mode. Thin wrapper that hands the
- * shared `FileRenderHeader` the props it needs and supplies the single-file
- * verdict chip and the route-based rendered/raw toggle. File-switching lives in
- * the review top bar (`TopBar`), not on this card header.
- */
 export const FileHeader = observer(function FileHeader(props: {
-  snapshot: ReviewSnapshot
+  reviewSnapshot: ReviewSnapshot
   rawView: boolean
   content: string
   verdict: Verdict | null
   onVerdictChange: (verdict: Verdict) => void
 }) {
-  const { snapshot, rawView, content, verdict, onVerdictChange } = props
+  const { reviewSnapshot, rawView, content, verdict, onVerdictChange } = props
+  const fileStore = useFileStore()
+  const fileSnapshot = useMusubiSnapshot(fileStore)
   const navigate = useNavigate()
-  const viewKind = resolveViewKind(snapshot.artifact)
-  const title = snapshot.artifact.title
+
+  const title = fileSnapshot.artifact.title
+  const viewKind = resolveViewKind({ kind: reviewSnapshot.kind, title })
   const image = isImagePath(title)
   const binary = isBinaryContent(content)
-  const fileEntry = snapshot.files.data?.find(
-    (f) => f.artifact_id === snapshot.artifact.id
+  const fileEntry = reviewSnapshot.file_entries.data?.find(
+    (f) => f.artifact_id === fileSnapshot.artifact.id
   )
   const changeStatus: ChangeStatus = fileEntry?.change_status ?? null
   const previewable = viewKind === "file" && !image && !binary
@@ -41,25 +40,24 @@ export const FileHeader = observer(function FileHeader(props: {
     rawView,
     binary
   })
-  const commentCount = snapshot.comments.items.filter(
-    (c) => c.scope !== "review"
-  ).length
+
+  const comments = fileSnapshot.comments.items
+  const commentCount = comments.filter((c) => c.scope !== "review").length
 
   function setRawView(next: boolean) {
-    void navigate(reviewFileTarget(snapshot.review_id, snapshot.artifact.title, next))
+    void navigate(reviewFileTarget(reviewSnapshot.review_id, title, next))
   }
 
-  const files = orderedReviewFiles(snapshot.files.data ?? [])
+  const files = orderedReviewFiles(reviewSnapshot.file_entries.data ?? [])
 
   function commentCountFor(path: string): number {
-    const thread = (snapshot.files_comments ?? []).find((entry) => entry.path === path)
-    return (thread?.items ?? []).filter((c) => c.scope !== "review").length
+    // In single-file mode there's only one active file; non-active paths report 0.
+    if (path === title) return commentCount
+    return 0
   }
 
-  // Switching files changes the route only; the route layer resolves/mints the
-  // target artifact from `(review_id, path)` before mounting the review store.
   async function selectFile(file: ReviewFileEntry) {
-    void navigate(reviewFileTarget(snapshot.review_id, file.path, rawView))
+    void navigate(reviewFileTarget(reviewSnapshot.review_id, file.path, rawView))
   }
 
   return (
@@ -78,10 +76,9 @@ export const FileHeader = observer(function FileHeader(props: {
       commentCountFor={commentCountFor}
       verdictChip={
         <FileVerdictMenu
-          snapshot={snapshot}
           verdict={verdict}
           onVerdictChange={onVerdictChange}
-          comments={snapshot.comments.items}
+          comments={comments}
         />
       }
     />
