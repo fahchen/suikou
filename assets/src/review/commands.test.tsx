@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, fireEvent } from "@testing-library/react"
 
-import { ReviewStoreProvider } from "./store-context"
+import { ReviewStoreProvider, FileStoreProvider } from "./store-context"
 import { useReviewCommands } from "./commands"
-import type { ReviewStore } from "./types"
+import type { FileStore, ReviewStore } from "./types"
 
 // Minimal stand-ins for a Musubi store proxy: the command hook only ever touches
 // `dispatchCommand` and the internal `__musubi_store_id__` (the latter solely on
@@ -18,19 +18,26 @@ function fakeChild(id: string[]) {
 type FakeChild = ReturnType<typeof fakeChild>
 
 /**
- * A root proxy whose `comments` child field is *live*: it returns whatever the
- * mutable cell currently holds. This reproduces the production behavior where
- * `store.comments` is a lazily-resolved proxy field that momentarily reads
+ * A FileStore proxy whose `comments` child field is *live*: it returns whatever
+ * the mutable cell currently holds. This reproduces the production behavior where
+ * `fileStore.comments` is a lazily-resolved proxy field that momentarily reads
  * `undefined` during a store teardown/swap window — even while the snapshot the
  * shell guards on still shows the artifact.
  */
-function fakeRoot(commentsCell: { current: FakeChild | undefined }): ReviewStore {
+function fakeFileStore(commentsCell: { current: FakeChild | undefined }): FileStore {
   return {
-    __musubi_store_id__: ["root"],
+    __musubi_store_id__: ["file"],
     dispatchCommand: vi.fn(async () => ({})),
     get comments() {
       return commentsCell.current
     }
+  } as unknown as FileStore
+}
+
+function fakeReviewStore(): ReviewStore {
+  return {
+    __musubi_store_id__: ["root"],
+    dispatchCommand: vi.fn(async () => ({}))
   } as unknown as ReviewStore
 }
 
@@ -56,9 +63,10 @@ function Harness(props: { onDispatch: (p: Promise<unknown>) => void }) {
 
 describe("useReviewCommands comment dispatch resilience", () => {
   it("keeps dispatching at a valid comments child after a transient undefined read", async () => {
-    const child = fakeChild(["root", "comments"])
+    const child = fakeChild(["file", "comments"])
     const cell: { current: FakeChild | undefined } = { current: child }
-    const store = fakeRoot(cell)
+    const fileStore = fakeFileStore(cell)
+    const reviewStore = fakeReviewStore()
 
     let captured: Promise<unknown> | null = null
     const onDispatch = (p: Promise<unknown>) => {
@@ -66,18 +74,22 @@ describe("useReviewCommands comment dispatch resilience", () => {
     }
 
     const view = render(
-      <ReviewStoreProvider store={store}>
-        <Harness onDispatch={onDispatch} />
+      <ReviewStoreProvider store={reviewStore}>
+        <FileStoreProvider store={fileStore}>
+          <Harness onDispatch={onDispatch} />
+        </FileStoreProvider>
       </ReviewStoreProvider>
     )
 
-    // The teardown/swap window: the live `store.comments` field now reads
+    // The teardown/swap window: the live `fileStore.comments` field now reads
     // undefined, but the component tree (here, the button) is still mounted —
     // exactly the inconsistency the shell's snapshot guard cannot catch.
     cell.current = undefined
     view.rerender(
-      <ReviewStoreProvider store={store}>
-        <Harness onDispatch={onDispatch} />
+      <ReviewStoreProvider store={reviewStore}>
+        <FileStoreProvider store={fileStore}>
+          <Harness onDispatch={onDispatch} />
+        </FileStoreProvider>
       </ReviewStoreProvider>
     )
 
