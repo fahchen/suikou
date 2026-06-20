@@ -105,6 +105,19 @@ defmodule Suikou.ProjectsTest do
     end
 
     @tag :tmp_dir
+    test "lists gitignored files when respect_gitignore is false", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "readme.md"), "# readme\n")
+      File.mkdir_p!(Path.join(dir, "node_modules/pkg"))
+      File.write!(Path.join(dir, "node_modules/pkg/dep.md"), "# vendored\n")
+      File.write!(Path.join(dir, ".gitignore"), "node_modules/\n")
+
+      project = build(:project, path: dir, respect_gitignore: false)
+
+      assert [".gitignore", "node_modules/pkg/dep.md", "readme.md"] =
+               Projects.list_files(project)
+    end
+
+    @tag :tmp_dir
     test "re-includes a path a later negation rule un-ignores", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "keep.md"), "# keep\n")
       File.write!(Path.join(dir, "scratch.md"), "# scratch\n")
@@ -113,6 +126,17 @@ defmodule Suikou.ProjectsTest do
       project = build(:project, path: dir)
 
       assert [".gitignore", "keep.md"] = Projects.list_files(project)
+    end
+
+    @tag :tmp_dir
+    test "never exposes .git contents even when respect_gitignore is false", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, ".git"))
+      File.write!(Path.join(dir, ".git/config"), "[core]\n")
+
+      project = build(:project, path: dir, respect_gitignore: false)
+
+      assert [] = Projects.list_files(project, ".git")
+      assert [] = Projects.list_dir(project, ".git")
     end
   end
 end

@@ -33,6 +33,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
         id: String.t(),
         name: String.t(),
         path: String.t(),
+        respect_gitignore: boolean(),
         reviews:
           list(%{
             id: String.t(),
@@ -62,10 +63,22 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:name, String.t())
       field(:path, String.t())
+      field(:respect_gitignore, boolean())
     end
 
     reply do
       field(:project_id, String.t() | nil)
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :update_project do
+    payload do
+      field(:project_id, String.t())
+      field(:respect_gitignore, boolean())
+    end
+
+    reply do
       field(:error, String.t() | nil)
     end
   end
@@ -216,13 +229,37 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:reply, map(), Socket.t()}
   def handle_command(:create_project, payload, socket) do
-    case Projects.register_project(%{name: payload["name"], path: payload["path"]}) do
+    params = %{
+      name: payload["name"],
+      path: payload["path"],
+      respect_gitignore: payload["respect_gitignore"]
+    }
+
+    case Projects.register_project(params) do
       {:ok, %Project{} = project} ->
         {:reply, %{project_id: project.id, error: nil}, touch(socket)}
 
       {:error, reason} ->
         {:reply, %{project_id: nil, error: project_error(reason)}, socket}
     end
+  end
+
+  def handle_command(:update_project, payload, socket) do
+    reply =
+      case Projects.get_project(payload["project_id"]) do
+        %Project{} = project ->
+          params = %{respect_gitignore: payload["respect_gitignore"]}
+
+          case Projects.update_project(project, params) do
+            {:ok, %Project{}} -> %{error: nil}
+            {:error, reason} -> %{error: project_error(reason)}
+          end
+
+        nil ->
+          %{error: "project_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
   end
 
   def handle_command(:create_review, payload, socket) do
@@ -443,6 +480,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       id: project.id,
       name: project.name,
       path: project.path,
+      respect_gitignore: project.respect_gitignore,
       reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)
     }
   end

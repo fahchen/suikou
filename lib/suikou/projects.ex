@@ -84,6 +84,24 @@ defmodule Suikou.Projects do
   end
 
   @doc """
+  Updates an existing project's settings. Only `respect_gitignore` is editable;
+  `name` and `path` are fixed (see `Project.update_changeset/2`).
+
+  ## Examples
+
+      Suikou.Projects.update_project(project, %{respect_gitignore: false})
+      #=> {:ok, %Suikou.Schemas.Project{respect_gitignore: false}}
+
+  """
+  @spec update_project(Project.t(), map()) ::
+          {:ok, Project.t()} | {:error, Ecto.Changeset.t()}
+  def update_project(%Project{} = project, params) do
+    project
+    |> Project.update_changeset(params)
+    |> Repo.update()
+  end
+
+  @doc """
   Lists all projects, ordered by name.
 
   ## Examples
@@ -104,9 +122,10 @@ defmodule Suikou.Projects do
   subdirectory; the default `""` lists the whole project. Every file type is
   reviewable; only the preview differs (markdown renders, others are raw-only).
 
-  When a `.gitignore` lives at the project root, its patterns filter the
-  result so ignored files are skipped. Otherwise every regular file under the
-  directory is listed.
+  When the project's `respect_gitignore` is true and a `.gitignore` lives at
+  the project root, its patterns filter the result so ignored files are
+  skipped. When the flag is false, every regular file under the directory is
+  listed (`.git` is always excluded regardless of the flag).
 
   ## Examples
 
@@ -118,12 +137,44 @@ defmodule Suikou.Projects do
 
   """
   @spec list_files(Project.t(), String.t()) :: [String.t()]
-  def list_files(%Project{path: path}, rel \\ "") do
-    rules = ignore_rules(path)
+  def list_files(%Project{path: path, respect_gitignore: respect}, rel \\ "") do
+    if git_root?(rel) do
+      []
+    else
+      rules = if respect, do: ignore_rules(path), else: []
 
-    path
-    |> walk(rel, rules)
-    |> Enum.sort()
+      path
+      |> walk(rel, rules)
+      |> Enum.sort()
+    end
+  end
+
+  @doc """
+  Answers whether a single relative path is reviewable for a project: `.git` is
+  always excluded, and when `respect_gitignore` is true a path matched by the
+  project's `.gitignore` (directly or via an ignored ancestor directory) is
+  excluded too. When `respect_gitignore` is false, only `.git` is excluded.
+
+  This lets an explicit file selection be filtered by the same gitignore
+  decision that directory expansion already respects, so a stale selection (a
+  file picked while the toggle was off) never leaks once the toggle is on.
+
+  ## Examples
+
+      Suikou.Projects.listable?(project, "lib/app.ex")
+      #=> true
+
+      Suikou.Projects.listable?(project, "secret.txt")
+      #=> false
+
+  """
+  @spec listable?(Project.t(), String.t()) :: boolean()
+  def listable?(%Project{path: path, respect_gitignore: respect}, rel) do
+    cond do
+      git_root?(rel) -> false
+      respect -> not ignored?(rel, ignore_rules(path), false)
+      true -> true
+    end
   end
 
   @doc """
@@ -142,8 +193,12 @@ defmodule Suikou.Projects do
 
   """
   @spec list_dir(Project.t(), String.t()) :: [%{path: String.t(), dir: boolean()}]
-  def list_dir(%Project{path: path}, rel) do
-    rules = ignore_rules(path)
+  def list_dir(%Project{path: path, respect_gitignore: respect}, rel) do
+    if git_root?(rel), do: [], else: read_dir(path, rel, respect)
+  end
+
+  defp read_dir(path, rel, respect) do
+    rules = if respect, do: ignore_rules(path), else: []
     dir = if rel == "", do: path, else: Path.join(path, rel)
 
     case File.ls(dir) do
@@ -155,6 +210,13 @@ defmodule Suikou.Projects do
       {:error, _reason} ->
         []
     end
+  end
+
+  # `.git` is never reviewable, so reject it as an explicit root regardless of
+  # `respect_gitignore` — the child-entry exclusion only fires during a walk.
+  defp git_root?(rel) do
+    normalized = String.replace(rel, "\\", "/")
+    normalized == ".git" or String.starts_with?(normalized, ".git/")
   end
 
   defp dir_entry(_root, _rel, ".git", _rules), do: []
