@@ -10,6 +10,7 @@ defmodule Suikou.Reads do
 
   alias Suikou.Critique.Queries
   alias Suikou.Repo
+  alias Suikou.ReviewScope
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
@@ -150,17 +151,14 @@ defmodule Suikou.Reads do
         ]
   def review_round_summaries(review_id) do
     comments =
-      from(c in Comment, as: :comment)
-      |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-      |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
-      |> where([artifact: a], a.review_id == ^review_id)
+      {:review, review_id}
+      |> ReviewScope.comments()
       |> select([comment: c], {c.authored_round, c.resolved_round})
       |> Repo.all()
 
     max_round =
-      from(r in Round, as: :round)
-      |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
-      |> where([artifact: a], a.review_id == ^review_id)
+      review_id
+      |> ReviewScope.rounds()
       |> select([round: r], max(r.number))
       |> Repo.one()
 
