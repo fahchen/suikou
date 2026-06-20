@@ -180,6 +180,53 @@ defmodule Suikou.Submissions do
   end
 
   @doc """
+  Returns whether `review_id` has any unpublished work — a draft verdict on any
+  of its rounds, or a pending comment or reply anywhere in the review. Drives
+  the review-level Submit affordance, which stays disabled until there is
+  something to publish.
+
+  ## Examples
+
+      Suikou.Submissions.unpublished?(review.id)
+      #=> true
+
+      Suikou.Submissions.unpublished?(untouched_review.id)
+      #=> false
+
+  """
+  @spec unpublished?(Ecto.UUID.t()) :: boolean()
+  def unpublished?(review_id) do
+    draft_verdict?(review_id) or pending_comment?(review_id) or pending_reply?(review_id)
+  end
+
+  defp draft_verdict?(review_id) do
+    from(r in Round, as: :round)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> where([round: r], not is_nil(r.draft_verdict))
+    |> Repo.exists?()
+  end
+
+  defp pending_comment?(review_id) do
+    from(c in Comment, as: :comment)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([comment: c], c.status == :pending)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> Repo.exists?()
+  end
+
+  defp pending_reply?(review_id) do
+    from(rep in Reply, as: :reply)
+    |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([reply: rep], rep.status == :pending)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> Repo.exists?()
+  end
+
+  @doc """
   Reverses approval by clearing an artifact's approved round.
 
   ## Examples

@@ -23,7 +23,7 @@ import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
 import { reviewFileTarget } from "./review-navigation";
-import { type FileSnapshot, type ReviewFileEntry, type ReviewSnapshot } from "./types";
+import { type ReviewFileEntry, type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
 import { resolveViewKind, viewCapabilities } from "./view-kind";
@@ -90,10 +90,11 @@ export const TopBar = observer(function TopBar(props: {
     void copyToClipboard(text);
   }
 
-  // Review-level Submit gates on any file carrying a draft verdict chip, read
-  // from the review root's FileStore children — identical to the all-files shell.
-  const reviewFiles = reviewSnapshot.files as unknown as FileSnapshot[];
-  const hasAnyDraftVerdict = reviewFiles.some((f) => f.draft_verdict !== null);
+  // Review-level Submit gates on any unpublished work — a draft verdict on any
+  // file, or a pending (not-yet-published) comment or reply anywhere in the
+  // review. Computed server-side on the root so it tracks every file, not just
+  // the active one.
+  const hasUnpublishedWork = reviewSnapshot.has_unpublished;
 
   function submit() {
     void commands.submitReview.dispatch({});
@@ -196,7 +197,7 @@ export const TopBar = observer(function TopBar(props: {
             size="icon"
             title="Submit review"
             aria-label="Submit review"
-            disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
+            disabled={!hasUnpublishedWork || commands.submitReview.isPending}
             onClick={() => setConfirmOpen(true)}
           >
             <Send size={14} />
@@ -252,7 +253,7 @@ export const TopBar = observer(function TopBar(props: {
                 <Button
                   size="sm"
                   className="grow sm:grow-0"
-                  disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
+                  disabled={!hasUnpublishedWork || commands.submitReview.isPending}
                   onClick={submit}
                 >
                   <Check size={14} /> Submit
@@ -265,7 +266,7 @@ export const TopBar = observer(function TopBar(props: {
                         size="icon-xs"
                         title="Submit and copy"
                         aria-label="Submit and copy"
-                        disabled={!hasAnyDraftVerdict || commands.submitReview.isPending}
+                        disabled={!hasUnpublishedWork || commands.submitReview.isPending}
                       />
                     }
                   >

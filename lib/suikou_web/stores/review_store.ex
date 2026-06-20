@@ -54,6 +54,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     )
 
     field(:files, list(FileStore.state()))
+    field(:has_unpublished, boolean())
   end
 
   command :submit_review do
@@ -148,7 +149,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
       kind: review_kind(review),
       artifacts: Enum.map(Reads.list_review_artifacts(review.id), &render_artifact_summary/1),
       file_entries: file_entries,
-      files: render_file_children(file_entries, socket)
+      files: render_file_children(file_entries, socket),
+      has_unpublished: Submissions.unpublished?(review.id)
     }
   end
 
@@ -159,7 +161,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
       kind: :file,
       artifacts: [],
       file_entries: Map.get(socket.assigns, :file_entries, AsyncResult.loading()),
-      files: []
+      files: [],
+      has_unpublished: false
     }
   end
 
