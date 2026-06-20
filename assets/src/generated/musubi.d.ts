@@ -178,6 +178,45 @@ declare namespace Musubi {
       }
     >
 
+    "SuikouWeb.Stores.FileStore": StoreDef<
+      "SuikouWeb.Stores.FileStore",
+      {
+        path: string
+        artifact_id: string | null
+        content_hash: string | null
+        change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null
+        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
+        current_round: { number: number; content_hash: string; is_latest: boolean }
+        comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
+        latest_verdict: "approve" | "request_changes" | "comment" | null
+        draft_verdict: "approve" | "request_changes" | "comment" | null
+      },
+      {
+        select_round: {
+          payload: {
+            number: number
+          }
+          reply: never
+        }
+        set_draft_verdict: {
+          payload: {
+            verdict: "approve" | "request_changes" | "comment"
+          }
+          reply: never
+        }
+        add_comment: {
+          payload: {
+            scope: "review" | "artifact" | "located"
+            critique_type: "fix_required" | "needs_answer" | "note"
+            body: string
+            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
+          }
+          reply: never
+        }
+      }
+    >
+
     "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
       "SuikouWeb.Stores.ProjectBoardStore",
       {
@@ -298,67 +337,17 @@ declare namespace Musubi {
       "SuikouWeb.Stores.ReviewStore",
       {
         review_id: string
-        artifact: { id: string; title: string; kind: "file" | "diff"; approved: boolean; approved_round: number | null }
+        name: string
+        kind: "file" | "diff"
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
-        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
-        current_round: { number: number; content_hash: string; is_latest: boolean }
-        comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
-        latest_verdict: "approve" | "request_changes" | "comment" | null
-        draft_verdict: "approve" | "request_changes" | "comment" | null
-        files: Musubi.AsyncField<Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>>
-        files_comments: Array<{ artifact_id: string; path: string; items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string }> }> }>
+        file_entries: Musubi.AsyncField<Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>>
+        files: Musubi.StoreField<"SuikouWeb.Stores.FileStore">[]
       },
       {
         submit_review: {
-          payload: {
-            verdict: "approve" | "request_changes" | "comment"
-          }
+          payload: {}
           reply: {
             warnings: string[]
-          }
-        }
-        set_draft_verdict: {
-          payload: {
-            verdict: "approve" | "request_changes" | "comment"
-          }
-          reply: never
-        }
-        select_round: {
-          payload: {
-            number: number
-          }
-          reply: never
-        }
-        open_file: {
-          payload: {
-            path: string
-          }
-          reply: {
-            artifact_id: string | null
-            error: string | null
-          }
-        }
-        set_file_draft_verdict: {
-          payload: {
-            path: string
-            verdict: "approve" | "request_changes" | "comment"
-          }
-          reply: {
-            artifact_id: string | null
-            error: string | null
-          }
-        }
-        add_file_comment: {
-          payload: {
-            path: string
-            scope: "review" | "artifact" | "located"
-            critique_type: "fix_required" | "needs_answer" | "note"
-            body: string
-            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
-          }
-          reply: {
-            artifact_id: string | null
-            error: string | null
           }
         }
       }
