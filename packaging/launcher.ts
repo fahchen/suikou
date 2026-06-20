@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { parseArgs, type ParseArgsConfig } from "node:util"
 import { file, spawn, write } from "bun"
 
@@ -9,6 +9,9 @@ import { file, spawn, write } from "bun"
 // `$bunfs/...` path whose basename carries a content hash — we reuse that hash
 // as the cache key.
 import serverTarball from "./embed/server.tar.gz" with { type: "file" }
+// The agent CLI skill doc, embedded as text so `suikou skill` can emit it with
+// no running server — an agent can install the skill before anything starts.
+import skillDoc from "./embed/skill.md" with { type: "file" }
 
 const APP_NAME = "Suikou"
 // Fixed high base port (registered range, away from common dev ports and the
@@ -55,11 +58,13 @@ async function dispatch(command: string | undefined): Promise<void> {
       // hand-maintained second copy.
       console.log(usage(process.argv[3], process.argv[4]))
       return process.exit(0)
-    case "poll":
-      // Thin alias for `review poll`: the id sits at argv[3] (one slot earlier
+    case "wait":
+      // Thin alias for `review wait`: the id sits at argv[3] (one slot earlier
       // than the `<group> <verb> <id>` form), so route directly to the spec with
       // the argv after the alias token.
-      return process.exit(await runGroupVerb("review", "poll", process.argv.slice(3)))
+      return process.exit(await runGroupVerb("review", "wait", process.argv.slice(3)))
+    case "skill":
+      return process.exit(await emitSkill(process.argv.slice(3)))
     case "project":
     case "review":
     case "comment":
@@ -228,8 +233,8 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values) }),
       summary: "export a critique snapshot (<review-id> [--rounds a-b] [--all])"
     },
-    poll: {
-      expr: "SuikouWeb.AgentCLI.Reviews.poll()",
+    wait: {
+      expr: "SuikouWeb.AgentCLI.Reviews.wait()",
       options: { ...roundsOptions, timeout: { type: "string" } },
       id: { name: "review-id", required: true },
       payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values) }),
@@ -306,6 +311,45 @@ async function runGroupVerb(group: string, verb: string | undefined, argv: strin
       return 1
     }
     throw err
+  }
+}
+
+// `suikou skill [--output <path>] [--force]`: emit the embedded agent skill.
+// Server-independent — reads the doc baked into the binary. Default prints the
+// markdown to stdout (so `suikou skill > SKILL.md` works); `--output` writes it
+// to a file, refusing an existing path unless `--force`.
+async function emitSkill(argv: string[]): Promise<number> {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log("usage: suikou skill [--output <path>] [--force]\n  output the agent CLI skill markdown")
+    return 0
+  }
+
+  try {
+    const { values } = parseArgs({
+      args: argv,
+      options: { output: { type: "string", short: "o" }, force: { type: "boolean" } },
+      allowPositionals: false,
+      strict: true
+    })
+
+    const markdown = await file(skillDoc).text()
+    const out = typeof values.output === "string" ? values.output : undefined
+    if (out === undefined) {
+      process.stdout.write(markdown)
+      return 0
+    }
+
+    if ((await file(out).exists()) && values.force !== true) {
+      console.error(`${out} already exists; pass --force to overwrite`)
+      return 1
+    }
+    await mkdir(dirname(out), { recursive: true })
+    await writeFile(out, markdown)
+    console.log(out)
+    return 0
+  } catch (err) {
+    console.error((err as Error).message)
+    return 1
   }
 }
 
@@ -480,7 +524,8 @@ function usage(group?: string, verb?: string): string {
   const lifecycle = "  (bare)        start the foreground server and open the browser\n" +
     "  start [--force]     start the background daemon (--force relaunches a running one)\n" +
     "  stop|status         background daemon control\n" +
-    "  poll <review-id>    alias for `review poll`"
+    "  wait <review-id>    alias for `review wait`\n" +
+    "  skill [-o <path>]   output the agent CLI skill markdown"
   const groups = Object.entries(registry)
     .map(([g, verbs]) =>
       Object.entries(verbs)

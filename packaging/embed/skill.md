@@ -1,11 +1,11 @@
 ---
 name: suikou
-description: Drive the Suikou code-review tool from its CLI to run the agent side of a review loop — create a review over files or a git diff, poll for a human's published critique, read their comments, fix the code, and reply to each addressed comment. Use whenever a task involves submitting work to Suikou for human review or responding to Suikou review feedback.
+description: Drive the Suikou code-review tool from its CLI to run the agent side of a review loop. Create a review over files or a git diff, wait for a human's published critique, read their comments, fix the code, and reply to each addressed comment. Use whenever a task involves submitting work to Suikou for human review or responding to Suikou review feedback.
 ---
 
 # Suikou agent CLI
 
-`suikou` is a single binary. Every `<group> <verb>` shells into the running server and prints exactly **one line of JSON** to stdout. Parse that line. On failure it writes a message to stderr and exits non-zero.
+`suikou` is a single binary. Every `<group> <verb>` shells into the running server and prints exactly **one line of JSON** to stdout. Parse that line. On failure it writes a message to stderr and exits non-zero. (The one exception is `suikou skill`, which prints raw markdown — see below.)
 
 ## Prerequisite: the server must be running
 
@@ -15,7 +15,7 @@ If any command prints
 Suikou is not running — start it first with `suikou`.
 ```
 
-the human starts it — `suikou` (foreground, opens the browser) or `suikou start` (background daemon). **Do not start it unprompted**; ask the user to.
+the human starts it — `suikou` (foreground, opens the browser) or `suikou start` (background daemon). **Do not start it unprompted**; ask the user to. (`suikou skill` is the only command that works without a running server.)
 
 ## Command tree
 
@@ -31,17 +31,19 @@ suikou review  rename      <review-id> --name <name>
 suikou review  set-files   <review-id> --files <a,b,c>
 suikou review  delete      <review-id>
 suikou review  export      <review-id> [--rounds <a-b>] [--all]
-suikou review  poll        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
+suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
-suikou poll <review-id> [...]        # alias for `review poll`
+suikou wait  <review-id> [...]          # alias for `review wait`
+suikou skill [--output <path>] [--force]  # print/install this skill (no server needed)
 ```
 
 - `--files` is **comma-separated** paths (trimmed; empties dropped), e.g. `--files lib/a.ex,lib/b.ex,README.md`. Paths are relative to the project's root path.
 - `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
+- `suikou skill` prints this skill's markdown to stdout (so `suikou skill > path/SKILL.md` installs it); `--output <path>` writes it to a file instead (refusing an existing path unless `--force`). It reads the doc embedded in the binary, so it works even when the server is down — an agent can bootstrap the skill before anything else runs.
 
 ## Rounds scope
 
-Applies only to `export` and `poll`; controls *which rounds' published comments* the snapshot carries (content scope only — never changes state):
+Applies only to `export` and `wait`; controls *which rounds' published comments* the snapshot carries (content scope only — never changes state):
 
 - no flag → `:latest`: the latest round's published critique (matches the human export).
 - `--rounds 3` → that single round.
@@ -88,7 +90,7 @@ Applies only to `export` and `poll`; controls *which rounds' published comments*
 {"error":null}
 ```
 
-`review export` and a successful `poll` wake both emit the **critique snapshot**:
+`review export` and a successful `wait` wake both emit the **critique snapshot**:
 ```json
 {
   "review_id":"0192…",
@@ -130,11 +132,11 @@ Field notes:
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
 - `comments[].id` is the **`comment-id` you pass to `comment reply`**.
 
-A `poll` round-trip that times out (no new submission yet) emits instead:
+A `wait` that times out (no new submission yet) emits instead:
 ```json
-{"status":"timeout","version":1}
+{"status":"timeout","submission_version":1}
 ```
-You only ever see this from the `poll` *alias loop* if you set `--timeout` and it elapses; without `--timeout`, `poll` loops forever until a submission arrives (see below).
+Without `--timeout`, `wait` blocks across rounds until a submission lands (each backend call blocks ~25 s and the launcher re-issues automatically — no work from you). With `--timeout <secs>`, it gives up after that wall-clock budget and prints this timeout line.
 
 `comment reply`
 ```json
@@ -148,14 +150,14 @@ You only ever see this from the `poll` *alias loop* if you set `--timeout` and i
    - file selection: `suikou review create --project <id> --name "<name>" --files a,b,c`
    - git diff: `suikou review create-diff --project <id> --name "<name>" --base <ref> --head <ref>`
    - Capture `review_id` from the result.
-3. **Wait for the human.** `suikou review poll <review-id>` (or `suikou poll <review-id>`). This **blocks** until a human submits verdicts/comments, then prints the critique snapshot above. Each backend call blocks ~25 s and the launcher re-issues automatically, so `poll` keeps waiting across rounds with no work from you. Add `--timeout <secs>` only if you want it to give up and print a `timeout` line.
+3. **Wait for the human.** `suikou review wait <review-id>` (or `suikou wait <review-id>`). This **blocks** until a human submits verdicts/comments, then prints the critique snapshot above. It keeps waiting across rounds with no work from you. Add `--timeout <secs>` only if you want it to give up and print a `timeout` line.
 4. **Read & fix.** Walk `artifacts[].comments[]`. Address each one in the code (use `anchor.start_line`/`quote` to locate it, unless `outdated`). Skip comments already `resolved` if you want, but you may still reply.
 5. **Reply per addressed comment.** Write your reply markdown to a file and:
    ```
    suikou comment reply <comment-id> --body-file reply.md
    ```
    (or pipe it on stdin). One call per comment.
-6. **Re-poll for the next round.** `suikou review poll <review-id>` again. The wake is server-managed via the monotonic `submission_version` cursor (captured fresh at the start of each poll call), so re-polling **never misses a round** that landed between your calls. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
+6. **Re-wait for the next round.** `suikou review wait <review-id>` again. The wake is server-managed via the monotonic `submission_version` cursor (captured fresh at the start of each call), so re-waiting **never misses a round** that landed between your calls. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
 
 ## Boundary — agent may ONLY reply (BDR-0018)
 
