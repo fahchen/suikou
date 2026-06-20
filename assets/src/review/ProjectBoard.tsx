@@ -1061,6 +1061,15 @@ function CreateProjectDialog({
   const [respectGitignore, setRespectGitignore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setPath("");
+      setRespectGitignore(true);
+      setError(null);
+    }
+  }, [open]);
+
   async function submit() {
     setError(null);
     const reply = await dispatch({
