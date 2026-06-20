@@ -15,6 +15,15 @@
 # Default: the PHX_HOST environment variable, or "example.com" if unset.
 # host = "mybox.tailnet-name.ts.net"
 
+# Scheme and port used when building absolute URLs (Endpoint.url/0, and the agent
+# CLI `url`/`open` commands). By default links point at the plain HTTP listener
+# (http://<host>:<port>), which is reachable directly over the tailnet. Set these
+# only if you front the server with TLS — e.g. `tailscale serve` terminating HTTPS
+# on 443 and proxying to the local HTTP port — so links point at that front.
+# Default: scheme "http", port = the `port` value below.
+# url_scheme = "https"
+# url_port = 443
+
 # WebSocket origin check for the Musubi socket.
 #   false                      accept any origin
 #   ["//host-a", "//host-b"]   allow only these origins ("//host" matches any
