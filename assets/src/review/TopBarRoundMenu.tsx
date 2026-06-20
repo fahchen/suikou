@@ -47,6 +47,8 @@ export function TopBarRoundMenu() {
         <div className="flex flex-col gap-0.5">
           {[...rounds].reverse().map((round) => {
             const isCurrent = round.number === snapshot.current_round.number;
+            const summary = summaries.get(round.number);
+            const unresolved = summary?.unresolved_count ?? 0;
             return (
               <button
                 key={round.number}
@@ -63,11 +65,11 @@ export function TopBarRoundMenu() {
                   )}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {(summaries.get(round.number)?.comment_count ?? 0)} comments
-                  {(summaries.get(round.number)?.unresolved_count ?? 0) > 0 && (
+                  {summary?.comment_count ?? 0} comments
+                  {unresolved > 0 && (
                     <span className="text-amber">
                       {" · "}
-                      {summaries.get(round.number)?.unresolved_count} unresolved
+                      {unresolved} unresolved
                     </span>
                   )}
                 </span>

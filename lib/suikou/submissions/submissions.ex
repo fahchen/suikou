@@ -196,7 +196,8 @@ defmodule Suikou.Submissions do
   """
   @spec unpublished?(Ecto.UUID.t()) :: boolean()
   def unpublished?(review_id) do
-    draft_verdict?(review_id) or pending_comment?(review_id) or pending_reply?(review_id)
+    scope = {:review, review_id}
+    draft_verdict?(review_id) or pending_comment?(scope) or pending_reply?(scope)
   end
 
   @doc """
@@ -212,24 +213,8 @@ defmodule Suikou.Submissions do
   """
   @spec comments_pending?(Ecto.UUID.t()) :: boolean()
   def comments_pending?(artifact_id) do
-    artifact_pending_comment?(artifact_id) or artifact_pending_reply?(artifact_id)
-  end
-
-  defp artifact_pending_comment?(artifact_id) do
-    from(c in Comment, as: :comment)
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> where([round: r], r.artifact_id == ^artifact_id)
-    |> where([comment: c], c.status == :pending)
-    |> Repo.exists?()
-  end
-
-  defp artifact_pending_reply?(artifact_id) do
-    from(rep in Reply, as: :reply)
-    |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> where([round: r], r.artifact_id == ^artifact_id)
-    |> where([reply: rep], rep.status == :pending)
-    |> Repo.exists?()
+    scope = {:artifact, artifact_id}
+    pending_comment?(scope) or pending_reply?(scope)
   end
 
   defp draft_verdict?(review_id) do
@@ -254,24 +239,31 @@ defmodule Suikou.Submissions do
     |> Repo.exists?()
   end
 
-  defp pending_comment?(review_id) do
+  # `scope` is `{:review, review_id}` or `{:artifact, artifact_id}`.
+  defp pending_comment?(scope) do
     from(c in Comment, as: :comment)
     |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([comment: c], c.status == :pending)
-    |> where([artifact: a], a.review_id == ^review_id)
+    |> scope_where(scope)
     |> Repo.exists?()
   end
 
-  defp pending_reply?(review_id) do
+  defp pending_reply?(scope) do
     from(rep in Reply, as: :reply)
     |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
     |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([reply: rep], rep.status == :pending)
-    |> where([artifact: a], a.review_id == ^review_id)
+    |> scope_where(scope)
     |> Repo.exists?()
   end
+
+  defp scope_where(query, {:review, review_id}),
+    do: where(query, [artifact: a], a.review_id == ^review_id)
+
+  defp scope_where(query, {:artifact, artifact_id}),
+    do: where(query, [artifact: a], a.id == ^artifact_id)
 
   @doc """
   Reverses approval by clearing an artifact's approved round.
