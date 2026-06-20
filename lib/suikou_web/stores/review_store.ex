@@ -23,6 +23,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.FileStore
+  alias SuikouWeb.Stores.ProjectBoardContract
+  require ProjectBoardContract
 
   state do
     field(:review_id, String.t())
@@ -39,19 +41,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
       })
     )
 
-    field(
-      :file_entries,
-      Musubi.AsyncResult.of(
-        list(%{
-          path: String.t(),
-          artifact_id: String.t() | nil,
-          approved: boolean(),
-          verdict: :approve | :request_changes | :comment | nil,
-          content_hash: String.t() | nil,
-          change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
-        })
-      )
-    )
+    ProjectBoardContract.review_files_async_field(:file_entries)
 
     field(:files, list(FileStore.state()))
     field(:has_unpublished, boolean())

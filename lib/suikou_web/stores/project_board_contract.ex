@@ -32,6 +32,19 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
     end
   end
 
+  @doc """
+  Declares a flat async review-files field: the same file-row shape, as a single
+  `AsyncResult` list (the review store's `file_entries`, ungrouped).
+  """
+  defmacro review_files_async_field(name) do
+    quote do
+      field(
+        unquote(name),
+        Musubi.AsyncResult.of(list(unquote(review_file_type_ast())))
+      )
+    end
+  end
+
   defp review_file_type_ast do
     quote do
       %{
