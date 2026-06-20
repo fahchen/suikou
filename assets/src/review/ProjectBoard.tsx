@@ -19,6 +19,7 @@ import {
   PenLine,
   Plus,
   Search,
+  Settings,
   Trash2,
 } from "lucide-react";
 
@@ -56,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Toggle } from "@/components/ui/toggle";
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
 type BoardSnapshot = StoreSnapshot<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
@@ -222,6 +224,7 @@ function ProjectSection({
 }) {
   const [composing, setComposing] = useState<"files" | "diff" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingSettings, setEditingSettings] = useState(false);
   const removeProject = useMusubiCommand(store, "delete_project");
   const reviewCount = project.reviews.length;
   const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
@@ -281,6 +284,10 @@ function ProjectSection({
                 <MoreHorizontal size={15} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => setEditingSettings(true)}>
+                  <Settings size={14} />
+                  Edit settings
+                </DropdownMenuItem>
                 <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
                   <Trash2 size={14} />
                   Delete project
@@ -368,6 +375,13 @@ function ProjectSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditProjectSettingsDialog
+        store={store}
+        project={project}
+        open={editingSettings}
+        onOpenChange={setEditingSettings}
+      />
     </section>
   );
 }
@@ -1044,14 +1058,20 @@ function CreateProjectDialog({
   const { dispatch, isPending } = useMusubiCommand(store, "create_project");
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
+  const [respectGitignore, setRespectGitignore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setError(null);
-    const reply = await dispatch({ name: name.trim(), path: path.trim() });
+    const reply = await dispatch({
+      name: name.trim(),
+      path: path.trim(),
+      respect_gitignore: respectGitignore,
+    });
     if (reply.project_id) {
       setName("");
       setPath("");
+      setRespectGitignore(true);
       onOpenChange(false);
     } else {
       setError(reply.error ?? "Could not create project");
@@ -1100,6 +1120,8 @@ function CreateProjectDialog({
 
           <p className="text-[11px] text-faint">Scans the directory for files to review.</p>
 
+          <RespectGitignoreToggle pressed={respectGitignore} onPressedChange={setRespectGitignore} />
+
           {error && (
             <motion.p
               initial={{ opacity: 0 }}
@@ -1114,6 +1136,112 @@ function CreateProjectDialog({
             <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
             <Button type="submit" size="sm" disabled={disabled}>
               {isPending ? "Creating…" : "Create project"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RespectGitignoreToggle({
+  pressed,
+  onPressedChange,
+}: {
+  pressed: boolean;
+  onPressedChange: (pressed: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium text-muted-foreground">Respect .gitignore</p>
+        <p className="text-[11px] text-faint">Off lists every file, including ignored ones.</p>
+      </div>
+      <Toggle
+        variant="outline"
+        size="sm"
+        pressed={pressed}
+        onPressedChange={onPressedChange}
+        aria-label="Respect .gitignore"
+      >
+        {pressed ? "On" : "Off"}
+      </Toggle>
+    </div>
+  );
+}
+
+function EditProjectSettingsDialog({
+  store,
+  project,
+  open,
+  onOpenChange,
+}: {
+  store: BoardStore;
+  project: BoardProject;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { dispatch, isPending } = useMusubiCommand(store, "update_project");
+  const [respectGitignore, setRespectGitignore] = useState(project.respect_gitignore);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reseed from the project snapshot whenever the dialog reopens, so a prior
+  // unsaved toggle does not linger.
+  useEffect(() => {
+    if (open) {
+      setRespectGitignore(project.respect_gitignore);
+      setError(null);
+    }
+  }, [open, project.respect_gitignore]);
+
+  async function submit() {
+    setError(null);
+    const reply = await dispatch({
+      project_id: project.id,
+      respect_gitignore: respectGitignore,
+    });
+    if (reply.error) {
+      setError(reply.error);
+    } else {
+      onOpenChange(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings size={16} className="text-blue" />
+            Project settings
+          </DialogTitle>
+        </DialogHeader>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+          className="flex flex-col gap-3"
+        >
+          <p className="truncate font-mono text-[11px] text-faint">{project.path}</p>
+
+          <RespectGitignoreToggle pressed={respectGitignore} onPressedChange={setRespectGitignore} />
+
+          {error && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-[12px] text-red"
+            >
+              {error}
+            </motion.p>
+          )}
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
+            <Button type="submit" size="sm" disabled={isPending}>
+              {isPending ? "Saving…" : "Save settings"}
             </Button>
           </DialogFooter>
         </form>
