@@ -137,5 +137,4 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
     %{project: project, review: Repo.preload(review, :project)}
   end
-
 end

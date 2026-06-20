@@ -28,7 +28,11 @@ defmodule SuikouWeb.Stores.FileStore do
     field(:path, String.t())
     field(:artifact_id, String.t() | nil)
     field(:content_hash, String.t() | nil)
-    field(:change_status, :added | :modified | :deleted | :renamed | :copied | :type_changed | nil)
+
+    field(
+      :change_status,
+      :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
+    )
 
     field(:artifact, %{
       id: String.t(),
@@ -220,7 +224,10 @@ defmodule SuikouWeb.Stores.FileStore do
 
       _missing ->
         socket
-        |> Socket.assign(:artifact, missing_artifact(socket.assigns.path, socket.assigns[:artifact_id]))
+        |> Socket.assign(
+          :artifact,
+          missing_artifact(socket.assigns.path, socket.assigns[:artifact_id])
+        )
         |> Socket.assign(:rounds, [])
         |> Socket.assign(:current_round, current_round(0, "", true))
         |> Socket.assign(:current_round_id, nil)
@@ -231,7 +238,9 @@ defmodule SuikouWeb.Stores.FileStore do
 
   defp viewed_round([], _number), do: nil
   defp viewed_round(rounds, nil), do: List.last(rounds)
-  defp viewed_round(rounds, number), do: Enum.find(rounds, List.last(rounds), &(&1.number == number))
+
+  defp viewed_round(rounds, number),
+    do: Enum.find(rounds, List.last(rounds), &(&1.number == number))
 
   defp render_artifact(%Artifact{} = artifact) do
     %{

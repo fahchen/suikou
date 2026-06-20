@@ -144,7 +144,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
     }
   end
 
-  defp render_file_children(%AsyncResult{status: :ok, result: files}, socket) when is_list(files) do
+  defp render_file_children(%AsyncResult{status: :ok, result: files}, socket)
+       when is_list(files) do
     Enum.map(files, fn file ->
       Child.child(FileStore,
         id: file.artifact_id || file.path,
