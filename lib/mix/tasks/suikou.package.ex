@@ -36,6 +36,22 @@ defmodule Mix.Tasks.Suikou.Package do
 
   Targets the host platform only (macOS arm64).
 
+  ## Install
+
+  The task only builds `dist/suikou`; it does not install. To put it on `PATH`,
+  copy it to a bin directory, then restart the daemon so the new binary and any
+  `config.toml` changes take effect:
+
+      mix suikou.package
+      suikou stop                 # if a daemon from an older build is running
+      cp dist/suikou ~/.local/bin/suikou
+      suikou start                # boots the new binary, opens the browser
+
+  Lifecycle state lives in `~/Library/Application Support/Suikou` (independent of
+  the binary), so `stop`/`start` reach the daemon across versions. Runtime config
+  is read once at boot from `~/.config/suikou/config.toml`, so a config edit also
+  needs `suikou stop && suikou start`.
+
   ## Examples
 
       $ mix suikou.package
