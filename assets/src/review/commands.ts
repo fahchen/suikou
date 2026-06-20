@@ -29,7 +29,7 @@ function useDefaultReviewCommands() {
   const fileStore = useFileStore()
   const comments = useStableComments(fileStore)
   return {
-    addComment: useMusubiCommand(comments, "add_comment"),
+    addComment: useMusubiCommand(fileStore, "add_comment"),
     editComment: useMusubiCommand(comments, "edit_comment"),
     deleteComment: useMusubiCommand(comments, "delete_comment"),
     resolveComment: useMusubiCommand(comments, "resolve_comment"),

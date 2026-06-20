@@ -98,13 +98,17 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @spec render(Socket.t()) :: map()
   def render(socket) do
     content = CommentRendering.live_content(socket.assigns[:artifact_id])
-    %{items: Enum.map(socket.assigns.comments, &CommentRendering.render_comment(&1, content))}
+    comments = socket.assigns[:comments] || []
+    %{items: Enum.map(comments, &CommentRendering.render_comment(&1, content))}
   end
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_command(:add_comment, payload, socket) do
-    case Rounds.latest(socket.assigns.artifact_id) do
+    # Authoring routes through FileStore.add_comment (which mints on demand);
+    # this path only fires for an already-minted artifact. Read defensively so
+    # an unminted file no-ops instead of crashing the store.
+    case socket.assigns[:artifact_id] && Rounds.latest(socket.assigns[:artifact_id]) do
       %{id: round_id} ->
         Critique.add_comment(%{
           round_id: round_id,
