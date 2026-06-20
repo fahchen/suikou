@@ -100,8 +100,19 @@ if config_env() == :prod do
         raise "invalid `bind` at #{config_path}: #{inspect(other)} (expected \"all\" or \"loopback\")"
     end
 
+  http_port = String.to_integer(System.get_env("PORT") || "4000")
+
+  # Canonical URL used to build links (`Endpoint.url/0`, and the agent CLI's
+  # `url`/`open`). Defaults to the plain HTTP listener so generated links are
+  # reachable out of the box — over the tailnet a peer hits `http://<host>:<port>`
+  # directly. If you front the server with TLS (e.g. `tailscale serve` terminating
+  # HTTPS on 443 → the local HTTP port), set `url_scheme = "https"` and
+  # `url_port = 443` in config.toml so the links point at that front instead.
+  url_scheme = user_config["url_scheme"] || "http"
+  url_port = user_config["url_port"] || http_port
+
   config :suikou, SuikouWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, scheme: url_scheme, port: url_port],
     # A tailnet peer reaches this by raw IP *or* MagicDNS name (varies per device),
     # so a fixed origin allowlist can't cover every case. Default to accepting any
     # websocket origin — a single-user app on a private, tailscale-authenticated
@@ -110,7 +121,7 @@ if config_env() == :prod do
     check_origin: Map.get(user_config, "check_origin", false),
     http: [
       ip: bind_ip,
-      port: String.to_integer(System.get_env("PORT") || "4000")
+      port: http_port
     ],
     secret_key_base: secret_key_base
 

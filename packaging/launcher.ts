@@ -63,6 +63,10 @@ async function dispatch(command: string | undefined): Promise<void> {
       // than the `<group> <verb> <id>` form), so route directly to the spec with
       // the argv after the alias token.
       return process.exit(await runGroupVerb("review", "wait", process.argv.slice(3)))
+    case "open":
+      // Top-level `open` is reserved for the board root; review-scoped opening is
+      // `review open <review-id>`.
+      return process.exit(await openRoot())
     case "skill":
       return process.exit(await emitSkill(process.argv.slice(3)))
     case "project":
@@ -100,6 +104,8 @@ type CommandSpec = {
   summary: string
   // poll loops instead of a single round-trip.
   poll?: boolean
+  // After a successful round-trip, spawn `open <url>` on the result's `url` field.
+  open?: boolean
 }
 
 // `--files a,b,c` → ["a","b","c"], trimming empties. ponytail: plain split, no
@@ -202,6 +208,22 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       id: { name: "review-id", required: true },
       payload: ({ id }) => ({ review_id: id }),
       summary: "list a review's files (<review-id>)"
+    },
+    url: {
+      expr: "SuikouWeb.AgentCLI.Reviews.url()",
+      options: {},
+      id: { name: "review-id", required: true },
+      payload: ({ id }) => ({ review_id: id }),
+      summary: "print a review's URL (<review-id>)"
+    },
+    open: {
+      expr: "SuikouWeb.AgentCLI.Reviews.url()",
+      options: {},
+      id: { name: "review-id", required: true },
+      payload: ({ id }) => ({ review_id: id }),
+      // Same expr as `url`; the spec.open flag makes runCommand spawn `open <url>`.
+      open: true,
+      summary: "open a review in the browser (<review-id>)"
     },
     rename: {
       expr: "SuikouWeb.AgentCLI.Reviews.rename()",
@@ -431,8 +453,30 @@ async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): 
   const fail = rpcFailure(stderr, exitCode)
   if (fail !== null) return fail
 
-  process.stdout.write(resultLine(stdout) + "\n")
+  const line = resultLine(stdout)
+  if (spec.open) openUrl(line)
+  process.stdout.write(line + "\n")
   return 0
+}
+
+// Spawn `open <url>` for the `url` field of a JSON result line. A non-JSON or
+// url-less line just no-ops — the line still prints so the caller sees the error.
+function openUrl(line: string): void {
+  try {
+    const url = (JSON.parse(line) as { url?: string }).url
+    if (typeof url === "string") spawn(["open", url])
+  } catch {
+    // not JSON — nothing to open
+  }
+}
+
+// Top-level `suikou open`: open the board root. Reuses runCommand's rpc+open+print
+// chain via a one-off spec (no group/verb/id).
+async function openRoot(): Promise<number> {
+  return runCommand(
+    { expr: "SuikouWeb.AgentCLI.Server.url()", options: {}, payload: () => ({}), summary: "", open: true },
+    {}
+  )
 }
 
 // poll re-issues the rpc until the backend returns a non-timeout snapshot. The
@@ -524,6 +568,7 @@ function usage(group?: string, verb?: string): string {
   const lifecycle = "  (bare)        start the foreground server and open the browser\n" +
     "  start [--force]     start the background daemon (--force relaunches a running one)\n" +
     "  stop|status         background daemon control\n" +
+    "  open                open the Suikou board in the browser\n" +
     "  wait <review-id>    alias for `review wait`\n" +
     "  skill [-o <path>]   output the agent CLI skill markdown"
   const groups = Object.entries(registry)

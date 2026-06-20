@@ -10,6 +10,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias Suikou.Schemas.Artifact
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI.Reviews, as: CLI
+  alias SuikouWeb.Endpoint
   alias SuikouWeb.Stores.BoardBroadcast
   alias SuikouWeb.Stores.CommentBroadcast
 
@@ -77,6 +78,15 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     test "emits review_not_found for an unknown review" do
       assert %{"files" => [], "error" => "review_not_found"} =
                run(%{"review_id" => Ecto.UUID.generate()}, &CLI.files/0)
+    end
+  end
+
+  describe "url/0" do
+    test "emits the endpoint URL joined with /reviews/<id>" do
+      review = insert(:review)
+
+      assert %{"url" => url, "error" => nil} = run(%{"review_id" => review.id}, &CLI.url/0)
+      assert url == Endpoint.url() <> "/reviews/#{review.id}"
     end
   end
 
