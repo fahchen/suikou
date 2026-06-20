@@ -34,6 +34,7 @@ import {
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { FileTree } from "./FileTree";
 import { ReviewFileTree } from "./ReviewFileTree";
+import { orderedReviewFiles } from "./file-order";
 import { ThemeMenu } from "./ThemeMenu";
 import { isHtmlPath } from "./view-kind";
 import { elapsed, fullTimestamp } from "./time";
@@ -424,14 +425,14 @@ function ReviewCard({
 
   function openReview() {
     if (!files || files.length === 0) return;
-    void handleOpen(files[0].path);
+    void handleOpen(orderedReviewFiles(files)[0].path);
   }
 
   // Warm the ReviewStore cache for the file `openReview` would open, so a
   // hover-then-click paints instantly. Unminted files stay skipped because
   // route entry is now the only place that mints `artifact_id`s.
   function prefetchFirstFile() {
-    const first = files?.[0];
+    const first = files ? orderedReviewFiles(files)[0] : undefined;
     if (first?.artifact_id) prefetchReview(first.artifact_id);
   }
 
