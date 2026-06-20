@@ -142,7 +142,11 @@ defmodule Suikou.Reads do
 
   """
   @spec review_round_summaries(Ecto.UUID.t()) :: [
-          %{number: non_neg_integer(), comment_count: non_neg_integer(), unresolved_count: non_neg_integer()}
+          %{
+            number: non_neg_integer(),
+            comment_count: non_neg_integer(),
+            unresolved_count: non_neg_integer()
+          }
         ]
   def review_round_summaries(review_id) do
     comments =
