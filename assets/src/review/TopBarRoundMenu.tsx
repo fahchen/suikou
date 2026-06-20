@@ -12,6 +12,8 @@ export function TopBarRoundMenu() {
   const snapshot = useMusubiSnapshot(fileStore);
   const commands = useReviewCommands();
   const rounds = snapshot.rounds;
+  // An unminted file has no rounds yet — nothing to switch between.
+  if (rounds.length === 0) return null;
   const latest = rounds[rounds.length - 1].number;
   const current = snapshot.current_round.number;
   const isLatest = current === latest;

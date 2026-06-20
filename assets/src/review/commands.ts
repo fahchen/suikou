@@ -37,6 +37,7 @@ function useDefaultReviewCommands() {
     editReply: useMusubiCommand(comments, "edit_reply"),
     deleteReply: useMusubiCommand(comments, "delete_reply"),
     submitReview: useMusubiCommand(reviewStore, "submit_review"),
+    removeFile: useMusubiCommand(reviewStore, "remove_file"),
     setDraftVerdict: useMusubiCommand(fileStore, "set_draft_verdict"),
     selectRound: useMusubiCommand(fileStore, "select_round"),
   }

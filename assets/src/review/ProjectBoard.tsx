@@ -628,9 +628,10 @@ function ReviewCard({
               ) : (
                 <div className="border-t border-line py-1">
                   <ReviewFileTree
+                    variant="list"
                     files={files}
                     pendingPath={pendingPath}
-                    onOpen={handleOpen}
+                    onSelect={(file) => void handleOpen(file.path)}
                     onHover={(file) => {
                       if (file.artifact_id) prefetchReview(file.artifact_id);
                     }}
