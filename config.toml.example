@@ -46,3 +46,9 @@
 # variable, if set, overrides it for a single invocation.
 # Default: 47100.
 # port = 47100
+
+# Frontend debug overlay: surfaces React render/route errors with a stack-trace
+# overlay instead of the graceful default UI. The dev server always has it on;
+# this key turns it on for the packaged build.
+# Default: false.
+# debug = false

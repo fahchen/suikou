@@ -68,6 +68,21 @@ if config_env() == :prod do
 
   config :suikou, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Frontend debug overlay (React ErrorBoundary + router ErrorOverlay). When true,
+  # SpaController injects a `<meta name="suikou:debug">` into the served shell so
+  # the bundle turns it on. Dev is always on via import.meta.env.DEV; this only
+  # gates the packaged production build.
+  debug =
+    case Map.get(user_config, "debug", false) do
+      value when is_boolean(value) ->
+        value
+
+      other ->
+        raise "invalid `debug` at #{config_path}: #{inspect(other)} (expected true or false)"
+    end
+
+  config :suikou, :debug, debug
+
   # Which interfaces to listen on. Exposed as a preset rather than a raw address
   # because TOML can't express an Erlang IP tuple, and because both presets keep
   # 127.0.0.1 reachable — the launcher's liveness probe always hits 127.0.0.1.

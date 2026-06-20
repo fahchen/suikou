@@ -10,7 +10,9 @@ defmodule SuikouWeb.SpaControllerTest do
     test "serves the shell at the root", %{conn: conn} do
       conn = get(conn, "/")
 
-      assert html_response(conn, 200)
+      response = html_response(conn, 200)
+      assert response
+      refute response =~ "suikou:debug"
     end
 
     test "serves the shell for a client deep link", %{conn: conn} do
@@ -32,6 +34,16 @@ defmodule SuikouWeb.SpaControllerTest do
     end
   end
 
+  describe "debug overlay enabled" do
+    setup [:debug_shell]
+
+    test "injects the debug meta into the served shell", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert html_response(conn, 200) =~ ~s(<meta name="suikou:debug" content="true">)
+    end
+  end
+
   describe "when the shell has not been built" do
     setup [:remove_shell]
 
@@ -50,6 +62,28 @@ defmodule SuikouWeb.SpaControllerTest do
       File.write!(@shell, ~s(<!doctype html><div id="root"></div>))
       on_exit(fn -> File.rm(@shell) end)
     end
+
+    :ok
+  end
+
+  defp debug_shell(_context) do
+    # :suikou, :debug scoped to this async: false module and reverted on exit;
+    # no sibling reads it concurrently.
+    Application.put_env(:suikou, :debug, true)
+    on_exit(fn -> Application.delete_env(:suikou, :debug) end)
+
+    backup = @shell <> ".bak"
+
+    if File.exists?(@shell) do
+      File.rm(backup)
+      File.rename!(@shell, backup)
+      on_exit(fn -> File.rename!(backup, @shell) end)
+    else
+      on_exit(fn -> File.rm(@shell) end)
+    end
+
+    File.mkdir_p!(Path.dirname(@shell))
+    File.write!(@shell, ~s(<!doctype html><head></head><body><div id="root"></div></body>))
 
     :ok
   end
