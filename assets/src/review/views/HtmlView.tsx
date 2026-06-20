@@ -527,6 +527,10 @@ function HtmlAnchorPopover(props: {
   const margin = 12
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 768
+  // Narrow screens can't host a floating popover without covering the very
+  // element being commented on, so dock it as a bottom sheet instead. The
+  // element keeps its sticky highlight, so the anchor stays visible above.
+  const narrow = viewportW < 640
   // Prefer below the target; flip above when the bottom would overflow.
   const preferAbove = rect.bottom + 240 + margin > viewportH && rect.top > 240
   const top = preferAbove ? Math.max(margin, rect.top - margin) : rect.bottom + 8
@@ -535,23 +539,25 @@ function HtmlAnchorPopover(props: {
     left = Math.max(margin, viewportW - POPOVER_WIDTH - margin)
   }
 
-  const style: React.CSSProperties = {
-    position: "fixed",
-    top,
-    left,
-    width: POPOVER_WIDTH,
-    transform: preferAbove ? "translateY(-100%)" : undefined,
-    zIndex: 60
-  }
+  const style: React.CSSProperties = narrow
+    ? { position: "fixed", left: margin, right: margin, bottom: margin, width: "auto", zIndex: 60 }
+    : {
+        position: "fixed",
+        top,
+        left,
+        width: POPOVER_WIDTH,
+        transform: preferAbove ? "translateY(-100%)" : undefined,
+        zIndex: 60
+      }
 
   return createPortal(
     <motion.div
       ref={popoverRef}
       role="dialog"
       aria-label="Element comment"
-      initial={{ opacity: 0, y: preferAbove ? 4 : -4 }}
+      initial={{ opacity: 0, y: narrow ? 12 : preferAbove ? 4 : -4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      exit={{ opacity: 0, y: narrow ? 12 : 0 }}
       transition={{ duration: 0.16, ease: "easeOut" }}
       style={style}
       className="flex flex-col gap-2 rounded-xl border border-line-strong bg-popover p-3 text-popover-foreground shadow-[var(--elev-overlay)] ring-1 ring-inset ring-line-soft"
