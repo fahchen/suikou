@@ -1,17 +1,21 @@
 import { GitCompare, ChevronDown } from "lucide-react";
 
 import { useMusubiSnapshot } from "../musubi";
-import { useFileStore } from "./store-context";
+import { useFileStore, useReviewStore } from "./store-context";
 import { useReviewCommands } from "./commands";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-/** Round picker — reads from the active FileStore context. */
+/** Round picker — the round list comes from the active FileStore, but each
+ * round's counts are review-wide (summed over every file) so a round reads the
+ * same total whichever file is active. */
 export function TopBarRoundMenu() {
   const fileStore = useFileStore();
   const snapshot = useMusubiSnapshot(fileStore);
+  const reviewSnapshot = useMusubiSnapshot(useReviewStore());
   const commands = useReviewCommands();
   const rounds = snapshot.rounds;
+  const summaries = new Map(reviewSnapshot.round_summaries.map((s) => [s.number, s]));
   // An unminted file has no rounds yet — nothing to switch between.
   if (rounds.length === 0) return null;
   const latest = rounds[rounds.length - 1].number;
@@ -59,7 +63,13 @@ export function TopBarRoundMenu() {
                   )}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {round.comment_count} comments
+                  {(summaries.get(round.number)?.comment_count ?? 0)} comments
+                  {(summaries.get(round.number)?.unresolved_count ?? 0) > 0 && (
+                    <span className="text-amber">
+                      {" · "}
+                      {summaries.get(round.number)?.unresolved_count} unresolved
+                    </span>
+                  )}
                 </span>
               </button>
             );

@@ -125,6 +125,62 @@ defmodule Suikou.Reads do
     |> Repo.aggregate(:count)
   end
 
+  @doc """
+  Summarises every round number across a whole review: the comment count and
+  the still-unresolved count visible in that round, summed over all the review's
+  artifacts. Drives the review-wide counts in the round picker, so a round reads
+  the same total no matter which file is active.
+
+  A comment is visible in round N when authored on or before N and not yet
+  resolved before N; it is unresolved in N when it has no resolution round or one
+  later than N.
+
+  ## Examples
+
+      Suikou.Reads.review_round_summaries(review.id)
+      #=> [%{number: 0, comment_count: 5, unresolved_count: 2}]
+
+  """
+  @spec review_round_summaries(Ecto.UUID.t()) :: [
+          %{number: non_neg_integer(), comment_count: non_neg_integer(), unresolved_count: non_neg_integer()}
+        ]
+  def review_round_summaries(review_id) do
+    comments =
+      from(c in Comment, as: :comment)
+      |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+      |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+      |> where([artifact: a], a.review_id == ^review_id)
+      |> select([comment: c], {c.authored_round, c.resolved_round})
+      |> Repo.all()
+
+    max_round =
+      from(r in Round, as: :round)
+      |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+      |> where([artifact: a], a.review_id == ^review_id)
+      |> select([round: r], max(r.number))
+      |> Repo.one()
+
+    case max_round do
+      nil ->
+        []
+
+      max ->
+        Enum.map(0..max, fn number ->
+          visible =
+            Enum.filter(comments, fn {authored, resolved} ->
+              authored <= number and (is_nil(resolved) or resolved >= number)
+            end)
+
+          unresolved =
+            Enum.count(visible, fn {_authored, resolved} ->
+              is_nil(resolved) or resolved > number
+            end)
+
+          %{number: number, comment_count: length(visible), unresolved_count: unresolved}
+        end)
+    end
+  end
+
   defp visible_comments(%Round{artifact_id: artifact_id, number: number}) do
     artifact_id
     |> Queries.Comments.for_artifact()

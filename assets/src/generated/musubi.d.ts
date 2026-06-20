@@ -343,6 +343,7 @@ declare namespace Musubi {
         file_entries: Musubi.AsyncField<Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>>
         files: Musubi.StoreField<"SuikouWeb.Stores.FileStore">[]
         has_unpublished: boolean
+        round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
       },
       {
         submit_review: {
