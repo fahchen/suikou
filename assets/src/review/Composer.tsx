@@ -41,11 +41,17 @@ export const Composer = observer(function Composer(props: {
   }
 
   function add() {
-    if (!body.trim()) return;
+    // Read the live draft, not the render-captured `body`/`type` closure: a
+    // double event (tap-tap, or Enter+click) fires two `add()` calls in one
+    // React batch, both holding the same stale non-empty body. `closeComposer`
+    // deletes the draft synchronously, so the second call sees it gone and
+    // bails — one intent, one dispatch.
+    const current = ui.draftFor(path);
+    if (!current || !current.body.trim()) return;
     void commands.addComment.dispatch({
-      scope: draft?.scope ?? "located",
-      critique_type: type,
-      body: body.trim(),
+      scope: current.scope,
+      critique_type: current.type,
+      body: current.body.trim(),
       anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
     });
     ui.closeComposer(path);
