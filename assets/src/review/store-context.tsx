@@ -1,7 +1,7 @@
 import { createContext, useContext, type ReactNode } from "react"
 import type { ThemedToken } from "shiki"
 
-import type { Comment, ReviewSnapshot, ReviewStore, Verdict } from "./types"
+import type { Comment, FileSnapshot, FileStore, ReviewSnapshot, ReviewStore, Verdict } from "./types"
 import type { RenderedBlock } from "../markdown/render"
 import type { StatusFilter, CritiqueType } from "../stores/ui-store"
 
@@ -19,12 +19,35 @@ export function useReviewStore(): ReviewStore {
   return store
 }
 
+const FileStoreContext = createContext<FileStore | null>(null)
+
+export function FileStoreProvider(props: { store: FileStore; children: ReactNode }) {
+  return <FileStoreContext.Provider value={props.store}>{props.children}</FileStoreContext.Provider>
+}
+
+export function useFileStore(): FileStore {
+  const store = useContext(FileStoreContext)
+  if (!store) {
+    throw new Error("useFileStore must be used within a FileStoreProvider")
+  }
+  return store
+}
+
+export function useOptionalFileStore(): FileStore | null {
+  return useContext(FileStoreContext)
+}
+
 /**
  * Per-round view data computed once by the review layout route and shared with
  * the rendered/raw child routes, so switching views never re-renders markdown.
  */
 export interface ReviewView {
-  snapshot: ReviewSnapshot
+  /** Per-file snapshot: artifact, rounds, current_round, etc. */
+  snapshot: FileSnapshot
+  /** Review-level kind — "file" or "diff" — for resolving the view component. */
+  reviewKind: "file" | "diff"
+  /** Full review snapshot — for review_id and review-level fields. */
+  reviewSnapshot: ReviewSnapshot
   /** Reviewed source text fetched live from the content route ("" for images). */
   content: string
   /** Set when the content route fails (file deleted, moved, or unreadable). */

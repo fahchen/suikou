@@ -19,7 +19,7 @@ export const socket = new Socket(socketUrl)
 // discard stale entries.
 export const storeCache = {
   persister: createStorageCachePersister(localStorage),
-  buster: "v1"
+  buster: "v2"
 }
 
 export const {
@@ -31,30 +31,29 @@ export const {
   useMusubiCommand
 } = createMusubi<Musubi.Stores>()
 
-// One prefetch per (module|id|params) per page session — hover handlers fire
-// many times; dedupe so we mount/unmount the server-side root at most once.
+// One prefetch per reviewId per page session — hover handlers fire many times;
+// dedupe so we mount/unmount the server-side root at most once.
 const prefetched = new Set<string>()
 
 /**
- * Returns a hover-friendly prefetcher for a ReviewStore identity. Warms the
- * SWR cache so the first visit to `/review/:artifactId` paints from cache
- * instead of waiting on the initial patch. Subsequent hovers for the same
- * identity are no-ops.
+ * Returns a hover-friendly prefetcher for a ReviewStore identity keyed by
+ * reviewId. Warms the SWR cache so the first visit to a review paints from
+ * cache instead of waiting on the initial patch.
  */
-export function usePrefetchReviewStore(): (artifactId: string) => void {
+export function usePrefetchReviewStore(): (reviewId: string) => void {
   const connection = useMusubiConnection()
   const inFlight = useRef<Set<string>>(new Set())
   return useCallback(
-    (artifactId: string) => {
-      if (!artifactId) return
-      const key = `SuikouWeb.Stores.ReviewStore|${artifactId}`
+    (reviewId: string) => {
+      if (!reviewId) return
+      const key = `SuikouWeb.Stores.ReviewStore|${reviewId}`
       if (prefetched.has(key) || inFlight.current.has(key)) return
       inFlight.current.add(key)
       connection
         .mountStore({
           module: "SuikouWeb.Stores.ReviewStore",
-          id: artifactId,
-          params: { artifact_id: artifactId },
+          id: reviewId,
+          params: { review_id: reviewId },
           cache: storeCache
         })
         .then(async (mounted) => {
