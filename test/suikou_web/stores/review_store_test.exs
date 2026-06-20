@@ -98,7 +98,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   defp await_files(page, attempts \\ 5)
 
   defp await_files(page, attempts) when attempts > 0 do
-    _ = :sys.get_state(page.pid)
+    _state = :sys.get_state(page.pid)
     snapshot = Testing.render(page)
 
     if snapshot.files == [] do

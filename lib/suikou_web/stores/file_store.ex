@@ -19,8 +19,8 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentBroadcast
+  alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
 
@@ -122,7 +122,7 @@ defmodule SuikouWeb.Stores.FileStore do
           case Rounds.latest(artifact_id) do
             %Round{id: round_id} ->
               maybe_refresh_files(socket)
-              _ = Submissions.set_draft_verdict(round_id, payload["verdict"])
+              _result = Submissions.set_draft_verdict(round_id, payload["verdict"])
               CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
 
@@ -145,7 +145,7 @@ defmodule SuikouWeb.Stores.FileStore do
             %Round{id: round_id} ->
               maybe_refresh_files(socket)
 
-              _ =
+              _result =
                 Critique.add_comment(%{
                   round_id: round_id,
                   scope: payload["scope"],
@@ -179,24 +179,18 @@ defmodule SuikouWeb.Stores.FileStore do
 
   defp ensure_artifact(%Socket{} = socket) do
     case socket.assigns[:artifact_id] do
-      artifact_id when is_binary(artifact_id) ->
-        {:ok, artifact_id, socket}
+      artifact_id when is_binary(artifact_id) -> {:ok, artifact_id, socket}
+      nil -> mint_artifact(socket)
+    end
+  end
 
-      nil ->
-        case Reviews.get_review(socket.assigns.review_id) do
-          %Review{} = review ->
-            case Reviews.open_file(review, socket.assigns.path) do
-              {:ok, %Artifact{} = artifact} ->
-                next_socket = Socket.assign(socket, :artifact_id, artifact.id)
-                {:ok, artifact.id, next_socket}
-
-              {:error, _reason} ->
-                {:error, socket}
-            end
-
-          nil ->
-            {:error, socket}
-        end
+  defp mint_artifact(%Socket{} = socket) do
+    with %Review{} = review <- Reviews.get_review(socket.assigns.review_id),
+         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, socket.assigns.path) do
+      {:ok, artifact.id, Socket.assign(socket, :artifact_id, artifact.id)}
+    else
+      nil -> {:error, socket}
+      {:error, _reason} -> {:error, socket}
     end
   end
 
