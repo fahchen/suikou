@@ -33,9 +33,23 @@ defmodule SuikouWeb.SpaController do
         send_resp(conn, 404, "")
 
       File.exists?(shell) ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_file(200, shell)
+        conn = put_resp_content_type(conn, "text/html")
+
+        if Application.get_env(:suikou, :debug, false) do
+          # ponytail: read+inject per request; single-user local app, send_file otherwise
+          html =
+            shell
+            |> File.read!()
+            |> String.replace(
+              "</head>",
+              ~s(<meta name="suikou:debug" content="true"></head>),
+              global: false
+            )
+
+          send_resp(conn, 200, html)
+        else
+          send_file(conn, 200, shell)
+        end
 
       true ->
         conn
