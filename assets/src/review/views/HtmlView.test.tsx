@@ -171,7 +171,7 @@ describe("HtmlView", () => {
     doc.dispatchEvent(new doc.defaultView!.Event("mouseup", { bubbles: true }))
     await flushMicrotasks()
 
-    await screen.findByText(/New comment on selected region/)
+    await screen.findByRole("dialog", { name: /element comment/i })
 
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
       target: { value: "fix this heading" }
@@ -187,7 +187,7 @@ describe("HtmlView", () => {
     })
     // Composer closes after dispatch.
     await waitFor(() =>
-      expect(screen.queryByText(/New comment on selected region/)).toBeNull()
+      expect(screen.queryByRole("dialog", { name: /element comment/i })).toBeNull()
     )
   })
 
@@ -207,7 +207,7 @@ describe("HtmlView", () => {
     // Touch text-selection finalizes via selectionchange, never a mouseup.
     doc.dispatchEvent(new doc.defaultView!.Event("selectionchange", { bubbles: true }))
 
-    await screen.findByText(/New comment on selected region/, undefined, { timeout: 2000 })
+    await screen.findByRole("dialog", { name: /element comment/i }, { timeout: 2000 })
   })
 
   it("renders an element comment as outdated when its selector misses", async () => {
@@ -382,7 +382,7 @@ describe("HtmlView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
     expect(screen.getByText("110%")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom to 100%" }))
     expect(screen.getByText("100%")).toBeInTheDocument()
 
     // Step down to the 50% floor; the button disables once clamped.
