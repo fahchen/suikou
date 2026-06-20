@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 import { SquarePlus } from "lucide-react";
 
+import { ComposerTextarea } from "../ComposerTextarea";
 import { useReviewCommands } from "../commands";
 import { CRITIQUE_META } from "../types";
 import { uiStore, type CritiqueType } from "../../stores/ui-store";
@@ -110,9 +111,9 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
         )}
       </blockquote>
 
-      <textarea
+      <ComposerTextarea
         autoFocus
-        className="min-h-20 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+        className="min-h-20 rounded-md"
         placeholder="Leave a comment. Markdown supported."
         value={body}
         onChange={(e) => setBody(e.target.value)}

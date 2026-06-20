@@ -4,6 +4,7 @@ import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 
 import { useReviewCommands } from "./commands";
 import { COMMIT_PULSE_TRANSITION, commitPulse } from "./motion";
+import { ComposerTextarea } from "./ComposerTextarea";
 import { hasUnresolvedBlocker } from "./store-context";
 import { VERDICT_META, type Comment, type Verdict } from "./types";
 import { Button } from "@/components/ui/button";
@@ -229,8 +230,8 @@ export function FileVerdictMenu(props: {
               <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-faint">
                 {noteLabel} (optional)
               </span>
-              <textarea
-                className="min-h-16 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[12px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+              <ComposerTextarea
+                className="min-h-16 rounded-md text-[12px]"
                 placeholder={
                   scope === "file"
                     ? "Comment on this file. Saved automatically, published on submit."

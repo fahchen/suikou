@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { Comment } from "./types";
+import { ComposerTextarea } from "./ComposerTextarea";
 import { useReviewCommands } from "./commands";
 import type { CritiqueType } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
@@ -31,8 +32,8 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
 
   return (
     <div className="flex flex-col gap-2">
-      <textarea
-        className="min-h-16 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px]"
+      <ComposerTextarea
+        className="min-h-16"
         value={body}
         onChange={(e) => setBody(e.target.value)}
       />

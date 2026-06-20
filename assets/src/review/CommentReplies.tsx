@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 
 import type { Comment, Reply } from "./types";
 import { CommentBody } from "./CommentBody";
+import { ComposerTextarea } from "./ComposerTextarea";
 import { useReviewCommands } from "./commands";
 import { relativeTime, fullTimestamp } from "./time";
 import { Button } from "@/components/ui/button";
@@ -89,10 +90,8 @@ function ReplyCard(props: {
 
       {editing ? (
         <div className="flex flex-col gap-2">
-          <textarea
+          <ComposerTextarea
             autoFocus
-            className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
-            rows={2}
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
