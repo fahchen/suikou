@@ -6,6 +6,7 @@ import { Plus, SquarePlus } from "lucide-react"
 import type { Comment } from "../types"
 import { CRITIQUE_META } from "../types"
 import { CommentCard } from "../CommentCard"
+import { ComposerTextarea } from "../ComposerTextarea"
 import { useReviewCommands } from "../commands"
 import {
   parseUnifiedDiff,
@@ -530,9 +531,9 @@ const DiffComposer = observer(function DiffComposer(props: {
         </div>
       </div>
 
-      <textarea
+      <ComposerTextarea
         autoFocus
-        className="min-h-20 w-full resize-y rounded-md border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
+        className="min-h-20 rounded-md"
         placeholder="Leave a comment. Markdown supported."
         value={body}
         onChange={(e) => setBody(e.target.value)}

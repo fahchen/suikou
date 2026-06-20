@@ -4,6 +4,7 @@ import { CircleCheck, MessageSquarePlus, SquarePlus } from "lucide-react";
 import type { Comment } from "./types";
 import { useReviewCommands } from "./commands";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
+import { ComposerTextarea } from "./ComposerTextarea";
 import { Button } from "@/components/ui/button";
 
 /** Suggest/reply box plus the resolve action for one comment. */
@@ -74,10 +75,8 @@ export function CommentReplyComposer(props: { comment: Comment }) {
           Suggest
         </Button>
       </div>
-      <textarea
+      <ComposerTextarea
         autoFocus={expanded}
-        className="min-h-12 w-full resize-y rounded-lg border border-line bg-control px-2 py-1.5 text-[13px] focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
-        rows={2}
         placeholder={placeholder}
         value={body}
         onChange={(e) => setBody(e.target.value)}
