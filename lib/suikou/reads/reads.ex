@@ -165,24 +165,21 @@ defmodule Suikou.Reads do
       |> Repo.one()
 
     case max_round do
-      nil ->
-        []
-
-      max ->
-        Enum.map(0..max, fn number ->
-          visible =
-            Enum.filter(comments, fn {authored, resolved} ->
-              authored <= number and (is_nil(resolved) or resolved >= number)
-            end)
-
-          unresolved =
-            Enum.count(visible, fn {_authored, resolved} ->
-              is_nil(resolved) or resolved > number
-            end)
-
-          %{number: number, comment_count: length(visible), unresolved_count: unresolved}
-        end)
+      nil -> []
+      max -> Enum.map(0..max, &round_summary(&1, comments))
     end
+  end
+
+  defp round_summary(number, comments) do
+    visible =
+      Enum.filter(comments, fn {authored, resolved} ->
+        authored <= number and (is_nil(resolved) or resolved >= number)
+      end)
+
+    unresolved =
+      Enum.count(visible, fn {_authored, resolved} -> is_nil(resolved) or resolved > number end)
+
+    %{number: number, comment_count: length(visible), unresolved_count: unresolved}
   end
 
   defp visible_comments(%Round{artifact_id: artifact_id, number: number}) do

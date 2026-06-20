@@ -239,24 +239,28 @@ defmodule Suikou.Submissions do
     |> Repo.exists?()
   end
 
-  # `scope` is `{:review, review_id}` or `{:artifact, artifact_id}`.
-  defp pending_comment?(scope) do
+  # `scope` is `{:review, review_id}` or `{:artifact, artifact_id}`. The query
+  # builders below are shared with publish_pending_*/1, which run the same
+  # filters with update_all instead of exists?.
+  defp pending_comment?(scope), do: scope |> pending_comments_query() |> Repo.exists?()
+
+  defp pending_reply?(scope), do: scope |> pending_replies_query() |> Repo.exists?()
+
+  defp pending_comments_query(scope) do
     from(c in Comment, as: :comment)
     |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([comment: c], c.status == :pending)
     |> scope_where(scope)
-    |> Repo.exists?()
   end
 
-  defp pending_reply?(scope) do
+  defp pending_replies_query(scope) do
     from(rep in Reply, as: :reply)
     |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
     |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([reply: rep], rep.status == :pending)
     |> scope_where(scope)
-    |> Repo.exists?()
   end
 
   defp scope_where(query, {:review, review_id}),
@@ -311,21 +315,14 @@ defmodule Suikou.Submissions do
   end
 
   defp publish_pending_comments(review_id) do
-    from(c in Comment, as: :comment)
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
-    |> where([comment: c], c.status == :pending)
-    |> where([artifact: a], a.review_id == ^review_id)
+    {:review, review_id}
+    |> pending_comments_query()
     |> Repo.update_all(set: [status: :published])
   end
 
   defp publish_pending_replies(review_id) do
-    from(rep in Reply, as: :reply)
-    |> join(:inner, [reply: rep], c in Comment, as: :comment, on: rep.comment_id == c.id)
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
-    |> where([reply: rep], rep.status == :pending)
-    |> where([artifact: a], a.review_id == ^review_id)
+    {:review, review_id}
+    |> pending_replies_query()
     |> Repo.update_all(set: [status: :published])
   end
 
