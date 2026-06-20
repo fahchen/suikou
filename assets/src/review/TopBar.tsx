@@ -109,7 +109,7 @@ export const TopBar = observer(function TopBar(props: {
   const fileEntries = reviewSnapshot.file_entries.data ?? [];
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(
     fileEntries,
-    fileSnapshot.artifact.id,
+    fileSnapshot.path,
   );
   const showFileNav = uiStore.fileDisplayMode === "single";
 
