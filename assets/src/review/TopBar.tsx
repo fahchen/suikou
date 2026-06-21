@@ -135,7 +135,6 @@ export const TopBar = observer(function TopBar(props: {
         >
           <Home className="text-muted-foreground" />
         </Button>
-        <ConnectionPill />
         {showFileNav && (
           <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
             <Button
@@ -165,6 +164,10 @@ export const TopBar = observer(function TopBar(props: {
             </Button>
           </ButtonGroup>
         )}
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <ConnectionPill />
       </div>
 
       <div className="pointer-events-auto ml-auto flex items-center gap-2">

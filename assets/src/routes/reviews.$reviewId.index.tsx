@@ -167,6 +167,8 @@ function AllFilesShellHeader(props: {
         >
           <Home className="text-muted-foreground" />
         </Button>
+      </div>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <ConnectionPill />
       </div>
       <div className="pointer-events-auto ml-auto flex items-center gap-2">
