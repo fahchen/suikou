@@ -162,10 +162,38 @@ defmodule Suikou.Reads do
       |> select([round: r], max(r.number))
       |> Repo.one()
 
-    case max_round do
-      nil -> []
-      max -> Enum.map(0..max, &round_summary(&1, comments))
-    end
+    round_summaries_from_pairs(comments, max_round)
+  end
+
+  @doc """
+  Folds comment `{authored_round, resolved_round}` pairs into per-round summaries
+  for rounds `0..max_round`, returning `[]` when `max_round` is `nil`. Shared by
+  the SQL-backed `review_round_summaries/1` and the in-memory review aggregate so
+  both derive identical counts from the same logic.
+
+  ## Examples
+
+      iex> Suikou.Reads.round_summaries_from_pairs([{0, 1}], 0)
+      [%{number: 0, comment_count: 1, unresolved_count: 1}]
+
+      iex> Suikou.Reads.round_summaries_from_pairs([], nil)
+      []
+
+  """
+  @spec round_summaries_from_pairs(
+          [{non_neg_integer(), non_neg_integer() | nil}],
+          non_neg_integer() | nil
+        ) :: [
+          %{
+            number: non_neg_integer(),
+            comment_count: non_neg_integer(),
+            unresolved_count: non_neg_integer()
+          }
+        ]
+  def round_summaries_from_pairs(_pairs, nil), do: []
+
+  def round_summaries_from_pairs(pairs, max_round) do
+    Enum.map(0..max_round, &round_summary(&1, pairs))
   end
 
   defp round_summary(number, comments) do
