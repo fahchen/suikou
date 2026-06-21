@@ -54,11 +54,24 @@ defmodule SuikouWeb.Stores.ReviewStore do
         unresolved_count: integer()
       })
     )
+
+    # Review-wide viewed round. Every FileStore child renders against this same
+    # number, so switching rounds moves the whole review at once rather than one
+    # file at a time. `selected_round` is the effective number (latest when the
+    # user has not picked one); `latest_round` lets the picker flag "under review".
+    field(:selected_round, integer())
+    field(:latest_round, integer())
   end
 
   command :submit_review do
     reply do
       field(:warnings, list(String.t()))
+    end
+  end
+
+  command :select_round do
+    payload do
+      field(:number, integer())
     end
   end
 
@@ -120,6 +133,11 @@ defmodule SuikouWeb.Stores.ReviewStore do
     {:reply, %{warnings: warnings}, next_socket}
   end
 
+  @spec handle_command(:select_round, map(), Socket.t()) :: {:noreply, Socket.t()}
+  def handle_command(:select_round, payload, socket) do
+    {:noreply, Socket.assign(socket, :round_number, payload["number"])}
+  end
+
   @spec handle_command(:remove_file, map(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_command(:remove_file, payload, socket) do
     case Reviews.get_review(socket.assigns.review_id) do
@@ -135,6 +153,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   defp present_snapshot(%Review{} = review, socket) do
     file_entries = Map.get(socket.assigns, :file_entries, AsyncResult.loading())
+    summaries = Reads.review_round_summaries(review.id)
+    latest = summaries |> Enum.map(& &1.number) |> Enum.max(fn -> 0 end)
 
     %{
       review_id: review.id,
@@ -144,7 +164,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
       file_entries: file_entries,
       files: render_file_children(file_entries, socket),
       has_unpublished: Submissions.unpublished?(review.id),
-      round_summaries: Reads.review_round_summaries(review.id)
+      round_summaries: summaries,
+      selected_round: socket.assigns[:round_number] || latest,
+      latest_round: latest
     }
   end
 
@@ -157,7 +179,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
       file_entries: Map.get(socket.assigns, :file_entries, AsyncResult.loading()),
       files: [],
       has_unpublished: false,
-      round_summaries: []
+      round_summaries: [],
+      selected_round: 0,
+      latest_round: 0
     }
   end
 
@@ -176,6 +200,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
         artifact_id: file.artifact_id,
         content_hash: file.content_hash,
         change_status: file.change_status,
+        round_number: socket.assigns[:round_number],
         reload_token: socket.assigns.reload_token
       )
     end)
