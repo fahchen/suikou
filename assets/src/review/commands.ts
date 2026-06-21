@@ -1,41 +1,39 @@
-import { createContext, useContext, useRef } from "react"
+import { createContext, useContext, useRef } from "react";
 
-import { useMusubiCommand, useSocketConnected } from "../musubi"
-import { useFileStore, useReviewStore } from "./store-context"
-import type { CommentsStore, FileStore } from "./types"
+import { useMusubiCommand, useSocketConnected } from "../musubi";
+import { useFileStore, useReviewStore } from "./store-context";
+import type { CommentsStore, FileStore } from "./types";
 
 /**
  * Built dispatchers returned by `useReviewCommands`. Stacked-file frames in
  * all-files mode are inside a per-file FileStoreProvider, so every dispatcher
  * here already routes to the correct FileStore child.
  */
-export type ReviewCommands = ReturnType<typeof useDefaultReviewCommands>
+export type ReviewCommands = ReturnType<typeof useDefaultReviewCommands>;
 
-export const ReviewCommandsOverrideContext = createContext<
-  Partial<ReviewCommands> | null
->(null)
+export const ReviewCommandsOverrideContext = createContext<Partial<ReviewCommands> | null>(null);
 
 /** ReviewStore + FileStore command dispatchers. Comment commands route to the
  * CommentsStore grandchild of the active FileStore. */
 export function useReviewCommands(): ReviewCommands {
-  const base = useDefaultReviewCommands()
-  const override = useContext(ReviewCommandsOverrideContext)
-  if (!override) return base
-  return { ...base, ...override }
+  const base = useDefaultReviewCommands();
+  const override = useContext(ReviewCommandsOverrideContext);
+  if (!override) return base;
+  return { ...base, ...override };
 }
 
 function useDefaultReviewCommands() {
-  const reviewStore = useReviewStore()
-  const fileStore = useFileStore()
-  const comments = useStableComments(fileStore)
+  const reviewStore = useReviewStore();
+  const fileStore = useFileStore();
+  const comments = useStableComments(fileStore);
   // A dropped/reconnecting socket rejects every command with "Store is not
   // connected"; gate writes on the live connection so buttons disable instead of
-  // throwing. `selectRound` is read-only navigation and stays ungated.
-  const connected = useSocketConnected()
+  // throwing.
+  const connected = useSocketConnected();
   const gate = <T extends { isPending: boolean }>(command: T) => ({
     ...command,
     disabled: !connected || command.isPending,
-  })
+  });
   return {
     addComment: gate(useMusubiCommand(fileStore, "add_comment")),
     editComment: gate(useMusubiCommand(comments, "edit_comment")),
@@ -47,8 +45,7 @@ function useDefaultReviewCommands() {
     submitReview: gate(useMusubiCommand(reviewStore, "submit_review")),
     removeFile: gate(useMusubiCommand(reviewStore, "remove_file")),
     setDraftVerdict: gate(useMusubiCommand(fileStore, "set_draft_verdict")),
-    selectRound: useMusubiCommand(fileStore, "select_round"),
-  }
+  };
 }
 
 /**
@@ -60,10 +57,13 @@ function useDefaultReviewCommands() {
  * last resolved child keeps every comment dispatcher targeting a real store.
  */
 function useStableComments(fileStore: FileStore): CommentsStore {
-  const held = useRef<{ fileStore: FileStore; comments: CommentsStore } | null>(null)
-  const live = fileStore.comments as CommentsStore | undefined
+  const held = useRef<{ fileStore: FileStore; comments: CommentsStore } | null>(null);
+  const live = fileStore.comments as CommentsStore | undefined;
   if (!held.current || held.current.fileStore !== fileStore || live !== undefined) {
-    held.current = { fileStore, comments: live ?? held.current?.comments ?? fileStore.comments as CommentsStore }
+    held.current = {
+      fileStore,
+      comments: live ?? held.current?.comments ?? (fileStore.comments as CommentsStore),
+    };
   }
-  return held.current.comments
+  return held.current.comments;
 }
