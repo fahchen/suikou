@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
-import { Check, Send } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
 import {
   storeCache,
@@ -11,25 +10,19 @@ import {
   useSocketConnected,
 } from "../musubi";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
+import { uiStore } from "../stores/ui-store";
 import { ReviewStoreProvider } from "../review/store-context";
 import { AllFilesView } from "../review/views/AllFilesView";
 import { ReviewShellSkeleton } from "../review/ArtifactReviewShell";
 import { TopBarDisplayMenu } from "../review/TopBarDisplayMenu";
+import { TopBarRoundMenu } from "../review/TopBarRoundMenu";
 import { TopBarShell } from "../review/TopBarShell";
+import { SubmitControls } from "../review/SubmitControls";
 import { viewCapabilities } from "../review/view-kind";
 import { Centered } from "../components/centered";
 import { ErrorPage, errorCopy } from "../components/error-page";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import type { ReviewStore } from "../review/types";
+import type { ReviewSnapshot, ReviewStore } from "../review/types";
 import type { FileSnapshot } from "../review/types";
 
 export const Route = createFileRoute("/reviews/$reviewId/")({
@@ -64,7 +57,6 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   const submitReview = useMusubiCommand(reviewStore, "submit_review");
   const connected = useSocketConnected();
   const wide = useMediaQuery(WIDE_QUERY);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // `files` can read undefined for a frame while the socket is dropping and the
   // store snapshot tears down; default to empty so the header can still render.
@@ -84,24 +76,22 @@ const AllFilesShell = observer(function AllFilesShell(props: {
     binary: false,
   });
 
-  function submit() {
-    void submitReview.dispatch({});
-    setConfirmOpen(false);
-  }
+  const header = (
+    <AllFilesShellHeader
+      reviewId={reviewId}
+      reviewSnapshot={reviewSnapshot}
+      firstFilePath={firstFilePath}
+      allFilesCapabilities={allFilesCapabilities}
+      wide={wide}
+      submitDisabled={!hasAnyDraftVerdict || submitReview.isPending || !connected}
+      onSubmit={() => void submitReview.dispatch({})}
+    />
+  );
 
   if (files.length === 0 && reviewSnapshot.file_entries?.status !== "loading") {
     return (
       <main className="h-screen overflow-auto bg-canvas text-ink">
-        <AllFilesShellHeader
-          reviewId={reviewId}
-          firstFilePath={firstFilePath}
-          allFilesCapabilities={allFilesCapabilities}
-          wide={wide}
-          hasAnyDraftVerdict={hasAnyDraftVerdict}
-          onSubmitClick={() => setConfirmOpen(true)}
-          submitPending={submitReview.isPending}
-          connected={connected}
-        />
+        {header}
         <Centered>
           <div className="flex max-w-sm flex-col items-center gap-2 text-center">
             <strong className="text-heading">No files in this review</strong>
@@ -110,28 +100,13 @@ const AllFilesShell = observer(function AllFilesShell(props: {
             </span>
           </div>
         </Centered>
-        <SubmitDialog
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          onSubmit={submit}
-          pending={submitReview.isPending}
-        />
       </main>
     );
   }
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
-      <AllFilesShellHeader
-        reviewId={reviewId}
-        firstFilePath={firstFilePath}
-        allFilesCapabilities={allFilesCapabilities}
-        wide={wide}
-        hasAnyDraftVerdict={hasAnyDraftVerdict}
-        onSubmitClick={() => setConfirmOpen(true)}
-        submitPending={submitReview.isPending}
-        connected={connected}
-      />
+      {header}
       <div className="mx-auto w-full max-w-[1760px] px-3 pb-6 pt-2 sm:px-6 lg:px-10">
         <AllFilesView
           reviewId={reviewId}
@@ -139,40 +114,42 @@ const AllFilesShell = observer(function AllFilesShell(props: {
           reviewStore={reviewStore}
         />
       </div>
-      <SubmitDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onSubmit={submit}
-        pending={submitReview.isPending}
-      />
     </main>
   );
 });
 
-function AllFilesShellHeader(props: {
+const AllFilesShellHeader = observer(function AllFilesShellHeader(props: {
   reviewId: string;
+  reviewSnapshot: ReviewSnapshot;
   firstFilePath: string;
   allFilesCapabilities: ReturnType<typeof viewCapabilities>;
   wide: boolean;
-  hasAnyDraftVerdict: boolean;
-  onSubmitClick: () => void;
-  submitPending: boolean;
-  connected: boolean;
+  submitDisabled: boolean;
+  onSubmit: () => void;
 }) {
   const {
     reviewId,
+    reviewSnapshot,
     firstFilePath,
     allFilesCapabilities,
     wide,
-    hasAnyDraftVerdict,
-    onSubmitClick,
-    submitPending,
-    connected,
+    submitDisabled,
+    onSubmit,
   } = props;
   return (
     <TopBarShell
       right={
         <>
+          <TopBarRoundMenu />
+          <Button
+            variant="pill"
+            size="icon"
+            title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+            aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+            onClick={() => uiStore.toggleCollapseAll()}
+          >
+            {uiStore.commentsCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+          </Button>
           <TopBarDisplayMenu
             reviewId={reviewId}
             filePath={firstFilePath}
@@ -182,47 +159,13 @@ function AllFilesShellHeader(props: {
             diffLayoutAllowed={false}
             sideCommentsAllowed={wide}
           />
-          <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
-            <Button
-              size="icon"
-              title="Submit review"
-              aria-label="Submit review"
-              disabled={!hasAnyDraftVerdict || submitPending || !connected}
-              onClick={onSubmitClick}
-            >
-              <Send size={14} />
-            </Button>
-          </ButtonGroup>
+          <SubmitControls
+            reviewSnapshot={reviewSnapshot}
+            disabled={submitDisabled}
+            onSubmit={onSubmit}
+          />
         </>
       }
     />
   );
-}
-
-function SubmitDialog(props: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: () => void;
-  pending: boolean;
-}) {
-  const { open, onOpenChange, onSubmit, pending } = props;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Submit this review?</DialogTitle>
-        </DialogHeader>
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
-          Applies every verdict chip you have set and publishes all pending comments across the
-          review.
-        </p>
-        <DialogFooter>
-          <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
-          <Button size="sm" disabled={pending} onClick={onSubmit}>
-            <Check size={14} /> Submit
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+});

@@ -1,25 +1,14 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import {
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  ClipboardCheck,
-  ClipboardList,
-  Copy,
-  Send,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { TopBarShell } from "./TopBarShell";
+import { SubmitControls } from "./SubmitControls";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
-import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
 import { reviewFileTarget } from "./review-navigation";
@@ -30,24 +19,6 @@ import { resolveViewKind, viewCapabilities } from "./view-kind";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-// Split-button seam: a darker step of the theme's primary so the divider reads
-// as a deliberate seam on the filled button.
-const SPLIT_SEAM = "bg-accent-seam";
 
 export const TopBar = observer(function TopBar(props: {
   reviewSnapshot: ReviewSnapshot;
@@ -78,33 +49,12 @@ export const TopBar = observer(function TopBar(props: {
     binary,
   });
   const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  function copyComments(mode: CopyMode) {
-    const text = buildCopyText(
-      title,
-      fileSnapshot.current_round.number,
-      fileSnapshot.comments.items,
-      mode,
-    );
-    void copyToClipboard(text);
-  }
 
   // Review-level Submit gates on any unpublished work — a draft verdict on any
   // file, or a pending (not-yet-published) comment or reply anywhere in the
   // review. Computed server-side on the root so it tracks every file, not just
   // the active one.
   const hasUnpublishedWork = reviewSnapshot.has_unpublished;
-
-  function submit() {
-    void commands.submitReview.dispatch({});
-    setConfirmOpen(false);
-  }
-
-  function submitAndCopy(mode: CopyMode) {
-    copyComments(mode);
-    submit();
-  }
 
   const fileEntries = reviewSnapshot.file_entries.data ?? [];
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
@@ -178,86 +128,11 @@ export const TopBar = observer(function TopBar(props: {
             sideCommentsAllowed={wide}
           />
 
-          <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
-            <Button
-              size="icon"
-              title="Submit review"
-              aria-label="Submit review"
-              disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-              onClick={() => setConfirmOpen(true)}
-            >
-              <Send size={14} />
-            </Button>
-            <ButtonGroupSeparator className={SPLIT_SEAM} />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button size="icon" title="Copy comments" aria-label="Copy comments" />}
-              >
-                <Copy size={14} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => copyComments("noteworthy")}>
-                  <ClipboardCheck size={14} />
-                  Copy noteworthy
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => copyComments("all")}>
-                  <ClipboardList size={14} />
-                  Copy all comments
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
-
-          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <DialogContent className="sm:max-w-sm">
-              <DialogHeader>
-                <DialogTitle>Submit this review?</DialogTitle>
-              </DialogHeader>
-              <p className="text-[13px] leading-relaxed text-muted-foreground">
-                Applies every verdict chip you have set and publishes all pending comments across
-                the review.
-              </p>
-
-              <DialogFooter>
-                <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
-                <ButtonGroup className="w-full sm:w-auto">
-                  <Button
-                    size="sm"
-                    className="grow sm:grow-0"
-                    disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-                    onClick={submit}
-                  >
-                    <Check size={14} /> Submit
-                  </Button>
-                  <ButtonGroupSeparator className={SPLIT_SEAM} />
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          size="icon-xs"
-                          title="Submit and copy"
-                          aria-label="Submit and copy"
-                          disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-                        />
-                      }
-                    >
-                      <ChevronDown size={14} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-60">
-                      <DropdownMenuItem onClick={() => submitAndCopy("noteworthy")}>
-                        <ClipboardCheck size={14} />
-                        Submit and copy noteworthy
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => submitAndCopy("all")}>
-                        <ClipboardList size={14} />
-                        Submit and copy all
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </ButtonGroup>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <SubmitControls
+            reviewSnapshot={reviewSnapshot}
+            disabled={!hasUnpublishedWork || commands.submitReview.disabled}
+            onSubmit={() => void commands.submitReview.dispatch({})}
+          />
         </>
       }
     />
