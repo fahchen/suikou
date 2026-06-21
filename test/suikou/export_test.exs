@@ -148,6 +148,25 @@ defmodule Suikou.ExportTest do
     refute view.line_anchor
   end
 
+  test "a comment whose line drifted slightly exports not-outdated with a valid line anchor" do
+    round = source_round("intro\nrate limit is 100 rps\n")
+    artifact = round.artifact
+
+    published_comment(round.id, %{
+      scope: :located,
+      start_line: 2,
+      end_line: 2,
+      critique_type: :fix_required
+    })
+
+    advance(artifact.id, "intro\nrate limit is 120 rps\n")
+
+    assert {:ok, export} = Export.export(artifact.id)
+    [view] = export.comments
+    refute view.outdated
+    assert view.line_anchor
+  end
+
   test "exporting twice changes no state and is stable" do
     round = insert(:round)
     artifact = round.artifact
