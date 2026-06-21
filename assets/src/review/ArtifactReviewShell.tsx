@@ -60,6 +60,14 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const minting = uiStore.mintingPath;
 
+  // On a websocket reconnect the body child can resolve a frame after the root,
+  // so `body` is briefly a bare store-id stub with no fields. The generated
+  // types declare these as always-present, so guard at runtime before deref.
+  const body = reviewSnapshot.body;
+  if (!body.files || !body.file_entries) {
+    return <ReviewShellSkeleton label="Connecting…" />;
+  }
+
   // Find the FileStore proxy and its snapshot by matching path.
   // snapshot.body.files[i] and reviewStore.body.files[i] are parallel arrays.
   const fileIndex = reviewSnapshot.body.files.findIndex((fs) => fs.path === props.path);
