@@ -310,7 +310,7 @@ const MissingFilePanel = observer(function MissingFilePanel(props: {
           variant="destructive"
           size="sm"
           onClick={() => void remove()}
-          disabled={commands.removeFile.isPending}
+          disabled={commands.removeFile.disabled}
         >
           <Trash2 aria-hidden />
           Remove from review

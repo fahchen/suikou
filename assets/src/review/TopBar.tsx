@@ -17,6 +17,7 @@ import {
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
+import { ConnectionPill } from "./ConnectionPill";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
@@ -134,6 +135,7 @@ export const TopBar = observer(function TopBar(props: {
         >
           <Home className="text-muted-foreground" />
         </Button>
+        <ConnectionPill />
         {showFileNav && (
           <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
             <Button
@@ -197,7 +199,7 @@ export const TopBar = observer(function TopBar(props: {
             size="icon"
             title="Submit review"
             aria-label="Submit review"
-            disabled={!hasUnpublishedWork || commands.submitReview.isPending}
+            disabled={!hasUnpublishedWork || commands.submitReview.disabled}
             onClick={() => setConfirmOpen(true)}
           >
             <Send size={14} />
@@ -253,7 +255,7 @@ export const TopBar = observer(function TopBar(props: {
                 <Button
                   size="sm"
                   className="grow sm:grow-0"
-                  disabled={!hasUnpublishedWork || commands.submitReview.isPending}
+                  disabled={!hasUnpublishedWork || commands.submitReview.disabled}
                   onClick={submit}
                 >
                   <Check size={14} /> Submit
@@ -266,7 +268,7 @@ export const TopBar = observer(function TopBar(props: {
                         size="icon-xs"
                         title="Submit and copy"
                         aria-label="Submit and copy"
-                        disabled={!hasUnpublishedWork || commands.submitReview.isPending}
+                        disabled={!hasUnpublishedWork || commands.submitReview.disabled}
                       />
                     }
                   >

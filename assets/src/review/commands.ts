@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef } from "react"
 
-import { useMusubiCommand } from "../musubi"
+import { useMusubiCommand, useSocketConnected } from "../musubi"
 import { useFileStore, useReviewStore } from "./store-context"
 import type { CommentsStore, FileStore } from "./types"
 
@@ -28,17 +28,25 @@ function useDefaultReviewCommands() {
   const reviewStore = useReviewStore()
   const fileStore = useFileStore()
   const comments = useStableComments(fileStore)
+  // A dropped/reconnecting socket rejects every command with "Store is not
+  // connected"; gate writes on the live connection so buttons disable instead of
+  // throwing. `selectRound` is read-only navigation and stays ungated.
+  const connected = useSocketConnected()
+  const gate = <T extends { isPending: boolean }>(command: T) => ({
+    ...command,
+    disabled: !connected || command.isPending,
+  })
   return {
-    addComment: useMusubiCommand(fileStore, "add_comment"),
-    editComment: useMusubiCommand(comments, "edit_comment"),
-    deleteComment: useMusubiCommand(comments, "delete_comment"),
-    resolveComment: useMusubiCommand(comments, "resolve_comment"),
-    reply: useMusubiCommand(comments, "reply"),
-    editReply: useMusubiCommand(comments, "edit_reply"),
-    deleteReply: useMusubiCommand(comments, "delete_reply"),
-    submitReview: useMusubiCommand(reviewStore, "submit_review"),
-    removeFile: useMusubiCommand(reviewStore, "remove_file"),
-    setDraftVerdict: useMusubiCommand(fileStore, "set_draft_verdict"),
+    addComment: gate(useMusubiCommand(fileStore, "add_comment")),
+    editComment: gate(useMusubiCommand(comments, "edit_comment")),
+    deleteComment: gate(useMusubiCommand(comments, "delete_comment")),
+    resolveComment: gate(useMusubiCommand(comments, "resolve_comment")),
+    reply: gate(useMusubiCommand(comments, "reply")),
+    editReply: gate(useMusubiCommand(comments, "edit_reply")),
+    deleteReply: gate(useMusubiCommand(comments, "delete_reply")),
+    submitReview: gate(useMusubiCommand(reviewStore, "submit_review")),
+    removeFile: gate(useMusubiCommand(reviewStore, "remove_file")),
+    setDraftVerdict: gate(useMusubiCommand(fileStore, "set_draft_verdict")),
     selectRound: useMusubiCommand(fileStore, "select_round"),
   }
 }

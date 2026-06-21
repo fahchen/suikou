@@ -34,7 +34,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
       variant="outline"
       size="sm"
       className="border-green/50 bg-green/15 text-green-text hover:bg-green/25"
-      disabled={commands.resolveComment.isPending}
+      disabled={commands.resolveComment.disabled}
       onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
     >
       <CircleCheck size={14} />
@@ -86,7 +86,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         <Button
           size="sm"
           className="ml-auto"
-          disabled={commands.reply.isPending || !body.trim()}
+          disabled={commands.reply.disabled || !body.trim()}
           onClick={send}
         >
           {replyLabel}

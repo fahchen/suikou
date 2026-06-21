@@ -141,7 +141,7 @@ export const Composer = observer(function Composer(props: {
           <Button
             type="button"
             size="sm"
-            disabled={commands.addComment.isPending || !body.trim()}
+            disabled={commands.addComment.disabled || !body.trim()}
             onClick={add}
           >
             Add comment

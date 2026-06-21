@@ -5,6 +5,13 @@ import { ReviewStoreProvider, FileStoreProvider } from "./store-context"
 import { useReviewCommands } from "./commands"
 import type { FileStore, ReviewStore } from "./types"
 
+// This test exercises dispatch routing, not connection state. Stub the socket
+// connectivity hook as connected so the command gate stays open.
+vi.mock("../musubi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../musubi")>()),
+  useSocketConnected: () => true
+}))
+
 // Minimal stand-ins for a Musubi store proxy: the command hook only ever touches
 // `dispatchCommand` and the internal `__musubi_store_id__` (the latter solely on
 // the library's error path).
