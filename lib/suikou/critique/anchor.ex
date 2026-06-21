@@ -12,6 +12,10 @@ defmodule Suikou.Critique.Anchor do
   alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
 
+  # Minimum `String.jaro_distance/2` similarity for a changed line to count as a
+  # drift rather than a loss. Tunable: raise it to demand closer matches.
+  @drift_threshold 0.85
+
   @doc """
   Builds the `line_range` anchor params for lines `start_line..end_line` (1-based,
   inclusive) of `content`, capturing their quoted source. The result is a params
@@ -96,39 +100,65 @@ defmodule Suikou.Critique.Anchor do
   occupies. The caller splits once and resolves every comment against the same
   lines, so a file is split once per render rather than once per comment.
 
-  Returns `{:ok, {start_line, end_line}}` for the contiguous run of lines equal
-  to the quote, choosing the occurrence nearest `hint_start` (the comment's
-  last-known start line) when the quote appears more than once, or `:not_found`
-  when the quote no longer appears, which marks the comment outdated.
+  Returns a 3-state result distinguishing how the quote was found:
+
+    * `{:ok, {start_line, end_line}, :exact}` — a contiguous run of lines equal
+      to the quote, choosing the occurrence nearest `hint_start` (the comment's
+      last-known start line) when it appears more than once.
+    * `{:ok, {start_line, end_line}, :fuzzy}` — no exact run, but a window whose
+      joined text is at least `#{@drift_threshold}` similar (`String.jaro_distance/2`)
+      to the quote; the comment has drifted to a slightly changed line.
+    * `:not_found` — neither an exact nor a similar-enough window exists, so the
+      comment is outdated.
 
   ## Examples
 
       iex> Suikou.Critique.Anchor.locate(["a", "b", "c"], "b", 2)
-      {:ok, {2, 2}}
+      {:ok, {2, 2}, :exact}
 
-      iex> Suikou.Critique.Anchor.locate(["a", "b", "c"], "x", 2)
+      iex> Suikou.Critique.Anchor.locate(["rate limit is 100 rps"], "rate limit is 120 rps", 1)
+      {:ok, {1, 1}, :fuzzy}
+
+      iex> Suikou.Critique.Anchor.locate(["a", "b", "c"], "wholly different line", 2)
       :not_found
 
   """
   @spec locate([String.t()], String.t(), pos_integer()) ::
-          {:ok, {pos_integer(), pos_integer()}} | :not_found
+          {:ok, {pos_integer(), pos_integer()}, :exact | :fuzzy} | :not_found
   def locate(content_lines, quote, hint_start) do
     quote_lines = String.split(quote, "\n")
     span = length(quote_lines)
     total = length(content_lines)
 
-    starts =
-      if span > total do
-        []
-      else
-        Enum.filter(0..(total - span)//1, fn i ->
-          Enum.slice(content_lines, i, span) == quote_lines
-        end)
-      end
+    if span > total do
+      :not_found
+    else
+      starts = 0..(total - span)//1
+      exact = Enum.filter(starts, &(Enum.slice(content_lines, &1, span) == quote_lines))
 
-    case starts do
-      [] -> :not_found
-      found -> {:ok, nearest(found, span, hint_start)}
+      case exact do
+        [] -> fuzzy_locate(content_lines, quote, span, hint_start, starts)
+        found -> {:ok, nearest(found, span, hint_start), :exact}
+      end
+    end
+  end
+
+  # ponytail: O(n*span) jaro scan over every window — fine for file-sized inputs;
+  # swap for a rolling/windowed similarity if files ever get huge.
+  defp fuzzy_locate(content_lines, quote, span, hint_start, starts) do
+    scored =
+      Enum.map(starts, fn i ->
+        text = content_lines |> Enum.slice(i, span) |> Enum.join("\n")
+        {i, String.jaro_distance(text, quote)}
+      end)
+
+    {_best_i, max_score} = Enum.max_by(scored, &elem(&1, 1))
+
+    if max_score >= @drift_threshold do
+      best = for {i, score} <- scored, score == max_score, do: i
+      {:ok, nearest(best, span, hint_start), :fuzzy}
+    else
+      :not_found
     end
   end
 
@@ -154,70 +184,86 @@ defmodule Suikou.Critique.Anchor do
         }
   @type resolved() :: resolved_line() | resolved_diff() | resolved_element()
 
+  @typedoc """
+  An anchor's freshness against the live content: `:current` (quote located
+  exactly, or no fuzzy concept applies), `:drifted` (relocated to a similar but
+  changed line — `%LineRange{}` only), or `:outdated` (the quote is gone).
+  """
+  @type status() :: :current | :drifted | :outdated
+
   @doc """
   Resolves a stored anchor against the live content, returning its current view
-  and whether it is outdated. A `%LineRange{}` resolves against `content_lines`
+  and a freshness `status()`. A `%LineRange{}` resolves against `content_lines`
   (the live file split on newlines); a `%DiffHunk{}` resolves against the live
-  unified diff text. A located quote yields its present range (not outdated);
-  a quote that no longer appears, or content the resolver cannot read, leaves
-  the anchor at its last-known position and marks it outdated. A `%Element{}`
-  resolves verbatim with `outdated = false` regardless of content — element
-  re-anchoring runs in the iframe DOM on the client and never touches the
-  server (see BDR-0021). A `nil` anchor (`:artifact`- or `:review`-scoped
-  comment) resolves to `{nil, false}`.
+  unified diff text. An exactly located line quote yields `:current` at its
+  present range; a line quote with no exact match but a similar-enough window
+  yields `:drifted` at the new fuzzy range (the view's lines move, the captured
+  quote stays); a line quote that no longer appears at all, or content the
+  resolver cannot read, leaves the anchor at its last-known position and marks
+  it `:outdated`. A `%DiffHunk{}` is exact-only: located → `:current`, else
+  `:outdated` (no fuzzy). A `%Element{}` resolves verbatim as `:current`
+  regardless of content — element re-anchoring runs in the iframe DOM on the
+  client and never touches the server (see BDR-0021). A `nil` anchor
+  (`:artifact`- or `:review`-scoped comment) resolves to `{nil, :current}`.
 
   ## Examples
 
       iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, ["x", "b", "c"])
-      {%{start_line: 2, end_line: 2, quote: "b"}, false}
+      {%{start_line: 2, end_line: 2, quote: "b"}, :current}
+
+      iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 1, end_line: 1, quote: "rate limit is 100 rps"}, ["rate limit is 120 rps"])
+      {%{start_line: 1, end_line: 1, quote: "rate limit is 100 rps"}, :drifted}
 
       iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.LineRange{start_line: 2, end_line: 2, quote: "b"}, ["gone"])
-      {%{start_line: 2, end_line: 2, quote: "b"}, true}
+      {%{start_line: 2, end_line: 2, quote: "b"}, :outdated}
 
       iex> diff = "@@ -1,1 +1,2 @@\\n a\\n+b"
       iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.DiffHunk{side: :new, start_line: 2, end_line: 2, quote: "b"}, diff)
-      {%{side: :new, start_line: 2, end_line: 2, quote: "b"}, false}
+      {%{side: :new, start_line: 2, end_line: 2, quote: "b"}, :current}
 
       iex> Suikou.Critique.Anchor.resolve(%Suikou.Schemas.Anchor.Element{selector: "main > p", quote: "Hello"}, nil)
-      {%{selector: "main > p", quote: "Hello"}, false}
+      {%{selector: "main > p", quote: "Hello"}, :current}
 
   """
   @spec resolve(
           LineRange.t() | DiffHunk.t() | Element.t() | nil,
           [String.t()] | binary() | nil
         ) ::
-          {resolved() | nil, boolean()}
-  def resolve(nil, _content), do: {nil, false}
+          {resolved() | nil, status()}
+  def resolve(nil, _content), do: {nil, :current}
 
   def resolve(%Element{} = anchor, _content) do
-    {%{selector: anchor.selector, quote: anchor.quote}, false}
+    {%{selector: anchor.selector, quote: anchor.quote}, :current}
   end
 
   def resolve(%LineRange{} = anchor, content_lines) when is_list(content_lines) do
     case locate(content_lines, anchor.quote, anchor.start_line) do
-      {:ok, {start_line, end_line}} ->
-        {line_view(start_line, end_line, anchor.quote), false}
+      {:ok, {start_line, end_line}, :exact} ->
+        {line_view(start_line, end_line, anchor.quote), :current}
+
+      {:ok, {start_line, end_line}, :fuzzy} ->
+        {line_view(start_line, end_line, anchor.quote), :drifted}
 
       :not_found ->
-        {stale_line(anchor), true}
+        {stale_line(anchor), :outdated}
     end
   end
 
-  def resolve(%LineRange{} = anchor, _other), do: {stale_line(anchor), true}
+  def resolve(%LineRange{} = anchor, _other), do: {stale_line(anchor), :outdated}
 
   def resolve(%DiffHunk{} = anchor, diff_text) when is_binary(diff_text) do
     rows = diff_side_rows(diff_text, anchor.side)
 
     case locate_diff_rows(rows, anchor.quote, anchor.start_line) do
       {:ok, {start_line, end_line}} ->
-        {diff_view(anchor.side, start_line, end_line, anchor.quote), false}
+        {diff_view(anchor.side, start_line, end_line, anchor.quote), :current}
 
       :not_found ->
-        {stale_diff(anchor), true}
+        {stale_diff(anchor), :outdated}
     end
   end
 
-  def resolve(%DiffHunk{} = anchor, _other), do: {stale_diff(anchor), true}
+  def resolve(%DiffHunk{} = anchor, _other), do: {stale_diff(anchor), :outdated}
 
   defp stale_line(%LineRange{} = anchor) do
     line_view(anchor.start_line, anchor.end_line, anchor.quote)
