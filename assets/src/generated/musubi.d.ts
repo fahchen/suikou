@@ -337,10 +337,9 @@ declare namespace Musubi {
       }
     >
 
-    "SuikouWeb.Stores.ReviewStore": StoreDef<
-      "SuikouWeb.Stores.ReviewStore",
+    "SuikouWeb.Stores.ReviewBodyStore": StoreDef<
+      "SuikouWeb.Stores.ReviewBodyStore",
       {
-        review_id: string
         name: string
         kind: "file" | "diff"
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
@@ -350,6 +349,15 @@ declare namespace Musubi {
         round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
         selected_round: number
         latest_round: number
+      },
+      {}
+    >
+
+    "SuikouWeb.Stores.ReviewStore": StoreDef<
+      "SuikouWeb.Stores.ReviewStore",
+      {
+        review_id: string
+        body: Musubi.StoreField<"SuikouWeb.Stores.ReviewBodyStore">
       },
       {
         submit_review: {

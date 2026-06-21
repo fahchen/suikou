@@ -40,7 +40,7 @@ export const TopBar = observer(function TopBar(props: {
   const image = isImagePath(title);
   const binary = isBinaryContent(content);
   const commentsSupported = !image && !binary;
-  const viewKind = resolveViewKind({ kind: reviewSnapshot.kind, title });
+  const viewKind = resolveViewKind({ kind: reviewSnapshot.body.kind, title });
   const capabilities = viewCapabilities({
     kind: viewKind,
     previewable,
@@ -54,9 +54,9 @@ export const TopBar = observer(function TopBar(props: {
   // file, or a pending (not-yet-published) comment or reply anywhere in the
   // review. Computed server-side on the root so it tracks every file, not just
   // the active one.
-  const hasUnpublishedWork = reviewSnapshot.has_unpublished;
+  const hasUnpublishedWork = reviewSnapshot.body.has_unpublished;
 
-  const fileEntries = reviewSnapshot.file_entries.data ?? [];
+  const fileEntries = reviewSnapshot.body.file_entries.data ?? [];
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
   const showFileNav = uiStore.fileDisplayMode === "single";
 

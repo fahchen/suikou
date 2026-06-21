@@ -40,20 +40,20 @@ export const AllFilesView = observer(function AllFilesView(props: {
   reviewStore: ReviewStore
 }) {
   const { reviewId, reviewSnapshot, reviewStore } = props
-  const count = reviewSnapshot.files.length
+  const count = reviewSnapshot.body.files.length
 
   if (count === 0) {
-    if (reviewSnapshot.file_entries.status === "loading") {
+    if (reviewSnapshot.body.file_entries.status === "loading") {
       return <Notice title="Loading files…" message="Fetching the review's file list." />
     }
     return <Notice title="No files" message="This review has no files yet." />
   }
 
-  // reviewSnapshot.files[i] and reviewStore.files[i] are parallel: same index
-  // is the same file. Merge into pairs and sort by path for a stable visual order.
+  // reviewSnapshot.body.files[i] and reviewStore.body.files[i] are parallel: same
+  // index is the same file. Merge into pairs and sort by path for a stable order.
   const pairs = Array.from({ length: count }, (_, i) => ({
-    snapshot: reviewSnapshot.files[i] as unknown as FileSnapshot,
-    proxy: reviewStore.files[i] as unknown as FileStore,
+    snapshot: reviewSnapshot.body.files[i] as unknown as FileSnapshot,
+    proxy: reviewStore.body.files[i] as unknown as FileStore,
   })).sort((a, b) => a.snapshot.path.localeCompare(b.snapshot.path))
 
   const visible = uiStore.hideReviewed
@@ -123,7 +123,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     void commands.setDraftVerdict.dispatch({ verdict: next })
   }
 
-  const reviewKind = props.reviewSnapshot.kind
+  const reviewKind = props.reviewSnapshot.body.kind
   const image = isImagePath(path)
   const viewKind: ViewKind = reviewKind === "diff" ? "diff" : isHtmlPath(path) ? "html" : "file"
 

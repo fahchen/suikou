@@ -84,7 +84,11 @@ defmodule SuikouWeb.Stores.FileStore do
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
-  def update(assigns, socket), do: {:ok, socket |> Socket.assign(assigns) |> reload()}
+  def update(assigns, socket) do
+    socket = socket |> Socket.assign(assigns) |> reload()
+    refresh_comments(socket)
+    {:ok, socket}
+  end
 
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
@@ -123,7 +127,9 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    {:noreply, socket |> bump_comments_reload_token() |> reload()}
+    socket = reload(socket)
+    refresh_comments(socket)
+    {:noreply, socket}
   end
 
   def handle_command(:add_comment, payload, socket) do
@@ -152,16 +158,24 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    {:noreply, socket |> bump_comments_reload_token() |> reload()}
+    socket = reload(socket)
+    refresh_comments(socket)
+    {:noreply, socket}
   end
 
   defp comments_child(socket) do
     Child.child(CommentsStore,
       id: "comments",
       artifact_id: socket.assigns[:artifact_id],
-      round_id: socket.assigns[:current_round_id],
-      reload_token: {socket.assigns[:reload_token], socket.assigns[:comments_reload_token]}
+      round_id: socket.assigns[:current_round_id]
     )
+  end
+
+  # Comment mutations leave `artifact_id`/`round_id` unchanged, so the child
+  # would memoize stale. Nudge it to re-derive its thread.
+  defp refresh_comments(socket) do
+    Musubi.send_update(Socket.store_id(socket) ++ ["comments"], %{})
+    socket
   end
 
   defp ensure_artifact(%Socket{} = socket) do
@@ -253,9 +267,5 @@ defmodule SuikouWeb.Stores.FileStore do
 
   defp current_round(number, content_hash, is_latest) do
     %{number: number, content_hash: content_hash, is_latest: is_latest}
-  end
-
-  defp bump_comments_reload_token(socket) do
-    Socket.assign(socket, :comments_reload_token, System.unique_integer())
   end
 end

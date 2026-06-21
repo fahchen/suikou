@@ -40,9 +40,9 @@ export const SubmitControls = observer(function SubmitControls(props: {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   function copy(mode: CopyMode) {
-    const files = (reviewSnapshot.files ?? []) as unknown as FileSnapshot[];
+    const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];
     const text = buildReviewCopyText(
-      reviewSnapshot.name,
+      reviewSnapshot.body.name,
       files.map((file) => ({
         title: file.artifact.title,
         round: file.current_round.number,

@@ -51,17 +51,15 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "renders an empty snapshot when the review is gone" do
       page = mount_review("00000000-0000-7000-8000-000000000000")
 
-      assert %{review_id: "00000000-0000-7000-8000-000000000000", name: "", files: []} =
-               Testing.render(page)
+      assert %{review_id: "00000000-0000-7000-8000-000000000000"} = Testing.render(page)
+      assert %{name: "", files: []} = Testing.render(page, ["body"])
     end
 
-    test "handle_info(:comments_changed) refreshes the review root" do
-      socket = %Socket{assigns: %{review_id: "rv", reload_token: 0}}
+    test "handle_info(:comments_changed) forwards a refresh to the body child" do
+      socket = %Socket{assigns: %{review_id: "rv"}}
 
-      assert {:noreply, %Socket{assigns: %{reload_token: token}}} =
-               ReviewStore.handle_info(:comments_changed, socket)
-
-      assert is_integer(token)
+      assert {:noreply, ^socket} = ReviewStore.handle_info(:comments_changed, socket)
+      assert_received {:musubi_send_update, ["body"], %{}}
     end
 
     test "renders one child per covered file and keeps unminted files empty" do
@@ -71,19 +69,19 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       first_id = first.id
 
       page = mount_review(review_id)
-      snapshot = await_files(page)
+      assert %{review_id: ^review_id} = Testing.render(page)
 
-      assert %{review_id: ^review_id, files: files} = snapshot
+      %{files: files} = await_files(page)
       assert length(files) == 2
 
       assert find_file_child(files, "first.md").id == first_id
       assert find_file_child(files, "second.md").id == "second.md"
 
       assert %{artifact_id: ^first_id, current_round: %{number: 0}} =
-               Testing.render(page, ["files", first_id])
+               Testing.render(page, ["body", "files", first_id])
 
       assert %{artifact_id: nil, current_round: %{number: 0}, artifact: %{title: "second.md"}} =
-               Testing.render(page, ["files", "second.md"])
+               Testing.render(page, ["body", "files", "second.md"])
     end
   end
 
@@ -99,7 +97,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   defp await_files(page, attempts) when attempts > 0 do
     _state = :sys.get_state(page.pid)
-    snapshot = Testing.render(page)
+    snapshot = Testing.render(page, ["body"])
 
     if snapshot.files == [] do
       await_files(page, attempts - 1)
@@ -108,7 +106,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
   end
 
-  defp await_files(page, 0), do: Testing.render(page)
+  defp await_files(page, 0), do: Testing.render(page, ["body"])
 
   defp file_selection_review(paths) do
     tmp =
