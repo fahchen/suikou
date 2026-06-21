@@ -20,8 +20,8 @@ export const CommentReplies = observer(function CommentReplies(props: {
         <ReplyCard
           key={reply.id}
           reply={reply}
-          editPending={commands.editReply.isPending}
-          deletePending={commands.deleteReply.isPending}
+          editPending={commands.editReply.disabled}
+          deletePending={commands.deleteReply.disabled}
           onEdit={(body) => void commands.editReply.dispatch({ reply_id: reply.id, body })}
           onDelete={() => void commands.deleteReply.dispatch({ reply_id: reply.id })}
         />

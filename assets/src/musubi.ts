@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useSyncExternalStore } from "react"
 import { Socket } from "phoenix"
 import { createStorageCachePersister } from "@musubi/client"
 import { createMusubi } from "@musubi/react"
@@ -12,6 +12,22 @@ const socketUrl = import.meta.env.DEV
   : "/socket"
 
 export const socket = new Socket(socketUrl)
+
+/**
+ * Live WebSocket connectivity. `useMusubiConnectionStatus` only reports the
+ * initial connect; it stays "ready" after a mid-session drop. The phoenix socket,
+ * by contrast, fires open/close/error on every reconnect cycle, so subscribe to it
+ * directly to know whether commands can currently reach the server.
+ */
+export function useSocketConnected(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const refs = [socket.onOpen(onChange), socket.onClose(onChange), socket.onError(onChange)]
+      return () => socket.off(refs)
+    },
+    () => socket.isConnected()
+  )
+}
 
 // Persist last-known store state across reloads so a route swap (or a fresh tab)
 // paints from cache instead of flashing loading. `buster` is the data-shape

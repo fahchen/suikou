@@ -51,7 +51,7 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
         <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={onDone}>
           Cancel
         </Button>
-        <Button size="sm" disabled={commands.editComment.isPending} onClick={save}>
+        <Button size="sm" disabled={commands.editComment.disabled} onClick={save}>
           Save
         </Button>
       </div>
