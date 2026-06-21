@@ -4,8 +4,9 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
 
   The thin `SuikouWeb.Stores.ReviewStore` root mounts it with the `review_id`
   and forwards refresh signals to it. It loads the review name, kind, artifact
-  summaries, file list, and the review-wide aggregates (`has_unpublished`,
-  `round_summaries`) synchronously into assigns, so `render/1` reads assigns only
+  summaries, and the review-wide aggregates (`has_unpublished`, `round_summaries`)
+  synchronously into assigns, and the file list through `assign_async/3` so the
+  first snapshot does not block on disk. Either way `render/1` reads assigns only
   and never touches the database. It renders one `SuikouWeb.Stores.FileStore`
   child per covered file; on every refresh it reloads its assigns and fans a
   `Musubi.send_update/2` out to each child so file-scoped state (round comment
@@ -67,12 +68,17 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
 
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
-  def init(socket), do: {:ok, reload(socket)}
+  def init(socket), do: {:ok, socket |> reload_chrome() |> load_files()}
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
   def update(assigns, socket) do
-    socket = socket |> Socket.assign(assigns) |> reload()
+    socket =
+      socket
+      |> Socket.assign(assigns)
+      |> reload_chrome()
+      |> maybe_load_files(assigns)
+
     fan_out(socket)
     {:ok, socket}
   end
@@ -80,7 +86,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    entries = socket.assigns[:file_entries] || AsyncResult.ok(nil, [])
+    entries = socket.assigns[:file_entries] || AsyncResult.ok([])
     summaries = socket.assigns[:round_summaries] || []
     latest = summaries |> Enum.map(& &1.number) |> Enum.max(fn -> 0 end)
 
@@ -101,7 +107,22 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   @spec handle_command(atom(), map(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_command(_command, _payload, socket), do: {:noreply, socket}
 
-  defp reload(socket) do
+  @impl Musubi.Store
+  @spec handle_async(:file_entries, {:ok, [map()]} | {:exit, term()}, Socket.t()) ::
+          {:noreply, Socket.t()}
+  def handle_async(:file_entries, {:ok, files}, socket) do
+    prior = socket.assigns[:file_entries] || AsyncResult.loading()
+    socket = Socket.assign(socket, :file_entries, AsyncResult.ok(prior, files))
+    {:noreply, fan_out(socket)}
+  end
+
+  def handle_async(:file_entries, {:exit, reason}, socket) do
+    prior = socket.assigns[:file_entries] || AsyncResult.loading()
+    {:noreply, Socket.assign(socket, :file_entries, AsyncResult.failed(prior, {:exit, reason}))}
+  end
+
+  # Cheap review-wide chrome, read synchronously into assigns on every refresh.
+  defp reload_chrome(socket) do
     review_id = socket.assigns.review_id
 
     case Reviews.get_review(review_id) do
@@ -113,7 +134,6 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
           :artifacts,
           Enum.map(Reads.list_review_artifacts(review_id), &render_artifact_summary/1)
         )
-        |> Socket.assign(:file_entries, AsyncResult.ok(nil, Reviews.list_files(review)))
         |> Socket.assign(:has_unpublished, Submissions.unpublished?(review_id))
         |> Socket.assign(:round_summaries, Reads.review_round_summaries(review_id))
 
@@ -122,9 +142,45 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
         |> Socket.assign(:name, "")
         |> Socket.assign(:kind, :file)
         |> Socket.assign(:artifacts, [])
-        |> Socket.assign(:file_entries, AsyncResult.ok(nil, []))
+        |> Socket.assign(:file_entries, AsyncResult.ok([]))
         |> Socket.assign(:has_unpublished, false)
         |> Socket.assign(:round_summaries, [])
+    end
+  end
+
+  # The file list loads off-render through `assign_async/3`. `update/2` runs on
+  # every parent render, so re-spawn only on a real refresh (an empty
+  # `Musubi.send_update/2`) — a plain prop re-render keeps the in-flight or
+  # resolved result instead of cancelling and reloading it every frame.
+  defp maybe_load_files(socket, assigns) when map_size(assigns) == 0, do: load_files(socket)
+
+  defp maybe_load_files(socket, _assigns) do
+    case socket.assigns[:file_entries] do
+      %AsyncResult{} -> socket
+      _absent -> load_files(socket)
+    end
+  end
+
+  defp load_files(socket) do
+    case Reviews.get_review(socket.assigns.review_id) do
+      %Review{} = review ->
+        socket
+        |> ensure_loading()
+        |> start_async(:file_entries, fn -> Reviews.list_files(review) end)
+
+      nil ->
+        Socket.assign(socket, :file_entries, AsyncResult.ok([]))
+    end
+  end
+
+  # Seed a loading state for the first paint only. On refresh the field is
+  # already an `%AsyncResult{}`, so we leave it untouched — `start_async` never
+  # resets it, so the resolved file list stays visible and the UI does not
+  # flash a skeleton while the fresh list loads.
+  defp ensure_loading(socket) do
+    case socket.assigns[:file_entries] do
+      %AsyncResult{} -> socket
+      _absent -> Socket.assign(socket, :file_entries, AsyncResult.loading())
     end
   end
 

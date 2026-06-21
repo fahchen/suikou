@@ -204,6 +204,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(_params, socket) do
     BoardBroadcast.subscribe()
+    socket = Socket.assign(socket, :review_files, AsyncResult.loading())
     {:ok, refresh_review_files(socket)}
   end
 
@@ -215,6 +216,22 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   @spec handle_info(BoardBroadcast.message(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_info(:board_changed, socket) do
     {:noreply, socket |> refresh_review_files() |> touch()}
+  end
+
+  # The async review-files loaders (mount, board broadcast, per-review patch) all
+  # return the full list and resolve here, so the field swaps in place at `:ok`
+  # without ever flipping back to `:loading` — no card flicker on refresh.
+  @impl Musubi.Store
+  @spec handle_async(:review_files, {:ok, [map()]} | {:exit, term()}, Socket.t()) ::
+          {:noreply, Socket.t()}
+  def handle_async(:review_files, {:ok, list}, socket) do
+    prior = Map.get(socket.assigns, :review_files, AsyncResult.loading())
+    {:noreply, Socket.assign(socket, :review_files, AsyncResult.ok(prior, list))}
+  end
+
+  def handle_async(:review_files, {:exit, reason}, socket) do
+    prior = Map.get(socket.assigns, :review_files, AsyncResult.loading())
+    {:noreply, Socket.assign(socket, :review_files, AsyncResult.failed(prior, {:exit, reason}))}
   end
 
   @impl Musubi.Store
@@ -556,12 +573,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # in place (`upsert_review_files/2` / `remove_review_files/2`), so the
   # board's hot path no longer rebuilds the full index per mutation.
   defp refresh_review_files(socket) do
-    assign_async(
-      socket,
-      :review_files,
-      fn -> {:ok, compute_review_files()} end,
-      reset: true
-    )
+    start_async(socket, :review_files, fn -> compute_review_files() end)
   end
 
   defp compute_review_files do
@@ -572,11 +584,10 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   # Recomputes a single review's `:files` entry and merges it into the async
-  # list off-render. Runs through `assign_async/3` so the prior mount task
-  # (if still in flight) is cancelled before our patch lands — no stale
-  # overwrite race. If the prior snapshot is empty (mount async was cancelled
-  # before resolving), we fall back to a full compute so unrelated reviews
-  # still appear; otherwise we patch one entry in place.
+  # list off-render through `start_async/3`, so the resolved list stays visible
+  # while the patch loads (no loading flash). If the prior snapshot is empty
+  # (mount async had not resolved yet), we fall back to a full compute so
+  # unrelated reviews still appear; otherwise we patch one entry in place.
   defp upsert_review_files(socket, review_id) do
     patch_review_files(socket, fn prior ->
       case Reviews.get_review(review_id) do
@@ -598,7 +609,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   defp patch_review_files(socket, fun) when is_function(fun, 1) do
     prior = current_review_files(socket)
-    assign_async(socket, :review_files, fn -> {:ok, fun.(prior)} end)
+    start_async(socket, :review_files, fn -> fun.(prior) end)
   end
 
   defp current_review_files(socket) do

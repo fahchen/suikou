@@ -3,6 +3,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   import Suikou.Factory
 
+  alias Musubi.AsyncResult
   alias Musubi.Socket
   alias Musubi.Testing
   alias Suikou.Events
@@ -93,20 +94,21 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     Enum.find(files, &(&1.assigns.path == path))
   end
 
-  defp await_files(page, attempts \\ 5)
-
-  defp await_files(page, attempts) when attempts > 0 do
-    _state = :sys.get_state(page.pid)
+  # Re-renders the body until its async `file_entries` resolves. Blocks on the
+  # resolution patch rather than spinning, so the load task finishes before the
+  # sandbox connection is reclaimed.
+  defp await_files(page) do
     snapshot = Testing.render(page, ["body"])
 
-    if snapshot.files == [] do
-      await_files(page, attempts - 1)
-    else
-      snapshot
+    case snapshot.file_entries do
+      %AsyncResult{status: :ok} ->
+        snapshot
+
+      %AsyncResult{} ->
+        assert_receive {:patch, _envelope}
+        await_files(page)
     end
   end
-
-  defp await_files(page, 0), do: Testing.render(page, ["body"])
 
   defp file_selection_review(paths) do
     tmp =
