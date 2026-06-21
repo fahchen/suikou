@@ -13,6 +13,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     resolved: false,
     resolved_round: null,
     outdated: false,
+    drifted: false,
     authored_round: 0,
     inserted_at: "2026-01-01T00:00:00Z",
     anchor: null,

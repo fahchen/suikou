@@ -22,6 +22,7 @@ function comment(overrides: Partial<Comment>): Comment {
     resolved: false,
     resolved_round: null,
     outdated: false,
+    drifted: false,
     authored_round: 0,
     inserted_at: new Date().toISOString(),
     anchor: null,
@@ -30,10 +31,16 @@ function comment(overrides: Partial<Comment>): Comment {
   };
 }
 
-function renderHeader(c: Comment) {
+function renderHeader(c: Comment, opts: { inline?: boolean; drifted?: boolean } = {}) {
   return render(
     <Collapsible open>
-      <CommentCardHeader comment={c} inline={false} open onEdit={() => {}} />
+      <CommentCardHeader
+        comment={c}
+        inline={opts.inline ?? false}
+        open
+        drifted={opts.drifted ?? false}
+        onEdit={() => {}}
+      />
     </Collapsible>,
   );
 }
@@ -71,5 +78,29 @@ describe("CommentCardHeader", () => {
   it("omits the Resolved badge when the comment is unresolved", () => {
     renderHeader(comment({ status: "published", resolved: false }));
     expect(screen.queryByLabelText("Resolved")).not.toBeInTheDocument();
+  });
+
+  it("shows no unlink icon for a file-level (null anchor) comment", () => {
+    renderHeader(comment({ anchor: null }));
+    expect(screen.queryByLabelText("No anchor")).not.toBeInTheDocument();
+  });
+
+  it("shows the drift marker in both rail and inline contexts", () => {
+    renderHeader(
+      comment({ anchor: { type: "line_range", start_line: 2, end_line: 2, quote: "x" } }),
+      { drifted: true },
+    );
+    expect(screen.getByLabelText("Re-anchored to a similar line")).toBeInTheDocument();
+
+    renderHeader(
+      comment({ anchor: { type: "line_range", start_line: 2, end_line: 2, quote: "x" } }),
+      { inline: true, drifted: true },
+    );
+    expect(screen.getAllByLabelText("Re-anchored to a similar line").length).toBeGreaterThan(0);
+  });
+
+  it("omits the drift marker when not drifted", () => {
+    renderHeader(comment({ anchor: { type: "line_range", start_line: 2, end_line: 2, quote: "x" } }));
+    expect(screen.queryByLabelText("Re-anchored to a similar line")).not.toBeInTheDocument();
   });
 });

@@ -50,6 +50,7 @@ function comment(overrides: Partial<Comment>): Comment {
     resolved: false,
     resolved_round: null,
     outdated: false,
+    drifted: false,
     authored_round: 0,
     inserted_at: new Date().toISOString(),
     anchor: null,
@@ -86,5 +87,37 @@ describe("CommentCard", () => {
     // Still collapsed — the user's open state is preserved on unresolve.
     expect(screen.getByLabelText("Expand comment")).toBeInTheDocument();
     expect(screen.queryByLabelText("Resolved")).not.toBeInTheDocument();
+  });
+
+  it("shows the drift marker and body note but not the lost-anchor message when drifted", () => {
+    render(
+      <CommentCard
+        comment={comment({
+          drifted: true,
+          anchor: { type: "line_range", start_line: 2, end_line: 2, quote: "x" },
+        })}
+        context="inline"
+      />,
+    );
+
+    expect(screen.getByLabelText("Re-anchored to a similar line")).toBeInTheDocument();
+    expect(screen.getByText(/Re-anchored to a similar line/)).toBeInTheDocument();
+    expect(screen.queryByText(/Lost its anchor/)).not.toBeInTheDocument();
+  });
+
+  it("shows the lost-anchor message and no drift note when outdated", () => {
+    render(
+      <CommentCard
+        comment={comment({
+          outdated: true,
+          drifted: true,
+          anchor: { type: "line_range", start_line: 2, end_line: 2, quote: "x" },
+        })}
+        context="inline"
+      />,
+    );
+
+    expect(screen.getByText(/Lost its anchor/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Re-anchored to a similar line")).not.toBeInTheDocument();
   });
 });

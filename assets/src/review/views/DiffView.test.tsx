@@ -141,6 +141,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
+      drifted: false,
       authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
@@ -159,6 +160,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
+      drifted: false,
       authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []
@@ -186,6 +188,7 @@ describe("DiffView", () => {
       status: "published",
       resolved: false,
       outdated: false,
+      drifted: false,
       authored_round: 0,
       inserted_at: "2026-06-14T00:00:00Z",
       replies: []

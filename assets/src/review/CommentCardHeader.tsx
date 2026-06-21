@@ -1,7 +1,7 @@
 import {
   Crosshair,
   Link2,
-  Unlink,
+  Waves,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -48,9 +48,10 @@ export function CommentCardHeader(props: {
   comment: Comment;
   inline: boolean;
   open: boolean;
+  drifted?: boolean;
   onEdit: () => void;
 }) {
-  const { comment, inline, open, onEdit } = props;
+  const { comment, inline, open, drifted = false, onEdit } = props;
   const commands = useReviewCommands();
   const reduced = useReducedMotion() ?? false;
   const meta = CRITIQUE_META[comment.critique_type];
@@ -111,11 +112,16 @@ export function CommentCardHeader(props: {
                   <Link2 size={13} aria-label="Anchored" />
                 </span>
               )
-          : (
-            <span className="text-faint" title="No anchor">
-              <Unlink size={13} aria-label="No anchor" />
-            </span>
-          )}
+          : null}
+
+        {drifted && (
+          <span
+            className="text-amber"
+            title="Re-anchored to a similar line — the quoted text changed slightly."
+          >
+            <Waves size={11} aria-label="Re-anchored to a similar line" />
+          </span>
+        )}
 
         <span className="text-[11px] text-faint" title={fullTimestamp(comment.inserted_at)}>
           {relativeTime(comment.inserted_at)}
