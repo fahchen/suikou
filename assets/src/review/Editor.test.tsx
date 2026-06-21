@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import type { RenderedBlock } from "../markdown/render";
+import type { Comment } from "./types";
 
 // Editor pulls in Composer/CommentCard, which read matchMedia via useMediaQuery.
 beforeAll(() => {
@@ -174,5 +175,38 @@ describe("Editor rendered table", () => {
     expect(screen.getByRole("button", { name: "Add a comment on line 1" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a comment on line 3" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a comment on line 4" })).toBeTruthy();
+  });
+});
+
+describe("Editor outdated comment", () => {
+  it("renders an outdated line_range comment in the top fallback when its line is gone", () => {
+    // Stale anchor points past the rendered content; without the fallback the
+    // comment would match no block and vanish. start_line 99 has no block.
+    const comment = {
+      id: "c-stale",
+      anchor: { type: "line_range", start_line: 99, end_line: 99, quote: "gone" },
+      body: "stale note",
+      critique_type: "fix_required",
+      status: "published",
+      resolved: false,
+      outdated: true,
+      authored_round: 0,
+      inserted_at: "2026-06-14T00:00:00Z",
+      replies: [],
+    } as unknown as Comment;
+
+    render(
+      <Editor
+        view="rendered"
+        content={"x\ny"}
+        blocks={[codeLine(1, "x"), codeLine(2, "y")]}
+        loading={false}
+        comments={[comment]}
+        rawLines={null}
+        inline={true}
+      />,
+    );
+
+    expect(screen.getByText("stale note")).toBeTruthy();
   });
 });

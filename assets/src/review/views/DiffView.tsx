@@ -69,7 +69,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
       />
     )
 
-  const unanchored = comments.filter((c) => !c.anchor)
+  const stranded = comments.filter((c) => !c.anchor || c.outdated)
 
   function onGutterClick(side: DiffSide, lineNo: number, shift: boolean): void {
     if (selection && selection.side === side && shift) {
@@ -94,7 +94,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
   return (
     <article className={wrapperClass}>
       {inline &&
-        unanchored.map((comment) => (
+        stranded.map((comment) => (
           <div key={comment.id} className="px-4 pb-2">
             <CommentCard comment={comment} context="inline" />
           </div>
@@ -293,7 +293,7 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
   const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
   const matches = inline
     ? comments.filter((c) => {
-        if (c.anchor?.type !== "diff_hunk") return false
+        if (c.anchor?.type !== "diff_hunk" || c.outdated) return false
         return c.anchor.side === row.side && c.anchor.start_line === lineNo
       })
     : []
@@ -434,7 +434,7 @@ function SideCell(props: {
 function AnchoredComments(props: { row: DiffRow; comments: Comment[] }) {
   const { row, comments } = props
   const matches = comments.filter((c) => {
-    if (c.anchor?.type !== "diff_hunk") return false
+    if (c.anchor?.type !== "diff_hunk" || c.outdated) return false
     const cell = c.anchor.side === "old" ? row.old : row.new
     return cell != null && c.anchor.start_line === cell.lineNo
   })

@@ -114,7 +114,7 @@ const ImageView = function ImageView(props: { src: string; nested?: boolean }) {
 const COMMENT_CLAMP = "sticky left-0 w-full max-w-[min(48rem,calc(100vw_-_1.5rem))]";
 
 const RenderView = observer(function RenderView(props: EditorProps) {
-  const unanchored = props.comments.filter((c) => !c.anchor);
+  const stranded = props.comments.filter((c) => !c.anchor || c.outdated);
   const tiers = DENSITY[uiStore.density];
   const wrapperClass = props.nested
     ? "px-2 py-4 sm:px-3 sm:py-6"
@@ -123,7 +123,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
   return (
     <article className={wrapperClass}>
       {props.inline &&
-        unanchored.map((comment) => (
+        stranded.map((comment) => (
           <div key={comment.id} className={`${COMMENT_CLAMP} px-4 pt-3`}>
             <CommentCard comment={comment} context="inline" />
           </div>
@@ -283,6 +283,7 @@ const RowAside = observer(function RowAside(props: {
     ? props.comments.filter(
         (c) =>
           c.anchor?.type === "line_range" &&
+          !c.outdated &&
           c.anchor.start_line >= props.startLine &&
           c.anchor.start_line <= props.endLine,
       )
@@ -400,6 +401,7 @@ function lineHasAside(
   return comments.some(
     (c) =>
       c.anchor?.type === "line_range" &&
+      !c.outdated &&
       c.anchor.start_line >= line.startLine &&
       c.anchor.start_line <= line.endLine,
   );
@@ -616,6 +618,7 @@ const TableBlock = observer(function TableBlock(props: {
               ? props.comments.filter(
                   (c) =>
                     c.anchor?.type === "line_range" &&
+                    !c.outdated &&
                     c.anchor.start_line >= startLine &&
                     c.anchor.start_line <= endLine,
                 )
@@ -682,13 +685,13 @@ function TableRow(props: { startLine: number; endLine: number; cells: string; se
 
 const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
-  const unanchored = props.comments.filter((c) => !c.anchor);
+  const stranded = props.comments.filter((c) => !c.anchor || c.outdated);
   const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
 
   return (
     <article className={`${chrome} px-2 py-4 font-mono text-[13px] sm:px-3 sm:py-6`}>
       {props.inline &&
-        unanchored.map((comment) => (
+        stranded.map((comment) => (
           <div key={comment.id} className={`${COMMENT_CLAMP} px-4 pt-3`}>
             <CommentCard comment={comment} context="inline" />
           </div>

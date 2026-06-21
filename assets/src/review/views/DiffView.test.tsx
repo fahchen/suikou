@@ -168,6 +168,26 @@ describe("DiffView", () => {
     expect(screen.getByText("general note")).toBeInTheDocument()
   })
 
+  it("renders an outdated diff_hunk comment as a fallback when its line is gone", () => {
+    // Stale anchor points at a line the live diff no longer has; without the
+    // fallback it would render nowhere. start_line 99 matches no row.
+    const comment = {
+      id: "c-stale",
+      anchor: { type: "diff_hunk", side: "new", start_line: 99, end_line: 99, quote: "gone" },
+      body: "stale note",
+      critique_type: "fix_required",
+      status: "published",
+      resolved: false,
+      outdated: true,
+      authored_round: 0,
+      inserted_at: "2026-06-14T00:00:00Z",
+      replies: []
+    } as unknown as Comment
+
+    render(<DiffView view={makeView(DIFF, [comment])} forceRaw={false} inline={true} />)
+    expect(screen.getByText("stale note")).toBeInTheDocument()
+  })
+
   it("renders a unified layout when the screen is narrow (matchMedia is false)", () => {
     // Defaults: matchMedia(wide) returns false → layout falls back to unified
     // regardless of uiStore.diffLayout. The unified row carries a +/- marker.
