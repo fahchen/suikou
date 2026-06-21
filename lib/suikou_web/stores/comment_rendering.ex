@@ -68,7 +68,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
   """
   @spec render_comment(Comment.t(), [String.t()] | String.t() | nil) :: map()
   def render_comment(%Comment{} = comment, content) do
-    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, content)
+    {anchor, status} = Critique.resolve_anchor(comment.anchor, content)
 
     %{
       id: comment.id,
@@ -78,7 +78,8 @@ defmodule SuikouWeb.Stores.CommentRendering do
       body: comment.body,
       resolved: not is_nil(comment.resolved_round),
       resolved_round: comment.resolved_round,
-      outdated: outdated,
+      outdated: status == :outdated,
+      drifted: status == :drifted,
       authored_round: comment.authored_round,
       inserted_at: Iso8601.utc(comment.inserted_at),
       anchor: tagged_anchor(comment.anchor, anchor),
