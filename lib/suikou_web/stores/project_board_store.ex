@@ -396,9 +396,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   # The render derives entirely from the database; a mutation that does not touch
-  # assigns would reuse the cached render and push no patch (see
-  # docs/musubi-issues.md ISSUE-1). Bump a render-irrelevant assign so another
-  # client viewing the board sees the change.
+  # assigns would reuse the cached render and push no patch. Bump a
+  # render-irrelevant assign so another client viewing the board sees the change.
   defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp create_review(project, payload) do
