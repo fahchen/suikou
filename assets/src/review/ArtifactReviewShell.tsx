@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
-import { ArrowRight, FileX, Home, Trash2 } from "lucide-react";
+import { ArrowRight, FileX, Trash2 } from "lucide-react";
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
@@ -28,6 +28,7 @@ import { isPreviewable, isImagePath } from "./file-type";
 import { orderedReviewFiles } from "./file-order";
 import { reviewFileParams } from "./review-navigation";
 import { isHtmlPath } from "./view-kind";
+import { HomeButton } from "./TopBarShell";
 import { assetBase } from "./urls";
 import { ErrorPage, errorCopy } from "@/components/error-page";
 import { Button } from "@/components/ui/button";
@@ -203,11 +204,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
 
   return (
     <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
-      <TopBar
-        reviewSnapshot={reviewSnapshot}
-        previewable={previewable}
-        content={content}
-      />
+      <TopBar reviewSnapshot={reviewSnapshot} previewable={previewable} content={content} />
 
       <div
         className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
@@ -261,7 +258,8 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
                 : undefined
             }
             header={
-              ui.htmlAnchorTarget && ui.htmlAnchorTarget.artifactId === fileSnapshotLive.artifact.id ? (
+              ui.htmlAnchorTarget &&
+              ui.htmlAnchorTarget.artifactId === fileSnapshotLive.artifact.id ? (
                 <HtmlAnchorComposer
                   target={ui.htmlAnchorTarget}
                   onClose={() => ui.setHtmlAnchorTarget(null)}
@@ -338,15 +336,7 @@ const MissingFilePrompt = observer(function MissingFilePrompt(props: {
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
       <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:px-4">
-        <Button
-          variant="pill"
-          size="icon"
-          title="Project board"
-          aria-label="Project board"
-          onClick={() => void navigate({ to: "/" })}
-        >
-          <Home className="text-muted-foreground" />
-        </Button>
+        <HomeButton />
         <span className="truncate text-sm font-medium text-heading">
           {props.reviewSnapshot.name}
         </span>
