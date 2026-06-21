@@ -5,6 +5,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   alias Musubi.Socket
   alias Musubi.Testing
+  alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.Reviews
@@ -12,7 +13,6 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.ReviewStore
 
   describe "submit_review" do
@@ -32,13 +32,13 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       })
 
       %Artifact{review_id: review_id} = Reads.get_artifact(drafted.artifact_id)
-      CommentBroadcast.subscribe(review_id)
+      Events.subscribe(review_id)
 
       page = mount_review(review_id)
 
       {:ok, %{warnings: []}} = Testing.dispatch_command(page, :submit_review, %{})
 
-      assert_receive :comments_changed
+      assert_receive {:review_changed, ^review_id}
       assert %Round{number: 1} = Rounds.latest(drafted_artifact.id)
       assert %Round{number: 0} = Rounds.latest(comment_only_artifact.id)
 
@@ -55,10 +55,10 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert %{name: "", files: []} = Testing.render(page, ["body"])
     end
 
-    test "handle_info(:comments_changed) forwards a refresh to the body child" do
+    test "handle_info({:review_changed, id}) forwards a refresh to the body child" do
       socket = %Socket{assigns: %{review_id: "rv"}}
 
-      assert {:noreply, ^socket} = ReviewStore.handle_info(:comments_changed, socket)
+      assert {:noreply, ^socket} = ReviewStore.handle_info({:review_changed, "rv"}, socket)
       assert_received {:musubi_send_update, ["body"], %{}}
     end
 

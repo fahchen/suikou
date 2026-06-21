@@ -19,7 +19,6 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
@@ -116,7 +115,6 @@ defmodule SuikouWeb.Stores.FileStore do
           case Rounds.latest(artifact_id) do
             %Round{id: round_id} ->
               _result = Submissions.set_draft_verdict(round_id, payload["verdict"])
-              CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
 
             nil ->
@@ -127,8 +125,6 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    socket = reload(socket)
-    refresh_comments(socket)
     {:noreply, socket}
   end
 
@@ -147,7 +143,6 @@ defmodule SuikouWeb.Stores.FileStore do
                   anchor: payload["anchor"]
                 })
 
-              CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
 
             nil ->
@@ -158,8 +153,6 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    socket = reload(socket)
-    refresh_comments(socket)
     {:noreply, socket}
   end
 

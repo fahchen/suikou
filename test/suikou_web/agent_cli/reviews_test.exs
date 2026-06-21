@@ -12,7 +12,6 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias SuikouWeb.AgentCLI.Reviews, as: CLI
   alias SuikouWeb.Endpoint
   alias SuikouWeb.Stores.BoardBroadcast
-  alias SuikouWeb.Stores.CommentBroadcast
 
   describe "list/0" do
     test "emits a project's reviews" do
@@ -189,7 +188,6 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       # increase rather than a no-op recompute.
       wait_until_waiting(task.pid)
       {:ok, _result} = Submissions.submit(round.id, :comment)
-      CommentBroadcast.broadcast(review_id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
                task |> Task.await() |> Jason.decode!()
@@ -213,7 +211,6 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       wait_until_waiting(task.pid)
       {:ok, _result} = Submissions.submit(round1.id, :comment)
-      CommentBroadcast.broadcast(review_id)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
                task |> Task.await() |> Jason.decode!()

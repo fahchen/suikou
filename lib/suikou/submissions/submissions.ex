@@ -14,6 +14,8 @@ defmodule Suikou.Submissions do
 
   import Ecto.Query
 
+  alias Suikou.Events
+  alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.ReviewScope
   alias Suikou.Rounds
@@ -55,8 +57,12 @@ defmodule Suikou.Submissions do
       is_nil(round) -> {:error, :round_not_found}
       not Rounds.latest?(round) -> {:error, :not_latest_round}
       not changeset.valid? -> {:error, changeset}
-      true -> Repo.transaction(fn -> apply_submission(round, changeset) end)
+      true -> round |> apply_submission_transaction(changeset) |> broadcast_review_change(round_id)
     end
+  end
+
+  defp apply_submission_transaction(round, changeset) do
+    Repo.transaction(fn -> apply_submission(round, changeset) end)
   end
 
   @doc """
@@ -77,8 +83,14 @@ defmodule Suikou.Submissions do
           {:ok, Round.t()} | {:error, :round_not_found}
   def set_draft_verdict(round_id, verdict) do
     case Rounds.get(round_id) do
-      nil -> {:error, :round_not_found}
-      round -> round |> Round.draft_verdict_changeset(verdict) |> Repo.update()
+      nil ->
+        {:error, :round_not_found}
+
+      round ->
+        round
+        |> Round.draft_verdict_changeset(verdict)
+        |> Repo.update()
+        |> broadcast_review_change(round_id)
     end
   end
 
@@ -265,6 +277,13 @@ defmodule Suikou.Submissions do
         artifact |> Artifact.clear_approval_changeset() |> Repo.update()
     end
   end
+
+  defp broadcast_review_change({:ok, _} = result, round_id) do
+    round_id |> Reads.review_id_for_round() |> Events.review_changed()
+    result
+  end
+
+  defp broadcast_review_change(result, _round_id), do: result
 
   defp apply_submission(round, changeset) do
     submission = Repo.insert!(changeset)

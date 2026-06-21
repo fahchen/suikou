@@ -4,11 +4,12 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   The parent `SuikouWeb.Stores.FileStore` mounts it with the viewed `round_id`
   and the artifact's `artifact_id`. It resolves anchors and pre-renders the
-  round's comments into the `:items` assign synchronously on `init/1`, on every
-  parent `update/2`, and after every mutating command, so `render/1` reads
-  assigns only and never touches the database. Commands write through
-  `Suikou.Critique`; new comments target the artifact's latest round, which is
-  the unsubmitted draft.
+  round's comments into the `:items` assign synchronously on `init/1` and on
+  every parent `update/2`, so `render/1` reads assigns only and never touches the
+  database. Commands write through `Suikou.Critique`, which emits the review
+  change event; the refresh fans back in through the parent on the same path as
+  every other open tab, so a command handler only writes and returns. New
+  comments target the artifact's latest round, which is the unsubmitted draft.
   """
 
   use Musubi.Store
@@ -17,9 +18,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Rounds
-  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Round
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentRendering
   require CommentContract
@@ -120,7 +119,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
         :noop
     end
 
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:edit_comment, payload, socket) do
@@ -129,37 +128,37 @@ defmodule SuikouWeb.Stores.CommentsStore do
       critique_type: payload["critique_type"]
     })
 
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:delete_comment, payload, socket) do
     Critique.delete_comment(payload["comment_id"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:resolve_comment, payload, socket) do
     Critique.resolve_comment(payload["comment_id"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:reply, payload, socket) do
     Critique.reply_as_human(payload["comment_id"], payload["body"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:edit_reply, payload, socket) do
     Critique.edit_reply(payload["reply_id"], payload["body"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:delete_reply, payload, socket) do
     Critique.delete_reply(payload["reply_id"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   def handle_command(:relocate_comment, payload, socket) do
     Critique.relocate_comment(payload["comment_id"], payload["anchor"])
-    {:noreply, socket |> reload() |> broadcast_changed()}
+    {:noreply, socket}
   end
 
   # Resolve anchors and pre-render the comment list into the `:items` assign so
@@ -178,17 +177,5 @@ defmodule SuikouWeb.Stores.CommentsStore do
       _no_round ->
         []
     end
-  end
-
-  # Notify the parent `ReviewStore` (and any sibling-artifact tabs of the same
-  # review) so its all-files `files_comments` fan-out refreshes — the child
-  # reload above only re-derives this round's thread.
-  defp broadcast_changed(socket) do
-    with artifact_id when is_binary(artifact_id) <- socket.assigns[:artifact_id],
-         %Artifact{review_id: review_id} <- Reads.get_artifact(artifact_id) do
-      CommentBroadcast.broadcast(review_id)
-    end
-
-    socket
   end
 end

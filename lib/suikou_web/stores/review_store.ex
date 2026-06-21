@@ -5,14 +5,17 @@ defmodule SuikouWeb.Stores.ReviewStore do
   It owns only the `review_id` and the review-wide commands (`submit_review`,
   `remove_file`), and mounts a single `SuikouWeb.Stores.ReviewBodyStore` child
   that owns the review chrome, file list, and aggregates. It subscribes to the
-  review's comment-change topic at mount and forwards every change to the body
-  child via `Musubi.send_update/2`, so a mutation on any page refreshes the tree.
+  review's `Suikou.Events` change topic at mount and forwards every change to the
+  body child via `Musubi.send_update/2`, so a mutation on any page refreshes the
+  tree. The domain contexts emit the event after each persisted write, so the
+  writer's own page refreshes through the same path as every other open tab.
   """
 
   use Musubi.Store, root: true
 
   alias Musubi.Child
   alias Musubi.Socket
+  alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Rounds
@@ -20,7 +23,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.ReviewBodyStore
 
   state do
@@ -50,13 +52,13 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
-    CommentBroadcast.subscribe(review_id)
+    Events.subscribe(review_id)
     {:ok, Socket.assign(socket, :review_id, review_id)}
   end
 
   @impl Musubi.Store
-  @spec handle_info(:comments_changed, Socket.t()) :: {:noreply, Socket.t()}
-  def handle_info(:comments_changed, socket) do
+  @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
+  def handle_info({:review_changed, _review_id}, socket) do
     Musubi.send_update(Socket.store_id(socket) ++ ["body"], %{})
     {:noreply, socket}
   end
@@ -78,14 +80,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @impl Musubi.Store
   @spec handle_command(:submit_review, map(), Socket.t()) :: {:reply, map(), Socket.t()}
   def handle_command(:submit_review, _payload, socket) do
-    {warnings, submitted?} =
+    warnings =
       socket.assigns.review_id
       |> Reads.list_review_artifacts()
-      |> Enum.reduce({[], false}, &submit_artifact/2)
-
-    if submitted? do
-      CommentBroadcast.broadcast(socket.assigns.review_id)
-    end
+      |> Enum.reduce([], &submit_artifact/2)
 
     {:reply, %{warnings: warnings}, socket}
   end
@@ -100,7 +98,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
     case Reviews.get_review(socket.assigns.review_id) do
       %Review{} = review ->
         _result = Reviews.remove_file(review, payload["path"])
-        CommentBroadcast.broadcast(socket.assigns.review_id)
         {:noreply, socket}
 
       nil ->
@@ -108,22 +105,21 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
-  defp submit_artifact(%Artifact{} = artifact, {warnings, submitted?}) do
+  defp submit_artifact(%Artifact{} = artifact, warnings) do
     case {verdict_to_submit(artifact), Rounds.latest(artifact.id)} do
       {nil, _round} ->
-        {warnings, submitted?}
+        warnings
 
       {_verdict, nil} ->
-        {warnings, submitted?}
+        warnings
 
       {verdict, %Round{} = round} ->
         case Submissions.submit(round.id, verdict) do
           {:ok, %{warnings: round_warnings}} ->
-            next_warnings = warnings ++ Enum.map(round_warnings, &Atom.to_string/1)
-            {next_warnings, true}
+            warnings ++ Enum.map(round_warnings, &Atom.to_string/1)
 
           {:error, _reason} ->
-            {warnings, submitted?}
+            warnings
         end
     end
   end

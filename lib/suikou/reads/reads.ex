@@ -71,6 +71,50 @@ defmodule Suikou.Reads do
   end
 
   @doc """
+  Resolves the review id owning `round_id`, or `nil` when the round is unknown.
+
+  ## Examples
+
+      Suikou.Reads.review_id_for_round(round.id)
+      #=> "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"
+
+      Suikou.Reads.review_id_for_round("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> nil
+
+  """
+  @spec review_id_for_round(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
+  def review_id_for_round(round_id) do
+    from(r in Round, as: :round)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([round: r], r.id == ^round_id)
+    |> select([artifact: a], a.review_id)
+    |> Repo.one()
+  end
+
+  @doc """
+  Resolves the review id owning `comment_id`, or `nil` when the comment is
+  unknown.
+
+  ## Examples
+
+      Suikou.Reads.review_id_for_comment(comment.id)
+      #=> "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"
+
+      Suikou.Reads.review_id_for_comment("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> nil
+
+  """
+  @spec review_id_for_comment(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
+  def review_id_for_comment(comment_id) do
+    from(c in Comment, as: :comment)
+    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([comment: c], c.id == ^comment_id)
+    |> select([artifact: a], a.review_id)
+    |> Repo.one()
+  end
+
+  @doc """
   Lists an artifact's rounds in ascending number order.
 
   ## Examples
