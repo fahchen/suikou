@@ -199,7 +199,8 @@ defmodule Suikou.Export do
   end
 
   defp comment_view(comment, lines) do
-    {anchor, outdated} = Critique.resolve_anchor(comment.anchor, lines)
+    {anchor, status} = Critique.resolve_anchor(comment.anchor, lines)
+    outdated = status == :outdated
 
     %{
       id: comment.id,

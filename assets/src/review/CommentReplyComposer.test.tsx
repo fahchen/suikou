@@ -43,6 +43,7 @@ function comment(overrides: Partial<Comment> = {}): Comment {
     resolved: false,
     resolved_round: null,
     outdated: false,
+    drifted: false,
     authored_round: 0,
     inserted_at: new Date().toISOString(),
     anchor: null,

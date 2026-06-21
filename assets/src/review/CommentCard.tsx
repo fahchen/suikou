@@ -35,6 +35,9 @@ export const CommentCard = observer(function CommentCard(props: {
     comment.outdated ||
     (comment.anchor?.type === "element" &&
       uiStore.outdatedElementCommentIds.has(comment.id));
+  // A drifted comment was re-anchored to a similar but changed line — a lighter
+  // state than outdated, so suppress it once the comment is fully outdated.
+  const drifted = comment.drifted && !outdated;
   const [open, setOpen] = useState(!comment.resolved);
   const [editing, setEditing] = useState(false);
 
@@ -78,6 +81,7 @@ export const CommentCard = observer(function CommentCard(props: {
           comment={comment}
           inline={inline}
           open={open}
+          drifted={drifted}
           onEdit={() => setEditing(true)}
         />
 
@@ -97,6 +101,12 @@ export const CommentCard = observer(function CommentCard(props: {
                   </div>
                 )}
               </div>
+            )}
+
+            {drifted && (
+              <p className="text-[12px] text-amber">
+                Re-anchored to a similar line — the quoted text changed slightly.
+              </p>
             )}
 
             {editing ? (
