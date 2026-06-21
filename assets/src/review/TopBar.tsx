@@ -11,13 +11,12 @@ import {
   ClipboardCheck,
   ClipboardList,
   Copy,
-  Home,
   Send,
 } from "lucide-react";
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
-import { ConnectionPill } from "./ConnectionPill";
+import { TopBarShell } from "./TopBarShell";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
 import { buildCopyText, copyToClipboard, type CopyMode } from "./copy";
@@ -108,10 +107,7 @@ export const TopBar = observer(function TopBar(props: {
   }
 
   const fileEntries = reviewSnapshot.file_entries.data ?? [];
-  const { prev: prevFile, next: nextFile } = adjacentReviewFiles(
-    fileEntries,
-    fileSnapshot.path,
-  );
+  const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
   const showFileNav = uiStore.fileDisplayMode === "single";
 
   async function navigateToFile(file: ReviewFileEntry, dir: "prev" | "next") {
@@ -123,176 +119,147 @@ export const TopBar = observer(function TopBar(props: {
     }
   }
 
+  const fileNav = showFileNav && (
+    <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
+      <Button
+        variant="pill"
+        size="icon"
+        title={prevFile ? `Previous file (${prevFile.path})` : "No previous file"}
+        aria-label="Previous file"
+        disabled={!prevFile || navPending !== null}
+        onClick={() => prevFile && void navigateToFile(prevFile, "prev")}
+        onMouseEnter={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
+        onFocus={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
+      >
+        <ChevronLeft className="text-muted-foreground" />
+      </Button>
+      <ButtonGroupSeparator />
+      <Button
+        variant="pill"
+        size="icon"
+        title={nextFile ? `Next file (${nextFile.path})` : "No next file"}
+        aria-label="Next file"
+        disabled={!nextFile || navPending !== null}
+        onClick={() => nextFile && void navigateToFile(nextFile, "next")}
+        onMouseEnter={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
+        onFocus={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
+      >
+        <ChevronRight className="text-muted-foreground" />
+      </Button>
+    </ButtonGroup>
+  );
+
   return (
-    <header className="pointer-events-none sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
-      <div className="pointer-events-auto flex min-w-0 items-center gap-2">
-        <Button
-          variant="pill"
-          size="icon"
-          title="Project board"
-          aria-label="Project board"
-          onClick={() => void navigate({ to: "/" })}
-        >
-          <Home className="text-muted-foreground" />
-        </Button>
-        {showFileNav && (
+    <TopBarShell
+      left={fileNav}
+      right={
+        <>
+          <TopBarRoundMenu />
+          {commentsSupported && (
+            <Button
+              variant="pill"
+              size="icon"
+              title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+              aria-label={
+                uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"
+              }
+              onClick={() => uiStore.toggleCollapseAll()}
+            >
+              {uiStore.commentsCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+            </Button>
+          )}
+          <TopBarDisplayMenu
+            reviewId={reviewSnapshot.review_id}
+            filePath={title}
+            rawView={rawView}
+            capabilities={capabilities}
+            viewKind={viewKind}
+            diffLayoutAllowed={wide}
+            sideCommentsAllowed={wide}
+          />
+
           <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
             <Button
-              variant="pill"
               size="icon"
-              title={prevFile ? `Previous file (${prevFile.path})` : "No previous file"}
-              aria-label="Previous file"
-              disabled={!prevFile || navPending !== null}
-              onClick={() => prevFile && void navigateToFile(prevFile, "prev")}
-              onMouseEnter={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
-              onFocus={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
+              title="Submit review"
+              aria-label="Submit review"
+              disabled={!hasUnpublishedWork || commands.submitReview.disabled}
+              onClick={() => setConfirmOpen(true)}
             >
-              <ChevronLeft className="text-muted-foreground" />
+              <Send size={14} />
             </Button>
-            <ButtonGroupSeparator />
-            <Button
-              variant="pill"
-              size="icon"
-              title={nextFile ? `Next file (${nextFile.path})` : "No next file"}
-              aria-label="Next file"
-              disabled={!nextFile || navPending !== null}
-              onClick={() => nextFile && void navigateToFile(nextFile, "next")}
-              onMouseEnter={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
-              onFocus={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
-            >
-              <ChevronRight className="text-muted-foreground" />
-            </Button>
-          </ButtonGroup>
-        )}
-      </div>
-
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <ConnectionPill />
-      </div>
-
-      <div className="pointer-events-auto ml-auto flex items-center gap-2">
-        <TopBarRoundMenu />
-        {commentsSupported && (
-          <Button
-            variant="pill"
-            size="icon"
-            title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
-            aria-label={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
-            onClick={() => uiStore.toggleCollapseAll()}
-          >
-            {uiStore.commentsCollapsed ? (
-              <ChevronsUpDown />
-            ) : (
-              <ChevronsDownUp />
-            )}
-          </Button>
-        )}
-        <TopBarDisplayMenu
-          reviewId={reviewSnapshot.review_id}
-          filePath={title}
-          rawView={rawView}
-          capabilities={capabilities}
-          viewKind={viewKind}
-          diffLayoutAllowed={wide}
-          sideCommentsAllowed={wide}
-        />
-
-        <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
-          <Button
-            size="icon"
-            title="Submit review"
-            aria-label="Submit review"
-            disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Send size={14} />
-          </Button>
-          <ButtonGroupSeparator className={SPLIT_SEAM} />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  size="icon"
-                  title="Copy comments"
-                  aria-label="Copy comments"
-                />
-              }
-            >
-              <Copy size={14} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => copyComments("noteworthy")}>
-                <ClipboardCheck size={14} />
-                Copy noteworthy
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => copyComments("all")}>
-                <ClipboardList size={14} />
-                Copy all comments
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </ButtonGroup>
-
-        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Submit this review?</DialogTitle>
-            </DialogHeader>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">
-              Applies every verdict chip you have set and publishes all pending comments across
-              the review.
-            </p>
-
-            <DialogFooter>
-              <DialogClose
-                render={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                  />
-                }
+            <ButtonGroupSeparator className={SPLIT_SEAM} />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button size="icon" title="Copy comments" aria-label="Copy comments" />}
               >
-                Cancel
-              </DialogClose>
-              <ButtonGroup className="w-full sm:w-auto">
-                <Button
-                  size="sm"
-                  className="grow sm:grow-0"
-                  disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-                  onClick={submit}
-                >
-                  <Check size={14} /> Submit
-                </Button>
-                <ButtonGroupSeparator className={SPLIT_SEAM} />
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        size="icon-xs"
-                        title="Submit and copy"
-                        aria-label="Submit and copy"
-                        disabled={!hasUnpublishedWork || commands.submitReview.disabled}
-                      />
-                    }
+                <Copy size={14} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => copyComments("noteworthy")}>
+                  <ClipboardCheck size={14} />
+                  Copy noteworthy
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => copyComments("all")}>
+                  <ClipboardList size={14} />
+                  Copy all comments
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ButtonGroup>
+
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Submit this review?</DialogTitle>
+              </DialogHeader>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                Applies every verdict chip you have set and publishes all pending comments across
+                the review.
+              </p>
+
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" size="sm" />}>Cancel</DialogClose>
+                <ButtonGroup className="w-full sm:w-auto">
+                  <Button
+                    size="sm"
+                    className="grow sm:grow-0"
+                    disabled={!hasUnpublishedWork || commands.submitReview.disabled}
+                    onClick={submit}
                   >
-                    <ChevronDown size={14} />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60">
-                    <DropdownMenuItem onClick={() => submitAndCopy("noteworthy")}>
-                      <ClipboardCheck size={14} />
-                      Submit and copy noteworthy
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => submitAndCopy("all")}>
-                      <ClipboardList size={14} />
-                      Submit and copy all
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </ButtonGroup>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </header>
+                    <Check size={14} /> Submit
+                  </Button>
+                  <ButtonGroupSeparator className={SPLIT_SEAM} />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          size="icon-xs"
+                          title="Submit and copy"
+                          aria-label="Submit and copy"
+                          disabled={!hasUnpublishedWork || commands.submitReview.disabled}
+                        />
+                      }
+                    >
+                      <ChevronDown size={14} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-60">
+                      <DropdownMenuItem onClick={() => submitAndCopy("noteworthy")}>
+                        <ClipboardCheck size={14} />
+                        Submit and copy noteworthy
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => submitAndCopy("all")}>
+                        <ClipboardList size={14} />
+                        Submit and copy all
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      }
+    />
   );
 });
