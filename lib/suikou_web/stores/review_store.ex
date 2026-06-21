@@ -59,6 +59,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @impl Musubi.Store
   @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_info({:review_changed, _review_id}, socket) do
+    # The body child's store id is this root's path plus the "body" segment;
+    # appending is the path, not an inefficient list build.
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     Musubi.send_update(Socket.store_id(socket) ++ ["body"], %{})
     {:noreply, socket}
   end

@@ -7,6 +7,7 @@ defmodule Suikou.Critique do
   are reachable only from within the domain.
   """
 
+  alias Suikou.Artifacts
   alias Suikou.Critique.Anchor
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
@@ -25,6 +26,15 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{status: :pending}}
 
   """
+  @spec add_comment(map()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :round_not_found
+             | :not_latest_round
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
   def add_comment(params), do: params |> Comments.add() |> broadcast_comment_change()
 
   @doc """
@@ -36,6 +46,9 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{body: "revised"}}
 
   """
+  @spec edit_comment(Ecto.UUID.t(), map()) ::
+          {:ok, Comment.t()}
+          | {:error, Ecto.Changeset.t() | :comment_not_found | :not_pending}
   def edit_comment(comment_id, params),
     do: comment_id |> Comments.edit(params) |> broadcast_comment_change()
 
@@ -48,7 +61,9 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
-  def delete_comment(comment_id), do: comment_id |> Comments.delete() |> broadcast_comment_change()
+  @spec delete_comment(Ecto.UUID.t()) :: {:ok, Comment.t()} | {:error, :comment_not_found}
+  def delete_comment(comment_id),
+    do: comment_id |> Comments.delete() |> broadcast_comment_change()
 
   @doc """
   Marks an Open comment resolved. See `Suikou.Critique.Comments.resolve/1`.
@@ -59,7 +74,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1}}
 
   """
-  def resolve_comment(comment_id), do: comment_id |> Comments.resolve() |> broadcast_comment_change()
+  @spec resolve_comment(Ecto.UUID.t()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
+  def resolve_comment(comment_id),
+    do: comment_id |> Comments.resolve() |> broadcast_comment_change()
 
   @doc """
   Relocates a `:located` comment to a fresh tagged `anchor` payload, re-capturing
@@ -71,6 +89,15 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
+  @spec relocate_comment(Ecto.UUID.t(), map()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :comment_not_found
+             | :not_located
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
   def relocate_comment(comment_id, anchor_params),
     do: comment_id |> Comments.relocate(anchor_params) |> broadcast_comment_change()
 
@@ -84,6 +111,8 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{author: :human, status: :pending}}
 
   """
+  @spec reply_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_published}
   def reply_as_human(comment_id, body),
     do: comment_id |> Discussion.reply_as_human(body) |> broadcast_reply_change()
 
@@ -97,6 +126,8 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{author: :agent, status: :published}}
 
   """
+  @spec reply_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_open}
   def reply_as_agent(comment_id, body),
     do: comment_id |> Discussion.reply_as_agent(body) |> broadcast_reply_change()
 
@@ -109,6 +140,8 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{body: "revised"}}
 
   """
+  @spec edit_reply(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :reply_not_found | :not_editable}
   def edit_reply(reply_id, body),
     do: reply_id |> Discussion.edit_reply(body) |> broadcast_reply_change()
 
@@ -121,7 +154,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{}}
 
   """
-  def delete_reply(reply_id), do: reply_id |> Discussion.delete_reply() |> broadcast_reply_change()
+  @spec delete_reply(Ecto.UUID.t()) ::
+          {:ok, Reply.t()} | {:error, :reply_not_found | :not_editable}
+  def delete_reply(reply_id),
+    do: reply_id |> Discussion.delete_reply() |> broadcast_reply_change()
 
   @doc """
   Resolves a stored line anchor against the live file's `content_lines`,

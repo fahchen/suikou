@@ -54,10 +54,17 @@ defmodule Suikou.Submissions do
     changeset = Submission.changeset(%{round_id: round_id, verdict: verdict})
 
     cond do
-      is_nil(round) -> {:error, :round_not_found}
-      not Rounds.latest?(round) -> {:error, :not_latest_round}
-      not changeset.valid? -> {:error, changeset}
-      true -> round |> apply_submission_transaction(changeset) |> broadcast_review_change(round_id)
+      is_nil(round) ->
+        {:error, :round_not_found}
+
+      not Rounds.latest?(round) ->
+        {:error, :not_latest_round}
+
+      not changeset.valid? ->
+        {:error, changeset}
+
+      true ->
+        round |> apply_submission_transaction(changeset) |> broadcast_review_change(round_id)
     end
   end
 
@@ -278,7 +285,7 @@ defmodule Suikou.Submissions do
     end
   end
 
-  defp broadcast_review_change({:ok, _} = result, round_id) do
+  defp broadcast_review_change({:ok, _submission} = result, round_id) do
     round_id |> Reads.review_id_for_round() |> Events.review_changed()
     result
   end

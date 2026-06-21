@@ -106,10 +106,8 @@ defmodule Suikou.Reads do
   """
   @spec review_id_for_comment(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
   def review_id_for_comment(comment_id) do
-    from(c in Comment, as: :comment)
-    |> join(:inner, [comment: c], r in Round, as: :round, on: c.round_id == r.id)
-    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
-    |> where([comment: c], c.id == ^comment_id)
+    {:comment, comment_id}
+    |> ReviewScope.comments()
     |> select([artifact: a], a.review_id)
     |> Repo.one()
   end

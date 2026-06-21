@@ -167,6 +167,9 @@ defmodule SuikouWeb.Stores.FileStore do
   # Comment mutations leave `artifact_id`/`round_id` unchanged, so the child
   # would memoize stale. Nudge it to re-derive its thread.
   defp refresh_comments(socket) do
+    # The comments child's store id is this file's path plus the "comments"
+    # segment; appending is the path, not an inefficient list build.
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     Musubi.send_update(Socket.store_id(socket) ++ ["comments"], %{})
     socket
   end

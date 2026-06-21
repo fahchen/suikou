@@ -165,7 +165,11 @@ defmodule SuikouWeb.Stores.CommentsStore do
   # `render/1` stays zero-DB. The distinct rendered list is the dirty signal the
   # render cycle diffs after a mutation.
   defp reload(socket) do
-    Socket.assign(socket, :items, render_items(socket.assigns[:artifact_id], socket.assigns[:round_id]))
+    Socket.assign(
+      socket,
+      :items,
+      render_items(socket.assigns[:artifact_id], socket.assigns[:round_id])
+    )
   end
 
   defp render_items(artifact_id, round_id) do

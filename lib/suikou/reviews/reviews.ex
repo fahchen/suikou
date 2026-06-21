@@ -190,15 +190,17 @@ defmodule Suikou.Reviews do
     target = MapSet.new(expand(review.project, selections))
     artifacts = review.artifacts
 
-    Repo.transaction(fn ->
-      updated = review |> Review.selection_changeset(selections) |> Repo.update!()
+    result =
+      Repo.transaction(fn ->
+        updated = review |> Review.selection_changeset(selections) |> Repo.update!()
 
-      for artifact <- artifacts,
-          do: reconcile!(artifact, MapSet.member?(target, artifact.file_path))
+        for artifact <- artifacts,
+            do: reconcile!(artifact, MapSet.member?(target, artifact.file_path))
 
-      updated
-    end)
-    |> broadcast_review_change()
+        updated
+      end)
+
+    broadcast_review_change(result)
   end
 
   @doc """
