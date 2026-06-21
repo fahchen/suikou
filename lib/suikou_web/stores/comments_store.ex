@@ -2,13 +2,13 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @moduledoc """
   Child store owning the comment thread for the viewed round.
 
-  The parent `SuikouWeb.Stores.ReviewStore` mounts it with the viewed
-  `round_id` and the artifact's `artifact_id`. It loads the round's comments
-  into an assign and re-derives that assign after every mutating command, so the
-  render cycle always has an explicit dirty signal — no external-only mutation
-  that the runtime cannot see (see `docs/musubi-issues.md` ISSUE-1). Commands
-  write through `Suikou.Critique`; new comments target the artifact's latest
-  round, which is the unsubmitted draft.
+  The parent `SuikouWeb.Stores.FileStore` mounts it with the viewed `round_id`
+  and the artifact's `artifact_id`. It resolves anchors and pre-renders the
+  round's comments into the `:items` assign synchronously on `init/1`, on every
+  parent `update/2`, and after every mutating command, so `render/1` reads
+  assigns only and never touches the database. Commands write through
+  `Suikou.Critique`; new comments target the artifact's latest round, which is
+  the unsubmitted draft.
   """
 
   use Musubi.Store
@@ -97,9 +97,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
   def render(socket) do
-    content = CommentRendering.live_content(socket.assigns[:artifact_id])
-    comments = socket.assigns[:comments] || []
-    %{items: Enum.map(comments, &CommentRendering.render_comment(&1, content))}
+    %{items: socket.assigns[:items] || []}
   end
 
   @impl Musubi.Store
@@ -164,16 +162,22 @@ defmodule SuikouWeb.Stores.CommentsStore do
     {:noreply, socket |> reload() |> broadcast_changed()}
   end
 
-  # Re-derive the comment list into an assign so the render cycle sees a content
-  # diff after a DB mutation. Distinct struct values are the dirty signal.
+  # Resolve anchors and pre-render the comment list into the `:items` assign so
+  # `render/1` stays zero-DB. The distinct rendered list is the dirty signal the
+  # render cycle diffs after a mutation.
   defp reload(socket) do
-    comments =
-      case socket.assigns[:round_id] && Rounds.get(socket.assigns[:round_id]) do
-        %Round{} = round -> Reads.list_comments(round)
-        _no_round -> []
-      end
+    Socket.assign(socket, :items, render_items(socket.assigns[:artifact_id], socket.assigns[:round_id]))
+  end
 
-    Socket.assign(socket, :comments, comments)
+  defp render_items(artifact_id, round_id) do
+    case round_id && Rounds.get(round_id) do
+      %Round{} = round ->
+        content = CommentRendering.live_content(artifact_id)
+        round |> Reads.list_comments() |> Enum.map(&CommentRendering.render_comment(&1, content))
+
+      _no_round ->
+        []
+    end
   end
 
   # Notify the parent `ReviewStore` (and any sibling-artifact tabs of the same
