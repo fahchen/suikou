@@ -62,12 +62,6 @@ defmodule SuikouWeb.Stores.FileStore do
     field(:draft_verdict, :approve | :request_changes | :comment | nil)
   end
 
-  command :select_round do
-    payload do
-      field(:number, integer())
-    end
-  end
-
   command :set_draft_verdict do
     payload do
       field(:verdict, :approve | :request_changes | :comment)
@@ -111,10 +105,6 @@ defmodule SuikouWeb.Stores.FileStore do
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:noreply, Socket.t()}
-  def handle_command(:select_round, payload, socket) do
-    {:noreply, socket |> Socket.assign(:round_number, payload["number"]) |> reload()}
-  end
-
   def handle_command(:set_draft_verdict, payload, socket) do
     socket =
       case ensure_artifact(socket) do

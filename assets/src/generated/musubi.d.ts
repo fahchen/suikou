@@ -193,12 +193,6 @@ declare namespace Musubi {
         draft_verdict: "approve" | "request_changes" | "comment" | null
       },
       {
-        select_round: {
-          payload: {
-            number: number
-          }
-          reply: never
-        }
         set_draft_verdict: {
           payload: {
             verdict: "approve" | "request_changes" | "comment"
@@ -354,6 +348,8 @@ declare namespace Musubi {
         files: Musubi.StoreField<"SuikouWeb.Stores.FileStore">[]
         has_unpublished: boolean
         round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
+        selected_round: number
+        latest_round: number
       },
       {
         submit_review: {
@@ -361,6 +357,12 @@ declare namespace Musubi {
           reply: {
             warnings: string[]
           }
+        }
+        select_round: {
+          payload: {
+            number: number
+          }
+          reply: never
         }
         remove_file: {
           payload: {
