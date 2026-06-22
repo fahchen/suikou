@@ -8,9 +8,9 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   synchronously into assigns, and the file list through `assign_async/3` so the
   first snapshot does not block on disk. Either way `render/1` reads assigns only
   and never touches the database. It renders one `SuikouWeb.Stores.FileStore`
-  child per covered file; on every refresh it reloads its assigns and fans a
-  `Musubi.send_update/2` out to each child so file-scoped state (round comment
-  counts, verdict chips) picks up changes whose file props did not change.
+  child per covered file. The root targets a changed file's store directly (by
+  its `artifact_id`), so this store only refreshes the review-wide chrome and the
+  file list — it never fans `Musubi.send_update/2` out to every child.
   """
 
   use Musubi.Store
@@ -79,10 +79,6 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
       |> reload_chrome()
       |> maybe_load_files(assigns)
 
-    # Nudge children only on a real refresh (an empty `Musubi.send_update`).
-    # `update/2` runs on every render; an unconditional fan-out would
-    # send_update -> re-render -> update -> send_update in a tight loop.
-    if map_size(assigns) == 0, do: fan_out(socket)
     {:ok, socket}
   end
 
@@ -183,26 +179,6 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     case socket.assigns[:file_entries] do
       %AsyncResult{} -> socket
       _absent -> Socket.assign(socket, :file_entries, AsyncResult.loading())
-    end
-  end
-
-  # Re-render keeps the child set stable, but Musubi memoizes a child whose props
-  # are unchanged. A comment write leaves a file's props identical yet must
-  # refresh its round counts and thread, so nudge every child explicitly.
-  defp fan_out(socket) do
-    base = Socket.store_id(socket)
-
-    for entry <- entries(socket) do
-      Musubi.send_update(base ++ ["files", entry.artifact_id || entry.path], %{})
-    end
-
-    socket
-  end
-
-  defp entries(socket) do
-    case socket.assigns[:file_entries] do
-      %AsyncResult{result: files} when is_list(files) -> files
-      _other -> []
     end
   end
 

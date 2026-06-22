@@ -39,7 +39,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
       {:ok, %{warnings: []}} = Testing.dispatch_command(page, :submit_review, %{})
 
-      assert_receive {:review_changed, ^review_id}
+      assert_receive {:review_changed, ^review_id, _artifact_id}
       assert %Round{number: 1} = Rounds.latest(drafted_artifact.id)
       assert %Round{number: 0} = Rounds.latest(comment_only_artifact.id)
 
@@ -56,11 +56,21 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert %{name: "", files: []} = Testing.render(page, ["body"])
     end
 
-    test "handle_info({:review_changed, id}) forwards a refresh to the body child" do
+    test "handle_info refreshes the body, and targets one file on an artifact-scoped change" do
       socket = %Socket{assigns: %{review_id: "rv"}}
 
-      assert {:noreply, ^socket} = ReviewStore.handle_info({:review_changed, "rv"}, socket)
+      # Review-level change (nil artifact): only the body refreshes.
+      assert {:noreply, ^socket} = ReviewStore.handle_info({:review_changed, "rv", nil}, socket)
       assert_received {:musubi_send_update, ["body"], %{}}
+      refute_received {:musubi_send_update, ["body", "files", _id], %{}}
+
+      # Artifact-scoped change: body plus that file's store and its comment thread.
+      assert {:noreply, ^socket} =
+               ReviewStore.handle_info({:review_changed, "rv", "art-1"}, socket)
+
+      assert_received {:musubi_send_update, ["body"], %{}}
+      assert_received {:musubi_send_update, ["body", "files", "art-1"], %{}}
+      assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
     end
 
     test "renders one child per covered file and keeps unminted files empty" do

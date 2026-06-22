@@ -84,9 +84,7 @@ defmodule SuikouWeb.Stores.FileStore do
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
   def update(assigns, socket) do
-    socket = socket |> Socket.assign(assigns) |> reload()
-    refresh_comments(socket)
-    {:ok, socket}
+    {:ok, socket |> Socket.assign(assigns) |> reload()}
   end
 
   @impl Musubi.Store
@@ -162,16 +160,6 @@ defmodule SuikouWeb.Stores.FileStore do
       artifact_id: socket.assigns[:artifact_id],
       round_id: socket.assigns[:current_round_id]
     )
-  end
-
-  # Comment mutations leave `artifact_id`/`round_id` unchanged, so the child
-  # would memoize stale. Nudge it to re-derive its thread.
-  defp refresh_comments(socket) do
-    # The comments child's store id is this file's path plus the "comments"
-    # segment; appending is the path, not an inefficient list build.
-    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
-    Musubi.send_update(Socket.store_id(socket) ++ ["comments"], %{})
-    socket
   end
 
   defp ensure_artifact(%Socket{} = socket) do

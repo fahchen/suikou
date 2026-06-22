@@ -58,11 +58,26 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   @impl Musubi.Store
   @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
-  def handle_info({:review_changed, _review_id}, socket) do
-    # The body child's store id is this root's path plus the "body" segment;
-    # appending is the path, not an inefficient list build.
+  def handle_info({:review_changed, _review_id, artifact_id}, socket) do
+    # The body's store id is this root's path plus the "body" segment; appending
+    # is the path, not an inefficient list build.
     # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
-    Musubi.send_update(Socket.store_id(socket) ++ ["body"], %{})
+    body = Socket.store_id(socket) ++ ["body"]
+
+    # Body owns the review-wide chrome (aggregates, file list), so it always
+    # refreshes. An artifact-scoped change targets just that file's store and its
+    # comment thread by their deterministic ids, so we refresh one file's subtree
+    # — never the whole tree. No store fans out from `update/2`, so a refresh
+    # cannot feed itself into a render loop.
+    Musubi.send_update(body, %{})
+
+    if is_binary(artifact_id) do
+      file = body ++ ["files", artifact_id]
+      Musubi.send_update(file, %{})
+      # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+      Musubi.send_update(file ++ ["comments"], %{})
+    end
+
     {:noreply, socket}
   end
 
