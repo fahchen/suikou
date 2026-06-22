@@ -63,12 +63,7 @@ defmodule Suikou.Reads do
 
   """
   @spec get_artifact(Ecto.UUID.t()) :: Artifact.t() | nil
-  def get_artifact(artifact_id) do
-    case Repo.get(Artifact, artifact_id) do
-      nil -> nil
-      %Artifact{} = artifact -> Repo.preload(artifact, :review)
-    end
-  end
+  def get_artifact(artifact_id), do: Repo.get(Artifact, artifact_id)
 
   @doc """
   Resolves the `{review_id, artifact_id}` owning `round_id`, or `{nil, nil}` when
@@ -153,20 +148,33 @@ defmodule Suikou.Reads do
   end
 
   @doc """
-  Counts the comments visible in a round without loading them, for the round
-  summary badge.
+  Counts, in one query, the comments visible in each of an artifact's
+  `round_numbers` for the per-round summary badges. A comment is visible in
+  round N when authored on or before N and not resolved before N, so it counts
+  in every round it spans; pulling the `{authored, resolved}` pairs once and
+  folding beats a per-round count fan-out.
 
   ## Examples
 
-      Suikou.Reads.count_comments(round)
-      #=> 3
+      Suikou.Reads.artifact_comment_counts(artifact.id, [0, 1])
+      #=> %{0 => 2, 1 => 1}
+
+      Suikou.Reads.artifact_comment_counts(artifact.id, [])
+      #=> %{}
 
   """
-  @spec count_comments(Round.t()) :: non_neg_integer()
-  def count_comments(%Round{} = round) do
-    round
-    |> visible_comments()
-    |> Repo.aggregate(:count)
+  @spec artifact_comment_counts(Ecto.UUID.t(), [non_neg_integer()]) ::
+          %{non_neg_integer() => non_neg_integer()}
+  def artifact_comment_counts(artifact_id, round_numbers) do
+    pairs =
+      artifact_id
+      |> Queries.Comments.for_artifact()
+      |> select([comment: c], {c.authored_round, c.resolved_round})
+      |> Repo.all()
+
+    Map.new(round_numbers, fn number ->
+      {number, Enum.count(pairs, &comment_visible?(&1, number))}
+    end)
   end
 
   @doc """
@@ -240,15 +248,16 @@ defmodule Suikou.Reads do
   end
 
   defp round_summary(number, comments) do
-    visible =
-      Enum.filter(comments, fn {authored, resolved} ->
-        authored <= number and (is_nil(resolved) or resolved >= number)
-      end)
+    visible = Enum.filter(comments, &comment_visible?(&1, number))
 
     unresolved =
       Enum.count(visible, fn {_authored, resolved} -> is_nil(resolved) or resolved > number end)
 
     %{number: number, comment_count: length(visible), unresolved_count: unresolved}
+  end
+
+  defp comment_visible?({authored, resolved}, number) do
+    authored <= number and (is_nil(resolved) or resolved >= number)
   end
 
   defp visible_comments(%Round{artifact_id: artifact_id, number: number}) do

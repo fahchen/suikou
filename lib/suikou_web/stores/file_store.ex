@@ -183,12 +183,14 @@ defmodule SuikouWeb.Stores.FileStore do
     case socket.assigns[:artifact_id] && Reads.get_artifact(socket.assigns[:artifact_id]) do
       %Artifact{} = artifact ->
         rounds = Reads.list_rounds(artifact.id)
+        verdicts = Submissions.verdicts_by_round(artifact.id)
+        counts = Reads.artifact_comment_counts(artifact.id, Enum.map(rounds, & &1.number))
         viewed = viewed_round(rounds, socket.assigns[:round_number])
         latest = List.last(rounds)
 
         socket
         |> Socket.assign(:artifact, render_artifact(artifact))
-        |> Socket.assign(:rounds, Enum.map(rounds, &render_round_summary/1))
+        |> Socket.assign(:rounds, Enum.map(rounds, &render_round_summary(&1, verdicts, counts)))
         |> Socket.assign(:current_round, render_current_round(viewed, latest))
         |> Socket.assign(:current_round_id, viewed && viewed.id)
         |> Socket.assign(:latest_verdict, Submissions.latest_verdict_for_artifact(artifact.id))
@@ -232,12 +234,12 @@ defmodule SuikouWeb.Stores.FileStore do
     }
   end
 
-  defp render_round_summary(%Round{} = round) do
+  defp render_round_summary(%Round{} = round, verdicts, counts) do
     %{
       number: round.number,
       content_hash: round.content_hash,
-      verdict: Submissions.latest_verdict(round.id),
-      comment_count: Reads.count_comments(round)
+      verdict: Map.get(verdicts, round.id),
+      comment_count: Map.get(counts, round.number, 0)
     }
   end
 
