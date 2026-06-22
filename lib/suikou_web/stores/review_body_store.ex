@@ -79,7 +79,10 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
       |> reload_chrome()
       |> maybe_load_files(assigns)
 
-    fan_out(socket)
+    # Nudge children only on a real refresh (an empty `Musubi.send_update`).
+    # `update/2` runs on every render; an unconditional fan-out would
+    # send_update -> re-render -> update -> send_update in a tight loop.
+    if map_size(assigns) == 0, do: fan_out(socket)
     {:ok, socket}
   end
 
@@ -112,8 +115,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
           {:noreply, Socket.t()}
   def handle_async(:file_entries, {:ok, files}, socket) do
     prior = socket.assigns[:file_entries] || AsyncResult.loading()
-    socket = Socket.assign(socket, :file_entries, AsyncResult.ok(prior, files))
-    {:noreply, fan_out(socket)}
+    {:noreply, Socket.assign(socket, :file_entries, AsyncResult.ok(prior, files))}
   end
 
   def handle_async(:file_entries, {:exit, reason}, socket) do
