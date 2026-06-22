@@ -297,7 +297,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     timeout = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
-      {:review_changed, _review_id} ->
+      {:review_changed, _review_id, _artifact_id} ->
         case Submissions.review_submission_count(review_id) do
           ^version -> await(review_id, scope, version, deadline)
           newer when newer > version -> worthy_snapshot(review_id, scope)

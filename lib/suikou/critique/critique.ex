@@ -173,14 +173,16 @@ defmodule Suikou.Critique do
   defdelegate resolve_anchor(anchor, content_lines), to: Anchor, as: :resolve
 
   defp broadcast_comment_change({:ok, %Comment{round_id: round_id}} = result) do
-    round_id |> Reads.review_id_for_round() |> Events.review_changed()
+    {review_id, artifact_id} = Reads.scope_for_round(round_id)
+    Events.review_changed(review_id, artifact_id)
     result
   end
 
   defp broadcast_comment_change(result), do: result
 
   defp broadcast_reply_change({:ok, %Reply{comment_id: comment_id}} = result) do
-    comment_id |> Reads.review_id_for_comment() |> Events.review_changed()
+    {review_id, artifact_id} = Reads.scope_for_comment(comment_id)
+    Events.review_changed(review_id, artifact_id)
     result
   end
 

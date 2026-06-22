@@ -20,7 +20,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                run(%{"comment_id" => comment.id, "body" => "fixed"}, &Comments.reply/0)
 
       assert is_binary(id)
-      assert_receive {:review_changed, ^review_id}
+      assert_receive {:review_changed, ^review_id, _artifact_id}
     end
 
     test "emits comment_not_found for an unknown comment" do

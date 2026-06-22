@@ -71,45 +71,46 @@ defmodule Suikou.Reads do
   end
 
   @doc """
-  Resolves the review id owning `round_id`, or `nil` when the round is unknown.
+  Resolves the `{review_id, artifact_id}` owning `round_id`, or `{nil, nil}` when
+  the round is unknown. The pair scopes a change event to one file's subtree.
 
   ## Examples
 
-      Suikou.Reads.review_id_for_round(round.id)
-      #=> "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"
+      Suikou.Reads.scope_for_round(round.id)
+      #=> {"0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "0192c9f4-aaaa-bbbb-cccc-1a2b3c4d5e6f"}
 
-      Suikou.Reads.review_id_for_round("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
-      #=> nil
+      Suikou.Reads.scope_for_round("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {nil, nil}
 
   """
-  @spec review_id_for_round(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
-  def review_id_for_round(round_id) do
+  @spec scope_for_round(Ecto.UUID.t()) :: {Ecto.UUID.t() | nil, Ecto.UUID.t() | nil}
+  def scope_for_round(round_id) do
     from(r in Round, as: :round)
     |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
     |> where([round: r], r.id == ^round_id)
-    |> select([artifact: a], a.review_id)
-    |> Repo.one()
+    |> select([round: r, artifact: a], {a.review_id, r.artifact_id})
+    |> Repo.one() || {nil, nil}
   end
 
   @doc """
-  Resolves the review id owning `comment_id`, or `nil` when the comment is
-  unknown.
+  Resolves the `{review_id, artifact_id}` owning `comment_id`, or `{nil, nil}`
+  when the comment is unknown.
 
   ## Examples
 
-      Suikou.Reads.review_id_for_comment(comment.id)
-      #=> "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f"
+      Suikou.Reads.scope_for_comment(comment.id)
+      #=> {"0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "0192c9f4-aaaa-bbbb-cccc-1a2b3c4d5e6f"}
 
-      Suikou.Reads.review_id_for_comment("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
-      #=> nil
+      Suikou.Reads.scope_for_comment("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {nil, nil}
 
   """
-  @spec review_id_for_comment(Ecto.UUID.t()) :: Ecto.UUID.t() | nil
-  def review_id_for_comment(comment_id) do
+  @spec scope_for_comment(Ecto.UUID.t()) :: {Ecto.UUID.t() | nil, Ecto.UUID.t() | nil}
+  def scope_for_comment(comment_id) do
     {:comment, comment_id}
     |> ReviewScope.comments()
-    |> select([artifact: a], a.review_id)
-    |> Repo.one()
+    |> select([artifact: a], {a.review_id, a.id})
+    |> Repo.one() || {nil, nil}
   end
 
   @doc """

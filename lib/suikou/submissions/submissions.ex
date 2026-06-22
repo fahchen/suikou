@@ -286,7 +286,8 @@ defmodule Suikou.Submissions do
   end
 
   defp broadcast_review_change({:ok, _submission} = result, round_id) do
-    round_id |> Reads.review_id_for_round() |> Events.review_changed()
+    {review_id, artifact_id} = Reads.scope_for_round(round_id)
+    Events.review_changed(review_id, artifact_id)
     result
   end
 
