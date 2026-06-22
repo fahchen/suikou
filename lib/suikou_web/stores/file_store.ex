@@ -163,7 +163,7 @@ defmodule SuikouWeb.Stores.FileStore do
   end
 
   defp ensure_artifact(%Socket{} = socket) do
-    case socket.assigns[:artifact_id] do
+    case socket.assigns.artifact_id do
       artifact_id when is_binary(artifact_id) -> {:ok, artifact_id, socket}
       nil -> mint_artifact(socket)
     end
