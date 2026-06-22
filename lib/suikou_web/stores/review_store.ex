@@ -64,18 +64,22 @@ defmodule SuikouWeb.Stores.ReviewStore do
     # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     body = Socket.store_id(socket) ++ ["body"]
 
-    # Body owns the review-wide chrome (aggregates, file list), so it always
-    # refreshes. An artifact-scoped change targets just that file's store and its
-    # comment thread by their deterministic ids, so we refresh one file's subtree
-    # — never the whole tree. No store fans out from `update/2`, so a refresh
-    # cannot feed itself into a render loop.
-    Musubi.send_update(body, %{})
-
+    # The `reload` tag tells the body which slice to re-query: a review-level
+    # change (file opened/removed) reshapes the file list and the static chrome,
+    # so it reloads everything; an artifact-scoped change (a comment, reply, or
+    # verdict) only moves the review-wide aggregates, so the body skips the
+    # disk/git file walk and the static chrome and re-queries the counts alone.
+    # The changed file's own store and comment thread refresh by their
+    # deterministic ids, never the whole tree. No store fans out from `update/2`,
+    # so a refresh cannot feed itself into a render loop.
     if is_binary(artifact_id) do
+      Musubi.send_update(body, %{reload: :aggregates})
       file = body ++ ["files", artifact_id]
       Musubi.send_update(file, %{})
       # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
       Musubi.send_update(file ++ ["comments"], %{})
+    else
+      Musubi.send_update(body, %{reload: :structure})
     end
 
     {:noreply, socket}

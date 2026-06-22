@@ -68,18 +68,27 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
 
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
-  def init(socket), do: {:ok, socket |> reload_chrome() |> load_files()}
+  def init(socket) do
+    {:ok, socket |> reload_static() |> reload_aggregates() |> load_files()}
+  end
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
-  def update(assigns, socket) do
-    socket =
-      socket
-      |> Socket.assign(assigns)
-      |> reload_chrome()
-      |> maybe_load_files(assigns)
+  # A review-level change reshapes the file list, so reload everything.
+  def update(%{reload: :structure}, socket) do
+    {:ok, socket |> reload_static() |> reload_aggregates() |> load_files()}
+  end
 
-    {:ok, socket}
+  # An artifact-scoped change only moves the review-wide counts; skip the static
+  # chrome and the disk/git file walk and re-query the aggregates alone.
+  def update(%{reload: :aggregates}, socket) do
+    {:ok, reload_aggregates(socket)}
+  end
+
+  # A plain prop re-render (e.g. a round switch) needs no DB read — the new
+  # props drive `render/1` and flow to the file children directly.
+  def update(assigns, socket) do
+    {:ok, Socket.assign(socket, assigns)}
   end
 
   @impl Musubi.Store
@@ -119,8 +128,10 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     {:noreply, Socket.assign(socket, :file_entries, AsyncResult.failed(prior, {:exit, reason}))}
   end
 
-  # Cheap review-wide chrome, read synchronously into assigns on every refresh.
-  defp reload_chrome(socket) do
+  # Static chrome that only a review-level change can move: name, kind, and the
+  # artifact switcher list. Read on first paint and on a structural refresh, not
+  # on an artifact-scoped one.
+  defp reload_static(socket) do
     review_id = socket.assigns.review_id
 
     case Reviews.get_review(review_id) do
@@ -132,31 +143,23 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
           :artifacts,
           Enum.map(Reads.list_review_artifacts(review_id), &render_artifact_summary/1)
         )
-        |> Socket.assign(:has_unpublished, Submissions.unpublished?(review_id))
-        |> Socket.assign(:round_summaries, Reads.review_round_summaries(review_id))
 
       nil ->
         socket
         |> Socket.assign(:name, "")
         |> Socket.assign(:kind, :file)
         |> Socket.assign(:artifacts, [])
-        |> Socket.assign(:file_entries, AsyncResult.ok([]))
-        |> Socket.assign(:has_unpublished, false)
-        |> Socket.assign(:round_summaries, [])
     end
   end
 
-  # The file list loads off-render through `assign_async/3`. `update/2` runs on
-  # every parent render, so re-spawn only on a real refresh (an empty
-  # `Musubi.send_update/2`) — a plain prop re-render keeps the in-flight or
-  # resolved result instead of cancelling and reloading it every frame.
-  defp maybe_load_files(socket, assigns) when map_size(assigns) == 0, do: load_files(socket)
+  # Review-wide counts that any critique or verdict write can move. Both queries
+  # are safe on a missing review (they read empty), so no `get_review` guard.
+  defp reload_aggregates(socket) do
+    review_id = socket.assigns.review_id
 
-  defp maybe_load_files(socket, _assigns) do
-    case socket.assigns[:file_entries] do
-      %AsyncResult{} -> socket
-      _absent -> load_files(socket)
-    end
+    socket
+    |> Socket.assign(:has_unpublished, Submissions.unpublished?(review_id))
+    |> Socket.assign(:round_summaries, Reads.review_round_summaries(review_id))
   end
 
   defp load_files(socket) do

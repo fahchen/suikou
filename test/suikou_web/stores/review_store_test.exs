@@ -59,16 +59,18 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "handle_info refreshes the body, and targets one file on an artifact-scoped change" do
       socket = %Socket{assigns: %{review_id: "rv"}}
 
-      # Review-level change (nil artifact): only the body refreshes.
+      # Review-level change (nil artifact): the body reloads its full structure,
+      # no file subtree is targeted.
       assert {:noreply, ^socket} = ReviewStore.handle_info({:review_changed, "rv", nil}, socket)
-      assert_received {:musubi_send_update, ["body"], %{}}
-      refute_received {:musubi_send_update, ["body", "files", _id], %{}}
+      assert_received {:musubi_send_update, ["body"], %{reload: :structure}}
+      refute_received {:musubi_send_update, ["body", "files", _id], _assigns}
 
-      # Artifact-scoped change: body plus that file's store and its comment thread.
+      # Artifact-scoped change: the body reloads aggregates only, plus that file's
+      # store and its comment thread.
       assert {:noreply, ^socket} =
                ReviewStore.handle_info({:review_changed, "rv", "art-1"}, socket)
 
-      assert_received {:musubi_send_update, ["body"], %{}}
+      assert_received {:musubi_send_update, ["body"], %{reload: :aggregates}}
       assert_received {:musubi_send_update, ["body", "files", "art-1"], %{}}
       assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
     end
