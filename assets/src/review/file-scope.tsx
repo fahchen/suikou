@@ -14,6 +14,15 @@ export function fileScopeKey(artifactId: string, filePath: string): string {
   return `${artifactId}:${filePath}`
 }
 
+/**
+ * The plain file path from a scope key, dropping the artifact prefix. The
+ * artifact id never contains a colon (a UUID, or "" before mint), so the path
+ * is everything after the first colon — stable across a mint, unlike the key.
+ */
+export function fileScopePath(key: string): string {
+  return key.slice(key.indexOf(":") + 1)
+}
+
 export function FileScopeProvider(props: {
   artifactId: string
   filePath: string

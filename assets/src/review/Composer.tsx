@@ -4,9 +4,11 @@ import { motion } from "motion/react";
 import { uiStore } from "../stores/ui-store";
 import { ComposerTextarea } from "./ComposerTextarea";
 import { useReviewCommands } from "./commands";
+import { fileScopePath } from "./file-scope";
 import { SquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CRITIQUE_META } from "./types";
+import type { Comment } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
@@ -49,12 +51,45 @@ export const Composer = observer(function Composer(props: {
     // bails — one intent, one dispatch.
     const current = ui.draftFor(path);
     if (!current || !current.body.trim()) return;
-    void commands.addComment.dispatch({
+    const body = current.body.trim();
+    const anchor = {
+      type: "line_range" as const,
+      start_line: props.startLine,
+      end_line: props.endLine,
+    };
+
+    // Show the comment instantly; the thread drops this once the real one lands,
+    // and a failed dispatch rolls it back. Keyed by plain path so it survives a
+    // first-comment mint. crypto.randomUUID needs a secure context (not plain
+    // http over Tailscale), so build the temp id by hand.
+    const threadPath = path ? fileScopePath(path) : "";
+    const optimistic = {
+      id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       scope: current.scope,
       critique_type: current.type,
-      body: current.body.trim(),
-      anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
+      status: "pending",
+      body,
+      resolved: false,
+      resolved_round: null,
+      outdated: false,
+      drifted: false,
+      authored_round: 0,
+      inserted_at: new Date().toISOString(),
+      anchor: { ...anchor, quote: props.selectedText },
+      replies: [],
+    } as unknown as Comment;
+    ui.addOptimisticComment(threadPath, optimistic);
+    ui.revealComment(optimistic.id);
+
+    const dispatched = commands.addComment.dispatch({
+      scope: current.scope,
+      critique_type: current.type,
+      body,
+      anchor,
     });
+    Promise.resolve(dispatched).catch(() =>
+      ui.dropOptimisticComment(threadPath, optimistic.id),
+    );
     ui.closeComposer(path);
   }
 

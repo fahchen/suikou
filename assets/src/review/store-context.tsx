@@ -1,9 +1,9 @@
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, useEffect, type ReactNode } from "react"
 import type { ThemedToken } from "shiki"
 
 import type { Comment, FileSnapshot, FileStore, ReviewSnapshot, ReviewStore, Verdict } from "./types"
 import type { RenderedBlock } from "../markdown/render"
-import type { StatusFilter, CritiqueType } from "../stores/ui-store"
+import { uiStore, type StatusFilter, type CritiqueType } from "../stores/ui-store"
 
 const StoreContext = createContext<ReviewStore | null>(null)
 
@@ -104,4 +104,45 @@ export function visibleComments(
 /** Whether an unresolved fix_required blocks a clean approval. */
 export function hasUnresolvedBlocker(comments: Comment[]): boolean {
   return comments.some((c) => c.critique_type === "fix_required" && !c.resolved)
+}
+
+/**
+ * Merges a file's optimistic comments (shown the instant the reviewer submits)
+ * into its server thread, and drops one once its real counterpart arrives in the
+ * snapshot. Match is by body + line anchor — exact for the just-submitted
+ * comment, since the server resolves the same anchor against the same content.
+ * Keyed by plain file path so it survives the mint a first comment triggers.
+ */
+export function useThreadItems(path: string, serverItems: Comment[]): Comment[] {
+  const pending = uiStore.optimisticFor(path)
+
+  useEffect(() => {
+    for (const optimistic of pending) {
+      if (serverItems.some((server) => sameComment(server, optimistic))) {
+        uiStore.dropOptimisticComment(path, optimistic.id)
+      }
+    }
+  })
+
+  return mergeOptimistic(serverItems, pending)
+}
+
+/** Appends optimistic comments whose real counterpart is not yet in the thread. */
+export function mergeOptimistic(serverItems: Comment[], pending: Comment[]): Comment[] {
+  if (pending.length === 0) return serverItems
+  const unmatched = pending.filter(
+    (optimistic) => !serverItems.some((server) => sameComment(server, optimistic))
+  )
+  return unmatched.length === 0 ? serverItems : [...serverItems, ...unmatched]
+}
+
+function sameComment(a: Comment, b: Comment): boolean {
+  return a.body === b.body && sameAnchor(a.anchor, b.anchor)
+}
+
+function sameAnchor(a: Comment["anchor"], b: Comment["anchor"]): boolean {
+  if (!a || !b) return !a && !b
+  if (a.type !== b.type) return false
+  if (!("start_line" in a) || !("start_line" in b)) return true
+  return a.start_line === b.start_line && a.end_line === b.end_line
 }
