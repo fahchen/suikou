@@ -8,8 +8,9 @@ defmodule SuikouWeb.Stores.CommentsStore do
   every parent `update/2`, so `render/1` reads assigns only and never touches the
   database. Commands write through `Suikou.Critique`, which emits the review
   change event; the refresh fans back in through the parent on the same path as
-  every other open tab, so a command handler only writes and returns. New
-  comments target the artifact's latest round, which is the unsubmitted draft.
+  every other open tab, so a command handler only writes and returns. Authoring
+  a new comment routes through `SuikouWeb.Stores.FileStore.add_comment` (which
+  mints the artifact on demand); this store only mutates an existing thread.
   """
 
   use Musubi.Store
@@ -25,16 +26,6 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   state do
     CommentContract.comments_items_field()
-  end
-
-  command :add_comment do
-    payload do
-      field(:scope, :review | :artifact | :located)
-      field(:critique_type, :fix_required | :needs_answer | :note)
-      field(:body, String.t())
-
-      CommentContract.optional_anchor_field()
-    end
   end
 
   command :edit_comment do
@@ -101,27 +92,6 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:noreply, Socket.t()}
-  def handle_command(:add_comment, payload, socket) do
-    # Authoring routes through FileStore.add_comment (which mints on demand);
-    # this path only fires for an already-minted artifact. Read defensively so
-    # an unminted file no-ops instead of crashing the store.
-    case socket.assigns[:artifact_id] && Rounds.latest(socket.assigns[:artifact_id]) do
-      %{id: round_id} ->
-        Critique.add_comment(%{
-          round_id: round_id,
-          scope: payload["scope"],
-          critique_type: payload["critique_type"],
-          body: payload["body"],
-          anchor: payload["anchor"]
-        })
-
-      nil ->
-        :noop
-    end
-
-    {:noreply, socket}
-  end
-
   def handle_command(:edit_comment, payload, socket) do
     Critique.edit_comment(payload["comment_id"], %{
       body: payload["body"],

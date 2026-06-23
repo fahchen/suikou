@@ -104,15 +104,6 @@ declare namespace Musubi {
         items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string }> }>
       },
       {
-        add_comment: {
-          payload: {
-            scope: "review" | "artifact" | "located"
-            critique_type: "fix_required" | "needs_answer" | "note"
-            body: string
-            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
-          }
-          reply: never
-        }
         edit_comment: {
           payload: {
             comment_id: string
