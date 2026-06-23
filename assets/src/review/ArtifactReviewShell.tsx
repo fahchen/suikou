@@ -117,16 +117,19 @@ const MintProgressStrip = observer(function MintProgressStrip(props: { path: str
   );
 });
 
+function useFileSnapshot() {
+  return useMusubiSnapshot(useFileStore());
+}
+type FileSnapshotLive = ReturnType<typeof useFileSnapshot>;
+
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   reviewSnapshot: ReviewSnapshot;
 }) {
-  const fileStore = useFileStore();
-  const fileSnapshotLive = useMusubiSnapshot(fileStore);
+  const fileSnapshotLive = useFileSnapshot();
 
   // On a websocket reconnect (e.g. iOS Safari resuming from background) the file
   // child can resolve a frame after its parent, arriving as a bare store-id stub
-  // with no fields — the generated types declare them always-present. Guard here
-  // so the body's hooks never deref `fileSnapshotLive.artifact.id` on a stub.
+  // with no fields — the generated types declare them always-present. Guard here.
   if (
     !fileSnapshotLive.artifact ||
     !fileSnapshotLive.comments ||
@@ -135,19 +138,23 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
     return <ReviewShellSkeleton label="Connecting…" />;
   }
 
-  return <HydratedReviewBody reviewSnapshot={props.reviewSnapshot} />;
+  // Pass the validated snapshot down. The body must NOT re-subscribe via
+  // useMusubiSnapshot: a child observer re-renders independently on the next stub
+  // frame — before this guard can unmount it — and would crash on the stub.
+  return (
+    <HydratedReviewBody reviewSnapshot={props.reviewSnapshot} fileSnapshotLive={fileSnapshotLive} />
+  );
 });
 
 const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   reviewSnapshot: ReviewSnapshot;
+  fileSnapshotLive: FileSnapshotLive;
 }) {
-  const { reviewSnapshot } = props;
+  const { reviewSnapshot, fileSnapshotLive } = props;
   const ui = uiStore;
   const commands = useReviewCommands();
   const search = useSearch({ strict: false }) as { view?: string };
   const rawView = search.view === "raw";
-  const fileStore = useFileStore();
-  const fileSnapshotLive = useMusubiSnapshot(fileStore);
 
   useEffect(() => {
     if (uiStore.mintingPath) uiStore.setMintingPath(null);

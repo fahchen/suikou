@@ -95,17 +95,38 @@ const StackedFileCard = observer(function StackedFileCard(props: {
 }) {
   return (
     <FileStoreProvider store={props.fileProxy}>
-      <StackedFileCardBody reviewId={props.reviewId} reviewSnapshot={props.reviewSnapshot} />
+      <StackedFileGuard reviewId={props.reviewId} reviewSnapshot={props.reviewSnapshot} />
     </FileStoreProvider>
+  )
+})
+
+// On a websocket reconnect the file child can arrive as a bare store-id stub for
+// a frame. Validate the snapshot here and hand it to the body as a prop, so the
+// body never re-subscribes and re-renders on a stub (which would crash on
+// fileSnapshot.artifact).
+const StackedFileGuard = observer(function StackedFileGuard(props: {
+  reviewId: string
+  reviewSnapshot: ReviewSnapshot
+}) {
+  const fileSnapshot = useMusubiSnapshot(useFileStore()) as FileSnapshot
+  if (!fileSnapshot.artifact || !fileSnapshot.comments || !fileSnapshot.current_round) {
+    return null
+  }
+  return (
+    <StackedFileCardBody
+      reviewId={props.reviewId}
+      reviewSnapshot={props.reviewSnapshot}
+      fileSnapshot={fileSnapshot}
+    />
   )
 })
 
 const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   reviewId: string
   reviewSnapshot: ReviewSnapshot
+  fileSnapshot: FileSnapshot
 }) {
-  const fileStore = useFileStore()
-  const fileSnapshot = useMusubiSnapshot(fileStore) as FileSnapshot
+  const fileSnapshot = props.fileSnapshot
   const commands = useReviewCommands()
   const wide = useMediaQuery(WIDE_QUERY)
 
