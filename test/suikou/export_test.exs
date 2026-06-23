@@ -44,16 +44,18 @@ defmodule Suikou.ExportTest do
     assert Enum.all?(export.comments, &(&1.body == "round 2 critique"))
   end
 
-  test "the latest snapshot content travels with the critique" do
+  test "the export omits file content; the agent already has the repo" do
     artifact = source_round("snapshot body\n").artifact
-    assert {:ok, %{content: "snapshot body\n"}} = Export.export(artifact.id)
+    assert {:ok, export} = Export.export(artifact.id)
+    refute Map.has_key?(export, :content)
   end
 
-  test "a binary artifact exports empty content and stays JSON-encodable" do
+  test "a binary artifact still exports and stays JSON-encodable" do
     artifact = source_round(<<137, 80, 78, 71, 13, 10, 26, 10, 0, 255>>).artifact
 
-    assert {:ok, %{content: ""} = export} = Export.export(artifact.id)
-    assert is_binary(Jason.encode!(export))
+    assert {:ok, export} = Export.export(artifact.id)
+    refute Map.has_key?(export, :content)
+    assert is_binary(JSON.encode!(export))
   end
 
   test "an approved artifact reports its approval and verdict" do

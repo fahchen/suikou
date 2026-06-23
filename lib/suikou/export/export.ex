@@ -1,8 +1,8 @@
 defmodule Suikou.Export do
   @moduledoc """
   Read-only export for the agent. Per artifact (`export/1`) it reflects the
-  latest round: its snapshot content, the published critique visible in that
-  round (with published thread replies), and the artifact's standing verdict —
+  latest round: the published critique visible in that round (with published
+  thread replies), and the artifact's standing verdict —
   the latest submitted round's verdict, since the current round is always an
   unsubmitted draft (see BDR-0014). A comment is a single row visible in round N
   when `authored_round <= N` and it is unresolved or resolved in round N or
@@ -60,7 +60,6 @@ defmodule Suikou.Export do
           artifact_id: Ecto.UUID.t(),
           title: String.t(),
           round: integer(),
-          content: String.t(),
           verdict: Submission.verdict() | nil,
           approved: boolean(),
           approved_round: integer() | nil,
@@ -136,6 +135,8 @@ defmodule Suikou.Export do
 
   defp build(artifact, scope) do
     round = Rounds.latest(artifact.id)
+    # Content is read only to resolve comment anchors against the live file; it
+    # is not emitted — the agent already has the repo checked out.
     content = text_content(Artifacts.read_content_or_nil(artifact.id))
     lines = content && String.split(content, "\n")
 
@@ -143,7 +144,6 @@ defmodule Suikou.Export do
       artifact_id: artifact.id,
       title: artifact.title,
       round: round.number,
-      content: content || "",
       verdict: Submissions.latest_verdict_for_artifact(artifact.id),
       approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
