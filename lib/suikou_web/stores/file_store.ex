@@ -163,19 +163,24 @@ defmodule SuikouWeb.Stores.FileStore do
   end
 
   defp ensure_artifact(%Socket{} = socket) do
-    case socket.assigns.artifact_id do
+    # Bracket access, not `.artifact_id`: an unminted file is mounted with
+    # `artifact_id: nil`, and a nil-valued prop is dropped from assigns, so the
+    # key is absent (not nil) — dot access would raise KeyError and crash the
+    # page server.
+    case socket.assigns[:artifact_id] do
       artifact_id when is_binary(artifact_id) -> {:ok, artifact_id, socket}
       nil -> mint_artifact(socket)
     end
   end
 
   defp mint_artifact(%Socket{} = socket) do
-    with %Review{} = review <- Reviews.get_review(socket.assigns.review_id),
-         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, socket.assigns.path) do
+    with review_id when is_binary(review_id) <- socket.assigns[:review_id],
+         path when is_binary(path) <- socket.assigns[:path],
+         %Review{} = review <- Reviews.get_review(review_id),
+         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, path) do
       {:ok, artifact.id, Socket.assign(socket, :artifact_id, artifact.id)}
     else
-      nil -> {:error, socket}
-      {:error, _reason} -> {:error, socket}
+      _unmintable -> {:error, socket}
     end
   end
 

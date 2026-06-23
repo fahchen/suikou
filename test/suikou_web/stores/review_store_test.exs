@@ -75,6 +75,27 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
     end
 
+    test "add_comment on an unminted file mints instead of crashing the page server" do
+      # An unminted file's FileStore is mounted with artifact_id: nil, which is
+      # dropped from assigns — the key is absent, not nil. The first comment must
+      # mint the artifact, not raise KeyError and tear down the connection.
+      %{review: review} = file_selection_review(["first.md", "second.md"])
+      review_id = review.id
+
+      page = mount_review(review_id)
+      await_files(page)
+
+      _result =
+        Testing.dispatch_command(
+          page,
+          :add_comment,
+          %{"scope" => "review", "critique_type" => "note", "body" => "mint me"},
+          ["body", "files", "second.md"]
+        )
+
+      assert Enum.any?(Reads.list_review_artifacts(review_id), &(&1.file_path == "second.md"))
+    end
+
     test "renders one child per covered file and keeps unminted files empty" do
       %{review: review} = file_selection_review(["first.md", "second.md"])
       {:ok, first} = Reviews.open_file(review, "first.md")
