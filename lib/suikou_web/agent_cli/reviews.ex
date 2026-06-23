@@ -327,7 +327,14 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp worthy_snapshot(review_id, scope), do: snapshot(review_id, scope)
 
   defp drop_addressed(%{comments: comments} = artifact) do
-    %{artifact | comments: Enum.reject(comments, &(&1.resolved or &1.answered))}
+    %{artifact | comments: Enum.reject(comments, &addressed?/1)}
+  end
+
+  # A comment is addressed when it is resolved (carries a resolution round) or
+  # the agent has the last published word in its thread — the most recent reply
+  # is theirs, so the human owes the next move on nothing.
+  defp addressed?(comment) do
+    not is_nil(comment.resolved_round) or match?(%{author: :agent}, List.last(comment.replies))
   end
 
   defp with_project(project_id, fun) do

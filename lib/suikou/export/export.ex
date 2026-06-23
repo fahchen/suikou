@@ -49,10 +49,7 @@ defmodule Suikou.Export do
           anchor: anchor_view() | nil,
           authored_round: integer(),
           resolved_round: integer() | nil,
-          resolved: boolean(),
           outdated: boolean(),
-          answered: boolean(),
-          line_anchor: boolean(),
           replies: [%{author: Reply.author(), body: String.t()}]
         }
 
@@ -61,7 +58,6 @@ defmodule Suikou.Export do
           title: String.t(),
           round: integer(),
           verdict: Submission.verdict() | nil,
-          approved: boolean(),
           approved_round: integer() | nil,
           comments: [comment_view()]
         }
@@ -145,7 +141,6 @@ defmodule Suikou.Export do
       title: artifact.title,
       round: round.number,
       verdict: Submissions.latest_verdict_for_artifact(artifact.id),
-      approved: not is_nil(artifact.approved_round),
       approved_round: artifact.approved_round,
       comments: published_comments(artifact.id, round, scope, lines)
     }
@@ -200,7 +195,6 @@ defmodule Suikou.Export do
 
   defp comment_view(comment, lines) do
     {anchor, status} = Critique.resolve_anchor(comment.anchor, lines)
-    outdated = status == :outdated
 
     %{
       id: comment.id,
@@ -210,19 +204,8 @@ defmodule Suikou.Export do
       anchor: anchor,
       authored_round: comment.authored_round,
       resolved_round: comment.resolved_round,
-      resolved: not is_nil(comment.resolved_round),
-      outdated: outdated,
-      answered: agent_answered?(comment),
-      line_anchor: comment.scope == :located and not outdated,
+      outdated: status == :outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
-  end
-
-  # Whether the agent has the last word in the comment's discussion. The thread
-  # is a single row carrying its published replies in order, so the agent has
-  # answered when the most recent published reply is theirs; a trailing human
-  # reply (or no reply at all) means the human owes the next move.
-  defp agent_answered?(comment) do
-    match?(%Reply{author: :agent}, List.last(comment.replies))
   end
 end
