@@ -120,6 +120,27 @@ const MintProgressStrip = observer(function MintProgressStrip(props: { path: str
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   reviewSnapshot: ReviewSnapshot;
 }) {
+  const fileStore = useFileStore();
+  const fileSnapshotLive = useMusubiSnapshot(fileStore);
+
+  // On a websocket reconnect (e.g. iOS Safari resuming from background) the file
+  // child can resolve a frame after its parent, arriving as a bare store-id stub
+  // with no fields — the generated types declare them always-present. Guard here
+  // so the body's hooks never deref `fileSnapshotLive.artifact.id` on a stub.
+  if (
+    !fileSnapshotLive.artifact ||
+    !fileSnapshotLive.comments ||
+    !fileSnapshotLive.current_round
+  ) {
+    return <ReviewShellSkeleton label="Connecting…" />;
+  }
+
+  return <HydratedReviewBody reviewSnapshot={props.reviewSnapshot} />;
+});
+
+const HydratedReviewBody = observer(function HydratedReviewBody(props: {
+  reviewSnapshot: ReviewSnapshot;
+}) {
   const { reviewSnapshot } = props;
   const ui = uiStore;
   const commands = useReviewCommands();
