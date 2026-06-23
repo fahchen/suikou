@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
+import { Pencil } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
+import { Button } from "@/components/ui/button";
 import { CommentBody } from "./CommentBody";
 import { CommentCardHeader } from "./CommentCardHeader";
 import { CommentEditPanel } from "./CommentEditPanel";
@@ -65,9 +67,9 @@ export const CommentCard = observer(function CommentCard(props: {
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       onClick={onSelect}
       className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] transition-opacity ${
@@ -117,7 +119,25 @@ export const CommentCard = observer(function CommentCard(props: {
 
             <CommentReplies replies={comment.replies} />
 
-            {!editing && showComposer && <CommentReplyComposer comment={comment} />}
+            {!editing &&
+              showComposer &&
+              // A pending comment is the reviewer's own unpublished draft — there
+              // is nothing to reply to yet, so offer Edit instead of the reply box.
+              (comment.status === "pending" ? (
+                <div className="mt-1 flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto text-muted-foreground"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </Button>
+                </div>
+              ) : (
+                <CommentReplyComposer comment={comment} />
+              ))}
           </div>
         </CollapsibleContent>
       </Collapsible>
