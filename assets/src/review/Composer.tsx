@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 
@@ -31,7 +30,6 @@ export const Composer = observer(function Composer(props: {
   const ui = uiStore;
   const commands = useReviewCommands();
   const path = props.filePath ?? null;
-  const submitting = useRef(false);
   const draft = ui.draftFor(path);
   const body = draft?.body ?? "";
   const type = draft?.type ?? "note";
@@ -44,30 +42,19 @@ export const Composer = observer(function Composer(props: {
   }
 
   function add() {
-    // Keep the composer open with the button disabled until the server confirms,
-    // then close — the real comment renders from the refreshed snapshot, no
-    // optimistic placeholder to flicker. The `submitting` ref blocks a synchronous
-    // double-fire (tap-tap, or Enter+click in one React batch) before `isPending`
-    // has flipped the button to disabled.
-    if (submitting.current) return;
+    // Close the composer the instant you submit, so it never overlaps the real
+    // comment fading in from the refreshed snapshot (the overlap was the flicker).
+    // `closeComposer` deletes the draft synchronously, so a double-fire (tap-tap,
+    // or Enter+click in one React batch) sees it gone and bails — one dispatch.
     const current = ui.draftFor(path);
     if (!current || !current.body.trim()) return;
-    submitting.current = true;
-    Promise.resolve(
-      commands.addComment.dispatch({
-        scope: current.scope,
-        critique_type: current.type,
-        body: current.body.trim(),
-        anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
-      }),
-    ).then(
-      () => ui.closeComposer(path),
-      () => {
-        // Dispatch failed (e.g. disconnected): keep the draft so the reviewer can
-        // retry, and re-enable the button.
-        submitting.current = false;
-      },
-    );
+    void commands.addComment.dispatch({
+      scope: current.scope,
+      critique_type: current.type,
+      body: current.body.trim(),
+      anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
+    });
+    ui.closeComposer(path);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
