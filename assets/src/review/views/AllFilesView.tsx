@@ -11,6 +11,7 @@ import { uiStore } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
 import { contentErrorFrom, useContent, useReviewFileContent } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
+import { useRawHighlight } from "../use-raw-highlight"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
 import { assetBase, reviewFileRawUrl } from "../urls"
@@ -111,6 +112,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   const path = fileSnapshot.path
   const minted = fileSnapshot.artifact_id !== null
   const expanded = !uiStore.isFileCollapsed(props.reviewId, path)
+  const [rawView, setRawView] = useState(false)
 
   const serverVerdict = fileSnapshot.draft_verdict ?? fileSnapshot.latest_verdict ?? null
   const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict)
@@ -143,6 +145,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     live && !minted && !image,
   )
   const contentState = minted ? minStat : unminStat
+  const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, uiStore.theme)
 
   const previewable = isPreviewable(path) && viewKind === "file"
   const slash = path.lastIndexOf("/")
@@ -163,7 +166,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     : filteredVisible
 
   const binary = isBinaryContent(contentState.text)
-  const capabilities = viewCapabilities({ kind: viewKind, previewable, image, rawView: false, binary })
+  const capabilities = viewCapabilities({ kind: viewKind, previewable, image, rawView, binary })
   const sideMode = uiStore.commentMode === "side" && wide && !uiStore.hideComments
   const filtered = isFiltering(uiStore.statusFilter, uiStore.typeFilters) || uiStore.hideComments
   const railActive = sideMode && (railComments.length > 0 || filtered)
@@ -181,7 +184,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     loading,
     comments: railComments,
     previewable,
-    rawLines: null,
+    rawLines,
     verdict,
     onVerdictChange: changeVerdict,
   }
@@ -202,8 +205,8 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
         viewKind={viewKind}
         commentCount={headerCommentCount}
         capabilities={capabilities}
-        rawView={false}
-        onRawViewChange={() => {}}
+        rawView={rawView}
+        onRawViewChange={setRawView}
         expanded={expanded}
         onToggleExpand={() => uiStore.setFileCollapsed(props.reviewId, path, expanded)}
         verdictChip={
@@ -232,7 +235,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
                   artifactId={(fileSnapshot.artifact as unknown as { id: string }).id}
                   filePath={path}
                 >
-                  <ViewComponent view={view} forceRaw={false} inline={!railActive} nested />
+                  <ViewComponent view={view} forceRaw={rawView} inline={!railActive} nested />
                 </FileScopeProvider>
               </ReviewViewProvider>
             )}

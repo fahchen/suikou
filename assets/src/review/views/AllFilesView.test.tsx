@@ -214,6 +214,18 @@ describe("AllFilesView card rendering", () => {
   })
 })
 
+describe("AllFilesView raw/rendered toggle", () => {
+  it("flips a previewable file between rendered and raw source", async () => {
+    fetchMock.mockResolvedValue(okResponse("# heading"))
+    renderAllFiles([[{ path: "doc.md", artifact_id: "art-d", current_round_hash: "hd" }]])
+    const toggle = await screen.findByRole("button", { name: /Show raw source/i })
+    expect(toggle).toHaveAttribute("aria-pressed", "false")
+    fireEvent.click(toggle)
+    const back = await screen.findByRole("button", { name: /Show rendered/i })
+    expect(back).toHaveAttribute("aria-pressed", "true")
+  })
+})
+
 describe("AllFilesView content fetch routing", () => {
   it("fetches minted files via artifact content route", async () => {
     fetchMock.mockResolvedValueOnce(okResponse("content"))
