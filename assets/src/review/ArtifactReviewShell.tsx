@@ -16,7 +16,6 @@ import {
   ReviewViewProvider,
   useFileStore,
   useReviewStore,
-  useThreadItems,
   visibleComments,
 } from "./store-context";
 import { TopBar } from "./TopBar";
@@ -212,8 +211,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
     }
   });
 
-  const threadItems = useThreadItems(fileSnapshotLive.path, fileSnapshotLive.comments.items);
-  const visible = visibleComments(threadItems, ui.statusFilter, ui.typeFilters);
+  const visible = visibleComments(fileSnapshotLive.comments.items, ui.statusFilter, ui.typeFilters);
   const comments = ui.hideComments
     ? visible.filter((c) => ui.revealedCommentIds.includes(c.id))
     : visible;

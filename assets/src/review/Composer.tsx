@@ -1,14 +1,13 @@
+import { useRef } from "react";
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 
 import { uiStore } from "../stores/ui-store";
 import { ComposerTextarea } from "./ComposerTextarea";
 import { useReviewCommands } from "./commands";
-import { fileScopePath } from "./file-scope";
 import { SquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CRITIQUE_META } from "./types";
-import type { Comment } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
@@ -32,6 +31,7 @@ export const Composer = observer(function Composer(props: {
   const ui = uiStore;
   const commands = useReviewCommands();
   const path = props.filePath ?? null;
+  const submitting = useRef(false);
   const draft = ui.draftFor(path);
   const body = draft?.body ?? "";
   const type = draft?.type ?? "note";
@@ -44,53 +44,30 @@ export const Composer = observer(function Composer(props: {
   }
 
   function add() {
-    // Read the live draft, not the render-captured `body`/`type` closure: a
-    // double event (tap-tap, or Enter+click) fires two `add()` calls in one
-    // React batch, both holding the same stale non-empty body. `closeComposer`
-    // deletes the draft synchronously, so the second call sees it gone and
-    // bails — one intent, one dispatch.
+    // Keep the composer open with the button disabled until the server confirms,
+    // then close — the real comment renders from the refreshed snapshot, no
+    // optimistic placeholder to flicker. The `submitting` ref blocks a synchronous
+    // double-fire (tap-tap, or Enter+click in one React batch) before `isPending`
+    // has flipped the button to disabled.
+    if (submitting.current) return;
     const current = ui.draftFor(path);
     if (!current || !current.body.trim()) return;
-    const body = current.body.trim();
-    const anchor = {
-      type: "line_range" as const,
-      start_line: props.startLine,
-      end_line: props.endLine,
-    };
-
-    // Show the comment instantly; the thread drops this once the real one lands,
-    // and a failed dispatch rolls it back. Keyed by plain path so it survives a
-    // first-comment mint. crypto.randomUUID needs a secure context (not plain
-    // http over Tailscale), so build the temp id by hand.
-    const threadPath = path ? fileScopePath(path) : "";
-    const optimistic = {
-      id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      scope: current.scope,
-      critique_type: current.type,
-      status: "pending",
-      body,
-      resolved: false,
-      resolved_round: null,
-      outdated: false,
-      drifted: false,
-      authored_round: 0,
-      inserted_at: new Date().toISOString(),
-      anchor: { ...anchor, quote: props.selectedText },
-      replies: [],
-    } as unknown as Comment;
-    ui.addOptimisticComment(threadPath, optimistic);
-    ui.revealComment(optimistic.id);
-
-    const dispatched = commands.addComment.dispatch({
-      scope: current.scope,
-      critique_type: current.type,
-      body,
-      anchor,
-    });
-    Promise.resolve(dispatched).catch(() =>
-      ui.dropOptimisticComment(threadPath, optimistic.id),
+    submitting.current = true;
+    Promise.resolve(
+      commands.addComment.dispatch({
+        scope: current.scope,
+        critique_type: current.type,
+        body: current.body.trim(),
+        anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
+      }),
+    ).then(
+      () => ui.closeComposer(path),
+      () => {
+        // Dispatch failed (e.g. disconnected): keep the draft so the reviewer can
+        // retry, and re-enable the button.
+        submitting.current = false;
+      },
     );
-    ui.closeComposer(path);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

@@ -1,7 +1,6 @@
 import { makeAutoObservable } from "mobx"
 
 import type { MarkdownFlavor } from "../markdown/render"
-import type { Comment } from "../review/types"
 import { THEMES, type ThemeName } from "../themes"
 
 export type DocView = "rendered" | "raw"
@@ -72,14 +71,6 @@ export class UiStore {
   // entry is removed only on successful submit or an explicit cancel. The
   // legacy single-file scope (`null`) maps to the empty-string key.
   drafts: Record<string, ComposerDraft> = {}
-
-  // Optimistic comments, keyed by plain file path, shown the instant the
-  // reviewer submits — before the server round-trip and refresh land. Each entry
-  // carries a temp id; a thread merges them in and drops one once the matching
-  // server comment (same body + anchor) appears, or on a failed dispatch. Keyed
-  // by plain path (not the artifact-scoped draft key) so it survives the mint a
-  // first comment triggers, where the artifact id changes mid-flight.
-  optimisticComments: Record<string, Comment[]> = {}
 
   // Visible mint-on-click affordance: the path currently being minted into
   // an artifact by an `open_file` command. Survives the navigation that
@@ -236,25 +227,6 @@ export class UiStore {
   // The unsaved draft for a file, or undefined when the file has none open.
   draftFor(filePath: string | null): ComposerDraft | undefined {
     return this.drafts[filePath ?? ""]
-  }
-
-  optimisticFor(path: string): Comment[] {
-    return this.optimisticComments[path] ?? []
-  }
-
-  addOptimisticComment(path: string, comment: Comment): void {
-    this.optimisticComments = {
-      ...this.optimisticComments,
-      [path]: [...this.optimisticFor(path), comment]
-    }
-  }
-
-  dropOptimisticComment(path: string, id: string): void {
-    const remaining = this.optimisticFor(path).filter((c) => c.id !== id)
-    const next = { ...this.optimisticComments }
-    if (remaining.length === 0) delete next[path]
-    else next[path] = remaining
-    this.optimisticComments = next
   }
 
   openComposer(

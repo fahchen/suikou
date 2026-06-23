@@ -20,7 +20,6 @@ import {
   FileStoreProvider,
   ReviewViewProvider,
   useFileStore,
-  useThreadItems,
   visibleComments,
 } from "../store-context"
 import { useReviewCommands } from "../commands"
@@ -160,10 +159,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     },
   )
 
-  const comments = useThreadItems(
-    path,
-    (fileSnapshot.comments as unknown as { items: Comment[] }).items,
-  )
+  const comments = (fileSnapshot.comments as unknown as { items: Comment[] }).items
   const filteredVisible = visibleComments(comments, uiStore.statusFilter, uiStore.typeFilters)
   const railComments = uiStore.hideComments
     ? filteredVisible.filter((c) => uiStore.revealedCommentIds.includes(c.id))
