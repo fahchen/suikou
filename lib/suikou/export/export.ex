@@ -38,7 +38,8 @@ defmodule Suikou.Export do
   @type anchor_view :: %{
           start_line: pos_integer(),
           end_line: pos_integer(),
-          quote: String.t()
+          quote: String.t(),
+          stale: boolean()
         }
 
   @type comment_view :: %{
@@ -47,37 +48,32 @@ defmodule Suikou.Export do
           critique_type: Comment.critique_type(),
           body: String.t(),
           anchor: anchor_view() | nil,
-          authored_round: integer(),
           resolved_round: integer() | nil,
-          outdated: boolean(),
           replies: [%{author: Reply.author(), body: String.t()}]
         }
 
   @type t :: %{
           artifact_id: Ecto.UUID.t(),
           title: String.t(),
-          round: integer(),
           verdict: Submission.verdict() | nil,
-          approved_round: integer() | nil,
+          approved: boolean(),
           comments: [comment_view()]
         }
 
   @type review_export :: %{
           review_id: Ecto.UUID.t(),
-          name: String.t(),
-          project_id: Ecto.UUID.t(),
           submission_version: non_neg_integer(),
           artifacts: [t()]
         }
 
   @doc """
-  Exports the agent-facing view of an artifact: the latest round's content, its
-  published critique with replies, and the latest verdict. Changes no state.
+  Exports the agent-facing view of an artifact: its published critique with
+  replies and the latest verdict. Changes no state.
 
   ## Examples
 
       Suikou.Export.export(artifact.id)
-      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", round: 2, verdict: :request_changes, comments: []}}
+      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", verdict: :request_changes, comments: []}}
 
       Suikou.Export.export("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
@@ -102,7 +98,7 @@ defmodule Suikou.Export do
   ## Examples
 
       Suikou.Export.export_review(review.id)
-      #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{round: 2, comments: []}]}
+      #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: []}]}
 
       Suikou.Export.export_review(review.id, :all)
       #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: [%{body: "round 1 note"}]}]}
@@ -121,8 +117,6 @@ defmodule Suikou.Export do
       %Review{} = review ->
         %{
           review_id: review.id,
-          name: review.name,
-          project_id: review.project_id,
           submission_version: Submissions.review_submission_count(review.id),
           artifacts: Enum.map(Reads.list_review_artifacts(review.id), &build(&1, scope))
         }
@@ -139,9 +133,8 @@ defmodule Suikou.Export do
     %{
       artifact_id: artifact.id,
       title: artifact.title,
-      round: round.number,
       verdict: Submissions.latest_verdict_for_artifact(artifact.id),
-      approved_round: artifact.approved_round,
+      approved: not is_nil(artifact.approved_round),
       comments: published_comments(artifact.id, round, scope, lines)
     }
   end
@@ -201,11 +194,15 @@ defmodule Suikou.Export do
       scope: comment.scope,
       critique_type: comment.critique_type,
       body: comment.body,
-      anchor: anchor,
-      authored_round: comment.authored_round,
+      anchor: tag_stale(anchor, status),
       resolved_round: comment.resolved_round,
-      outdated: status == :outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
   end
+
+  # Fold staleness onto the anchor it describes: a `:located` anchor whose quote
+  # no longer matches is `stale: true`, telling the agent to trust the quote, not
+  # the line numbers. A `nil` anchor (review/artifact scope) carries no staleness.
+  defp tag_stale(nil, _status), do: nil
+  defp tag_stale(anchor, status), do: Map.put(anchor, :stale, status == :outdated)
 end

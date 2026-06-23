@@ -40,7 +40,6 @@ defmodule Suikou.ExportTest do
     published_comment(round2.id, %{body: "round 2 critique"})
 
     assert {:ok, export} = Export.export(artifact.id)
-    assert %{round: 1} = export
     assert Enum.all?(export.comments, &(&1.body == "round 2 critique"))
   end
 
@@ -63,7 +62,7 @@ defmodule Suikou.ExportTest do
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _submission} = Submissions.submit(round2.id, :approve)
 
-    assert {:ok, %{verdict: :approve, approved_round: 1}} =
+    assert {:ok, %{verdict: :approve, approved: true}} =
              Export.export(artifact.id)
   end
 
@@ -72,7 +71,7 @@ defmodule Suikou.ExportTest do
     artifact = round.artifact
     {:ok, _submission} = Submissions.submit(round.id, :request_changes)
 
-    assert {:ok, %{verdict: :request_changes, approved_round: nil}} = Export.export(artifact.id)
+    assert {:ok, %{verdict: :request_changes, approved: false}} = Export.export(artifact.id)
   end
 
   test "a comment's published replies travel with it" do
@@ -106,7 +105,7 @@ defmodule Suikou.ExportTest do
 
     assert {:ok, export} = Export.export(artifact.id)
     [view] = export.comments
-    assert view.outdated
+    assert view.anchor.stale
   end
 
   test "a comment whose line drifted slightly exports not-outdated" do
@@ -124,7 +123,7 @@ defmodule Suikou.ExportTest do
 
     assert {:ok, export} = Export.export(artifact.id)
     [view] = export.comments
-    refute view.outdated
+    refute view.anchor.stale
   end
 
   test "exporting twice changes no state and is stable" do
@@ -139,7 +138,7 @@ defmodule Suikou.ExportTest do
 
   test "an artifact with no reviews exports a nil verdict and no approval round" do
     artifact = insert(:round).artifact
-    assert {:ok, %{verdict: nil, approved_round: nil, comments: []}} = Export.export(artifact.id)
+    assert {:ok, %{verdict: nil, approved: false, comments: []}} = Export.export(artifact.id)
   end
 
   test "an unknown artifact id returns an error" do
@@ -161,7 +160,6 @@ defmodule Suikou.ExportTest do
                Export.export_review(review.id)
 
       assert review_id == review.id
-      assert %{round: 1} = artifact
       assert Enum.map(artifact.comments, & &1.body) == ["round 1 note"]
     end
 
