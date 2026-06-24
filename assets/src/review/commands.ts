@@ -34,18 +34,46 @@ function useDefaultReviewCommands() {
     ...command,
     disabled: !connected || command.isPending,
   });
+  const wrap = <T extends { isPending: boolean; dispatch: (...args: never[]) => Promise<unknown> }>(
+    command: T,
+  ) => gate(resilient(command));
   return {
-    addComment: gate(useMusubiCommand(fileStore, "add_comment")),
-    editComment: gate(useMusubiCommand(comments, "edit_comment")),
-    deleteComment: gate(useMusubiCommand(comments, "delete_comment")),
-    resolveComment: gate(useMusubiCommand(comments, "resolve_comment")),
-    reply: gate(useMusubiCommand(comments, "reply")),
-    editReply: gate(useMusubiCommand(comments, "edit_reply")),
-    deleteReply: gate(useMusubiCommand(comments, "delete_reply")),
-    submitReview: gate(useMusubiCommand(reviewStore, "submit_review")),
-    removeFile: gate(useMusubiCommand(reviewStore, "remove_file")),
-    setDraftVerdict: gate(useMusubiCommand(fileStore, "set_draft_verdict")),
+    addComment: wrap(useMusubiCommand(fileStore, "add_comment")),
+    editComment: wrap(useMusubiCommand(comments, "edit_comment")),
+    deleteComment: wrap(useMusubiCommand(comments, "delete_comment")),
+    resolveComment: wrap(useMusubiCommand(comments, "resolve_comment")),
+    reply: wrap(useMusubiCommand(comments, "reply")),
+    editReply: wrap(useMusubiCommand(comments, "edit_reply")),
+    deleteReply: wrap(useMusubiCommand(comments, "delete_reply")),
+    submitReview: wrap(useMusubiCommand(reviewStore, "submit_review")),
+    removeFile: wrap(useMusubiCommand(reviewStore, "remove_file")),
+    setDraftVerdict: wrap(useMusubiCommand(fileStore, "set_draft_verdict")),
   };
+}
+
+// Retry a command that rejects with "Store is not connected". After an iOS
+// Safari resume reload the phoenix socket reopens a beat before the musubi
+// channel re-joins, so a command fired in that window rejects before it ever
+// reaches the server — safe to retry. Never retries timeouts (the push may have
+// landed), so a genuine server rejection still surfaces.
+function resilient<
+  T extends { dispatch: (...args: never[]) => Promise<unknown> },
+>(command: T): T {
+  const dispatch = (async (...args: Parameters<T["dispatch"]>) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await command.dispatch(...args);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("not connected") && attempt < 9) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          continue;
+        }
+        throw error;
+      }
+    }
+  }) as T["dispatch"];
+  return { ...command, dispatch };
 }
 
 /**
