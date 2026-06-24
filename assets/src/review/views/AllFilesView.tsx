@@ -11,6 +11,7 @@ import { uiStore } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
 import { contentErrorFrom, useContent, useReviewFileContent } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
+import { useRawHighlight } from "../use-raw-highlight"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
 import { assetBase, reviewFileRawUrl } from "../urls"
@@ -40,20 +41,20 @@ export const AllFilesView = observer(function AllFilesView(props: {
   reviewStore: ReviewStore
 }) {
   const { reviewId, reviewSnapshot, reviewStore } = props
-  const count = reviewSnapshot.files.length
+  const count = reviewSnapshot.body.files.length
 
   if (count === 0) {
-    if (reviewSnapshot.file_entries.status === "loading") {
+    if (reviewSnapshot.body.file_entries.status === "loading") {
       return <Notice title="Loading files…" message="Fetching the review's file list." />
     }
     return <Notice title="No files" message="This review has no files yet." />
   }
 
-  // reviewSnapshot.files[i] and reviewStore.files[i] are parallel: same index
-  // is the same file. Merge into pairs and sort by path for a stable visual order.
+  // reviewSnapshot.body.files[i] and reviewStore.body.files[i] are parallel: same
+  // index is the same file. Merge into pairs and sort by path for a stable order.
   const pairs = Array.from({ length: count }, (_, i) => ({
-    snapshot: reviewSnapshot.files[i] as unknown as FileSnapshot,
-    proxy: reviewStore.files[i] as unknown as FileStore,
+    snapshot: reviewSnapshot.body.files[i] as unknown as FileSnapshot,
+    proxy: reviewStore.body.files[i] as unknown as FileStore,
   })).sort((a, b) => a.snapshot.path.localeCompare(b.snapshot.path))
 
   const visible = uiStore.hideReviewed
@@ -94,23 +95,42 @@ const StackedFileCard = observer(function StackedFileCard(props: {
 }) {
   return (
     <FileStoreProvider store={props.fileProxy}>
-      <StackedFileCardBody reviewId={props.reviewId} reviewSnapshot={props.reviewSnapshot} />
+      <StackedFileGuard reviewId={props.reviewId} reviewSnapshot={props.reviewSnapshot} />
     </FileStoreProvider>
+  )
+})
+
+// On a websocket reconnect the file store node is absent for a frame
+// (snapshot() is undefined). Validate here and hand the snapshot to the body as
+// a prop, so the body never re-subscribes and renders an absent snapshot.
+const StackedFileGuard = observer(function StackedFileGuard(props: {
+  reviewId: string
+  reviewSnapshot: ReviewSnapshot
+}) {
+  const fileSnapshot = useMusubiSnapshot(useFileStore())
+  if (!fileSnapshot) return null
+  return (
+    <StackedFileCardBody
+      reviewId={props.reviewId}
+      reviewSnapshot={props.reviewSnapshot}
+      fileSnapshot={fileSnapshot as unknown as FileSnapshot}
+    />
   )
 })
 
 const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   reviewId: string
   reviewSnapshot: ReviewSnapshot
+  fileSnapshot: FileSnapshot
 }) {
-  const fileStore = useFileStore()
-  const fileSnapshot = useMusubiSnapshot(fileStore) as FileSnapshot
+  const fileSnapshot = props.fileSnapshot
   const commands = useReviewCommands()
   const wide = useMediaQuery(WIDE_QUERY)
 
   const path = fileSnapshot.path
   const minted = fileSnapshot.artifact_id !== null
   const expanded = !uiStore.isFileCollapsed(props.reviewId, path)
+  const [rawView, setRawView] = useState(false)
 
   const serverVerdict = fileSnapshot.draft_verdict ?? fileSnapshot.latest_verdict ?? null
   const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict)
@@ -123,7 +143,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     void commands.setDraftVerdict.dispatch({ verdict: next })
   }
 
-  const reviewKind = props.reviewSnapshot.kind
+  const reviewKind = props.reviewSnapshot.body.kind
   const image = isImagePath(path)
   const viewKind: ViewKind = reviewKind === "diff" ? "diff" : isHtmlPath(path) ? "html" : "file"
 
@@ -143,6 +163,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     live && !minted && !image,
   )
   const contentState = minted ? minStat : unminStat
+  const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, uiStore.theme)
 
   const previewable = isPreviewable(path) && viewKind === "file"
   const slash = path.lastIndexOf("/")
@@ -163,7 +184,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     : filteredVisible
 
   const binary = isBinaryContent(contentState.text)
-  const capabilities = viewCapabilities({ kind: viewKind, previewable, image, rawView: false, binary })
+  const capabilities = viewCapabilities({ kind: viewKind, previewable, image, rawView, binary })
   const sideMode = uiStore.commentMode === "side" && wide && !uiStore.hideComments
   const filtered = isFiltering(uiStore.statusFilter, uiStore.typeFilters) || uiStore.hideComments
   const railActive = sideMode && (railComments.length > 0 || filtered)
@@ -181,7 +202,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     loading,
     comments: railComments,
     previewable,
-    rawLines: null,
+    rawLines,
     verdict,
     onVerdictChange: changeVerdict,
   }
@@ -202,8 +223,8 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
         viewKind={viewKind}
         commentCount={headerCommentCount}
         capabilities={capabilities}
-        rawView={false}
-        onRawViewChange={() => {}}
+        rawView={rawView}
+        onRawViewChange={setRawView}
         expanded={expanded}
         onToggleExpand={() => uiStore.setFileCollapsed(props.reviewId, path, expanded)}
         verdictChip={
@@ -232,7 +253,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
                   artifactId={(fileSnapshot.artifact as unknown as { id: string }).id}
                   filePath={path}
                 >
-                  <ViewComponent view={view} forceRaw={false} inline={!railActive} nested />
+                  <ViewComponent view={view} forceRaw={rawView} inline={!railActive} nested />
                 </FileScopeProvider>
               </ReviewViewProvider>
             )}

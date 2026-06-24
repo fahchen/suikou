@@ -18,8 +18,8 @@ export type Comment = CommentsSnapshot["items"][number]
 export type Anchor = NonNullable<Comment["anchor"]>
 export type Reply = Comment["replies"][number]
 export type RoundSummary = FileSnapshot["rounds"][number]
-export type ArtifactSummary = ReviewSnapshot["artifacts"][number]
-export type ReviewFileEntry = NonNullable<ReviewSnapshot["file_entries"]["data"]>[number]
+export type ArtifactSummary = ReviewSnapshot["body"]["artifacts"][number]
+export type ReviewFileEntry = NonNullable<ReviewSnapshot["body"]["file_entries"]["data"]>[number]
 
 export const CRITIQUE_META: Record<CritiqueType, { label: string; short: string; tone: string }> = {
   fix_required: { label: "Fix required", short: "Fix", tone: "red" },

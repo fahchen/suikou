@@ -5,7 +5,7 @@ defmodule SuikouWeb.Stores.BoardBroadcast do
 
   The board renders entirely from the database, so a write on another
   connection (e.g. a CLI `review create`/`rename`/`delete`) never dirties an
-  open board and pushes no patch (see `docs/musubi-issues.md` ISSUE-1). The
+  open board and pushes no patch. The
   writer broadcasts `:board_changed` on the single board-wide topic, the board
   subscribes at mount, and its `handle_info/2` recomputes the review list and
   dirties an assign so the next render reflects the change live.

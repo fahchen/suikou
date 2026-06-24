@@ -125,20 +125,22 @@ function setup(fileOverrides: Parameters<typeof makeFileSnapshot>[] = [[]]) {
   const stores = snaps.map(fakeFileStore)
   const reviewSnapshot: ReviewSnapshot = {
     review_id: "rv-1",
-    name: "test review",
-    kind: "file",
-    artifacts: [],
-    file_entries: {
-      __musubi_async__: true,
-      status: "ok",
-      result: [],
-      data: [],
-      reason: null,
+    body: {
+      name: "test review",
+      kind: "file",
+      artifacts: [],
+      file_entries: {
+        __musubi_async__: true,
+        status: "ok",
+        result: [],
+        data: [],
+        reason: null,
+      },
+      files: snaps,
     },
-    files: snaps,
   } as unknown as ReviewSnapshot
   const reviewStore: ReviewStore = {
-    files: stores,
+    body: { files: stores },
     dispatchCommand: vi.fn(),
   } as unknown as ReviewStore
   return { reviewSnapshot, reviewStore, snaps, stores }
@@ -165,7 +167,10 @@ describe("AllFilesView empty state", () => {
     // Override to loading state
     const loadingSnapshot = {
       ...reviewSnapshot,
-      file_entries: { __musubi_async__: true, status: "loading", result: null, data: null, reason: null },
+      body: {
+        ...reviewSnapshot.body,
+        file_entries: { __musubi_async__: true, status: "loading", result: null, data: null, reason: null },
+      },
     } as unknown as ReviewSnapshot
     render(<AllFilesView reviewId="rv-1" reviewSnapshot={loadingSnapshot} reviewStore={reviewStore} />)
     expect(screen.getByText("Loading files…")).toBeInTheDocument()
@@ -206,6 +211,18 @@ describe("AllFilesView card rendering", () => {
     const aIdx = texts.findIndex((t) => t === "a.md")
     const zIdx = texts.findIndex((t) => t === "z.md")
     expect(aIdx).toBeLessThan(zIdx)
+  })
+})
+
+describe("AllFilesView raw/rendered toggle", () => {
+  it("flips a previewable file between rendered and raw source", async () => {
+    fetchMock.mockResolvedValue(okResponse("# heading"))
+    renderAllFiles([[{ path: "doc.md", artifact_id: "art-d", current_round_hash: "hd" }]])
+    const toggle = await screen.findByRole("button", { name: /Show raw source/i })
+    expect(toggle).toHaveAttribute("aria-pressed", "false")
+    fireEvent.click(toggle)
+    const back = await screen.findByRole("button", { name: /Show rendered/i })
+    expect(back).toHaveAttribute("aria-pressed", "true")
   })
 })
 

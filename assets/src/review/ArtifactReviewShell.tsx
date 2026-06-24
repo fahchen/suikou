@@ -60,11 +60,20 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const minting = uiStore.mintingPath;
 
+  // Undefined while the root store node is absent (a hard disconnect empties the
+  // index until the reconnect's initial patch re-seeds it).
+  if (!reviewSnapshot) return <ReviewShellSkeleton label="Connecting…" />;
+
+  const body = reviewSnapshot.body;
+  if (!body.files || !body.file_entries) {
+    return <ReviewShellSkeleton label="Connecting…" />;
+  }
+
   // Find the FileStore proxy and its snapshot by matching path.
-  // snapshot.files[i] and reviewStore.files[i] are parallel arrays.
-  const fileIndex = reviewSnapshot.files.findIndex((fs) => fs.path === props.path);
-  const fileSnapshot = fileIndex >= 0 ? reviewSnapshot.files[fileIndex] : undefined;
-  const fileProxy = fileIndex >= 0 ? reviewStore.files[fileIndex] : undefined;
+  // snapshot.body.files[i] and reviewStore.body.files[i] are parallel arrays.
+  const fileIndex = reviewSnapshot.body.files.findIndex((fs) => fs.path === props.path);
+  const fileSnapshot = fileIndex >= 0 ? reviewSnapshot.body.files[fileIndex] : undefined;
+  const fileProxy = fileIndex >= 0 ? reviewStore.body.files[fileIndex] : undefined;
 
   if (!fileSnapshot || !fileProxy) {
     // The path resolves to no file row. While the file list is still loading or
@@ -72,7 +81,7 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
     // path is genuinely absent (deleted/renamed under a directory selection, or a
     // stale link). The review itself is intact, so prompt the user to jump to one
     // of its files rather than auto-redirecting or stranding them on a dead URL.
-    const settled = reviewSnapshot.file_entries.status === "ok" && minting === null;
+    const settled = reviewSnapshot.body.file_entries.status === "ok" && minting === null;
     if (settled) {
       return <MissingFilePrompt reviewSnapshot={reviewSnapshot} path={props.path} />;
     }
@@ -109,16 +118,38 @@ const MintProgressStrip = observer(function MintProgressStrip(props: { path: str
   );
 });
 
+function useFileSnapshot() {
+  return useMusubiSnapshot(useFileStore());
+}
+type FileSnapshotLive = ReturnType<typeof useFileSnapshot>;
+
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   reviewSnapshot: ReviewSnapshot;
 }) {
-  const { reviewSnapshot } = props;
+  const fileSnapshotLive = useFileSnapshot();
+
+  // Undefined while the file store node is absent mid-reconnect.
+  if (!fileSnapshotLive) {
+    return <ReviewShellSkeleton label="Connecting…" />;
+  }
+
+  // Pass the validated snapshot down. The body must NOT re-subscribe via
+  // useMusubiSnapshot: a child observer re-renders independently on the next stub
+  // frame — before this guard can unmount it — and would crash on the stub.
+  return (
+    <HydratedReviewBody reviewSnapshot={props.reviewSnapshot} fileSnapshotLive={fileSnapshotLive} />
+  );
+});
+
+const HydratedReviewBody = observer(function HydratedReviewBody(props: {
+  reviewSnapshot: ReviewSnapshot;
+  fileSnapshotLive: NonNullable<FileSnapshotLive>;
+}) {
+  const { reviewSnapshot, fileSnapshotLive } = props;
   const ui = uiStore;
   const commands = useReviewCommands();
   const search = useSearch({ strict: false }) as { view?: string };
   const rawView = search.view === "raw";
-  const fileStore = useFileStore();
-  const fileSnapshotLive = useMusubiSnapshot(fileStore);
 
   useEffect(() => {
     if (uiStore.mintingPath) uiStore.setMintingPath(null);
@@ -160,7 +191,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   const { text: content, loading: contentLoading } = contentState;
   const contentError = contentErrorFrom(contentState);
 
-  const reviewKind = reviewSnapshot.kind;
+  const reviewKind = reviewSnapshot.body.kind;
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
     base: minted ? assetBase(fileSnapshotLive.artifact.id) : "",
@@ -240,7 +271,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
                 <MissingFilePanel
                   reviewId={reviewSnapshot.review_id}
                   path={fileSnapshotLive.path}
-                  kind={reviewSnapshot.kind}
+                  kind={reviewSnapshot.body.kind}
                 />
               ) : (
                 <Outlet />
@@ -331,14 +362,14 @@ const MissingFilePrompt = observer(function MissingFilePrompt(props: {
 }) {
   const navigate = useNavigate();
   const reviewId = props.reviewSnapshot.review_id;
-  const firstFile = orderedReviewFiles(props.reviewSnapshot.file_entries.data ?? [])[0];
+  const firstFile = orderedReviewFiles(props.reviewSnapshot.body.file_entries.data ?? [])[0];
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
       <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:px-4">
         <HomeButton />
         <span className="truncate text-sm font-medium text-heading">
-          {props.reviewSnapshot.name}
+          {props.reviewSnapshot.body.name}
         </span>
       </header>
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">

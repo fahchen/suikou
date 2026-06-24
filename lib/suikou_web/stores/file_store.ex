@@ -19,7 +19,6 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
@@ -84,7 +83,9 @@ defmodule SuikouWeb.Stores.FileStore do
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
-  def update(assigns, socket), do: {:ok, socket |> Socket.assign(assigns) |> reload()}
+  def update(assigns, socket) do
+    {:ok, socket |> Socket.assign(assigns) |> reload()}
+  end
 
   @impl Musubi.Store
   @spec render(Socket.t()) :: map()
@@ -112,7 +113,6 @@ defmodule SuikouWeb.Stores.FileStore do
           case Rounds.latest(artifact_id) do
             %Round{id: round_id} ->
               _result = Submissions.set_draft_verdict(round_id, payload["verdict"])
-              CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
 
             nil ->
@@ -123,7 +123,7 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    {:noreply, socket |> bump_comments_reload_token() |> reload()}
+    {:noreply, socket}
   end
 
   def handle_command(:add_comment, payload, socket) do
@@ -141,7 +141,6 @@ defmodule SuikouWeb.Stores.FileStore do
                   anchor: payload["anchor"]
                 })
 
-              CommentBroadcast.broadcast(socket.assigns.review_id)
               socket
 
             nil ->
@@ -152,19 +151,22 @@ defmodule SuikouWeb.Stores.FileStore do
           socket
       end
 
-    {:noreply, socket |> bump_comments_reload_token() |> reload()}
+    {:noreply, socket}
   end
 
   defp comments_child(socket) do
     Child.child(CommentsStore,
       id: "comments",
       artifact_id: socket.assigns[:artifact_id],
-      round_id: socket.assigns[:current_round_id],
-      reload_token: {socket.assigns[:reload_token], socket.assigns[:comments_reload_token]}
+      round_id: socket.assigns[:current_round_id]
     )
   end
 
   defp ensure_artifact(%Socket{} = socket) do
+    # Bracket access, not `.artifact_id`: an unminted file is mounted with
+    # `artifact_id: nil`, and a nil-valued prop is dropped from assigns, so the
+    # key is absent (not nil) — dot access would raise KeyError and crash the
+    # page server.
     case socket.assigns[:artifact_id] do
       artifact_id when is_binary(artifact_id) -> {:ok, artifact_id, socket}
       nil -> mint_artifact(socket)
@@ -172,12 +174,13 @@ defmodule SuikouWeb.Stores.FileStore do
   end
 
   defp mint_artifact(%Socket{} = socket) do
-    with %Review{} = review <- Reviews.get_review(socket.assigns.review_id),
-         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, socket.assigns.path) do
+    with review_id when is_binary(review_id) <- socket.assigns[:review_id],
+         path when is_binary(path) <- socket.assigns[:path],
+         %Review{} = review <- Reviews.get_review(review_id),
+         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, path) do
       {:ok, artifact.id, Socket.assign(socket, :artifact_id, artifact.id)}
     else
-      nil -> {:error, socket}
-      {:error, _reason} -> {:error, socket}
+      _unmintable -> {:error, socket}
     end
   end
 
@@ -185,12 +188,14 @@ defmodule SuikouWeb.Stores.FileStore do
     case socket.assigns[:artifact_id] && Reads.get_artifact(socket.assigns[:artifact_id]) do
       %Artifact{} = artifact ->
         rounds = Reads.list_rounds(artifact.id)
+        verdicts = Submissions.verdicts_by_round(artifact.id)
+        counts = Reads.artifact_comment_counts(artifact.id, Enum.map(rounds, & &1.number))
         viewed = viewed_round(rounds, socket.assigns[:round_number])
         latest = List.last(rounds)
 
         socket
         |> Socket.assign(:artifact, render_artifact(artifact))
-        |> Socket.assign(:rounds, Enum.map(rounds, &render_round_summary/1))
+        |> Socket.assign(:rounds, Enum.map(rounds, &render_round_summary(&1, verdicts, counts)))
         |> Socket.assign(:current_round, render_current_round(viewed, latest))
         |> Socket.assign(:current_round_id, viewed && viewed.id)
         |> Socket.assign(:latest_verdict, Submissions.latest_verdict_for_artifact(artifact.id))
@@ -234,12 +239,12 @@ defmodule SuikouWeb.Stores.FileStore do
     }
   end
 
-  defp render_round_summary(%Round{} = round) do
+  defp render_round_summary(%Round{} = round, verdicts, counts) do
     %{
       number: round.number,
       content_hash: round.content_hash,
-      verdict: Submissions.latest_verdict(round.id),
-      comment_count: Reads.count_comments(round)
+      verdict: Map.get(verdicts, round.id),
+      comment_count: Map.get(counts, round.number, 0)
     }
   end
 
@@ -253,9 +258,5 @@ defmodule SuikouWeb.Stores.FileStore do
 
   defp current_round(number, content_hash, is_latest) do
     %{number: number, content_hash: content_hash, is_latest: is_latest}
-  end
-
-  defp bump_comments_reload_token(socket) do
-    Socket.assign(socket, :comments_reload_token, System.unique_integer())
   end
 end

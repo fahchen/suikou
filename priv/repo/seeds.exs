@@ -92,18 +92,16 @@ r1 = Rounds.latest(artifact.id)
   Critique.add_comment(%{
     round_id: r1.id,
     scope: :located,
-    start_line: 7,
-    end_line: 9,
+    anchor: %{type: "line_range", start_line: 7, end_line: 9},
     critique_type: :fix_required,
     body: "Define what \"accepted\" means before promising we never drop one."
   })
 
-{:ok, _deadletter} =
+{:ok, deadletter} =
   Critique.add_comment(%{
     round_id: r1.id,
     scope: :located,
-    start_line: 18,
-    end_line: 18,
+    anchor: %{type: "line_range", start_line: 18, end_line: 18},
     critique_type: :note,
     body: "Dead-letter path should emit a metric so we can alert on it."
   })
@@ -112,8 +110,7 @@ r1 = Rounds.latest(artifact.id)
   Critique.add_comment(%{
     round_id: r1.id,
     scope: :located,
-    start_line: 25,
-    end_line: 25,
+    anchor: %{type: "line_range", start_line: 25, end_line: 25},
     critique_type: :fix_required,
     body: "UUIDv7 isn't supported by our id library yet; pin v4 or add the dep."
   })
@@ -122,8 +119,7 @@ r1 = Rounds.latest(artifact.id)
   Critique.add_comment(%{
     round_id: r1.id,
     scope: :located,
-    start_line: 34,
-    end_line: 39,
+    anchor: %{type: "line_range", start_line: 34, end_line: 39},
     critique_type: :needs_answer,
     body: "What happens when `insert_all` partially fails mid-batch?"
   })
@@ -135,8 +131,7 @@ r1 = Rounds.latest(artifact.id)
   Critique.add_comment(%{
     round_id: r1.id,
     scope: :located,
-    start_line: 31,
-    end_line: 31,
+    anchor: %{type: "line_range", start_line: 31, end_line: 31},
     critique_type: :needs_answer,
     body: "Why 200ms? Document the latency-versus-throughput tradeoff for this interval."
   })
@@ -189,26 +184,15 @@ File.write!(Path.join(seed_dir, file_path), round_two)
   Critique.add_comment(%{
     round_id: r2.id,
     scope: :located,
-    start_line: 14,
-    end_line: 19,
+    anchor: %{type: "line_range", start_line: 14, end_line: 19},
     critique_type: :needs_answer,
     body: "Does the validator run before or after the queue durably persists?"
   })
 
-# Resolve a carried note on the latest round, so the rail shows the folded
-# resolved card. Carried comments are published, so they can be resolved.
-carried_note =
-  Repo.one!(
-    from(c in Comment,
-      where:
-        c.round_id == ^r2.id and c.status == :published and c.critique_type == :note and
-          c.scope == :located,
-      order_by: c.inserted_at,
-      limit: 1
-    )
-  )
-
-{:ok, _} = Critique.resolve_comment(carried_note.id)
+# Resolve the carried dead-letter note, so the rail shows the folded resolved
+# card. Carrying is logical (rounds do not copy comments), so the note keeps its
+# original round; published carried comments can be resolved from any round.
+{:ok, _} = Critique.resolve_comment(deadletter.id)
 
 latest = Rounds.latest(artifact.id)
 comment_count = Repo.aggregate(from(c in Comment), :count)

@@ -8,18 +8,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 /** Round picker. The viewed round is review-wide — switching it moves every
  * file at once — so the list, counts, and selection all come from the
- * ReviewStore root and the picker works identically in single- and all-files
- * mode. */
+ * ReviewStore root (its body child) and the picker works identically in single-
+ * and all-files mode. */
 export const TopBarRoundMenu = observer(function TopBarRoundMenu() {
   const reviewStore = useReviewStore();
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const selectRound = useMusubiCommand(reviewStore, "select_round");
-  const summaries = reviewSnapshot.round_summaries;
+  if (!reviewSnapshot) return null;
+  const summaries = reviewSnapshot.body.round_summaries;
   // No rounds yet (nothing minted) — nothing to switch between.
   if (summaries.length === 0) return null;
 
-  const latest = reviewSnapshot.latest_round;
-  const current = reviewSnapshot.selected_round;
+  const latest = reviewSnapshot.body.latest_round;
+  const current = reviewSnapshot.body.selected_round;
   const isLatest = current === latest;
   const triggerLabel = isLatest
     ? `Round ${current} (under review), switch rounds`

@@ -6,6 +6,8 @@ defmodule Suikou.ReadsTest do
   alias Suikou.Critique
   alias Suikou.Reads
 
+  doctest Suikou.Reads, import: true
+
   describe "list_artifacts/0" do
     test "returns every artifact, newest first" do
       a = insert(:artifact, title: "first")

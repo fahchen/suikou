@@ -1,8 +1,8 @@
 defmodule Suikou.Export do
   @moduledoc """
   Read-only export for the agent. Per artifact (`export/1`) it reflects the
-  latest round: its snapshot content, the published critique visible in that
-  round (with published thread replies), and the artifact's standing verdict —
+  latest round: the published critique visible in that round (with published
+  thread replies), and the artifact's standing verdict —
   the latest submitted round's verdict, since the current round is always an
   unsubmitted draft (see BDR-0014). A comment is a single row visible in round N
   when `authored_round <= N` and it is unresolved or resolved in round N or
@@ -38,7 +38,8 @@ defmodule Suikou.Export do
   @type anchor_view :: %{
           start_line: pos_integer(),
           end_line: pos_integer(),
-          quote: String.t()
+          quote: String.t(),
+          stale: boolean()
         }
 
   @type comment_view :: %{
@@ -47,42 +48,32 @@ defmodule Suikou.Export do
           critique_type: Comment.critique_type(),
           body: String.t(),
           anchor: anchor_view() | nil,
-          authored_round: integer(),
           resolved_round: integer() | nil,
-          resolved: boolean(),
-          outdated: boolean(),
-          answered: boolean(),
-          line_anchor: boolean(),
           replies: [%{author: Reply.author(), body: String.t()}]
         }
 
   @type t :: %{
           artifact_id: Ecto.UUID.t(),
           title: String.t(),
-          round: integer(),
-          content: String.t(),
           verdict: Submission.verdict() | nil,
           approved: boolean(),
-          approved_round: integer() | nil,
           comments: [comment_view()]
         }
 
   @type review_export :: %{
           review_id: Ecto.UUID.t(),
-          name: String.t(),
-          project_id: Ecto.UUID.t(),
           submission_version: non_neg_integer(),
           artifacts: [t()]
         }
 
   @doc """
-  Exports the agent-facing view of an artifact: the latest round's content, its
-  published critique with replies, and the latest verdict. Changes no state.
+  Exports the agent-facing view of an artifact: its published critique with
+  replies and the latest verdict. Changes no state.
 
   ## Examples
 
       Suikou.Export.export(artifact.id)
-      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", round: 2, verdict: :request_changes, comments: []}}
+      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", verdict: :request_changes, comments: []}}
 
       Suikou.Export.export("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
@@ -107,7 +98,7 @@ defmodule Suikou.Export do
   ## Examples
 
       Suikou.Export.export_review(review.id)
-      #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{round: 2, comments: []}]}
+      #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: []}]}
 
       Suikou.Export.export_review(review.id, :all)
       #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: [%{body: "round 1 note"}]}]}
@@ -126,8 +117,6 @@ defmodule Suikou.Export do
       %Review{} = review ->
         %{
           review_id: review.id,
-          name: review.name,
-          project_id: review.project_id,
           submission_version: Submissions.review_submission_count(review.id),
           artifacts: Enum.map(Reads.list_review_artifacts(review.id), &build(&1, scope))
         }
@@ -136,17 +125,16 @@ defmodule Suikou.Export do
 
   defp build(artifact, scope) do
     round = Rounds.latest(artifact.id)
+    # Content is read only to resolve comment anchors against the live file; it
+    # is not emitted — the agent already has the repo checked out.
     content = text_content(Artifacts.read_content_or_nil(artifact.id))
     lines = content && String.split(content, "\n")
 
     %{
       artifact_id: artifact.id,
       title: artifact.title,
-      round: round.number,
-      content: content || "",
       verdict: Submissions.latest_verdict_for_artifact(artifact.id),
       approved: not is_nil(artifact.approved_round),
-      approved_round: artifact.approved_round,
       comments: published_comments(artifact.id, round, scope, lines)
     }
   end
@@ -200,29 +188,21 @@ defmodule Suikou.Export do
 
   defp comment_view(comment, lines) do
     {anchor, status} = Critique.resolve_anchor(comment.anchor, lines)
-    outdated = status == :outdated
 
     %{
       id: comment.id,
       scope: comment.scope,
       critique_type: comment.critique_type,
       body: comment.body,
-      anchor: anchor,
-      authored_round: comment.authored_round,
+      anchor: tag_stale(anchor, status),
       resolved_round: comment.resolved_round,
-      resolved: not is_nil(comment.resolved_round),
-      outdated: outdated,
-      answered: agent_answered?(comment),
-      line_anchor: comment.scope == :located and not outdated,
       replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
     }
   end
 
-  # Whether the agent has the last word in the comment's discussion. The thread
-  # is a single row carrying its published replies in order, so the agent has
-  # answered when the most recent published reply is theirs; a trailing human
-  # reply (or no reply at all) means the human owes the next move.
-  defp agent_answered?(comment) do
-    match?(%Reply{author: :agent}, List.last(comment.replies))
-  end
+  # Fold staleness onto the anchor it describes: a `:located` anchor whose quote
+  # no longer matches is `stale: true`, telling the agent to trust the quote, not
+  # the line numbers. A `nil` anchor (review/artifact scope) carries no staleness.
+  defp tag_stale(nil, _status), do: nil
+  defp tag_stale(anchor, status), do: Map.put(anchor, :stale, status == :outdated)
 end

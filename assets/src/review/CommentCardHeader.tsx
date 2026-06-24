@@ -172,6 +172,14 @@ export function CommentCardHeader(props: {
                 Edit
               </DropdownMenuItem>
             )}
+            {comment.status === "published" && !comment.resolved && (
+              <DropdownMenuItem
+                onClick={() => void commands.resolveComment.dispatch({ comment_id: comment.id })}
+              >
+                <CircleCheck size={14} />
+                Resolve
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant="destructive"
               onClick={() => void commands.deleteComment.dispatch({ comment_id: comment.id })}

@@ -7,9 +7,14 @@ defmodule Suikou.Critique do
   are reachable only from within the domain.
   """
 
+  alias Suikou.Artifacts
   alias Suikou.Critique.Anchor
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
+  alias Suikou.Events
+  alias Suikou.Reads
+  alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reply
 
   @doc """
   Adds a pending critique to the latest round. See
@@ -21,7 +26,16 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{status: :pending}}
 
   """
-  defdelegate add_comment(params), to: Comments, as: :add
+  @spec add_comment(map()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :round_not_found
+             | :not_latest_round
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
+  def add_comment(params), do: params |> Comments.add() |> broadcast_comment_change()
 
   @doc """
   Edits a Draft (pending) comment's body. See `Suikou.Critique.Comments.edit/2`.
@@ -32,7 +46,11 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{body: "revised"}}
 
   """
-  defdelegate edit_comment(comment_id, params), to: Comments, as: :edit
+  @spec edit_comment(Ecto.UUID.t(), map()) ::
+          {:ok, Comment.t()}
+          | {:error, Ecto.Changeset.t() | :comment_not_found | :not_pending}
+  def edit_comment(comment_id, params),
+    do: comment_id |> Comments.edit(params) |> broadcast_comment_change()
 
   @doc """
   Deletes a Draft (pending) comment. See `Suikou.Critique.Comments.delete/1`.
@@ -43,7 +61,9 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
-  defdelegate delete_comment(comment_id), to: Comments, as: :delete
+  @spec delete_comment(Ecto.UUID.t()) :: {:ok, Comment.t()} | {:error, :comment_not_found}
+  def delete_comment(comment_id),
+    do: comment_id |> Comments.delete() |> broadcast_comment_change()
 
   @doc """
   Marks an Open comment resolved. See `Suikou.Critique.Comments.resolve/1`.
@@ -54,7 +74,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1}}
 
   """
-  defdelegate resolve_comment(comment_id), to: Comments, as: :resolve
+  @spec resolve_comment(Ecto.UUID.t()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
+  def resolve_comment(comment_id),
+    do: comment_id |> Comments.resolve() |> broadcast_comment_change()
 
   @doc """
   Relocates a `:located` comment to a fresh tagged `anchor` payload, re-capturing
@@ -66,7 +89,17 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Comment{}}
 
   """
-  defdelegate relocate_comment(comment_id, anchor_params), to: Comments, as: :relocate
+  @spec relocate_comment(Ecto.UUID.t(), map()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :comment_not_found
+             | :not_located
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
+  def relocate_comment(comment_id, anchor_params),
+    do: comment_id |> Comments.relocate(anchor_params) |> broadcast_comment_change()
 
   @doc """
   Appends a human reply to an Open or Resolved comment, auto-reopening a Resolved
@@ -78,7 +111,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{author: :human, status: :pending}}
 
   """
-  defdelegate reply_as_human(comment_id, body), to: Discussion
+  @spec reply_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_published}
+  def reply_as_human(comment_id, body),
+    do: comment_id |> Discussion.reply_as_human(body) |> broadcast_reply_change()
 
   @doc """
   Appends an agent reply to an Open comment. See
@@ -90,7 +126,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{author: :agent, status: :published}}
 
   """
-  defdelegate reply_as_agent(comment_id, body), to: Discussion
+  @spec reply_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_open}
+  def reply_as_agent(comment_id, body),
+    do: comment_id |> Discussion.reply_as_agent(body) |> broadcast_reply_change()
 
   @doc """
   Edits a human's own pending reply. See `Suikou.Critique.Discussion.edit_reply/2`.
@@ -101,7 +140,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{body: "revised"}}
 
   """
-  defdelegate edit_reply(reply_id, body), to: Discussion
+  @spec edit_reply(Ecto.UUID.t(), String.t()) ::
+          {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :reply_not_found | :not_editable}
+  def edit_reply(reply_id, body),
+    do: reply_id |> Discussion.edit_reply(body) |> broadcast_reply_change()
 
   @doc """
   Deletes a human's own pending reply. See `Suikou.Critique.Discussion.delete_reply/1`.
@@ -112,7 +154,10 @@ defmodule Suikou.Critique do
       #=> {:ok, %Suikou.Schemas.Reply{}}
 
   """
-  defdelegate delete_reply(reply_id), to: Discussion
+  @spec delete_reply(Ecto.UUID.t()) ::
+          {:ok, Reply.t()} | {:error, :reply_not_found | :not_editable}
+  def delete_reply(reply_id),
+    do: reply_id |> Discussion.delete_reply() |> broadcast_reply_change()
 
   @doc """
   Resolves a stored line anchor against the live file's `content_lines`,
@@ -126,4 +171,20 @@ defmodule Suikou.Critique do
 
   """
   defdelegate resolve_anchor(anchor, content_lines), to: Anchor, as: :resolve
+
+  defp broadcast_comment_change({:ok, %Comment{round_id: round_id}} = result) do
+    {review_id, artifact_id} = Reads.scope_for_round(round_id)
+    Events.review_changed(review_id, artifact_id)
+    result
+  end
+
+  defp broadcast_comment_change(result), do: result
+
+  defp broadcast_reply_change({:ok, %Reply{comment_id: comment_id}} = result) do
+    {review_id, artifact_id} = Reads.scope_for_comment(comment_id)
+    Events.review_changed(review_id, artifact_id)
+    result
+  end
+
+  defp broadcast_reply_change(result), do: result
 end

@@ -35,7 +35,7 @@ export function useSocketConnected(): boolean {
 // discard stale entries.
 export const storeCache = {
   persister: createStorageCachePersister(localStorage),
-  buster: "v2"
+  buster: "v3"
 }
 
 export const {

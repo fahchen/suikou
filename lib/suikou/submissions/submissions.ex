@@ -14,6 +14,8 @@ defmodule Suikou.Submissions do
 
   import Ecto.Query
 
+  alias Suikou.Events
+  alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.ReviewScope
   alias Suikou.Rounds
@@ -52,11 +54,22 @@ defmodule Suikou.Submissions do
     changeset = Submission.changeset(%{round_id: round_id, verdict: verdict})
 
     cond do
-      is_nil(round) -> {:error, :round_not_found}
-      not Rounds.latest?(round) -> {:error, :not_latest_round}
-      not changeset.valid? -> {:error, changeset}
-      true -> Repo.transaction(fn -> apply_submission(round, changeset) end)
+      is_nil(round) ->
+        {:error, :round_not_found}
+
+      not Rounds.latest?(round) ->
+        {:error, :not_latest_round}
+
+      not changeset.valid? ->
+        {:error, changeset}
+
+      true ->
+        round |> apply_submission_transaction(changeset) |> broadcast_review_change(round_id)
     end
+  end
+
+  defp apply_submission_transaction(round, changeset) do
+    Repo.transaction(fn -> apply_submission(round, changeset) end)
   end
 
   @doc """
@@ -77,8 +90,14 @@ defmodule Suikou.Submissions do
           {:ok, Round.t()} | {:error, :round_not_found}
   def set_draft_verdict(round_id, verdict) do
     case Rounds.get(round_id) do
-      nil -> {:error, :round_not_found}
-      round -> round |> Round.draft_verdict_changeset(verdict) |> Repo.update()
+      nil ->
+        {:error, :round_not_found}
+
+      round ->
+        round
+        |> Round.draft_verdict_changeset(verdict)
+        |> Repo.update()
+        |> broadcast_review_change(round_id)
     end
   end
 
@@ -121,13 +140,38 @@ defmodule Suikou.Submissions do
   """
   @spec latest_verdict_for_artifact(Ecto.UUID.t()) :: Submission.verdict() | nil
   def latest_verdict_for_artifact(artifact_id) do
-    from(s in Submission, as: :submission)
-    |> join(:inner, [submission: s], rd in Round, as: :round, on: s.round_id == rd.id)
-    |> where([round: rd], rd.artifact_id == ^artifact_id)
+    artifact_id
+    |> artifact_submissions()
     |> order_by([round: rd, submission: s], desc: rd.number, desc: s.id)
     |> limit(1)
     |> select([submission: s], s.verdict)
     |> Repo.one()
+  end
+
+  @doc """
+  Returns the latest verdict on each of an artifact's rounds as a
+  `%{round_id => verdict}` map in one query, for the per-round summary badges.
+  Folding all the artifact's submissions in ascending id order means the last
+  one written for a round wins, replacing a per-round `latest_verdict/1`
+  fan-out. Rounds with no submission are absent from the map.
+
+  ## Examples
+
+      Suikou.Submissions.verdicts_by_round(artifact.id)
+      #=> %{"0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f" => :request_changes}
+
+      Suikou.Submissions.verdicts_by_round(unsubmitted_artifact.id)
+      #=> %{}
+
+  """
+  @spec verdicts_by_round(Ecto.UUID.t()) :: %{Ecto.UUID.t() => Submission.verdict()}
+  def verdicts_by_round(artifact_id) do
+    artifact_id
+    |> artifact_submissions()
+    |> order_by([submission: s], asc: s.id)
+    |> select([submission: s], {s.round_id, s.verdict})
+    |> Repo.all()
+    |> Map.new()
   end
 
   @doc """
@@ -217,6 +261,12 @@ defmodule Suikou.Submissions do
     pending_comment?(scope) or pending_reply?(scope)
   end
 
+  defp artifact_submissions(artifact_id) do
+    from(s in Submission, as: :submission)
+    |> join(:inner, [submission: s], rd in Round, as: :round, on: s.round_id == rd.id)
+    |> where([round: rd], rd.artifact_id == ^artifact_id)
+  end
+
   defp draft_verdict?(review_id) do
     # A draft verdict only counts on an artifact's latest (unsubmitted) round.
     # Submitting inserts a submission and opens a fresh draft round, so a round
@@ -265,6 +315,14 @@ defmodule Suikou.Submissions do
         artifact |> Artifact.clear_approval_changeset() |> Repo.update()
     end
   end
+
+  defp broadcast_review_change({:ok, _submission} = result, round_id) do
+    {review_id, artifact_id} = Reads.scope_for_round(round_id)
+    Events.review_changed(review_id, artifact_id)
+    result
+  end
+
+  defp broadcast_review_change(result, _round_id), do: result
 
   defp apply_submission(round, changeset) do
     submission = Repo.insert!(changeset)

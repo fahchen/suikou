@@ -304,16 +304,14 @@ const RowAside = observer(function RowAside(props: {
         )}
       </AnimatePresence>
 
-      <AnimatePresence initial={false}>
-        {inlineComments.map((comment) => (
-          <div
-            key={comment.id}
-            className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}
-          >
-            <CommentCard comment={comment} context="inline" />
-          </div>
-        ))}
-      </AnimatePresence>
+      {inlineComments.map((comment) => (
+        <div
+          key={comment.id}
+          className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}
+        >
+          <CommentCard comment={comment} context="inline" />
+        </div>
+      ))}
     </>
   );
 });

@@ -7,6 +7,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   reflects the change live.
   """
 
+  alias Suikou.Events
   alias Suikou.Export
   alias Suikou.Projects
   alias Suikou.Reviews
@@ -18,7 +19,6 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias SuikouWeb.AgentCLI
   alias SuikouWeb.Endpoint
   alias SuikouWeb.Stores.BoardBroadcast
-  alias SuikouWeb.Stores.CommentBroadcast
 
   # The longest a single poll call blocks before reporting a timeout, so it
   # returns well within any rpc-level call timeout; bun re-issues until the
@@ -244,7 +244,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   @doc """
   Waits for the next submission on `%{"review_id"}`. Subscribes to the review's
-  comment topic, captures the current submission count, then blocks up to the
+  `Suikou.Events` change topic, captures the current submission count, then blocks up to the
   poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
   wake that raises the count it emits the `export_review` snapshot for the
   requested rounds scope (carrying the new `submission_version`); otherwise it
@@ -268,7 +268,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
     reply =
       with_review(review_id, fn _review ->
-        CommentBroadcast.subscribe(review_id)
+        Events.subscribe(review_id)
         version = Submissions.review_submission_count(review_id)
         deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
         await(review_id, scope, version, deadline)
@@ -297,7 +297,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     timeout = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
-      :comments_changed ->
+      {:review_changed, _review_id, _artifact_id} ->
         case Submissions.review_submission_count(review_id) do
           ^version -> await(review_id, scope, version, deadline)
           newer when newer > version -> worthy_snapshot(review_id, scope)
@@ -327,7 +327,14 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp worthy_snapshot(review_id, scope), do: snapshot(review_id, scope)
 
   defp drop_addressed(%{comments: comments} = artifact) do
-    %{artifact | comments: Enum.reject(comments, &(&1.resolved or &1.answered))}
+    %{artifact | comments: Enum.reject(comments, &addressed?/1)}
+  end
+
+  # A comment is addressed when it is resolved (carries a resolution round) or
+  # the agent has the last published word in its thread — the most recent reply
+  # is theirs, so the human owes the next move on nothing.
+  defp addressed?(comment) do
+    not is_nil(comment.resolved_round) or match?(%{author: :agent}, List.last(comment.replies))
   end
 
   defp with_project(project_id, fun) do

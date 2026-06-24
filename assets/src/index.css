@@ -906,6 +906,9 @@
     font-size: 15.5px;
     line-height: 1.62;
     letter-spacing: -0.006em;
+    /* Long paths/URLs and no-space inline code must wrap rather than force the
+       page to scroll sideways on a phone, where the column is already narrow. */
+    overflow-wrap: break-word;
   }
 
   .md-content h1,
@@ -1051,6 +1054,7 @@
     background: var(--code-bg);
     padding: 1px 4px;
     border-radius: 4px;
+    overflow-wrap: anywhere;
   }
 
   .md-content blockquote {

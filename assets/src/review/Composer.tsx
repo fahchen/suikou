@@ -42,11 +42,10 @@ export const Composer = observer(function Composer(props: {
   }
 
   function add() {
-    // Read the live draft, not the render-captured `body`/`type` closure: a
-    // double event (tap-tap, or Enter+click) fires two `add()` calls in one
-    // React batch, both holding the same stale non-empty body. `closeComposer`
-    // deletes the draft synchronously, so the second call sees it gone and
-    // bails — one intent, one dispatch.
+    // Close the composer the instant you submit, so it never overlaps the real
+    // comment fading in from the refreshed snapshot (the overlap was the flicker).
+    // `closeComposer` deletes the draft synchronously, so a double-fire (tap-tap,
+    // or Enter+click in one React batch) sees it gone and bails — one dispatch.
     const current = ui.draftFor(path);
     if (!current || !current.body.trim()) return;
     void commands.addComment.dispatch({

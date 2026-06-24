@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import { uiStore } from "../stores/ui-store";
 
@@ -37,7 +37,7 @@ describe("Composer", () => {
     expect(uiStore.draftFor(null)?.body).toBe("```suggestion\nfirst line\nsecond line\n```");
   });
 
-  it("dispatches add_comment with the draft and anchor, then closes", () => {
+  it("dispatches add_comment with the draft and anchor, then closes on success", async () => {
     render(<Composer startLine={3} endLine={5} selectedText="" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
@@ -52,6 +52,7 @@ describe("Composer", () => {
       body: "needs a fix",
       anchor: { type: "line_range", start_line: 3, end_line: 5 },
     });
-    expect(uiStore.draftFor(null)).toBeUndefined();
+    // Closes only after the dispatch resolves, not synchronously.
+    await waitFor(() => expect(uiStore.draftFor(null)).toBeUndefined());
   });
 });

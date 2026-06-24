@@ -3,8 +3,10 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   import Suikou.Factory
 
+  alias Musubi.AsyncResult
   alias Musubi.Socket
   alias Musubi.Testing
+  alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.Reviews
@@ -12,7 +14,6 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
-  alias SuikouWeb.Stores.CommentBroadcast
   alias SuikouWeb.Stores.ReviewStore
 
   describe "submit_review" do
@@ -32,13 +33,13 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       })
 
       %Artifact{review_id: review_id} = Reads.get_artifact(drafted.artifact_id)
-      CommentBroadcast.subscribe(review_id)
+      Events.subscribe(review_id)
 
       page = mount_review(review_id)
 
       {:ok, %{warnings: []}} = Testing.dispatch_command(page, :submit_review, %{})
 
-      assert_receive :comments_changed
+      assert_receive {:review_changed, ^review_id, _artifact_id}
       assert %Round{number: 1} = Rounds.latest(drafted_artifact.id)
       assert %Round{number: 0} = Rounds.latest(comment_only_artifact.id)
 
@@ -51,17 +52,48 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     test "renders an empty snapshot when the review is gone" do
       page = mount_review("00000000-0000-7000-8000-000000000000")
 
-      assert %{review_id: "00000000-0000-7000-8000-000000000000", name: "", files: []} =
-               Testing.render(page)
+      assert %{review_id: "00000000-0000-7000-8000-000000000000"} = Testing.render(page)
+      assert %{name: "", files: []} = Testing.render(page, ["body"])
     end
 
-    test "handle_info(:comments_changed) refreshes the review root" do
-      socket = %Socket{assigns: %{review_id: "rv", reload_token: 0}}
+    test "handle_info refreshes the body, and targets one file on an artifact-scoped change" do
+      socket = %Socket{assigns: %{review_id: "rv"}}
 
-      assert {:noreply, %Socket{assigns: %{reload_token: token}}} =
-               ReviewStore.handle_info(:comments_changed, socket)
+      # Review-level change (nil artifact): the body reloads its full structure,
+      # no file subtree is targeted.
+      assert {:noreply, ^socket} = ReviewStore.handle_info({:review_changed, "rv", nil}, socket)
+      assert_received {:musubi_send_update, ["body"], %{reload: :structure}}
+      refute_received {:musubi_send_update, ["body", "files", _id], _assigns}
 
-      assert is_integer(token)
+      # Artifact-scoped change: the body reloads aggregates only, plus that file's
+      # store and its comment thread.
+      assert {:noreply, ^socket} =
+               ReviewStore.handle_info({:review_changed, "rv", "art-1"}, socket)
+
+      assert_received {:musubi_send_update, ["body"], %{reload: :aggregates}}
+      assert_received {:musubi_send_update, ["body", "files", "art-1"], %{}}
+      assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
+    end
+
+    test "add_comment on an unminted file mints instead of crashing the page server" do
+      # An unminted file's FileStore is mounted with artifact_id: nil, which is
+      # dropped from assigns — the key is absent, not nil. The first comment must
+      # mint the artifact, not raise KeyError and tear down the connection.
+      %{review: review} = file_selection_review(["first.md", "second.md"])
+      review_id = review.id
+
+      page = mount_review(review_id)
+      await_files(page)
+
+      _result =
+        Testing.dispatch_command(
+          page,
+          :add_comment,
+          %{"scope" => "review", "critique_type" => "note", "body" => "mint me"},
+          ["body", "files", "second.md"]
+        )
+
+      assert Enum.any?(Reads.list_review_artifacts(review_id), &(&1.file_path == "second.md"))
     end
 
     test "renders one child per covered file and keeps unminted files empty" do
@@ -71,19 +103,19 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       first_id = first.id
 
       page = mount_review(review_id)
-      snapshot = await_files(page)
+      assert %{review_id: ^review_id} = Testing.render(page)
 
-      assert %{review_id: ^review_id, files: files} = snapshot
+      %{files: files} = await_files(page)
       assert length(files) == 2
 
       assert find_file_child(files, "first.md").id == first_id
       assert find_file_child(files, "second.md").id == "second.md"
 
       assert %{artifact_id: ^first_id, current_round: %{number: 0}} =
-               Testing.render(page, ["files", first_id])
+               Testing.render(page, ["body", "files", first_id])
 
       assert %{artifact_id: nil, current_round: %{number: 0}, artifact: %{title: "second.md"}} =
-               Testing.render(page, ["files", "second.md"])
+               Testing.render(page, ["body", "files", "second.md"])
     end
   end
 
@@ -95,20 +127,21 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     Enum.find(files, &(&1.assigns.path == path))
   end
 
-  defp await_files(page, attempts \\ 5)
+  # Re-renders the body until its async `file_entries` resolves. Blocks on the
+  # resolution patch rather than spinning, so the load task finishes before the
+  # sandbox connection is reclaimed.
+  defp await_files(page) do
+    snapshot = Testing.render(page, ["body"])
 
-  defp await_files(page, attempts) when attempts > 0 do
-    _state = :sys.get_state(page.pid)
-    snapshot = Testing.render(page)
+    case snapshot.file_entries do
+      %AsyncResult{status: :ok} ->
+        snapshot
 
-    if snapshot.files == [] do
-      await_files(page, attempts - 1)
-    else
-      snapshot
+      %AsyncResult{} ->
+        assert_receive {:patch, _envelope}
+        await_files(page)
     end
   end
-
-  defp await_files(page, 0), do: Testing.render(page)
 
   defp file_selection_review(paths) do
     tmp =

@@ -35,12 +35,15 @@ export const TopBar = observer(function TopBar(props: {
   // Per-file data from the FileStore context (always present in single-file view).
   const fileStore = useFileStore();
   const fileSnapshot = useMusubiSnapshot(fileStore);
+  const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
+  // Absent for a frame mid-reconnect (store node not re-hydrated yet).
+  if (!fileSnapshot) return null;
 
   const title = fileSnapshot.artifact.title;
   const image = isImagePath(title);
   const binary = isBinaryContent(content);
   const commentsSupported = !image && !binary;
-  const viewKind = resolveViewKind({ kind: reviewSnapshot.kind, title });
+  const viewKind = resolveViewKind({ kind: reviewSnapshot.body.kind, title });
   const capabilities = viewCapabilities({
     kind: viewKind,
     previewable,
@@ -48,15 +51,14 @@ export const TopBar = observer(function TopBar(props: {
     rawView,
     binary,
   });
-  const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
 
   // Review-level Submit gates on any unpublished work — a draft verdict on any
   // file, or a pending (not-yet-published) comment or reply anywhere in the
   // review. Computed server-side on the root so it tracks every file, not just
   // the active one.
-  const hasUnpublishedWork = reviewSnapshot.has_unpublished;
+  const hasUnpublishedWork = reviewSnapshot.body.has_unpublished;
 
-  const fileEntries = reviewSnapshot.file_entries.data ?? [];
+  const fileEntries = reviewSnapshot.body.file_entries.data ?? [];
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
   const showFileNav = uiStore.fileDisplayMode === "single";
 

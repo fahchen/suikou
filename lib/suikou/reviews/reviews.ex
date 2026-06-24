@@ -16,6 +16,7 @@ defmodule Suikou.Reviews do
   import Ecto.Query
 
   alias Suikou.Artifacts
+  alias Suikou.Events
   alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Repo
@@ -189,14 +190,17 @@ defmodule Suikou.Reviews do
     target = MapSet.new(expand(review.project, selections))
     artifacts = review.artifacts
 
-    Repo.transaction(fn ->
-      updated = review |> Review.selection_changeset(selections) |> Repo.update!()
+    result =
+      Repo.transaction(fn ->
+        updated = review |> Review.selection_changeset(selections) |> Repo.update!()
 
-      for artifact <- artifacts,
-          do: reconcile!(artifact, MapSet.member?(target, artifact.file_path))
+        for artifact <- artifacts,
+            do: reconcile!(artifact, MapSet.member?(target, artifact.file_path))
 
-      updated
-    end)
+        updated
+      end)
+
+    broadcast_review_change(result)
   end
 
   @doc """
@@ -576,12 +580,27 @@ defmodule Suikou.Reviews do
     |> Enum.uniq()
   end
 
+  defp broadcast_review_change({:ok, %Review{id: review_id}} = result) do
+    Events.review_changed(review_id)
+    result
+  end
+
+  defp broadcast_review_change({:ok, %Artifact{review_id: review_id}} = result) do
+    Events.review_changed(review_id)
+    result
+  end
+
+  defp broadcast_review_change(result), do: result
+
   defp mint_or_get(review, path, create_fun) do
-    case find_artifact(review.id, path) do
-      %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
-      %Artifact{} = artifact -> {:ok, restore!(artifact)}
-      nil -> mint(review, path, create_fun)
-    end
+    result =
+      case find_artifact(review.id, path) do
+        %Artifact{removed_at: nil} = artifact -> {:ok, artifact}
+        %Artifact{} = artifact -> {:ok, restore!(artifact)}
+        nil -> mint(review, path, create_fun)
+      end
+
+    broadcast_review_change(result)
   end
 
   defp mint(review, path, create_fun) do

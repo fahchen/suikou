@@ -15,8 +15,13 @@ defmodule Suikou.ReviewScope do
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
 
-  @typedoc "Restricts a query to a whole review or a single artifact."
-  @type scope() :: {:review, Ecto.UUID.t()} | {:artifact, Ecto.UUID.t()}
+  @typedoc """
+  Restricts a query to a whole review, a single artifact, or a single comment.
+  The `:comment` variant only fits builders that bind `:comment` (comments and
+  replies, not rounds).
+  """
+  @type scope() ::
+          {:review, Ecto.UUID.t()} | {:artifact, Ecto.UUID.t()} | {:comment, Ecto.UUID.t()}
 
   @doc """
   Rounds belonging to `review_id`, with `:round` and `:artifact` bindings.
@@ -75,4 +80,7 @@ defmodule Suikou.ReviewScope do
 
   defp scope_where(query, {:artifact, artifact_id}),
     do: where(query, [artifact: a], a.id == ^artifact_id)
+
+  defp scope_where(query, {:comment, comment_id}),
+    do: where(query, [comment: c], c.id == ^comment_id)
 end

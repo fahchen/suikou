@@ -104,15 +104,6 @@ declare namespace Musubi {
         items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string }> }>
       },
       {
-        add_comment: {
-          payload: {
-            scope: "review" | "artifact" | "located"
-            critique_type: "fix_required" | "needs_answer" | "note"
-            body: string
-            anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
-          }
-          reply: never
-        }
         edit_comment: {
           payload: {
             comment_id: string
@@ -337,10 +328,9 @@ declare namespace Musubi {
       }
     >
 
-    "SuikouWeb.Stores.ReviewStore": StoreDef<
-      "SuikouWeb.Stores.ReviewStore",
+    "SuikouWeb.Stores.ReviewBodyStore": StoreDef<
+      "SuikouWeb.Stores.ReviewBodyStore",
       {
-        review_id: string
         name: string
         kind: "file" | "diff"
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
@@ -350,6 +340,15 @@ declare namespace Musubi {
         round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
         selected_round: number
         latest_round: number
+      },
+      {}
+    >
+
+    "SuikouWeb.Stores.ReviewStore": StoreDef<
+      "SuikouWeb.Stores.ReviewStore",
+      {
+        review_id: string
+        body: Musubi.StoreField<"SuikouWeb.Stores.ReviewBodyStore">
       },
       {
         submit_review: {

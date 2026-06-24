@@ -25,11 +25,14 @@ export const FileHeader = observer(function FileHeader(props: {
   const fileSnapshot = useMusubiSnapshot(fileStore)
   const navigate = useNavigate()
 
+  // Absent for a frame mid-reconnect (store node not re-hydrated yet).
+  if (!fileSnapshot) return null
+
   const title = fileSnapshot.artifact.title
-  const viewKind = resolveViewKind({ kind: reviewSnapshot.kind, title })
+  const viewKind = resolveViewKind({ kind: reviewSnapshot.body.kind, title })
   const image = isImagePath(title)
   const binary = isBinaryContent(content)
-  const fileEntry = reviewSnapshot.file_entries.data?.find(
+  const fileEntry = reviewSnapshot.body.file_entries.data?.find(
     (f) => f.artifact_id === fileSnapshot.artifact.id
   )
   const changeStatus: ChangeStatus = fileEntry?.change_status ?? null
@@ -51,7 +54,7 @@ export const FileHeader = observer(function FileHeader(props: {
     void navigate(reviewFileTarget(reviewSnapshot.review_id, title, next))
   }
 
-  const files = orderedReviewFiles(reviewSnapshot.file_entries.data ?? [])
+  const files = orderedReviewFiles(reviewSnapshot.body.file_entries.data ?? [])
 
   function commentCountFor(path: string): number {
     // In single-file mode there's only one active file; non-active paths report 0.

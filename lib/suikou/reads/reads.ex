@@ -63,11 +63,49 @@ defmodule Suikou.Reads do
 
   """
   @spec get_artifact(Ecto.UUID.t()) :: Artifact.t() | nil
-  def get_artifact(artifact_id) do
-    case Repo.get(Artifact, artifact_id) do
-      nil -> nil
-      %Artifact{} = artifact -> Repo.preload(artifact, :review)
-    end
+  def get_artifact(artifact_id), do: Repo.get(Artifact, artifact_id)
+
+  @doc """
+  Resolves the `{review_id, artifact_id}` owning `round_id`, or `{nil, nil}` when
+  the round is unknown. The pair scopes a change event to one file's subtree.
+
+  ## Examples
+
+      Suikou.Reads.scope_for_round(round.id)
+      #=> {"0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "0192c9f4-aaaa-bbbb-cccc-1a2b3c4d5e6f"}
+
+      Suikou.Reads.scope_for_round("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {nil, nil}
+
+  """
+  @spec scope_for_round(Ecto.UUID.t()) :: {Ecto.UUID.t() | nil, Ecto.UUID.t() | nil}
+  def scope_for_round(round_id) do
+    from(r in Round, as: :round)
+    |> join(:inner, [round: r], a in Artifact, as: :artifact, on: r.artifact_id == a.id)
+    |> where([round: r], r.id == ^round_id)
+    |> select([round: r, artifact: a], {a.review_id, r.artifact_id})
+    |> Repo.one() || {nil, nil}
+  end
+
+  @doc """
+  Resolves the `{review_id, artifact_id}` owning `comment_id`, or `{nil, nil}`
+  when the comment is unknown.
+
+  ## Examples
+
+      Suikou.Reads.scope_for_comment(comment.id)
+      #=> {"0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", "0192c9f4-aaaa-bbbb-cccc-1a2b3c4d5e6f"}
+
+      Suikou.Reads.scope_for_comment("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {nil, nil}
+
+  """
+  @spec scope_for_comment(Ecto.UUID.t()) :: {Ecto.UUID.t() | nil, Ecto.UUID.t() | nil}
+  def scope_for_comment(comment_id) do
+    {:comment, comment_id}
+    |> ReviewScope.comments()
+    |> select([artifact: a], {a.review_id, a.id})
+    |> Repo.one() || {nil, nil}
   end
 
   @doc """
@@ -110,20 +148,33 @@ defmodule Suikou.Reads do
   end
 
   @doc """
-  Counts the comments visible in a round without loading them, for the round
-  summary badge.
+  Counts, in one query, the comments visible in each of an artifact's
+  `round_numbers` for the per-round summary badges. A comment is visible in
+  round N when authored on or before N and not resolved before N, so it counts
+  in every round it spans; pulling the `{authored, resolved}` pairs once and
+  folding beats a per-round count fan-out.
 
   ## Examples
 
-      Suikou.Reads.count_comments(round)
-      #=> 3
+      Suikou.Reads.artifact_comment_counts(artifact.id, [0, 1])
+      #=> %{0 => 2, 1 => 1}
+
+      Suikou.Reads.artifact_comment_counts(artifact.id, [])
+      #=> %{}
 
   """
-  @spec count_comments(Round.t()) :: non_neg_integer()
-  def count_comments(%Round{} = round) do
-    round
-    |> visible_comments()
-    |> Repo.aggregate(:count)
+  @spec artifact_comment_counts(Ecto.UUID.t(), [non_neg_integer()]) ::
+          %{non_neg_integer() => non_neg_integer()}
+  def artifact_comment_counts(artifact_id, round_numbers) do
+    pairs =
+      artifact_id
+      |> Queries.Comments.for_artifact()
+      |> select([comment: c], {c.authored_round, c.resolved_round})
+      |> Repo.all()
+
+    Map.new(round_numbers, fn number ->
+      {number, Enum.count(pairs, &comment_visible?(&1, number))}
+    end)
   end
 
   @doc """
@@ -162,22 +213,51 @@ defmodule Suikou.Reads do
       |> select([round: r], max(r.number))
       |> Repo.one()
 
-    case max_round do
-      nil -> []
-      max -> Enum.map(0..max, &round_summary(&1, comments))
-    end
+    round_summaries_from_pairs(comments, max_round)
+  end
+
+  @doc """
+  Folds comment `{authored_round, resolved_round}` pairs into per-round summaries
+  for rounds `0..max_round`, returning `[]` when `max_round` is `nil`. Shared by
+  the SQL-backed `review_round_summaries/1` and the in-memory review aggregate so
+  both derive identical counts from the same logic.
+
+  ## Examples
+
+      iex> Suikou.Reads.round_summaries_from_pairs([{0, 1}], 0)
+      [%{number: 0, comment_count: 1, unresolved_count: 1}]
+
+      iex> Suikou.Reads.round_summaries_from_pairs([], nil)
+      []
+
+  """
+  @spec round_summaries_from_pairs(
+          [{non_neg_integer(), non_neg_integer() | nil}],
+          non_neg_integer() | nil
+        ) :: [
+          %{
+            number: non_neg_integer(),
+            comment_count: non_neg_integer(),
+            unresolved_count: non_neg_integer()
+          }
+        ]
+  def round_summaries_from_pairs(_pairs, nil), do: []
+
+  def round_summaries_from_pairs(pairs, max_round) do
+    Enum.map(0..max_round, &round_summary(&1, pairs))
   end
 
   defp round_summary(number, comments) do
-    visible =
-      Enum.filter(comments, fn {authored, resolved} ->
-        authored <= number and (is_nil(resolved) or resolved >= number)
-      end)
+    visible = Enum.filter(comments, &comment_visible?(&1, number))
 
     unresolved =
       Enum.count(visible, fn {_authored, resolved} -> is_nil(resolved) or resolved > number end)
 
     %{number: number, comment_count: length(visible), unresolved_count: unresolved}
+  end
+
+  defp comment_visible?({authored, resolved}, number) do
+    authored <= number and (is_nil(resolved) or resolved >= number)
   end
 
   defp visible_comments(%Round{artifact_id: artifact_id, number: number}) do

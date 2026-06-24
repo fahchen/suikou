@@ -58,9 +58,12 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   const connected = useSocketConnected();
   const wide = useMediaQuery(WIDE_QUERY);
 
+  // Absent for a frame mid-reconnect (root store node not re-hydrated yet).
+  if (!reviewSnapshot) return null;
+
   // `files` can read undefined for a frame while the socket is dropping and the
   // store snapshot tears down; default to empty so the header can still render.
-  const files = (reviewSnapshot.files ?? []) as unknown as FileSnapshot[];
+  const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];
   const hasAnyDraftVerdict = files.some((f) => f.draft_verdict !== null);
 
   // First file in path order for "One" display mode navigation.
@@ -88,7 +91,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
     />
   );
 
-  if (files.length === 0 && reviewSnapshot.file_entries?.status !== "loading") {
+  if (files.length === 0 && reviewSnapshot.body.file_entries?.status !== "loading") {
     return (
       <main className="h-screen overflow-auto bg-canvas text-ink">
         {header}

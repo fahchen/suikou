@@ -18,8 +18,8 @@ defmodule Suikou.ExportTest do
     ids = Enum.map(export.comments, & &1.id)
     assert open.id in ids
     assert resolved.id in ids
-    assert Enum.any?(export.comments, & &1.resolved)
-    assert Enum.any?(export.comments, &(not &1.resolved))
+    assert Enum.any?(export.comments, &(not is_nil(&1.resolved_round)))
+    assert Enum.any?(export.comments, &is_nil(&1.resolved_round))
   end
 
   test "pending comments are never exported" do
@@ -40,20 +40,21 @@ defmodule Suikou.ExportTest do
     published_comment(round2.id, %{body: "round 2 critique"})
 
     assert {:ok, export} = Export.export(artifact.id)
-    assert %{round: 1} = export
     assert Enum.all?(export.comments, &(&1.body == "round 2 critique"))
   end
 
-  test "the latest snapshot content travels with the critique" do
+  test "the export omits file content; the agent already has the repo" do
     artifact = source_round("snapshot body\n").artifact
-    assert {:ok, %{content: "snapshot body\n"}} = Export.export(artifact.id)
+    assert {:ok, export} = Export.export(artifact.id)
+    refute Map.has_key?(export, :content)
   end
 
-  test "a binary artifact exports empty content and stays JSON-encodable" do
+  test "a binary artifact still exports and stays JSON-encodable" do
     artifact = source_round(<<137, 80, 78, 71, 13, 10, 26, 10, 0, 255>>).artifact
 
-    assert {:ok, %{content: ""} = export} = Export.export(artifact.id)
-    assert is_binary(Jason.encode!(export))
+    assert {:ok, export} = Export.export(artifact.id)
+    refute Map.has_key?(export, :content)
+    assert is_binary(JSON.encode!(export))
   end
 
   test "an approved artifact reports its approval and verdict" do
@@ -61,7 +62,7 @@ defmodule Suikou.ExportTest do
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _submission} = Submissions.submit(round2.id, :approve)
 
-    assert {:ok, %{verdict: :approve, approved: true, approved_round: 1}} =
+    assert {:ok, %{verdict: :approve, approved: true}} =
              Export.export(artifact.id)
   end
 
@@ -89,47 +90,7 @@ defmodule Suikou.ExportTest do
     assert Enum.map(view.replies, & &1.author) == [:human, :agent]
   end
 
-  test "answered reads the agent's last published reply on the single comment row" do
-    round = insert(:round)
-    artifact = round.artifact
-    comment = published_comment(round.id, %{body: "needs a fix"})
-    {:ok, _agent} = Critique.reply_as_agent(comment.id, "fixed it")
-
-    # The comment is a single row that stays visible across rounds, carrying its
-    # published replies; advancing does not strip the agent's last word.
-    advance(artifact.id, "changed\n")
-
-    assert {:ok, export} = Export.export(artifact.id)
-    [view] = export.comments
-    assert Enum.map(view.replies, & &1.author) == [:agent]
-    assert view.answered
-  end
-
-  test "answered is false when the human replies after the agent" do
-    round = insert(:round)
-    artifact = round.artifact
-    comment = published_comment(round.id, %{body: "needs a fix"})
-    {:ok, _agent} = Critique.reply_as_agent(comment.id, "fixed it")
-    {:ok, _human} = Critique.reply_as_human(comment.id, "still broken")
-
-    advance(artifact.id, "changed\n")
-
-    assert {:ok, export} = Export.export(artifact.id)
-    [view] = export.comments
-    refute view.answered
-  end
-
-  test "a comment the agent has not replied to is not answered" do
-    round = insert(:round)
-    artifact = round.artifact
-    published_comment(round.id, %{body: "needs a fix"})
-
-    assert {:ok, export} = Export.export(artifact.id)
-    [view] = export.comments
-    refute view.answered
-  end
-
-  test "a still-open comment whose anchor moved exports flagged with no valid anchor" do
+  test "a still-open comment whose anchor moved exports flagged outdated" do
     round = source_round("intro\nrate limit is 100 rps\n")
     artifact = round.artifact
 
@@ -144,11 +105,10 @@ defmodule Suikou.ExportTest do
 
     assert {:ok, export} = Export.export(artifact.id)
     [view] = export.comments
-    assert view.outdated
-    refute view.line_anchor
+    assert view.anchor.stale
   end
 
-  test "a comment whose line drifted slightly exports not-outdated with a valid line anchor" do
+  test "a comment whose line drifted slightly exports not-outdated" do
     round = source_round("intro\nrate limit is 100 rps\n")
     artifact = round.artifact
 
@@ -163,8 +123,7 @@ defmodule Suikou.ExportTest do
 
     assert {:ok, export} = Export.export(artifact.id)
     [view] = export.comments
-    refute view.outdated
-    assert view.line_anchor
+    refute view.anchor.stale
   end
 
   test "exporting twice changes no state and is stable" do
@@ -177,7 +136,7 @@ defmodule Suikou.ExportTest do
     assert first == second
   end
 
-  test "an artifact with no reviews exports a nil verdict and not approved" do
+  test "an artifact with no reviews exports a nil verdict and no approval round" do
     artifact = insert(:round).artifact
     assert {:ok, %{verdict: nil, approved: false, comments: []}} = Export.export(artifact.id)
   end
@@ -201,7 +160,6 @@ defmodule Suikou.ExportTest do
                Export.export_review(review.id)
 
       assert review_id == review.id
-      assert %{round: 1} = artifact
       assert Enum.map(artifact.comments, & &1.body) == ["round 1 note"]
     end
 

@@ -24,13 +24,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
       :ok = BoardBroadcast.broadcast()
 
-      assert_receive {:patch, _envelope}
-      # Draining to a resolved async also lets the recompute task finish before
-      # teardown reclaims the sandbox connection.
-      assert %{projects: [%{reviews: [%{name: "Launch"}]}], review_files: review_files} =
-               await_review_files(page)
+      # The field stays `:ok` (stale) and swaps in place once the recompute
+      # resolves, so wait for the result to carry the new review rather than for
+      # a loading→ok flip (which no longer happens with `start_async`).
+      snapshot = await_review_files_where(page, &(&1 != []))
 
-      assert %AsyncResult{status: :ok, result: [%{review_id: _review_id}]} = review_files
+      assert %{projects: [%{reviews: [%{name: "Launch"}]}]} = snapshot
+      assert %AsyncResult{status: :ok, result: [%{review_id: _review_id}]} = snapshot.review_files
     end
   end
 
@@ -744,6 +744,27 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       %AsyncResult{} ->
         assert_receive {:patch, _envelope}
         await_review_files(page)
+    end
+  end
+
+  # Re-renders until `review_files` resolves to a value satisfying `pred`. For
+  # refreshes the field stays `:ok` and swaps in place, so a status check alone
+  # cannot tell the new result from the stale one — gate on the value instead.
+  defp await_review_files_where(page, pred) do
+    snapshot = Testing.render(page)
+
+    case snapshot.review_files do
+      %AsyncResult{status: :ok, result: result} ->
+        if pred.(result) do
+          snapshot
+        else
+          assert_receive {:patch, _envelope}
+          await_review_files_where(page, pred)
+        end
+
+      %AsyncResult{} ->
+        assert_receive {:patch, _envelope}
+        await_review_files_where(page, pred)
     end
   end
 

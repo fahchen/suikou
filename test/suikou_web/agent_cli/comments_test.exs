@@ -4,23 +4,23 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
   import ExUnit.CaptureIO
   import Suikou.Factory
 
+  alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Schemas.Artifact
   alias SuikouWeb.AgentCLI.Comments
-  alias SuikouWeb.Stores.CommentBroadcast
 
   describe "reply/0" do
     test "posts an agent reply, broadcasts the review topic, and emits its id" do
       round = source_round("line 1\nline 2\n")
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
       comment = published_comment(round.id, %{scope: :review, critique_type: :note, body: "x"})
-      CommentBroadcast.subscribe(review_id)
+      Events.subscribe(review_id)
 
       assert %{"reply_id" => id, "error" => nil} =
                run(%{"comment_id" => comment.id, "body" => "fixed"}, &Comments.reply/0)
 
       assert is_binary(id)
-      assert_receive :comments_changed
+      assert_receive {:review_changed, ^review_id, _artifact_id}
     end
 
     test "emits comment_not_found for an unknown comment" do

@@ -48,11 +48,12 @@
     ]
   ],
   smells: [
-    # Every Musubi root store implements the same framework contract —
-    # `Musubi.Store`'s three callbacks (mount/2, handle_command/3, render/1) —
-    # so the behaviour already exists and the stores are not interchangeable
-    # implementations. Only flag modules that share callbacks *beyond* that
-    # framework contract.
-    behaviour_candidate: [min_callbacks: 4]
+    # Every Musubi store implements the same framework contract, so the
+    # behaviour already exists and the stores are not interchangeable
+    # implementations. Root stores share three callbacks (mount/2,
+    # handle_command/3, render/1); non-root stores share four (init/1, update/2,
+    # render/1, handle_command/3). Only flag modules that share callbacks
+    # *beyond* that framework contract.
+    behaviour_candidate: [min_callbacks: 5]
   ]
 ]
