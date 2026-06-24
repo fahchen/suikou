@@ -4,7 +4,12 @@ import type { CommandReply } from "@musubi/react"
 
 import { useMusubiCommand, useSocketConnected } from "../musubi"
 import type { ChangeStatus } from "./ChangeStatusIcon"
+import { readCommandCache, writeCommandCache } from "./command-cache"
 import type { FileSnapshot, ReviewStore } from "./types"
+
+function structureCacheKey(store: ReviewStore): string {
+  return `suikou-structure:${store.__musubi_store_id__.join("|")}`
+}
 
 /**
  * The review's static structure, fetched once via the `load_review_structure`
@@ -39,7 +44,12 @@ export function useLoadReviewStructure(
 ): ReviewStructureState {
   const loadStructure = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
-  const [structure, setStructure] = useState<ReviewStructure | null>(null)
+  // Seed from the last-good cached structure so a forced reload paints the real
+  // file list on the first frame; the command below revalidates it (SWR).
+  const cacheKey = structureCacheKey(store)
+  const [structure, setStructure] = useState<ReviewStructure | null>(() =>
+    readCommandCache<ReviewStructure>(cacheKey)
+  )
   const [error, setError] = useState<string | null>(null)
 
   // Latest structure, read inside the retry closure without re-arming the effect.
@@ -63,6 +73,7 @@ export function useLoadReviewStructure(
         .then((reply) => {
           if (cancelled) return
           setStructure(reply)
+          writeCommandCache(cacheKey, reply)
           setError(null)
         })
         .catch((cause: Error) => {

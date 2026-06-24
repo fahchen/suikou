@@ -41,6 +41,7 @@ import {
   useSocketConnected,
 } from "../musubi";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
+import { readCommandCache, writeCommandCache } from "./command-cache";
 import { FileTree } from "./FileTree";
 import { ReviewFileTree } from "./ReviewFileTree";
 import { orderedReviewFiles } from "./file-order";
@@ -73,6 +74,9 @@ type ReviewFilesGrouped = LoadBoardReply["review_files"];
 type BoardProject = LoadBoardReply["projects"][number];
 type BoardReview = BoardProject["reviews"][number];
 type ReviewFileEntry = ReviewFilesGrouped[number]["files"][number];
+
+// Single board per app, so one fixed key for its cached `load_board` reply.
+const BOARD_CACHE_KEY = "suikou-board";
 
 // The board chrome and list now render from a `load_board` request-response
 // command held in component state, not from a live snapshot subscription — so a
@@ -179,7 +183,11 @@ function Board({
 }) {
   const loadBoard = useMusubiCommand(store, "load_board");
   const connected = useSocketConnected();
-  const [board, setBoard] = useState<LoadBoardReply | null>(null);
+  // Seed from the last-good cached board so a forced reload paints the projects
+  // on the first frame; the command below revalidates it (SWR).
+  const [board, setBoard] = useState<LoadBoardReply | null>(() =>
+    readCommandCache<LoadBoardReply>(BOARD_CACHE_KEY),
+  );
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -194,6 +202,7 @@ function Board({
       .dispatch({})
       .then((reply) => {
         setBoard(reply);
+        writeCommandCache(BOARD_CACHE_KEY, reply);
         setError(null);
       })
       .catch((cause: Error) => {
@@ -218,6 +227,7 @@ function Board({
         .then((reply) => {
           if (cancelled) return;
           setBoard(reply);
+          writeCommandCache(BOARD_CACHE_KEY, reply);
           setError(null);
         })
         .catch((cause: Error) => {
