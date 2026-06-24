@@ -67,6 +67,7 @@ function AllFilesStructureGate(props: { reviewId: string; reviewStore: ReviewSto
   const reviewSnapshot = useMusubiSnapshot(props.reviewStore);
   const { structure, error } = useLoadReviewStructure(
     props.reviewStore,
+    props.reviewId,
     reviewSnapshot?.body?.structure_version,
   );
 

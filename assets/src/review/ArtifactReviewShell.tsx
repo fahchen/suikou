@@ -64,7 +64,7 @@ export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
 
   return (
     <ReviewStoreProvider key={reviewId} store={root.store}>
-      <ReviewStructureGate path={path} />
+      <ReviewStructureGate path={path} reviewId={reviewId} />
     </ReviewStoreProvider>
   );
 }
@@ -72,7 +72,7 @@ export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
 /** Loads the review's static structure from the command before rendering the
  * shell, so chrome, file list, and navigation render from component state
  * (disconnect-proof) rather than the live snapshot. */
-function ReviewStructureGate(props: { path: string }) {
+function ReviewStructureGate(props: { path: string; reviewId: string }) {
   const reviewStore = useReviewStore();
   // The live snapshot bumps `structure_version` whenever the file list reshapes;
   // feeding it to the hook refetches the structure so a newly opened/removed file
@@ -80,6 +80,7 @@ function ReviewStructureGate(props: { path: string }) {
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const { structure, error } = useLoadReviewStructure(
     reviewStore,
+    props.reviewId,
     reviewSnapshot?.body?.structure_version,
   );
 

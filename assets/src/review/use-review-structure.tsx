@@ -7,8 +7,8 @@ import type { ChangeStatus } from "./ChangeStatusIcon"
 import { readCommandCache, writeCommandCache } from "./command-cache"
 import type { FileSnapshot, ReviewStore } from "./types"
 
-function structureCacheKey(store: ReviewStore): string {
-  return `suikou-structure:${store.__musubi_store_id__.join("|")}`
+function structureCacheKey(reviewId: string): string {
+  return `suikou-structure:${reviewId}`
 }
 
 /**
@@ -40,13 +40,15 @@ export interface ReviewStructureState {
  */
 export function useLoadReviewStructure(
   store: ReviewStore,
+  reviewId: string,
   structureVersion?: number
 ): ReviewStructureState {
   const loadStructure = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
   // Seed from the last-good cached structure so a forced reload paints the real
-  // file list on the first frame; the command below revalidates it (SWR).
-  const cacheKey = structureCacheKey(store)
+  // file list on the first frame; the command below revalidates it (SWR). Keyed
+  // by reviewId so each review keeps its own entry (the root store id is empty).
+  const cacheKey = structureCacheKey(reviewId)
   const [structure, setStructure] = useState<ReviewStructure | null>(() =>
     readCommandCache<ReviewStructure>(cacheKey)
   )
