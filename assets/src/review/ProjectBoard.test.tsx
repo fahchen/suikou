@@ -59,6 +59,16 @@ vi.mock("../musubi", () => ({
 
 import { ProjectBoard } from "./ProjectBoard"
 
+// The board now loads asynchronously via the load_board command, so renders
+// settle one tick after mount. Wait for that settle (the loading placeholder
+// clears) before a test interacts: a trailing board commit mid-interaction would
+// re-render the cards and dismiss an open Base UI menu.
+async function renderBoard(onOpen: (reviewId: string, path: string) => void = vi.fn()) {
+  const result = render(<ProjectBoard onOpen={onOpen} />)
+  await waitFor(() => expect(screen.queryByText("Loading projects…")).not.toBeInTheDocument())
+  return result
+}
+
 beforeEach(() => {
   dispatch.mockReset()
   listBranches.mockReset()
@@ -99,7 +109,7 @@ beforeEach(() => {
 
 describe("ProjectBoard", () => {
   it("lists each project with its path and reviews", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     expect(await screen.findByText("Data Platform")).toBeInTheDocument()
     expect(screen.getByText("/tmp/dp")).toBeInTheDocument()
@@ -144,7 +154,7 @@ describe("ProjectBoard", () => {
         }
       ]
     }
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     const filesBadge = await screen.findByText("Files")
     const diffBadge = screen.getByText("Diff")
@@ -188,7 +198,7 @@ describe("ProjectBoard", () => {
         { review_id: "r2", files: [{ path: "design.md", artifact_id: "a-2", approved: false }] }
       ]
     }
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     // Only the all-HTML selection earns the badge; a generic file selection stays plain.
     const htmlBadge = await screen.findByText("HTML")
@@ -218,12 +228,12 @@ describe("ProjectBoard", () => {
       ],
       review_files: [{ review_id: "r2", files: [] }]
     }
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
     expect(await screen.findByText("–..–")).toBeInTheDocument()
   })
 
   it("reveals a review's files only once expanded", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     await screen.findByText("Launch")
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
@@ -235,7 +245,7 @@ describe("ProjectBoard", () => {
 
   it("opens a review file with review id + path", async () => {
     const onOpen = vi.fn()
-    render(<ProjectBoard onOpen={onOpen} />)
+    await renderBoard(onOpen)
 
     fireEvent.click(await screen.findByLabelText("Expand files"))
     fireEvent.click(await screen.findByText("design.md"))
@@ -245,7 +255,7 @@ describe("ProjectBoard", () => {
 
   it("opens a review by its title without expanding", async () => {
     const onOpen = vi.fn()
-    render(<ProjectBoard onOpen={onOpen} />)
+    await renderBoard(onOpen)
 
     fireEvent.click(await screen.findByRole("button", { name: "Open Launch" }))
 
@@ -255,7 +265,7 @@ describe("ProjectBoard", () => {
 
   it("renames a review from the actions menu", async () => {
     dispatch.mockResolvedValue({ error: null })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Rename"))
@@ -271,7 +281,7 @@ describe("ProjectBoard", () => {
 
   it("deletes a review from the actions menu", async () => {
     dispatch.mockResolvedValue({ error: null })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Delete review"))
@@ -282,7 +292,7 @@ describe("ProjectBoard", () => {
 
   it("creates a review from a name and selected files", async () => {
     dispatch.mockResolvedValue({ review_id: "r-new", error: null })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review files"))
@@ -307,7 +317,7 @@ describe("ProjectBoard", () => {
 
   it("edits a review's file selection", async () => {
     dispatch.mockResolvedValue({ error: null })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Edit files"))
@@ -327,14 +337,14 @@ describe("ProjectBoard", () => {
 
   it("shows an empty state when no project is registered", async () => {
     board = { projects: [], review_files: [] }
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     expect(await screen.findByText(/No projects yet/)).toBeInTheDocument()
   })
 
   it("creates a project from the working directory and name", async () => {
     dispatch.mockResolvedValue({ project_id: "p-new", error: null })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(screen.getByRole("button", { name: "New project" }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
@@ -346,12 +356,16 @@ describe("ProjectBoard", () => {
     fireEvent.click(screen.getByText("Create project"))
 
     await waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith({ name: "Docs", path: "/tmp/docs" })
+      expect(dispatch).toHaveBeenCalledWith({
+        name: "Docs",
+        path: "/tmp/docs",
+        respect_gitignore: true
+      })
     )
   })
 
   it("loads branches and preselects the default base when opening diff-review composer", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -362,7 +376,7 @@ describe("ProjectBoard", () => {
   })
 
   it("creates a diff review with the chosen base and head refs", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -389,7 +403,7 @@ describe("ProjectBoard", () => {
   })
 
   it("groups local and remote branches in the picker and filters by query", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -413,7 +427,7 @@ describe("ProjectBoard", () => {
   })
 
   it("allows picking a remote branch as the head ref", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -440,7 +454,7 @@ describe("ProjectBoard", () => {
   })
 
   it("shows an empty-state inside the picker when no branch matches the query", async () => {
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
     await waitFor(() => expect(listBranches).toHaveBeenCalled())
@@ -459,7 +473,7 @@ describe("ProjectBoard", () => {
       default: null,
       error: "not_a_git_repo"
     })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -469,7 +483,7 @@ describe("ProjectBoard", () => {
 
   it("surfaces a create_diff_review error", async () => {
     createDiffReview.mockResolvedValueOnce({ review_id: null, error: "head_missing" })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
@@ -490,7 +504,7 @@ describe("ProjectBoard", () => {
 
   it("surfaces a create-project error", async () => {
     dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" })
-    render(<ProjectBoard onOpen={vi.fn()} />)
+    await renderBoard()
 
     fireEvent.click(screen.getByRole("button", { name: "New project" }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
