@@ -13,6 +13,22 @@ const socketUrl = import.meta.env.DEV
 
 export const socket = new Socket(socketUrl)
 
+// Free the socket while the page is frozen so Safari can keep the page in
+// bfcache — an open WebSocket makes a page bfcache-ineligible, which on iOS
+// forces a full reload on resume instead of an instant in-memory restore. On
+// `pageshow` (including a bfcache restore, when no React effect re-runs)
+// reconnect; musubi re-mounts its roots on socket reopen, and the SWR caches
+// keep the last-good view painted meanwhile. Uses `pagehide`/`pageshow`, never
+// `beforeunload`/`unload` — those listeners would themselves disable bfcache.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    socket.disconnect()
+  })
+  window.addEventListener("pageshow", () => {
+    if (!socket.isConnected()) socket.connect()
+  })
+}
+
 /**
  * Live WebSocket connectivity. `useMusubiConnectionStatus` only reports the
  * initial connect; it stays "ready" after a mid-session drop. The phoenix socket,
