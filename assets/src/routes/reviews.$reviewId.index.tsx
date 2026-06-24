@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -37,6 +38,11 @@ function ReviewLandingRoute() {
     params: { review_id: reviewId },
     cache: storeCache,
   });
+
+  // Restore (and scope further edits to) this review's persisted drafts.
+  useEffect(() => {
+    uiStore.setReviewScope(reviewId);
+  }, [reviewId]);
 
   if (root.status === "loading") return <ReviewShellSkeleton label="Loading review…" />;
   if (root.status === "error") return <ErrorPage {...errorCopy(root.error.message)} />;

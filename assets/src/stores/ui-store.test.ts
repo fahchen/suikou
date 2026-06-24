@@ -215,3 +215,46 @@ describe("artifact-scoped draft keys", () => {
     expect(ui.draftFor(scoped)).toMatchObject({ body: "scoped draft" })
   })
 })
+
+describe("draft persistence across reload", () => {
+  it("restores a review's draft after a reload", () => {
+    const before = new UiStore()
+    before.setReviewScope("review-1")
+    before.openComposer(1, 1, "located", "art-1:file.md")
+    before.setComposerBody("work in progress", "art-1:file.md")
+
+    // A fresh instance models a page reload reading from localStorage.
+    const after = new UiStore()
+    after.setReviewScope("review-1")
+    expect(after.draftFor("art-1:file.md")).toMatchObject({ body: "work in progress" })
+  })
+
+  it("isolates the legacy single-file scope across reviews", () => {
+    const ui = new UiStore()
+    ui.setReviewScope("review-1")
+    ui.setComposerBody("for review 1", null)
+
+    ui.setReviewScope("review-2")
+    expect(ui.draftFor(null)).toBeUndefined()
+
+    ui.setReviewScope("review-1")
+    expect(ui.draftFor(null)).toMatchObject({ body: "for review 1" })
+  })
+
+  it("does not persist before a review scope is set", () => {
+    const ui = new UiStore()
+    ui.setComposerBody("orphan", null)
+    expect(localStorage.getItem("suikou-drafts")).toBeNull()
+  })
+
+  it("clears the persisted draft on close", () => {
+    const ui = new UiStore()
+    ui.setReviewScope("review-1")
+    ui.setComposerBody("temp", "art-1:file.md")
+    ui.closeComposer("art-1:file.md")
+
+    const after = new UiStore()
+    after.setReviewScope("review-1")
+    expect(after.draftFor("art-1:file.md")).toBeUndefined()
+  })
+})

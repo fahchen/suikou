@@ -45,6 +45,11 @@ export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
     keepPreviousData: true,
   });
 
+  // Restore (and scope further edits to) this review's persisted drafts.
+  useEffect(() => {
+    uiStore.setReviewScope(reviewId);
+  }, [reviewId]);
+
   if (root.status === "loading") return <ReviewShellSkeleton label="Connecting…" />;
   if (root.status === "error") return <ErrorPage {...errorCopy(root.error.message)} />;
 
