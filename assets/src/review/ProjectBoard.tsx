@@ -183,6 +183,12 @@ function Board({
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // Latest board, read inside callbacks without re-arming the reconnect effect.
+  const boardRef = useRef<LoadBoardReply | null>(null);
+  boardRef.current = board;
+
+  // Manual refetch after a mutation (the socket is up here). Keep the last-good
+  // list on a transient failure rather than blanking the board.
   const refetch = useCallback(() => {
     loadBoard
       .dispatch({})
@@ -190,15 +196,48 @@ function Board({
         setBoard(reply);
         setError(null);
       })
-      .catch((cause: Error) => setError(cause.message));
+      .catch((cause: Error) => {
+        if (boardRef.current === null) setError(cause.message);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch on mount and again on every reconnect (the socket flips back to
-  // connected). A command dispatched mid-disconnect would reject, so skip those.
+  // Fetch on mount and retry through reconnect. The phoenix socket reopens a beat
+  // before the musubi channel re-joins, so an eager dispatch on reconnect rejects
+  // with "Store is not connected"; retry through that window and keep the last-good
+  // board on screen. Only surface a hard error on the first load, after retries.
   useEffect(() => {
-    if (connected) refetch();
-  }, [connected, refetch]);
+    if (!connected) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+
+    const attempt = () => {
+      loadBoard
+        .dispatch({})
+        .then((reply) => {
+          if (cancelled) return;
+          setBoard(reply);
+          setError(null);
+        })
+        .catch((cause: Error) => {
+          if (cancelled) return;
+          attempts += 1;
+          if (boardRef.current === null && attempts >= 5) {
+            setError(cause.message);
+            return;
+          }
+          timer = setTimeout(attempt, 400);
+        });
+    };
+
+    attempt();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   return (
     <BoardRefetchContext.Provider value={refetch}>

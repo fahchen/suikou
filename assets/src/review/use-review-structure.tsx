@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 
 import type { CommandReply } from "@musubi/react"
 
@@ -42,22 +42,48 @@ export function useLoadReviewStructure(
   const [structure, setStructure] = useState<ReviewStructure | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const refetch = useCallback(() => {
-    loadStructure
-      .dispatch({})
-      .then((reply) => {
-        setStructure(reply)
-        setError(null)
-      })
-      .catch((cause: Error) => setError(cause.message))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Latest structure, read inside the retry closure without re-arming the effect.
+  const structureRef = useRef<ReviewStructure | null>(null)
+  structureRef.current = structure
 
-  // A command dispatched mid-disconnect would reject, so only fetch while
-  // connected; reconnecting flips `connected` back to true and refetches.
+  // Fetch on mount and whenever the socket reconnects or the structure version
+  // bumps. The phoenix socket reopens a beat before the musubi channel re-joins,
+  // so an eager dispatch on reconnect rejects with "Store is not connected".
+  // Retry through that window and keep the last-good structure on screen; only
+  // surface a hard error on the very first load, after several failed tries.
   useEffect(() => {
-    if (connected) refetch()
-  }, [connected, refetch, structureVersion])
+    if (!connected) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    let attempts = 0
+
+    const attempt = () => {
+      loadStructure
+        .dispatch({})
+        .then((reply) => {
+          if (cancelled) return
+          setStructure(reply)
+          setError(null)
+        })
+        .catch((cause: Error) => {
+          if (cancelled) return
+          attempts += 1
+          // Nothing to show yet and it keeps failing — a real error, surface it.
+          if (structureRef.current === null && attempts >= 5) {
+            setError(cause.message)
+            return
+          }
+          timer = setTimeout(attempt, 400)
+        })
+    }
+
+    attempt()
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, structureVersion])
 
   return { structure, loading: structure === null && error === null, error }
 }
