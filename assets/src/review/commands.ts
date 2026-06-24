@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef } from "react";
 
-import { useMusubiCommand, useSocketConnected } from "../musubi";
+import { useMusubiCommand, useMusubiSnapshot, useSocketConnected } from "../musubi";
 import { useFileStore, useReviewStore } from "./store-context";
 import type { CommentsStore, FileStore } from "./types";
 
@@ -26,13 +26,17 @@ function useDefaultReviewCommands() {
   const reviewStore = useReviewStore();
   const fileStore = useFileStore();
   const comments = useStableComments(fileStore);
-  // A dropped/reconnecting socket rejects every command with "Store is not
-  // connected"; gate writes on the live connection so buttons disable instead of
-  // throwing.
+  // Writes need the live store actually hydrated, not just the transport up.
+  // After a reload the structure paints instantly from its cache while the
+  // ReviewStore root is still mounting, so the buttons look ready before the
+  // store can take a command — a tap then would reject "Store is not connected".
+  // The file snapshot is defined only once the root has mounted and its first
+  // patch landed, so gate writes on that (plus the live socket).
   const connected = useSocketConnected();
+  const ready = connected && useMusubiSnapshot(fileStore) !== undefined;
   const gate = <T extends { isPending: boolean }>(command: T) => ({
     ...command,
-    disabled: !connected || command.isPending,
+    disabled: !ready || command.isPending,
   });
   const wrap = <T extends { isPending: boolean; dispatch: (...args: never[]) => Promise<unknown> }>(
     command: T,

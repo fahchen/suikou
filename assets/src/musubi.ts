@@ -24,8 +24,14 @@ if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
     socket.disconnect()
   })
-  window.addEventListener("pageshow", () => {
+  const reconnect = () => {
     if (!socket.isConnected()) socket.connect()
+  }
+  window.addEventListener("pageshow", reconnect)
+  // iOS Safari does not always fire `pageshow` on resume; `visibilitychange` to
+  // visible is the reliable signal to reconnect a socket we released on hide.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") reconnect()
   })
 }
 
