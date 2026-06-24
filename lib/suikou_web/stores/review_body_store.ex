@@ -1,16 +1,22 @@
 defmodule SuikouWeb.Stores.ReviewBodyStore do
   @moduledoc """
-  Non-root store owning the review-level chrome and the per-file child tree.
+  Non-root store owning the live review-wide aggregates and the per-file child
+  tree.
+
+  The static review structure (name, kind, file list, per-file identity) is
+  served separately by `SuikouWeb.Stores.ReviewStore`'s `load_review_structure`
+  command and rendered from client state, so this snapshot carries only what must
+  stream live: the file children (comments/verdicts), `has_unpublished`,
+  `round_summaries`, the selected/latest round, and a `structure_version` the
+  client watches to refetch the structure when the file list reshapes.
 
   The thin `SuikouWeb.Stores.ReviewStore` root mounts it with the `review_id`
-  and forwards refresh signals to it. It loads the review name, kind, artifact
-  summaries, and the review-wide aggregates (`has_unpublished`, `round_summaries`)
-  synchronously into assigns, and the file list through `assign_async/3` so the
-  first snapshot does not block on disk. Either way `render/1` reads assigns only
-  and never touches the database. It renders one `SuikouWeb.Stores.FileStore`
-  child per covered file. The root targets a changed file's store directly (by
-  its `artifact_id`), so this store only refreshes the review-wide chrome and the
-  file list — it never fans `Musubi.send_update/2` out to every child.
+  and forwards refresh signals to it. It loads the aggregates synchronously into
+  assigns and the file list through `start_async/3` (used only to render the
+  children, not exposed in the snapshot). `render/1` reads assigns only and never
+  touches the database. The root targets a changed file's store directly (by its
+  `artifact_id`), so this store only refreshes the aggregates and the file list —
+  it never fans `Musubi.send_update/2` out to every child.
   """
 
   use Musubi.Store
@@ -20,32 +26,11 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   alias Musubi.Socket
   alias Suikou.Reads
   alias Suikou.Reviews
-  alias Suikou.Rounds
-  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Review
-  alias Suikou.Schemas.ReviewSource.FileSelection
-  alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Submissions
   alias SuikouWeb.Stores.FileStore
-  alias SuikouWeb.Stores.ProjectBoardContract
-  require ProjectBoardContract
 
   state do
-    field(:name, String.t())
-    field(:kind, :file | :diff)
-
-    field(
-      :artifacts,
-      list(%{
-        id: String.t(),
-        title: String.t(),
-        approved: boolean(),
-        latest_round: integer() | nil
-      })
-    )
-
-    ProjectBoardContract.review_files_async_field(:file_entries)
-
     field(:files, list(FileStore.state()))
     field(:has_unpublished, boolean())
 
@@ -64,19 +49,26 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     # user has not picked one); `latest_round` lets the picker flag "under review".
     field(:selected_round, integer())
     field(:latest_round, integer())
+
+    # Bumps whenever the review's static structure changes (a file opened or
+    # removed, reshaping the file list). The client watches it and refetches
+    # `load_review_structure` so the chrome and per-file identity stay current.
+    # Comments, counts, and verdicts stream live and never touch this.
+    field(:structure_version, integer())
   end
 
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
   def init(socket) do
-    {:ok, socket |> reload_static() |> reload_aggregates() |> load_files()}
+    {:ok, socket |> Socket.assign(:structure_version, 0) |> reload_aggregates() |> load_files()}
   end
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
-  # A review-level change reshapes the file list, so reload everything.
+  # A review-level change reshapes the file list, so reload the children and bump
+  # the structure version to trigger a client structure refetch.
   def update(%{reload: :structure}, socket) do
-    {:ok, socket |> reload_static() |> reload_aggregates() |> load_files()}
+    {:ok, socket |> bump_structure_version() |> reload_aggregates() |> load_files()}
   end
 
   # An artifact-scoped change only moves the review-wide counts; skip the static
@@ -99,15 +91,12 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     latest = summaries |> Enum.map(& &1.number) |> Enum.max(fn -> 0 end)
 
     %{
-      name: socket.assigns[:name] || "",
-      kind: socket.assigns[:kind] || :file,
-      artifacts: socket.assigns[:artifacts] || [],
-      file_entries: entries,
       files: render_file_children(entries, socket),
       has_unpublished: socket.assigns[:has_unpublished] || false,
       round_summaries: summaries,
       selected_round: socket.assigns[:round_number] || latest,
-      latest_round: latest
+      latest_round: latest,
+      structure_version: socket.assigns[:structure_version] || 0
     }
   end
 
@@ -128,28 +117,8 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     {:noreply, Socket.assign(socket, :file_entries, AsyncResult.failed(prior, {:exit, reason}))}
   end
 
-  # Static chrome that only a review-level change can move: name, kind, and the
-  # artifact switcher list. Read on first paint and on a structural refresh, not
-  # on an artifact-scoped one.
-  defp reload_static(socket) do
-    review_id = socket.assigns.review_id
-
-    case Reviews.get_review(review_id) do
-      %Review{} = review ->
-        socket
-        |> Socket.assign(:name, review.name)
-        |> Socket.assign(:kind, review_kind(review))
-        |> Socket.assign(
-          :artifacts,
-          Enum.map(Reads.list_review_artifacts(review_id), &render_artifact_summary/1)
-        )
-
-      nil ->
-        socket
-        |> Socket.assign(:name, "")
-        |> Socket.assign(:kind, :file)
-        |> Socket.assign(:artifacts, [])
-    end
+  defp bump_structure_version(socket) do
+    Socket.assign(socket, :structure_version, (socket.assigns[:structure_version] || 0) + 1)
   end
 
   # Review-wide counts that any critique or verdict write can move. Both queries
@@ -192,24 +161,10 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
         review_id: socket.assigns.review_id,
         path: file.path,
         artifact_id: file.artifact_id,
-        content_hash: file.content_hash,
-        change_status: file.change_status,
         round_number: socket.assigns[:round_number]
       )
     end)
   end
 
   defp render_file_children(_other, _socket), do: []
-
-  defp render_artifact_summary(%Artifact{} = artifact) do
-    %{
-      id: artifact.id,
-      title: artifact.title,
-      approved: not is_nil(artifact.approved_round),
-      latest_round: Rounds.latest_number(artifact.id)
-    }
-  end
-
-  defp review_kind(%Review{source: %GitDiff{}}), do: :diff
-  defp review_kind(%Review{source: %FileSelection{}}), do: :file
 end

@@ -88,6 +88,16 @@ afterEach(() => {
   uiStore.setHideReviewed(false)
 })
 
+// The full pre-narrowing per-file shape: the live snapshot now carries only a
+// subset, but the test fixtures still build the whole shape and feed the static
+// half into the structure command result via makeStructure.
+type TestFileSnapshot = FileSnapshot & {
+  artifact_id: string | null
+  content_hash: string | null
+  change_status: string | null
+  artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+}
+
 function makeFileSnapshot(overrides: Partial<{
   path: string
   artifact_id: string | null
@@ -96,7 +106,7 @@ function makeFileSnapshot(overrides: Partial<{
   draft_verdict: string | null
   latest_verdict: string | null
   current_round_hash: string
-}>  = {}): FileSnapshot {
+}>  = {}): TestFileSnapshot {
   const path = overrides.path ?? "test.md"
   const artifactId = overrides.artifact_id ?? null
   return {
@@ -114,16 +124,16 @@ function makeFileSnapshot(overrides: Partial<{
     comments: { items: [] },
     latest_verdict: overrides.latest_verdict ?? null,
     draft_verdict: overrides.draft_verdict ?? null,
-  } as unknown as FileSnapshot
+  } as unknown as TestFileSnapshot
 }
 
-function fakeFileStore(snapshot: FileSnapshot): FileStore {
+function fakeFileStore(snapshot: TestFileSnapshot): FileStore {
   return { __fake_snapshot: snapshot, dispatchCommand: vi.fn() } as unknown as FileStore
 }
 
 // The structure command result mirrors the per-file static identity the live
 // snapshot used to carry; AllFilesView now reads it from here (joined by path).
-function makeStructure(snaps: FileSnapshot[]): ReviewStructure {
+function makeStructure(snaps: TestFileSnapshot[]): ReviewStructure {
   return {
     review_id: "rv-1",
     name: "test review",

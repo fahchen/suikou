@@ -74,7 +74,14 @@ export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
  * (disconnect-proof) rather than the live snapshot. */
 function ReviewStructureGate(props: { path: string }) {
   const reviewStore = useReviewStore();
-  const { structure, error } = useLoadReviewStructure(reviewStore);
+  // The live snapshot bumps `structure_version` whenever the file list reshapes;
+  // feeding it to the hook refetches the structure so a newly opened/removed file
+  // appears without a reload.
+  const reviewSnapshot = useMusubiSnapshot(reviewStore);
+  const { structure, error } = useLoadReviewStructure(
+    reviewStore,
+    reviewSnapshot?.body?.structure_version,
+  );
 
   if (error !== null) return <ErrorPage {...errorCopy(error)} />;
   if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;

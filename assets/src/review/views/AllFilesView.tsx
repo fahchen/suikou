@@ -28,6 +28,7 @@ import {
   structureEntry,
   structureFile,
   useReviewStructure,
+  type MergedFileView,
 } from "../use-review-structure"
 import { viewComponentFor } from "./registry"
 import { FileVerdictMenu } from "../TopBarVerdictMenu"
@@ -330,7 +331,7 @@ function BodyPlaceholder() {
 }
 
 const StackedImage = observer(function StackedImage(props: {
-  fileSnapshot: FileSnapshot
+  fileSnapshot: MergedFileView
   reviewId: string
 }) {
   const { fileSnapshot, reviewId } = props

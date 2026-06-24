@@ -3,7 +3,6 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   import Suikou.Factory
 
-  alias Musubi.AsyncResult
   alias Musubi.Socket
   alias Musubi.Testing
   alias Suikou.Events
@@ -84,7 +83,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       page = mount_review("00000000-0000-7000-8000-000000000000")
 
       assert %{review_id: "00000000-0000-7000-8000-000000000000"} = Testing.render(page)
-      assert %{name: "", files: []} = Testing.render(page, ["body"])
+      assert %{files: [], structure_version: 0} = Testing.render(page, ["body"])
     end
 
     test "handle_info refreshes the body, and targets one file on an artifact-scoped change" do
@@ -142,10 +141,10 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert find_file_child(files, "first.md").id == first_id
       assert find_file_child(files, "second.md").id == "second.md"
 
-      assert %{artifact_id: ^first_id, current_round: %{number: 0}} =
+      assert %{path: "first.md", current_round: %{number: 0}} =
                Testing.render(page, ["body", "files", first_id])
 
-      assert %{artifact_id: nil, current_round: %{number: 0}, artifact: %{title: "second.md"}} =
+      assert %{path: "second.md", current_round: %{number: 0}} =
                Testing.render(page, ["body", "files", "second.md"])
     end
   end
@@ -158,19 +157,20 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     Enum.find(files, &(&1.assigns.path == path))
   end
 
-  # Re-renders the body until its async `file_entries` resolves. Blocks on the
-  # resolution patch rather than spinning, so the load task finishes before the
-  # sandbox connection is reclaimed.
+  # Re-renders the body until its async file list resolves into rendered file
+  # children. Blocks on the resolution patch rather than spinning, so the load
+  # task finishes before the sandbox connection is reclaimed. Only used by
+  # callers that expect at least one file.
   defp await_files(page) do
     snapshot = Testing.render(page, ["body"])
 
-    case snapshot.file_entries do
-      %AsyncResult{status: :ok} ->
-        snapshot
-
-      %AsyncResult{} ->
+    case snapshot.files do
+      [] ->
         assert_receive {:patch, _envelope}
         await_files(page)
+
+      _files ->
+        snapshot
     end
   end
 

@@ -12,7 +12,7 @@ import { useFileStore } from "./store-context";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
 import { reviewFileTarget } from "./review-navigation";
-import { useReviewStructure, type StructureFileEntry } from "./use-review-structure";
+import { structureFile, useReviewStructure, type StructureFileEntry } from "./use-review-structure";
 import { type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
@@ -41,7 +41,7 @@ export const TopBar = observer(function TopBar(props: {
   // Absent for a frame mid-reconnect (store node not re-hydrated yet).
   if (!fileSnapshot) return null;
 
-  const title = fileSnapshot.artifact.title;
+  const title = structureFile(structure, fileSnapshot.path)?.artifact?.title ?? fileSnapshot.path;
   const image = isImagePath(title);
   const binary = isBinaryContent(content);
   const commentsSupported = !image && !binary;

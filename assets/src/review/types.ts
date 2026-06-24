@@ -1,4 +1,4 @@
-import type { StoreProxy, StoreSnapshot } from "@musubi/react"
+import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 
 import type { CritiqueType } from "../stores/ui-store"
 
@@ -17,9 +17,14 @@ export type CommentStatus = "pending" | "published"
 export type Comment = CommentsSnapshot["items"][number]
 export type Anchor = NonNullable<Comment["anchor"]>
 export type Reply = Comment["replies"][number]
-export type RoundSummary = FileSnapshot["rounds"][number]
-export type ArtifactSummary = ReviewSnapshot["body"]["artifacts"][number]
-export type ReviewFileEntry = NonNullable<ReviewSnapshot["body"]["file_entries"]["data"]>[number]
+
+// The review's file list now rides the `load_review_structure` command result,
+// not the live snapshot; this entry shape drives file ordering and navigation.
+export type ReviewFileEntry = CommandReply<
+  "SuikouWeb.Stores.ReviewStore",
+  "load_review_structure",
+  Musubi.Stores
+>["file_entries"][number]
 
 export const CRITIQUE_META: Record<CritiqueType, { label: string; short: string; tone: string }> = {
   fix_required: { label: "Fix required", short: "Fix", tone: "red" },

@@ -1,7 +1,8 @@
 import { createContext, useContext, type ReactNode } from "react"
 import type { ThemedToken } from "shiki"
 
-import type { Comment, FileSnapshot, FileStore, ReviewSnapshot, ReviewStore, Verdict } from "./types"
+import type { Comment, FileStore, ReviewSnapshot, ReviewStore, Verdict } from "./types"
+import type { MergedFileView } from "./use-review-structure"
 import type { RenderedBlock } from "../markdown/render"
 import type { StatusFilter, CritiqueType } from "../stores/ui-store"
 
@@ -42,8 +43,9 @@ export function useOptionalFileStore(): FileStore | null {
  * the rendered/raw child routes, so switching views never re-renders markdown.
  */
 export interface ReviewView {
-  /** Per-file snapshot: artifact, rounds, current_round, etc. */
-  snapshot: FileSnapshot
+  /** Per-file view: live snapshot fields plus static identity from the
+   * structure command, merged by path. */
+  snapshot: MergedFileView
   /** Review-level kind — "file" or "diff" — for resolving the view component. */
   reviewKind: "file" | "diff"
   /** Full review snapshot — for review_id and review-level fields. */

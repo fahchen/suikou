@@ -62,7 +62,13 @@ function ReviewLandingRoute() {
 /** Loads the review's static structure before the all-files shell, so its
  * chrome and file list render from component state, not the live snapshot. */
 function AllFilesStructureGate(props: { reviewId: string; reviewStore: ReviewStore }) {
-  const { structure, error } = useLoadReviewStructure(props.reviewStore);
+  // Refetch the structure when the live snapshot bumps `structure_version` (the
+  // file list reshaped), so a newly opened/removed file shows without a reload.
+  const reviewSnapshot = useMusubiSnapshot(props.reviewStore);
+  const { structure, error } = useLoadReviewStructure(
+    props.reviewStore,
+    reviewSnapshot?.body?.structure_version,
+  );
 
   if (error !== null) return <ErrorPage {...errorCopy(error)} />;
   if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;

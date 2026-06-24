@@ -173,11 +173,6 @@ declare namespace Musubi {
       "SuikouWeb.Stores.FileStore",
       {
         path: string
-        artifact_id: string | null
-        content_hash: string | null
-        change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null
-        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
-        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
         current_round: { number: number; content_hash: string; is_latest: boolean }
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
         latest_verdict: "approve" | "request_changes" | "comment" | null
@@ -338,15 +333,12 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ReviewBodyStore": StoreDef<
       "SuikouWeb.Stores.ReviewBodyStore",
       {
-        name: string
-        kind: "file" | "diff"
-        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
-        file_entries: Musubi.AsyncField<Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>>
         files: Musubi.StoreField<"SuikouWeb.Stores.FileStore">[]
         has_unpublished: boolean
         round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
         selected_round: number
         latest_round: number
+        structure_version: number
       },
       {}
     >

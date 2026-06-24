@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { CommandReply } from "@musubi/react"
 
 import { useMusubiCommand, useSocketConnected } from "../musubi"
+import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { FileSnapshot, ReviewStore } from "./types"
 
 /**
@@ -95,31 +96,51 @@ export function structureEntry(
 }
 
 /**
- * Overlays a file's static structure identity onto its live snapshot, producing
- * the per-file view the renderers consume: static fields (artifact, content
- * hashes, change status) from the command result, live fields (comments,
- * verdicts, viewed round) from the snapshot. They join on `path`.
+ * The per-file view the renderers consume: the live snapshot's real-time fields
+ * (comments, verdicts, viewed round) plus the static identity overlaid from the
+ * structure command (artifact, content hashes, change status). The live snapshot
+ * no longer carries the static fields, so this is their single source.
+ */
+export interface MergedFileView {
+  path: string
+  artifact_id: string | null
+  content_hash: string | null
+  change_status: ChangeStatus
+  artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
+  current_round: FileSnapshot["current_round"]
+  comments: FileSnapshot["comments"]
+  latest_verdict: FileSnapshot["latest_verdict"]
+  draft_verdict: FileSnapshot["draft_verdict"]
+}
+
+/**
+ * Overlays a file's static structure identity onto its live snapshot, joining on
+ * `path`. Static fields come from the command result; comments, verdicts, and
+ * the viewed round come from the live snapshot.
  */
 export function mergeFileView(
   live: FileSnapshot,
   file: StructureFile | undefined,
   entry: StructureFileEntry | undefined
-): FileSnapshot {
+): MergedFileView {
   const title = file?.artifact?.title ?? file?.path ?? live.path
   return {
-    ...live,
+    path: live.path,
     artifact_id: file?.artifact_id ?? null,
     content_hash: file?.content_hash ?? null,
     change_status: entry?.change_status ?? null,
     artifact: {
       id: file?.artifact?.id ?? "",
       title,
-      approved: live.artifact?.approved ?? false,
-      approved_round: live.artifact?.approved_round ?? null,
+      approved: false,
+      approved_round: null,
     },
     current_round: {
       ...live.current_round,
       content_hash: file?.current_round?.content_hash ?? live.current_round.content_hash,
     },
+    comments: live.comments,
+    latest_verdict: live.latest_verdict,
+    draft_verdict: live.draft_verdict,
   }
 }
