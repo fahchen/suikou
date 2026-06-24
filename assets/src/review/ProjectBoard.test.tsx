@@ -26,7 +26,9 @@ beforeAll(() => {
 const dispatch = vi.fn()
 const listBranches = vi.fn()
 const createDiffReview = vi.fn()
-let snapshot: unknown
+// The board renders from the `load_board` request-response command (held in
+// component state), not a live snapshot, so the mock resolves it from `board`.
+let board: unknown
 let rootEntries: { path: string; dir: boolean }[]
 // `pick` was the old Base UI Select helper. Combobox is a plain Popover now,
 // so `fireEvent.click` is enough.
@@ -34,6 +36,7 @@ let rootEntries: { path: string; dir: boolean }[]
 vi.mock("../musubi", () => ({
   storeCache: {},
   usePrefetchReviewStore: () => () => undefined,
+  useSocketConnected: () => true,
   useMusubiRoot: () => ({
     status: "ready",
     store: {},
@@ -41,8 +44,9 @@ vi.mock("../musubi", () => ({
     isFetching: false,
     revalidationError: null
   }),
-  useMusubiSnapshot: () => snapshot,
   useMusubiCommand: (_store: unknown, name: string) => {
+    if (name === "load_board")
+      return { dispatch: () => Promise.resolve(board), isPending: false }
     if (name === "list_dir")
       return { dispatch: () => Promise.resolve({ entries: rootEntries }), isPending: false }
     if (name === "list_branches")
@@ -70,7 +74,7 @@ beforeEach(() => {
     { path: "design.md", dir: false },
     { path: "draft.md", dir: false }
   ]
-  snapshot = {
+  board = {
     projects: [
       {
         id: "p1",
@@ -87,25 +91,23 @@ beforeEach(() => {
         ]
       }
     ],
-    review_files: {
-      status: "ok",
-      data: [{ review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] }],
-      error: null
-    }
+    review_files: [
+      { review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] }
+    ]
   }
 })
 
 describe("ProjectBoard", () => {
-  it("lists each project with its path and reviews", () => {
+  it("lists each project with its path and reviews", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    expect(screen.getByText("Data Platform")).toBeInTheDocument()
+    expect(await screen.findByText("Data Platform")).toBeInTheDocument()
     expect(screen.getByText("/tmp/dp")).toBeInTheDocument()
     expect(screen.getByText("Launch")).toBeInTheDocument()
   })
 
-  it("badges file-selection and git-diff review cards distinctly", () => {
-    snapshot = {
+  it("badges file-selection and git-diff review cards distinctly", async () => {
+    board = {
       projects: [
         {
           id: "p1",
@@ -131,24 +133,20 @@ describe("ProjectBoard", () => {
           ]
         }
       ],
-      review_files: {
-        status: "ok",
-        data: [
-          { review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] },
-          {
-            review_id: "r2",
-            files: [
-              { path: "auth/login.ex", artifact_id: "a-1", approved: false },
-              { path: "auth/session.ex", artifact_id: null, approved: false }
-            ]
-          }
-        ],
-        error: null
-      }
+      review_files: [
+        { review_id: "r1", files: [{ path: "design.md", artifact_id: "a-99", approved: false }] },
+        {
+          review_id: "r2",
+          files: [
+            { path: "auth/login.ex", artifact_id: "a-1", approved: false },
+            { path: "auth/session.ex", artifact_id: null, approved: false }
+          ]
+        }
+      ]
     }
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    const filesBadge = screen.getByText("Files")
+    const filesBadge = await screen.findByText("Files")
     const diffBadge = screen.getByText("Diff")
     // Both badges read off the per-theme `--kind-{files,diff}-*` tokens so the
     // file-selection vs. diff distinction stays clear across light and dark
@@ -160,8 +158,8 @@ describe("ProjectBoard", () => {
     expect(screen.getByText("2 files")).toBeInTheDocument()
   })
 
-  it("flags an all-HTML file-selection review with an HTML sub-badge", () => {
-    snapshot = {
+  it("flags an all-HTML file-selection review with an HTML sub-badge", async () => {
+    board = {
       projects: [
         {
           id: "p1",
@@ -185,25 +183,21 @@ describe("ProjectBoard", () => {
           ]
         }
       ],
-      review_files: {
-        status: "ok",
-        data: [
-          { review_id: "r1", files: [{ path: "report.html", artifact_id: "a-1", approved: false }] },
-          { review_id: "r2", files: [{ path: "design.md", artifact_id: "a-2", approved: false }] }
-        ],
-        error: null
-      }
+      review_files: [
+        { review_id: "r1", files: [{ path: "report.html", artifact_id: "a-1", approved: false }] },
+        { review_id: "r2", files: [{ path: "design.md", artifact_id: "a-2", approved: false }] }
+      ]
     }
     render(<ProjectBoard onOpen={vi.fn()} />)
 
     // Only the all-HTML selection earns the badge; a generic file selection stays plain.
-    const htmlBadge = screen.getByText("HTML")
+    const htmlBadge = await screen.findByText("HTML")
     expect(htmlBadge.className).toContain("bg-kind-html-bg")
     expect(screen.getAllByText("Files")).toHaveLength(2)
   })
 
-  it("shows em-dashes on the diff card subline when refs are missing", () => {
-    snapshot = {
+  it("shows em-dashes on the diff card subline when refs are missing", async () => {
+    board = {
       projects: [
         {
           id: "p1",
@@ -222,44 +216,16 @@ describe("ProjectBoard", () => {
           ]
         }
       ],
-      review_files: { status: "ok", data: [{ review_id: "r2", files: [] }], error: null }
+      review_files: [{ review_id: "r2", files: [] }]
     }
     render(<ProjectBoard onOpen={vi.fn()} />)
-    expect(screen.getByText("–..–")).toBeInTheDocument()
-  })
-
-  it("renders a loading skeleton while review files are still resolving", () => {
-    snapshot = {
-      projects: [
-        {
-          id: "p1",
-          name: "Data Platform",
-          path: "/tmp/dp",
-          reviews: [
-            {
-              id: "r1",
-              name: "Launch",
-              inserted_at: "2026-06-12T09:30:00",
-              kind: "file_selection",
-              selections: ["design.md"]
-            }
-          ]
-        }
-      ],
-      review_files: { status: "loading", data: null, error: null }
-    }
-    render(<ProjectBoard onOpen={vi.fn()} />)
-
-    const openButton = screen.getByRole("button", { name: "Open Launch" })
-    expect(openButton).toBeDisabled()
-    expect(openButton).toHaveAttribute("aria-busy", "true")
-    expect(openButton).toHaveAttribute("title", "Loading review files…")
-    expect(screen.getByLabelText("Loading files")).toBeInTheDocument()
+    expect(await screen.findByText("–..–")).toBeInTheDocument()
   })
 
   it("reveals a review's files only once expanded", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
+    await screen.findByText("Launch")
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText("Expand files"))
@@ -271,7 +237,7 @@ describe("ProjectBoard", () => {
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByLabelText("Expand files"))
+    fireEvent.click(await screen.findByLabelText("Expand files"))
     fireEvent.click(await screen.findByText("design.md"))
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r1", "design.md"))
@@ -281,7 +247,7 @@ describe("ProjectBoard", () => {
     const onOpen = vi.fn()
     render(<ProjectBoard onOpen={onOpen} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Launch" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Open Launch" }))
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r1", "design.md"))
     expect(screen.queryByText("design.md")).not.toBeInTheDocument()
@@ -291,7 +257,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByLabelText("Review actions"))
+    fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Rename"))
 
     const input = screen.getByLabelText("Review name")
@@ -307,7 +273,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByLabelText("Review actions"))
+    fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Delete review"))
     fireEvent.click(await screen.findByRole("button", { name: /^Delete$/ }))
 
@@ -318,7 +284,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ review_id: "r-new", error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review files"))
     fireEvent.change(screen.getByPlaceholderText("e.g. Launch docs"), {
       target: { value: "Spec pass" }
@@ -343,7 +309,7 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ error: null })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByLabelText("Review actions"))
+    fireEvent.click(await screen.findByLabelText("Review actions"))
     fireEvent.click(await screen.findByText("Edit files"))
 
     const checkboxes = await screen.findAllByRole("checkbox")
@@ -359,11 +325,11 @@ describe("ProjectBoard", () => {
     )
   })
 
-  it("shows an empty state when no project is registered", () => {
-    snapshot = { projects: [], review_files: { status: "ok", data: [], error: null } }
+  it("shows an empty state when no project is registered", async () => {
+    board = { projects: [], review_files: [] }
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    expect(screen.getByText(/No projects yet/)).toBeInTheDocument()
+    expect(await screen.findByText(/No projects yet/)).toBeInTheDocument()
   })
 
   it("creates a project from the working directory and name", async () => {
@@ -387,7 +353,7 @@ describe("ProjectBoard", () => {
   it("loads branches and preselects the default base when opening diff-review composer", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     await waitFor(() => expect(listBranches).toHaveBeenCalledWith({ project_id: "p1" }))
@@ -398,7 +364,7 @@ describe("ProjectBoard", () => {
   it("creates a diff review with the chosen base and head refs", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {
@@ -425,7 +391,7 @@ describe("ProjectBoard", () => {
   it("groups local and remote branches in the picker and filters by query", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     await waitFor(() => expect(listBranches).toHaveBeenCalled())
@@ -449,7 +415,7 @@ describe("ProjectBoard", () => {
   it("allows picking a remote branch as the head ref", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {
@@ -475,7 +441,7 @@ describe("ProjectBoard", () => {
 
   it("shows an empty-state inside the picker when no branch matches the query", async () => {
     render(<ProjectBoard onOpen={vi.fn()} />)
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
     await waitFor(() => expect(listBranches).toHaveBeenCalled())
 
@@ -495,7 +461,7 @@ describe("ProjectBoard", () => {
     })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     await waitFor(() => expect(screen.getByText("not_a_git_repo")).toBeInTheDocument())
@@ -505,7 +471,7 @@ describe("ProjectBoard", () => {
     createDiffReview.mockResolvedValueOnce({ review_id: null, error: "head_missing" })
     render(<ProjectBoard onOpen={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "New review" }))
+    fireEvent.click(await screen.findByRole("button", { name: "New review" }))
     fireEvent.click(await screen.findByText("Review diff"))
 
     fireEvent.change(screen.getByPlaceholderText("e.g. Auth rewrite"), {

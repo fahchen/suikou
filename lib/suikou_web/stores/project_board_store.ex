@@ -27,36 +27,25 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   require ProjectBoardContract
 
   state do
-    field(
-      :projects,
-      list(%{
-        id: String.t(),
-        name: String.t(),
-        path: String.t(),
-        respect_gitignore: boolean(),
-        reviews:
-          list(%{
-            id: String.t(),
-            name: String.t(),
-            inserted_at: String.t(),
-            kind: :file_selection | :git_diff,
-            selections: list(String.t()),
-            base_ref: String.t() | nil,
-            head_ref: String.t() | nil,
-            base_sha: String.t() | nil,
-            head_sha: String.t() | nil,
-            creation_base_sha: String.t() | nil,
-            creation_head_sha: String.t() | nil,
-            refs_moved: boolean()
-          })
-      })
-    )
+    ProjectBoardContract.projects_field()
 
     # Async map of `review_id => expanded file list`, derived from
     # `Reviews.list_files/1`. Carries the authoritative file count for every
     # card — including git-diff reviews, whose card was previously stuck at 0
     # and unopenable.
     ProjectBoardContract.review_files_state_field()
+  end
+
+  # Request-response load of the whole board: chrome + review list + per-review
+  # file rows. The client renders from this reply's state instead of subscribing
+  # to the live snapshot, so a hard WebSocket disconnect leaves the board (and its
+  # navigation) intact; it refetches on mount, on socket reconnect, and after each
+  # mutation succeeds.
+  command :load_board do
+    reply do
+      ProjectBoardContract.projects_field()
+      ProjectBoardContract.review_files_grouped_field()
+    end
   end
 
   command :create_project do
@@ -245,6 +234,15 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:reply, map(), Socket.t()}
+  def handle_command(:load_board, _payload, socket) do
+    reply = %{
+      projects: Enum.map(Projects.list_projects(), &render_project/1),
+      review_files: compute_review_files()
+    }
+
+    {:reply, reply, socket}
+  end
+
   def handle_command(:create_project, payload, socket) do
     params = %{
       name: payload["name"],
