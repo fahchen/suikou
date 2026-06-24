@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { AllFilesView } from "./AllFilesView"
 import { MISSING_CONTENT_MESSAGE } from "../use-content"
+import { ReviewStructureProvider, type ReviewStructure } from "../use-review-structure"
 import { uiStore } from "../../stores/ui-store"
 import type { FileSnapshot, FileStore, ReviewSnapshot, ReviewStore } from "../types"
 
@@ -120,6 +121,32 @@ function fakeFileStore(snapshot: FileSnapshot): FileStore {
   return { __fake_snapshot: snapshot, dispatchCommand: vi.fn() } as unknown as FileStore
 }
 
+// The structure command result mirrors the per-file static identity the live
+// snapshot used to carry; AllFilesView now reads it from here (joined by path).
+function makeStructure(snaps: FileSnapshot[]): ReviewStructure {
+  return {
+    review_id: "rv-1",
+    name: "test review",
+    kind: "file",
+    latest_round: 0,
+    file_entries: snaps.map((s) => ({
+      path: s.path,
+      artifact_id: s.artifact_id,
+      approved: false,
+      verdict: null,
+      content_hash: s.content_hash,
+      change_status: s.change_status,
+    })),
+    files: snaps.map((s) => ({
+      path: s.path,
+      artifact_id: s.artifact_id,
+      content_hash: s.content_hash,
+      artifact: s.artifact_id ? { id: s.artifact_id, title: s.path } : null,
+      current_round: s.artifact_id ? { content_hash: s.current_round.content_hash } : null,
+    })),
+  } as unknown as ReviewStructure
+}
+
 function setup(fileOverrides: Parameters<typeof makeFileSnapshot>[] = [[]]) {
   const snaps = fileOverrides.map((args) => makeFileSnapshot(args[0]))
   const stores = snaps.map(fakeFileStore)
@@ -143,13 +170,15 @@ function setup(fileOverrides: Parameters<typeof makeFileSnapshot>[] = [[]]) {
     body: { files: stores },
     dispatchCommand: vi.fn(),
   } as unknown as ReviewStore
-  return { reviewSnapshot, reviewStore, snaps, stores }
+  return { reviewSnapshot, reviewStore, structure: makeStructure(snaps), snaps, stores }
 }
 
 function renderAllFiles(fileOverrides: Parameters<typeof makeFileSnapshot>[] = [[]]) {
-  const { reviewSnapshot, reviewStore } = setup(fileOverrides)
+  const { reviewSnapshot, reviewStore, structure } = setup(fileOverrides)
   return render(
-    <AllFilesView reviewId="rv-1" reviewSnapshot={reviewSnapshot} reviewStore={reviewStore} />,
+    <ReviewStructureProvider structure={structure}>
+      <AllFilesView reviewId="rv-1" reviewSnapshot={reviewSnapshot} reviewStore={reviewStore} />
+    </ReviewStructureProvider>,
   )
 }
 
@@ -162,23 +191,13 @@ function notFoundResponse(): Response {
 }
 
 describe("AllFilesView empty state", () => {
-  it("shows loading notice when no files and file_entries is loading", () => {
-    const { reviewSnapshot, reviewStore } = setup([])
-    // Override to loading state
-    const loadingSnapshot = {
-      ...reviewSnapshot,
-      body: {
-        ...reviewSnapshot.body,
-        file_entries: { __musubi_async__: true, status: "loading", result: null, data: null, reason: null },
-      },
-    } as unknown as ReviewSnapshot
-    render(<AllFilesView reviewId="rv-1" reviewSnapshot={loadingSnapshot} reviewStore={reviewStore} />)
-    expect(screen.getByText("Loading files…")).toBeInTheDocument()
-  })
-
-  it("shows no-files notice when file_entries loaded but empty", () => {
-    const { reviewSnapshot, reviewStore } = setup([])
-    render(<AllFilesView reviewId="rv-1" reviewSnapshot={reviewSnapshot} reviewStore={reviewStore} />)
+  it("shows no-files notice when the structure has no files", () => {
+    const { reviewSnapshot, reviewStore, structure } = setup([])
+    render(
+      <ReviewStructureProvider structure={structure}>
+        <AllFilesView reviewId="rv-1" reviewSnapshot={reviewSnapshot} reviewStore={reviewStore} />
+      </ReviewStructureProvider>,
+    )
     expect(screen.getByText("No files")).toBeInTheDocument()
   })
 })

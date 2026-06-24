@@ -21,13 +21,47 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Review
+  alias Suikou.Schemas.ReviewSource.FileSelection
+  alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Schemas.Round
   alias Suikou.Submissions
+  alias SuikouWeb.Stores.ProjectBoardContract
   alias SuikouWeb.Stores.ReviewBodyStore
+  require ProjectBoardContract
 
   state do
     field(:review_id, String.t())
     field(:body, ReviewBodyStore.state())
+  end
+
+  # Request-response load of the review's static structure: chrome (name/kind),
+  # the file list, and each file's content identity. The client renders the
+  # chrome, file list, and navigation from this reply (held in component state)
+  # instead of the live snapshot, so a hard WebSocket disconnect leaves them
+  # intact; only the comment overlay and counters — which stay on the live
+  # snapshot — briefly placeholder. The client refetches on mount, on socket
+  # reconnect, and when the live `structure_version` bumps. File content still
+  # streams over HTTP (`AssetController`), keyed by the hashes carried here.
+  command :load_review_structure do
+    reply do
+      field(:review_id, String.t())
+      field(:name, String.t())
+      field(:kind, :file | :diff)
+      field(:latest_round, integer())
+
+      ProjectBoardContract.review_files_reply_field(:file_entries)
+
+      field(
+        :files,
+        list(%{
+          path: String.t(),
+          artifact_id: String.t() | nil,
+          content_hash: String.t() | nil,
+          artifact: %{id: String.t(), title: String.t()} | nil,
+          current_round: %{content_hash: String.t()} | nil
+        })
+      )
+    end
   end
 
   command :submit_review do
@@ -100,6 +134,38 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   @impl Musubi.Store
+  @spec handle_command(:load_review_structure, map(), Socket.t()) :: {:reply, map(), Socket.t()}
+  def handle_command(:load_review_structure, _payload, socket) do
+    review_id = socket.assigns.review_id
+
+    reply =
+      case Reviews.get_review(review_id) do
+        %Review{} = review ->
+          entries = Reviews.list_files(review)
+
+          %{
+            review_id: review_id,
+            name: review.name,
+            kind: review_kind(review),
+            latest_round: latest_round(review_id),
+            file_entries: entries,
+            files: Enum.map(entries, &file_identity/1)
+          }
+
+        nil ->
+          %{
+            review_id: review_id,
+            name: "",
+            kind: :file,
+            latest_round: 0,
+            file_entries: [],
+            files: []
+          }
+      end
+
+    {:reply, reply, socket}
+  end
+
   @spec handle_command(:submit_review, map(), Socket.t()) :: {:reply, map(), Socket.t()}
   def handle_command(:submit_review, _payload, socket) do
     warnings =
@@ -153,6 +219,48 @@ defmodule SuikouWeb.Stores.ReviewStore do
     case Submissions.draft_verdict_for_artifact(artifact.id) do
       nil -> if Submissions.comments_pending?(artifact.id), do: :comment
       verdict -> verdict
+    end
+  end
+
+  defp review_kind(%Review{source: %GitDiff{}}), do: :diff
+  defp review_kind(%Review{source: %FileSelection{}}), do: :file
+
+  defp latest_round(review_id) do
+    review_id
+    |> Reads.review_round_summaries()
+    |> Enum.map(& &1.number)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  # Per-file content identity: the title and content hashes the client feeds to
+  # the HTTP content route. An unminted file (no artifact yet) carries `nil`
+  # artifact/current_round; the client falls back to the path as its title and
+  # fetches by path through the review file-content route.
+  defp file_identity(%{path: path, artifact_id: artifact_id, content_hash: content_hash}) do
+    %{
+      path: path,
+      artifact_id: artifact_id,
+      content_hash: content_hash,
+      artifact: artifact_identity(artifact_id),
+      current_round: current_round_identity(artifact_id)
+    }
+  end
+
+  defp artifact_identity(nil), do: nil
+
+  defp artifact_identity(artifact_id) do
+    case Reads.get_artifact(artifact_id) do
+      %Artifact{} = artifact -> %{id: artifact.id, title: artifact.title}
+      nil -> nil
+    end
+  end
+
+  defp current_round_identity(nil), do: nil
+
+  defp current_round_identity(artifact_id) do
+    case Rounds.latest(artifact_id) do
+      %Round{content_hash: content_hash} -> %{content_hash: content_hash}
+      nil -> nil
     end
   end
 end

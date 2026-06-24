@@ -48,6 +48,37 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
   end
 
+  describe "load_review_structure" do
+    test "replies with chrome, file entries, and per-file content identity" do
+      %{review: review} = file_selection_review(["first.md", "second.md"])
+      {:ok, first} = Reviews.open_file(review, "first.md")
+      review_id = review.id
+      first_id = first.id
+
+      page = mount_review(review_id)
+
+      {:ok, reply} = Testing.dispatch_command(page, :load_review_structure, %{})
+
+      assert %{review_id: ^review_id, name: "rv", kind: :file} = reply
+      assert Enum.map(reply.file_entries, & &1.path) == ["first.md", "second.md"]
+
+      minted = Enum.find(reply.files, &(&1.path == "first.md"))
+      assert %{artifact_id: ^first_id, artifact: %{id: ^first_id, title: "first.md"}} = minted
+      assert %{current_round: %{content_hash: hash}} = minted
+      assert is_binary(hash)
+
+      unminted = Enum.find(reply.files, &(&1.path == "second.md"))
+      assert %{artifact_id: nil, artifact: nil, current_round: nil} = unminted
+    end
+
+    test "replies with empty structure when the review is gone" do
+      page = mount_review("00000000-0000-7000-8000-000000000000")
+
+      assert {:ok, %{name: "", kind: :file, file_entries: [], files: []}} =
+               Testing.dispatch_command(page, :load_review_structure, %{})
+    end
+  end
+
   describe "review root" do
     test "renders an empty snapshot when the review is gone" do
       page = mount_review("00000000-0000-7000-8000-000000000000")

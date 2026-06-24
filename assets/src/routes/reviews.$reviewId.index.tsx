@@ -13,6 +13,11 @@ import {
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { uiStore } from "../stores/ui-store";
 import { ReviewStoreProvider } from "../review/store-context";
+import {
+  ReviewStructureProvider,
+  useLoadReviewStructure,
+  useReviewStructure,
+} from "../review/use-review-structure";
 import { AllFilesView } from "../review/views/AllFilesView";
 import { ReviewShellSkeleton } from "../review/ArtifactReviewShell";
 import { TopBarDisplayMenu } from "../review/TopBarDisplayMenu";
@@ -49,8 +54,23 @@ function ReviewLandingRoute() {
 
   return (
     <ReviewStoreProvider store={root.store}>
-      <AllFilesShell reviewId={reviewId} reviewStore={root.store} />
+      <AllFilesStructureGate reviewId={reviewId} reviewStore={root.store} />
     </ReviewStoreProvider>
+  );
+}
+
+/** Loads the review's static structure before the all-files shell, so its
+ * chrome and file list render from component state, not the live snapshot. */
+function AllFilesStructureGate(props: { reviewId: string; reviewStore: ReviewStore }) {
+  const { structure, error } = useLoadReviewStructure(props.reviewStore);
+
+  if (error !== null) return <ErrorPage {...errorCopy(error)} />;
+  if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;
+
+  return (
+    <ReviewStructureProvider structure={structure}>
+      <AllFilesShell reviewId={props.reviewId} reviewStore={props.reviewStore} />
+    </ReviewStructureProvider>
   );
 }
 
@@ -60,6 +80,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
 }) {
   const { reviewId, reviewStore } = props;
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
+  const structure = useReviewStructure();
   const submitReview = useMusubiCommand(reviewStore, "submit_review");
   const connected = useSocketConnected();
   const wide = useMediaQuery(WIDE_QUERY);
@@ -72,9 +93,12 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];
   const hasAnyDraftVerdict = files.some((f) => f.draft_verdict !== null);
 
-  // First file in path order for "One" display mode navigation.
+  // First file in path order for "One" display mode navigation — from the static
+  // structure so it is stable across reconnects.
   const firstFilePath =
-    files.length > 0 ? [...files].sort((a, b) => a.path.localeCompare(b.path))[0].path : "";
+    structure.file_entries.length > 0
+      ? [...structure.file_entries].sort((a, b) => a.path.localeCompare(b.path))[0].path
+      : "";
 
   // All-files mode: show comments toggle + filter rows, nothing file-specific.
   const allFilesCapabilities = viewCapabilities({
@@ -97,7 +121,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
     />
   );
 
-  if (files.length === 0 && reviewSnapshot.body.file_entries?.status !== "loading") {
+  if (structure.file_entries.length === 0) {
     return (
       <main className="h-screen overflow-auto bg-canvas text-ink">
         {header}

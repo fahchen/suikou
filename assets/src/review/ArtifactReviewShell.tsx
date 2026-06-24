@@ -18,6 +18,15 @@ import {
   useReviewStore,
   visibleComments,
 } from "./store-context";
+import {
+  mergeFileView,
+  ReviewStructureProvider,
+  structureEntry,
+  structureFile,
+  useLoadReviewStructure,
+  useReviewStructure,
+  type ReviewStructure,
+} from "./use-review-structure";
 import { TopBar } from "./TopBar";
 import { FileHeader } from "./FileHeader";
 import { useReviewCommands } from "./commands";
@@ -55,40 +64,54 @@ export function ArtifactReviewShell(props: { reviewId: string; path: string }) {
 
   return (
     <ReviewStoreProvider key={reviewId} store={root.store}>
-      <ReviewShell path={path} />
+      <ReviewStructureGate path={path} />
     </ReviewStoreProvider>
+  );
+}
+
+/** Loads the review's static structure from the command before rendering the
+ * shell, so chrome, file list, and navigation render from component state
+ * (disconnect-proof) rather than the live snapshot. */
+function ReviewStructureGate(props: { path: string }) {
+  const reviewStore = useReviewStore();
+  const { structure, error } = useLoadReviewStructure(reviewStore);
+
+  if (error !== null) return <ErrorPage {...errorCopy(error)} />;
+  if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;
+
+  return (
+    <ReviewStructureProvider structure={structure}>
+      <ReviewShell path={props.path} />
+    </ReviewStructureProvider>
   );
 }
 
 const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   const reviewStore = useReviewStore();
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
+  const structure = useReviewStructure();
   const minting = uiStore.mintingPath;
 
-  // Undefined while the root store node is absent (a hard disconnect empties the
-  // index until the reconnect's initial patch re-seeds it).
-  if (!reviewSnapshot) return <ReviewShellSkeleton label="Connecting…" />;
+  // The chrome, file list, and navigation render from `structure` (component
+  // state), so they survive a disconnect even when the live snapshot is briefly
+  // absent. Only the live comment/verdict overlay needs the snapshot.
+  const live = reviewSnapshot?.body?.files ?? null;
 
-  const body = reviewSnapshot.body;
-  if (!body.files || !body.file_entries) {
-    return <ReviewShellSkeleton label="Connecting…" />;
-  }
-
-  // Find the FileStore proxy and its snapshot by matching path.
+  // Find the FileStore proxy and its live snapshot by matching path.
   // snapshot.body.files[i] and reviewStore.body.files[i] are parallel arrays.
-  const fileIndex = reviewSnapshot.body.files.findIndex((fs) => fs.path === props.path);
-  const fileSnapshot = fileIndex >= 0 ? reviewSnapshot.body.files[fileIndex] : undefined;
+  const fileIndex = live ? live.findIndex((fs) => fs.path === props.path) : -1;
+  const fileSnapshot = fileIndex >= 0 ? live![fileIndex] : undefined;
   const fileProxy = fileIndex >= 0 ? reviewStore.body.files[fileIndex] : undefined;
 
   if (!fileSnapshot || !fileProxy) {
-    // The path resolves to no file row. While the file list is still loading or
-    // a mint is in flight the skeleton is correct; once the list has settled the
-    // path is genuinely absent (deleted/renamed under a directory selection, or a
-    // stale link). The review itself is intact, so prompt the user to jump to one
-    // of its files rather than auto-redirecting or stranding them on a dead URL.
-    const settled = reviewSnapshot.body.file_entries.status === "ok" && minting === null;
-    if (settled) {
-      return <MissingFilePrompt reviewSnapshot={reviewSnapshot} path={props.path} />;
+    // The path resolves to no live file row. While the snapshot is still
+    // hydrating or a mint is in flight the skeleton is correct; once the
+    // structure has settled and the path is genuinely absent from it
+    // (deleted/renamed under a directory selection, or a stale link), prompt
+    // the user to jump to one of the review's files rather than stranding them.
+    const knownPath = structure.file_entries.some((e) => e.path === props.path);
+    if (minting === null && !knownPath) {
+      return <MissingFilePrompt structure={structure} path={props.path} />;
     }
     return (
       <>
@@ -102,7 +125,7 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
     <>
       <MintProgressStrip path={minting} />
       <FileStoreProvider store={fileProxy}>
-        <HydratedReviewShell reviewSnapshot={reviewSnapshot} />
+        <HydratedReviewShell path={props.path} reviewSnapshot={reviewSnapshot as ReviewSnapshot} />
       </FileStoreProvider>
     </>
   );
@@ -129,6 +152,7 @@ function useFileSnapshot() {
 type FileSnapshotLive = ReturnType<typeof useFileSnapshot>;
 
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
+  path: string;
   reviewSnapshot: ReviewSnapshot;
 }) {
   const fileSnapshotLive = useFileSnapshot();
@@ -142,23 +166,39 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   // useMusubiSnapshot: a child observer re-renders independently on the next stub
   // frame — before this guard can unmount it — and would crash on the stub.
   return (
-    <HydratedReviewBody reviewSnapshot={props.reviewSnapshot} fileSnapshotLive={fileSnapshotLive} />
+    <HydratedReviewBody
+      path={props.path}
+      reviewSnapshot={props.reviewSnapshot}
+      fileSnapshotLive={fileSnapshotLive}
+    />
   );
 });
 
 const HydratedReviewBody = observer(function HydratedReviewBody(props: {
+  path: string;
   reviewSnapshot: ReviewSnapshot;
   fileSnapshotLive: NonNullable<FileSnapshotLive>;
 }) {
-  const { reviewSnapshot, fileSnapshotLive } = props;
+  const { path, reviewSnapshot, fileSnapshotLive } = props;
   const ui = uiStore;
+  const structure = useReviewStructure();
   const commands = useReviewCommands();
   const search = useSearch({ strict: false }) as { view?: string };
   const rawView = search.view === "raw";
 
+  // Overlay the file's static identity (from the structure command) onto its
+  // live snapshot (comments/verdicts), joined by path. Renderers read this
+  // merged view, so they keep their identity even as the live snapshot sheds
+  // its static fields.
+  const snapshot = mergeFileView(
+    fileSnapshotLive,
+    structureFile(structure, path),
+    structureEntry(structure, path),
+  );
+
   useEffect(() => {
     if (uiStore.mintingPath) uiStore.setMintingPath(null);
-  }, [fileSnapshotLive.artifact.id]);
+  }, [snapshot.artifact.id]);
 
   const serverVerdict = fileSnapshotLive.draft_verdict ?? fileSnapshotLive.latest_verdict ?? null;
   const [verdict, setVerdict] = useState<Verdict | null>(serverVerdict);
@@ -172,7 +212,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   }
 
   const wide = useMediaQuery(WIDE_QUERY);
-  const title = fileSnapshotLive.artifact.title;
+  const title = snapshot.artifact.title;
   const previewable = isPreviewable(title);
   const image = isImagePath(title);
   const slash = title.lastIndexOf("/");
@@ -180,26 +220,26 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   // Minted files fetch their reviewed source by artifact; unminted rows (no
   // verdict/comment yet) fetch the live file by path, mirroring all-files mode
   // so a single-file deep link renders before the row is ever touched.
-  const minted = Boolean(fileSnapshotLive.artifact.id);
+  const minted = Boolean(snapshot.artifact.id);
   const mintedContent = useContent(
-    fileSnapshotLive.artifact.id,
-    fileSnapshotLive.current_round.content_hash,
+    snapshot.artifact.id,
+    snapshot.current_round.content_hash,
     minted && !image,
   );
   const unmintedContent = useReviewFileContent(
-    reviewSnapshot.review_id,
-    fileSnapshotLive.path,
-    fileSnapshotLive.content_hash,
+    structure.review_id,
+    snapshot.path,
+    snapshot.content_hash,
     !minted && !image,
   );
   const contentState = minted ? mintedContent : unmintedContent;
   const { text: content, loading: contentLoading } = contentState;
   const contentError = contentErrorFrom(contentState);
 
-  const reviewKind = reviewSnapshot.body.kind;
+  const reviewKind = structure.kind;
 
   const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
-    base: minted ? assetBase(fileSnapshotLive.artifact.id) : "",
+    base: minted ? assetBase(snapshot.artifact.id) : "",
     dir: slash === -1 ? "" : title.slice(0, slash),
   });
   const rawLines = useRawHighlight(content, title, ui.theme);
@@ -227,7 +267,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   useScrollRestore({
     container: mainEl,
-    artifactId: fileSnapshotLive.artifact.id,
+    artifactId: snapshot.artifact.id,
     view: rawView ? "raw" : "rendered",
     ready: !loading,
     enabled: true,
@@ -236,7 +276,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   // Genuinely gone: an untouched row whose source is missing at head (no blob
   // hash). A present-but-unminted file still has a hash and renders normally.
   // The review chrome stays; only the content body reports the missing file.
-  const missing = !minted && fileSnapshotLive.content_hash === null;
+  const missing = !minted && snapshot.content_hash === null;
 
   return (
     <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
@@ -250,7 +290,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
         <div className="min-w-0">
           <ReviewViewProvider
             value={{
-              snapshot: fileSnapshotLive,
+              snapshot,
               reviewKind,
               reviewSnapshot,
               content,
@@ -266,7 +306,6 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
           >
             <article className="overflow-hidden rounded-xl border border-line bg-editor">
               <FileHeader
-                reviewSnapshot={reviewSnapshot}
                 rawView={rawView}
                 content={content}
                 verdict={verdict}
@@ -274,9 +313,9 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
               />
               {missing ? (
                 <MissingFilePanel
-                  reviewId={reviewSnapshot.review_id}
-                  path={fileSnapshotLive.path}
-                  kind={reviewSnapshot.body.kind}
+                  reviewId={structure.review_id}
+                  path={snapshot.path}
+                  kind={structure.kind}
                 />
               ) : (
                 <Outlet />
@@ -295,7 +334,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             }
             header={
               ui.htmlAnchorTarget &&
-              ui.htmlAnchorTarget.artifactId === fileSnapshotLive.artifact.id ? (
+              ui.htmlAnchorTarget.artifactId === snapshot.artifact.id ? (
                 <HtmlAnchorComposer
                   target={ui.htmlAnchorTarget}
                   onClose={() => ui.setHtmlAnchorTarget(null)}
@@ -362,20 +401,18 @@ const MissingFilePanel = observer(function MissingFilePanel(props: {
  * review has no files at all, only the back-to-review action is shown.
  */
 const MissingFilePrompt = observer(function MissingFilePrompt(props: {
-  reviewSnapshot: ReviewSnapshot;
+  structure: ReviewStructure;
   path: string;
 }) {
   const navigate = useNavigate();
-  const reviewId = props.reviewSnapshot.review_id;
-  const firstFile = orderedReviewFiles(props.reviewSnapshot.body.file_entries.data ?? [])[0];
+  const reviewId = props.structure.review_id;
+  const firstFile = orderedReviewFiles(props.structure.file_entries)[0];
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
       <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:px-4">
         <HomeButton />
-        <span className="truncate text-sm font-medium text-heading">
-          {props.reviewSnapshot.body.name}
-        </span>
+        <span className="truncate text-sm font-medium text-heading">{props.structure.name}</span>
       </header>
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">
         <FileX className="size-7 text-faint" aria-hidden />

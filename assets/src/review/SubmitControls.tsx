@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite";
 import { Check, ChevronDown, ClipboardCheck, ClipboardList, Copy, Send } from "lucide-react";
 
 import { buildReviewCopyText, copyToClipboard, type CopyMode } from "./copy";
+import { structureFile, useReviewStructure } from "./use-review-structure";
 import { type Comment, type FileSnapshot, type ReviewSnapshot } from "./types";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
@@ -37,14 +38,17 @@ export const SubmitControls = observer(function SubmitControls(props: {
   onSubmit: () => void;
 }) {
   const { reviewSnapshot, disabled, onSubmit } = props;
+  const structure = useReviewStructure();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   function copy(mode: CopyMode) {
+    // Comments and the viewed round are live (snapshot); the review name and
+    // each file's title are static (structure), joined to the live row by path.
     const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];
     const text = buildReviewCopyText(
-      reviewSnapshot.body.name,
+      structure.name,
       files.map((file) => ({
-        title: file.artifact.title,
+        title: structureFile(structure, file.path)?.artifact?.title ?? file.path,
         round: file.current_round.number,
         comments: (file.comments?.items ?? []) as unknown as Comment[],
       })),
