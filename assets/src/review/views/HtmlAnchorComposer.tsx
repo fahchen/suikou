@@ -59,16 +59,6 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
     onClose();
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      void add();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      onClose();
-    }
-  }
-
   const frame =
     variant === "rail"
       ? "flex flex-col gap-2 rounded-xl border border-blue-soft bg-surface p-3 shadow-[var(--surface-shadow)]"
@@ -117,7 +107,8 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
         placeholder="Leave a comment. Markdown supported."
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        onKeyDown={onKeyDown}
+        onSubmit={() => void add()}
+        onCancel={onClose}
       />
 
       <div className="flex flex-wrap items-center gap-2">

@@ -80,6 +80,7 @@ export function CommentReplyComposer(props: { comment: Comment }) {
         placeholder={placeholder}
         value={body}
         onChange={(e) => setBody(e.target.value)}
+        onSubmit={send}
       />
       <div className="flex items-center gap-2">
         {resolveAction}

@@ -36,6 +36,8 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
         className="min-h-16"
         value={body}
         onChange={(e) => setBody(e.target.value)}
+        onSubmit={save}
+        onCancel={onDone}
       />
       <div className="flex items-center gap-2">
         <Select value={type} onValueChange={(v) => setType(v as CritiqueType)}>

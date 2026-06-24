@@ -57,16 +57,6 @@ export const Composer = observer(function Composer(props: {
     ui.closeComposer(path);
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      add();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      ui.closeComposer(path);
-    }
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
@@ -110,7 +100,8 @@ export const Composer = observer(function Composer(props: {
         placeholder="Leave a comment. Markdown supported."
         value={body}
         onChange={(e) => ui.setComposerBody(e.target.value, path)}
-        onKeyDown={onKeyDown}
+        onSubmit={add}
+        onCancel={() => ui.closeComposer(path)}
       />
 
       <div className="flex flex-wrap items-center gap-2">
