@@ -17,8 +17,12 @@ defmodule SuikouWeb do
   those modules here.
   """
 
+  # sw.js and manifest.webmanifest are emitted at the priv/static root by
+  # vite-plugin-pwa. Listing them here makes the endpoint's "/" Plug.Static serve
+  # them and stops SpaController from swallowing /sw.js into the SPA shell.
   @spec static_paths() :: [String.t()]
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt index.html)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico robots.txt index.html sw.js manifest.webmanifest)
 
   @spec router() :: Macro.t()
   def router do
