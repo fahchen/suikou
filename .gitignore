@@ -38,6 +38,11 @@ suikou-*.tar
 /priv/static/assets/
 /priv/static/index.html
 /priv/static/.vite/
+# vite-plugin-pwa build output (service worker + manifest).
+/priv/static/sw.js
+/priv/static/sw.js.map
+/priv/static/manifest.webmanifest
+/priv/static/workbox-*.js
 # Vite dev cache at the repo root (separate from the prod build dir above).
 /.vite/
 
