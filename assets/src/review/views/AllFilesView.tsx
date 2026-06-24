@@ -100,23 +100,20 @@ const StackedFileCard = observer(function StackedFileCard(props: {
   )
 })
 
-// On a websocket reconnect the file child can arrive as a bare store-id stub for
-// a frame. Validate the snapshot here and hand it to the body as a prop, so the
-// body never re-subscribes and re-renders on a stub (which would crash on
-// fileSnapshot.artifact).
+// On a websocket reconnect the file store node is absent for a frame
+// (snapshot() is undefined). Validate here and hand the snapshot to the body as
+// a prop, so the body never re-subscribes and renders an absent snapshot.
 const StackedFileGuard = observer(function StackedFileGuard(props: {
   reviewId: string
   reviewSnapshot: ReviewSnapshot
 }) {
-  const fileSnapshot = useMusubiSnapshot(useFileStore()) as FileSnapshot
-  if (!fileSnapshot.artifact || !fileSnapshot.comments || !fileSnapshot.current_round) {
-    return null
-  }
+  const fileSnapshot = useMusubiSnapshot(useFileStore())
+  if (!fileSnapshot) return null
   return (
     <StackedFileCardBody
       reviewId={props.reviewId}
       reviewSnapshot={props.reviewSnapshot}
-      fileSnapshot={fileSnapshot}
+      fileSnapshot={fileSnapshot as unknown as FileSnapshot}
     />
   )
 })

@@ -25,6 +25,9 @@ export const FileHeader = observer(function FileHeader(props: {
   const fileSnapshot = useMusubiSnapshot(fileStore)
   const navigate = useNavigate()
 
+  // Absent for a frame mid-reconnect (store node not re-hydrated yet).
+  if (!fileSnapshot) return null
+
   const title = fileSnapshot.artifact.title
   const viewKind = resolveViewKind({ kind: reviewSnapshot.body.kind, title })
   const image = isImagePath(title)

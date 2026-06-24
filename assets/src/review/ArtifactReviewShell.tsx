@@ -60,9 +60,10 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const minting = uiStore.mintingPath;
 
-  // On a websocket reconnect the body child can resolve a frame after the root,
-  // so `body` is briefly a bare store-id stub with no fields. The generated
-  // types declare these as always-present, so guard at runtime before deref.
+  // Undefined while the root store node is absent (a hard disconnect empties the
+  // index until the reconnect's initial patch re-seeds it).
+  if (!reviewSnapshot) return <ReviewShellSkeleton label="Connecting…" />;
+
   const body = reviewSnapshot.body;
   if (!body.files || !body.file_entries) {
     return <ReviewShellSkeleton label="Connecting…" />;
@@ -127,14 +128,8 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
 }) {
   const fileSnapshotLive = useFileSnapshot();
 
-  // On a websocket reconnect (e.g. iOS Safari resuming from background) the file
-  // child can resolve a frame after its parent, arriving as a bare store-id stub
-  // with no fields — the generated types declare them always-present. Guard here.
-  if (
-    !fileSnapshotLive.artifact ||
-    !fileSnapshotLive.comments ||
-    !fileSnapshotLive.current_round
-  ) {
+  // Undefined while the file store node is absent mid-reconnect.
+  if (!fileSnapshotLive) {
     return <ReviewShellSkeleton label="Connecting…" />;
   }
 
@@ -148,7 +143,7 @@ const HydratedReviewShell = observer(function HydratedReviewShell(props: {
 
 const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   reviewSnapshot: ReviewSnapshot;
-  fileSnapshotLive: FileSnapshotLive;
+  fileSnapshotLive: NonNullable<FileSnapshotLive>;
 }) {
   const { reviewSnapshot, fileSnapshotLive } = props;
   const ui = uiStore;

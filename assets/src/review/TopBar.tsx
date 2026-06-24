@@ -35,6 +35,9 @@ export const TopBar = observer(function TopBar(props: {
   // Per-file data from the FileStore context (always present in single-file view).
   const fileStore = useFileStore();
   const fileSnapshot = useMusubiSnapshot(fileStore);
+  const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
+  // Absent for a frame mid-reconnect (store node not re-hydrated yet).
+  if (!fileSnapshot) return null;
 
   const title = fileSnapshot.artifact.title;
   const image = isImagePath(title);
@@ -48,7 +51,6 @@ export const TopBar = observer(function TopBar(props: {
     rawView,
     binary,
   });
-  const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
 
   // Review-level Submit gates on any unpublished work — a draft verdict on any
   // file, or a pending (not-yet-published) comment or reply anywhere in the

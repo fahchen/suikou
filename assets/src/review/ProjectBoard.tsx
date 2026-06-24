@@ -162,8 +162,9 @@ function Board({
   onOpen: (reviewId: string, path: string) => void;
 }) {
   const snapshot = useMusubiSnapshot(store);
-  const hasProjects = snapshot.projects.length > 0;
   const [creating, setCreating] = useState(false);
+  if (!snapshot) return null;
+  const hasProjects = snapshot.projects.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 sm:px-7 sm:py-16">

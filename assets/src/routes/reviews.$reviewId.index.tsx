@@ -58,6 +58,9 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   const connected = useSocketConnected();
   const wide = useMediaQuery(WIDE_QUERY);
 
+  // Absent for a frame mid-reconnect (root store node not re-hydrated yet).
+  if (!reviewSnapshot) return null;
+
   // `files` can read undefined for a frame while the socket is dropping and the
   // store snapshot tears down; default to empty so the header can still render.
   const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];

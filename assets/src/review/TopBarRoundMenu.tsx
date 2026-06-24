@@ -14,6 +14,7 @@ export const TopBarRoundMenu = observer(function TopBarRoundMenu() {
   const reviewStore = useReviewStore();
   const reviewSnapshot = useMusubiSnapshot(reviewStore);
   const selectRound = useMusubiCommand(reviewStore, "select_round");
+  if (!reviewSnapshot) return null;
   const summaries = reviewSnapshot.body.round_summaries;
   // No rounds yet (nothing minted) — nothing to switch between.
   if (summaries.length === 0) return null;
