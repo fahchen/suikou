@@ -113,8 +113,21 @@ const ImageView = function ImageView(props: { src: string; nested?: boolean }) {
  */
 const COMMENT_CLAMP = "sticky left-0 w-full max-w-[min(48rem,calc(100vw_-_1.5rem))]";
 
+/**
+ * A comment that can't pin to a source line in this file renders at the top: one
+ * with no anchor (review/artifact scope), a non-line (element) anchor, or a line
+ * past the file's end. An *outdated* line anchor is NOT stranded — it still pins
+ * to its original (now stale) line, marked outdated, rather than jumping to the top.
+ */
+function isStranded(comment: Comment, lineCount: number): boolean {
+  const anchor = comment.anchor;
+  if (!anchor || anchor.type !== "line_range") return true;
+  return anchor.start_line > lineCount;
+}
+
 const RenderView = observer(function RenderView(props: EditorProps) {
-  const stranded = props.comments.filter((c) => !c.anchor || c.outdated);
+  const lineCount = props.content.split("\n").length;
+  const stranded = props.comments.filter((c) => isStranded(c, lineCount));
   const tiers = DENSITY[uiStore.density];
   const wrapperClass = props.nested
     ? "px-2 py-4 sm:px-3 sm:py-6"
@@ -283,7 +296,6 @@ const RowAside = observer(function RowAside(props: {
     ? props.comments.filter(
         (c) =>
           c.anchor?.type === "line_range" &&
-          !c.outdated &&
           c.anchor.start_line >= props.startLine &&
           c.anchor.start_line <= props.endLine,
       )
@@ -399,7 +411,6 @@ function lineHasAside(
   return comments.some(
     (c) =>
       c.anchor?.type === "line_range" &&
-      !c.outdated &&
       c.anchor.start_line >= line.startLine &&
       c.anchor.start_line <= line.endLine,
   );
@@ -616,7 +627,6 @@ const TableBlock = observer(function TableBlock(props: {
               ? props.comments.filter(
                   (c) =>
                     c.anchor?.type === "line_range" &&
-                    !c.outdated &&
                     c.anchor.start_line >= startLine &&
                     c.anchor.start_line <= endLine,
                 )
@@ -683,7 +693,7 @@ function TableRow(props: { startLine: number; endLine: number; cells: string; se
 
 const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
-  const stranded = props.comments.filter((c) => !c.anchor || c.outdated);
+  const stranded = props.comments.filter((c) => isStranded(c, lines.length));
   const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
 
   return (
