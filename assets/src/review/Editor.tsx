@@ -605,7 +605,7 @@ const TableBlock = observer(function TableBlock(props: {
 
   return (
     <div className={`${props.marginClass ?? ""} overflow-x-auto bg-editor`}>
-      <table className="md-table w-max min-w-full" onClick={onGutterClick}>
+      <table className="md-table w-full" onClick={onGutterClick}>
         <tbody>
           {props.rows.map((row) => {
             const { startLine, endLine } = row;
