@@ -1,7 +1,9 @@
 import { observer } from "mobx-react-lite"
-import { ChevronRight, Code2, Eye } from "lucide-react"
+import { ChevronRight, Code2, Eye, MessageSquare, MousePointerClick } from "lucide-react"
 
 import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
+import { useHeaderControls } from "./header-slot"
+import { uiStore } from "../stores/ui-store"
 import { FileIcon } from "./FileIcon"
 import { FileSwitcher } from "./FileSwitcher"
 import { TopBarTocMenu } from "./TopBarTocMenu"
@@ -58,6 +60,7 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
     onToggleExpand
   } = props
 
+  const headerControls = useHeaderControls()
   const slash = filePath.lastIndexOf("/")
   const dir = slash === -1 ? "" : filePath.slice(0, slash + 1)
   const basename = slash === -1 ? filePath : filePath.slice(slash + 1)
@@ -114,12 +117,17 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
-        {capabilities.rawToggle && (
-          <RawViewToggle
-            rawView={rawView}
-            onChange={onRawViewChange}
-            viewKind={viewKind}
-          />
+        {headerControls}
+        {viewKind === "html" ? (
+          <HtmlModeToggle rawView={rawView} onRawViewChange={onRawViewChange} />
+        ) : (
+          capabilities.rawToggle && (
+            <RawViewToggle
+              rawView={rawView}
+              onChange={onRawViewChange}
+              viewKind={viewKind}
+            />
+          )
         )}
         {verdictChip}
       </div>
@@ -172,3 +180,47 @@ function RawViewToggle(props: {
     </Button>
   )
 }
+
+/**
+ * Single cycling control for the rendered HTML view: click rotates through
+ * Comment (hover + click anchor a comment) → Interact (listeners off so the
+ * scripted page handles its own clicks) → Source (raw HTML) → Comment.
+ * Comment/Interact live in ui-store; Source is the raw route. The icon shows
+ * the current mode; the title names what the next click switches to.
+ */
+const HtmlModeToggle = observer(function HtmlModeToggle(props: {
+  rawView: boolean
+  onRawViewChange: (raw: boolean) => void
+}) {
+  const { rawView, onRawViewChange } = props
+  const mode = rawView ? "source" : uiStore.htmlInteractive ? "interact" : "comment"
+
+  const next = { comment: "interact", interact: "source", source: "comment" } as const
+  const Icon = { comment: MessageSquare, interact: MousePointerClick, source: Code2 }[mode]
+  const label = { comment: "Comment", interact: "Interact", source: "HTML source" }[mode]
+
+  function cycle(): void {
+    const to = next[mode]
+    if (to === "comment") {
+      uiStore.setHtmlInteractive(false)
+      onRawViewChange(false)
+    } else if (to === "interact") {
+      uiStore.setHtmlInteractive(true)
+      onRawViewChange(false)
+    } else {
+      onRawViewChange(true)
+    }
+  }
+
+  return (
+    <Button
+      variant="pill"
+      size="icon-xs"
+      title={`${label} mode — click to switch`}
+      aria-label={`${label} mode, click to switch`}
+      onClick={cycle}
+    >
+      <Icon className="text-muted-foreground" />
+    </Button>
+  )
+})

@@ -29,6 +29,7 @@ import {
 } from "./use-review-structure";
 import { TopBar } from "./TopBar";
 import { FileHeader } from "./FileHeader";
+import { HeaderSlotProvider } from "./header-slot";
 import { useReviewCommands } from "./commands";
 import { CommentRail } from "./CommentRail";
 import { useScrollRestore } from "./use-scroll-restore";
@@ -319,23 +320,25 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
               onVerdictChange: changeVerdict,
             }}
           >
-            <article className="overflow-hidden rounded-xl border border-line bg-editor">
-              <FileHeader
-                rawView={rawView}
-                content={content}
-                verdict={verdict}
-                onVerdictChange={changeVerdict}
-              />
-              {missing ? (
-                <MissingFilePanel
-                  reviewId={structure.review_id}
-                  path={snapshot.path}
-                  kind={structure.kind}
+            <HeaderSlotProvider>
+              <article className="overflow-hidden rounded-xl border border-line bg-editor">
+                <FileHeader
+                  rawView={rawView}
+                  content={content}
+                  verdict={verdict}
+                  onVerdictChange={changeVerdict}
                 />
-              ) : (
-                <Outlet />
-              )}
-            </article>
+                {missing ? (
+                  <MissingFilePanel
+                    reviewId={structure.review_id}
+                    path={snapshot.path}
+                    kind={structure.kind}
+                  />
+                ) : (
+                  <Outlet />
+                )}
+              </article>
+            </HeaderSlotProvider>
           </ReviewViewProvider>
         </div>
         {sideMode && (

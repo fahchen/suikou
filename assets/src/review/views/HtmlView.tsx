@@ -6,6 +6,7 @@ import { FileText, Maximize2, Minimize2, X, ZoomIn, ZoomOut } from "lucide-react
 
 import { CommentCard } from "../CommentCard"
 import { Editor } from "../Editor"
+import { useSetHeaderControls } from "../header-slot"
 import { isOutdated, locate, selectorFor } from "../element-selector"
 import { assetBase } from "../urls"
 import { uiStore } from "../../stores/ui-store"
@@ -91,6 +92,21 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [zoom, setZoom] = useState(1)
   const [fullscreen, setFullscreen] = useState(false)
+  const setHeaderControls = useSetHeaderControls()
+
+  // Single-file route (the only place a header slot exists): push the
+  // zoom/fullscreen controls up into the file card header so the iframe fills
+  // the card edge to edge. The fullscreen overlay covers the header, so it keeps
+  // its own controls; all-files stacked cards and standalone renders (tests)
+  // have no slot and keep the controls inline in the paper frame.
+  const headerControls = setHeaderControls !== null && !fullscreen
+  useEffect(() => {
+    if (!setHeaderControls || !headerControls) return
+    setHeaderControls(
+      <HtmlToolbar zoom={zoom} fullscreen={fullscreen} setZoom={setZoom} setFullscreen={setFullscreen} />
+    )
+    return () => setHeaderControls(null)
+  }, [setHeaderControls, headerControls, zoom, fullscreen])
 
   const srcdoc = useMemo(
     () => composeSrcdoc(content, assetBase(artifactId)),
@@ -168,6 +184,9 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
   // selection still opens the composer scoped to the selected element so the
   // selection-to-quote affordance keeps working.
   useEffect(() => {
+    // Interactive mode: leave the document's own pointer handling alone so the
+    // scripted page (buttons, links) works instead of anchoring comments.
+    if (uiStore.htmlInteractive) return
     const iframe = iframeRef.current
     const doc = iframe?.contentDocument
     if (!iframe || !doc) return
@@ -206,9 +225,22 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
       return { artifactId, selector: selectorFor(el), quote }
     }
 
-    function quoteFor(el: Element): string {
-      const text = (el.textContent ?? "").replace(/\s+/g, " ").trim()
+    function cap(text: string): string {
       return text.length > 200 ? `${text.slice(0, 200).trimEnd()}…` : text
+    }
+
+    // First non-empty text leaf in DOM order, not the whole subtree — keeps the
+    // quote short and stable so `isOutdated` checks the element's leading text
+    // rather than volatile descendant content (e.g. a live counter).
+    function quoteFor(el: Element): string {
+      const walker = doc!.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let node = walker.nextNode()
+      while (node) {
+        const t = (node.textContent ?? "").replace(/\s+/g, " ").trim()
+        if (t !== "") return cap(t)
+        node = walker.nextNode()
+      }
+      return ""
     }
 
     function onMouseUp(): void {
@@ -219,7 +251,7 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
         const range = sel.getRangeAt(0)
         const el = elementForRange(range)
         if (!isAnchorable(el) || !doc!.body.contains(el)) return
-        const quote = sel.toString().trim()
+        const quote = cap(sel.toString().trim())
         if (quote === "") return
         setTarget(buildTarget(el, quote))
       })
@@ -235,7 +267,7 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
         const range = sel.getRangeAt(0)
         const el = elementForRange(range)
         if (!isAnchorable(el) || !doc!.body.contains(el)) return
-        const quote = sel.toString().trim()
+        const quote = cap(sel.toString().trim())
         if (quote === "") return
         setTarget(buildTarget(el, quote))
       }, 250)
@@ -266,7 +298,7 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
       doc.removeEventListener("mouseup", onMouseUp)
       doc.removeEventListener("selectionchange", onSelectionChange)
     }
-  }, [docVersion, artifactId])
+  }, [docVersion, artifactId, uiStore.htmlInteractive])
 
   // Highlight existing element-comment selectors + publish miss set for the
   // outdated badge. Runs whenever the comment set or the iframe DOM changes.
@@ -381,62 +413,28 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     return <Notice title="Loading…" message="Fetching the document." nested={nested} />
 
   const unanchored = comments.filter((c) => !c.anchor)
-  const containerClass = nested ? "flex flex-col gap-3 px-3 pb-3" : "flex flex-col gap-3"
+  // Header-controls (single-file bare) fills the card edge to edge: no side or
+  // bottom padding around the full-bleed iframe.
+  const containerClass = headerControls
+    ? "flex flex-col gap-3"
+    : nested
+      ? "flex flex-col gap-3 px-3 pb-3"
+      : "flex flex-col gap-3"
 
   // Default height fills the viewport: a single-file route gets a tall preview,
   // each stacked (nested) file gets roughly one screen, and fullscreen lets the
-  // iframe fill the flex-1 overlay body.
+  // iframe fill the flex-1 overlay body. When the controls live in the card
+  // header (headerControls), the iframe goes full-bleed: no rounding or matting.
   const iframeClass = fullscreen
     ? "block h-full w-full bg-white"
-    : nested
-      ? "block h-[100vh] w-full rounded-md bg-white"
-      : "block h-[calc(100vh-12rem)] min-h-[480px] w-full rounded-md bg-white"
+    : headerControls
+      ? "block h-[calc(100vh-9rem)] min-h-[480px] w-full rounded-none bg-white"
+      : nested
+        ? "block h-[100vh] w-full rounded-md bg-white"
+        : "block h-[calc(100vh-12rem)] min-h-[480px] w-full rounded-md bg-white"
 
   const toolbar = (
-    <div className="flex items-center gap-1.5">
-      <ButtonGroup>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-xs"
-          aria-label="Zoom out"
-          onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
-          disabled={zoom <= ZOOM_MIN}
-        >
-          <ZoomOut size={13} />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-label="Reset zoom to 100%"
-          aria-live="polite"
-          onClick={() => setZoom(1)}
-          className="min-w-[3.25rem] justify-center px-0 tabular-nums text-muted-foreground"
-        >
-          {Math.round(zoom * 100)}%
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-xs"
-          aria-label="Zoom in"
-          onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
-          disabled={zoom >= ZOOM_MAX}
-        >
-          <ZoomIn size={13} />
-        </Button>
-      </ButtonGroup>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-xs"
-        aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-        onClick={() => setFullscreen((f) => !f)}
-      >
-        {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-      </Button>
-    </div>
+    <HtmlToolbar zoom={zoom} fullscreen={fullscreen} setZoom={setZoom} setFullscreen={setFullscreen} />
   )
 
   return (
@@ -444,14 +442,19 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
       <HtmlPaperFrame
         nested={nested}
         fullscreen={fullscreen}
-        toolbar={toolbar}
-        hint="Click any element to comment"
+        bare={headerControls}
+        toolbar={headerControls ? undefined : toolbar}
+        hint={headerControls ? undefined : "Click any element to comment"}
       >
         <iframe
           ref={iframeRef}
           title={snapshot.artifact.title}
           srcDoc={srcdoc}
-          sandbox="allow-same-origin"
+          // allow-scripts is required for Safari: WebKit bug 218086 blocks the
+          // parent's pointer/click/selection listeners on a same-origin sandboxed
+          // iframe unless allow-scripts is set. The reviewed HTML is local, trusted
+          // content, so running its scripts is acceptable.
+          sandbox="allow-same-origin allow-scripts"
           onLoad={onLoad}
           className={iframeClass}
         />
@@ -578,6 +581,63 @@ function HtmlAnchorPopover(props: {
   )
 }
 
+/** Zoom stepper + fullscreen toggle. Rendered in the file card header on the
+ * single-file route, or inline in the paper frame otherwise. */
+function HtmlToolbar(props: {
+  zoom: number
+  fullscreen: boolean
+  setZoom: React.Dispatch<React.SetStateAction<number>>
+  setFullscreen: React.Dispatch<React.SetStateAction<boolean>>
+}) {
+  const { zoom, fullscreen, setZoom, setFullscreen } = props
+  return (
+    <div className="flex items-center gap-1.5">
+      <ButtonGroup>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Zoom out"
+          onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))}
+          disabled={zoom <= ZOOM_MIN}
+        >
+          <ZoomOut size={13} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Reset zoom to 100%"
+          aria-live="polite"
+          onClick={() => setZoom(1)}
+          className="min-w-[3.25rem] justify-center px-0 tabular-nums text-muted-foreground"
+        >
+          {Math.round(zoom * 100)}%
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Zoom in"
+          onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))}
+          disabled={zoom >= ZOOM_MAX}
+        >
+          <ZoomIn size={13} />
+        </Button>
+      </ButtonGroup>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-xs"
+        aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+        onClick={() => setFullscreen((f) => !f)}
+      >
+        {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+      </Button>
+    </div>
+  )
+}
+
 /**
  * Frames the rendered HTML iframe as an intentional document preview. The
  * iframe carries the user's authored HTML, which we can't restyle, so a hard
@@ -589,9 +649,20 @@ function HtmlPaperFrame(props: {
   children: React.ReactNode
   nested?: boolean
   fullscreen?: boolean
+  bare?: boolean
   toolbar?: React.ReactNode
   hint?: React.ReactNode
 }) {
+  // Bare: controls live in the card header, so drop the matting and chip and let
+  // the iframe fill the card edge to edge.
+  if (props.bare) {
+    return (
+      <section aria-label="Rendered HTML preview" className="overflow-hidden bg-white">
+        {props.children}
+      </section>
+    )
+  }
+
   const outer = props.fullscreen
     ? "fixed inset-0 z-50 flex flex-col bg-soft p-3 sm:p-4"
     : props.nested
@@ -639,9 +710,8 @@ function Notice(props: { title: string; message: string; nested?: boolean }) {
  *  - the doctype + a wrapping `<html>` shell guarantee a parseable document,
  *    even when the artifact under review is a fragment.
  *
- * We do not strip `<script>`: the sandbox attribute is `allow-same-origin`
- * WITHOUT `allow-scripts`, so the browser refuses to run any script in the
- * embedded document regardless of how it got there.
+ * We do not strip `<script>`: the iframe runs with `allow-scripts` (see the
+ * iframe's sandbox note), so scripts in the trusted local artifact execute.
  */
 function composeSrcdoc(html: string, base: string): string {
   const baseTag = `<base href="${escapeAttr(base)}/">`

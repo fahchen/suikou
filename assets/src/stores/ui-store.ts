@@ -111,6 +111,11 @@ export class UiStore {
   // stale target from a previous HTML artifact doesn't leak through.
   htmlAnchorTarget: { artifactId: string; selector: string; quote: string } | null = null
 
+  // Rendered-HTML interaction mode. Comment (default): hover + click anchor a
+  // comment, and clicks are intercepted. Interactive: listeners are off so the
+  // live (scripted) document handles its own pointer events. Session-only.
+  htmlInteractive = false
+
   constructor() {
     makeAutoObservable(this)
 
@@ -338,6 +343,10 @@ export class UiStore {
     target: { artifactId: string; selector: string; quote: string } | null
   ): void {
     this.htmlAnchorTarget = target
+  }
+
+  setHtmlInteractive(interactive: boolean): void {
+    this.htmlInteractive = interactive
   }
 
   private putDraft(filePath: string | null, draft: ComposerDraft): void {
