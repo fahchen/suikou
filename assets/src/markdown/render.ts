@@ -1,6 +1,6 @@
 import MarkdownIt from "markdown-it"
 import Token from "markdown-it/lib/token.mjs"
-import type { BundledLanguage, Highlighter, ThemedToken } from "shiki"
+import type { ThemedToken } from "shiki"
 import deflist from "markdown-it-deflist"
 import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
@@ -8,8 +8,9 @@ import sub from "markdown-it-sub"
 import sup from "markdown-it-sup"
 
 import { THEME_CODE, type ThemeName } from "../themes"
-import { ensureLang, getHighlighter, resolveLang } from "./highlighter"
+import { resolveLang } from "./highlighter"
 import { renderMermaid } from "./mermaid"
+import { tokenize, tokenKey } from "./tokenize"
 
 export type BlockKind = "markdown" | "code" | "mermaid"
 
@@ -65,75 +66,122 @@ export function renderCommentBody(text: string): string {
   return gfm.render(text)
 }
 
+/** A code fence awaiting off-thread Shiki tokenization, paired with its plain blocks. */
+export interface FenceJob {
+  /** Source line of the fence's first content line (the first plain block). */
+  startLine: number
+  lang: string
+  code: string
+}
+
 /**
- * Parses markdown into top-level blocks, each carrying its source line range so
- * the editor can render a line gutter and anchor comments. Code fences are
- * highlighted with Shiki; ```mermaid fences render to inline SVG. The `flavor`
- * selects GitHub Flavored Markdown (default) or strict CommonMark.
+ * Parses markdown into top-level blocks synchronously: structure, prose, and
+ * code fences as plain (uncolored) text so the preview can paint immediately.
+ * Each code fence is also recorded as a `FenceJob` for `highlightBlocks` to
+ * tokenize off the main thread and swap colour back in. ```mermaid fences render
+ * to inline SVG here. The `flavor` selects GitHub Flavored Markdown (default) or
+ * strict CommonMark. This stays worker-free so it is safe to run in jsdom tests.
  */
-export async function renderMarkdown(
+export function parseMarkdown(
   content: string,
-  theme: ThemeName,
+  _theme: ThemeName,
   flavor: MarkdownFlavor = "gfm",
   asset?: AssetContext
-): Promise<RenderedBlock[]> {
+): { blocks: RenderedBlock[]; fences: FenceJob[] } {
   const md = flavor === "commonmark" ? commonmark : gfm
   const env: AssetEnv = { suikouAsset: asset }
   const tokens = md.parse(content, env)
   const groups = groupTopLevel(tokens)
-  const { shiki } = THEME_CODE[theme]
-  const highlighter = await getHighlighter()
+  const fences: FenceJob[] = []
 
-  const grouped = await Promise.all(
-    groups.map(async (group): Promise<RenderedBlock[]> => {
-      const first = group[0]
-      if (first && (first.type === "bullet_list_open" || first.type === "ordered_list_open")) {
-        return splitListGroup(group, md, env)
+  const blocks = groups.flatMap((group): RenderedBlock[] => {
+    const first = group[0]
+    if (first && (first.type === "bullet_list_open" || first.type === "ordered_list_open")) {
+      return splitListGroup(group, md, env)
+    }
+
+    if (first && first.type === "table_open") {
+      return splitTableGroup(group, md, env)
+    }
+
+    if (first && first.type === "blockquote_open") {
+      return splitBlockquoteGroup(group, md, env)
+    }
+
+    if (first && first.type === "footnote_block_open") {
+      return splitFootnoteGroup(group, md, env)
+    }
+
+    if (first && first.type === "dl_open") {
+      return splitDefListGroup(group, md, env)
+    }
+
+    const [startLine, endLine] = lineRange(group)
+    const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
+
+    if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
+      return [{ startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }]
+    }
+
+    if (fence) {
+      const plain = splitCodeFencePlain(fence)
+      fences.push({
+        startLine: plain[0]?.startLine ?? startLine,
+        lang: resolveLang(fence.info),
+        code: fence.content.replace(/\n$/, "")
+      })
+      return plain
+    }
+
+    return [
+      {
+        startLine,
+        endLine,
+        kind: "markdown",
+        tag: group[0]?.tag ?? "",
+        lang: null,
+        html: md.renderer.render(group, md.options, env)
       }
+    ]
+  })
 
-      if (first && first.type === "table_open") {
-        return splitTableGroup(group, md, env)
+  return { blocks, fences }
+}
+
+/**
+ * Tokenizes each fence off the main thread (cached by `etag` + theme) and swaps
+ * the Shiki-colored line HTML back onto the matching plain code blocks, returning
+ * a new block array. A fence whose tokenization rejects keeps its plain blocks,
+ * so the preview degrades to uncolored rather than breaking.
+ */
+export async function highlightBlocks(
+  blocks: RenderedBlock[],
+  fences: FenceJob[],
+  theme: ThemeName,
+  etag: string
+): Promise<RenderedBlock[]> {
+  const shikiTheme = THEME_CODE[theme].shiki
+  const next = blocks.slice()
+
+  await Promise.all(
+    fences.map(async (fence) => {
+      const cacheKey = tokenKey(etag, shikiTheme, `fence:${fence.startLine}:${fence.lang}`)
+      let lines: string[]
+      try {
+        lines = codeLinesHtml(await tokenize(fence.code, fence.lang, shikiTheme, cacheKey))
+      } catch {
+        return
       }
-
-      if (first && first.type === "blockquote_open") {
-        return splitBlockquoteGroup(group, md, env)
+      for (let i = 0; i < lines.length; i++) {
+        const at = next.findIndex(
+          (b) => b.kind === "code" && b.startLine === fence.startLine + i
+        )
+        if (at !== -1) next[at] = { ...next[at], html: lines[i] }
       }
-
-      if (first && first.type === "footnote_block_open") {
-        return splitFootnoteGroup(group, md, env)
-      }
-
-      if (first && first.type === "dl_open") {
-        return splitDefListGroup(group, md, env)
-      }
-
-      const [startLine, endLine] = lineRange(group)
-      const fence = group.length === 1 && group[0].type === "fence" ? group[0] : null
-
-      if (fence && fence.info.trim().toLowerCase().startsWith("mermaid")) {
-        return [{ startLine, endLine, kind: "mermaid", tag: "", lang: "mermaid", html: renderMermaid(fence.content) }]
-      }
-
-      if (fence) {
-        const lang = resolveLang(fence.info)
-        await ensureLang(highlighter, lang)
-        return splitCodeFence(fence, highlighter, shiki)
-      }
-
-      return [
-        {
-          startLine,
-          endLine,
-          kind: "markdown",
-          tag: group[0]?.tag ?? "",
-          lang: null,
-          html: md.renderer.render(group, md.options, env)
-        }
-      ]
     })
   )
 
-  return grouped.flat()
+  return next
 }
 
 /**
@@ -359,26 +407,20 @@ function blockquoteStyle(first: boolean, last: boolean): string {
 }
 
 /**
- * Splits a fenced code block into one `RenderedBlock` per source line so code
- * review can anchor a comment to a single line, reusing the raw view's
- * per-line Shiki tokenization (`codeToTokens`). The first and last line carry
- * the rounded corners, vertical padding, and top/bottom border; intermediate
- * lines share the side borders and theme background so the lines stack back
- * into one continuous code block. Each line's source line number is derived
- * from the fence's opening line so anchors map to the real file lines.
+ * Splits a fenced code block into one plain (uncolored) `RenderedBlock` per
+ * source line so the preview can anchor a comment to a single line and paint
+ * immediately; `highlightBlocks` later swaps in Shiki colour. Each line's source
+ * line number is derived from the fence's opening line so anchors map to the
+ * real file lines.
  */
-function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): RenderedBlock[] {
+function splitCodeFencePlain(fence: Token): RenderedBlock[] {
   const lang = resolveLang(fence.info)
   const code = fence.content.replace(/\n$/, "")
-  const { tokens } = highlighter.codeToTokens(code, {
-    lang: lang as BundledLanguage,
-    theme: shiki
-  })
   // fence.map is [openFenceLine, closeFenceLine+1] (0-based); the first content
   // line sits one line below the opening fence, +1 again for 1-based output.
   const base = (fence.map?.[0] ?? 0) + 2
 
-  return tokens.map((line, i) => {
+  return code.split("\n").map((line, i) => {
     const startLine = base + i
     return {
       startLine,
@@ -386,9 +428,14 @@ function splitCodeFence(fence: Token, highlighter: Highlighter, shiki: string): 
       kind: "code",
       tag: "",
       lang,
-      html: codeLineHtml(line)
+      html: escapeHtml(line) || " "
     }
   })
+}
+
+/** Per-line Shiki-colored HTML for a tokenized code block. */
+function codeLinesHtml(tokens: ThemedToken[][]): string[] {
+  return tokens.map(codeLineHtml)
 }
 
 /** One code line as Shiki-colored spans; an empty line keeps a space for height. */

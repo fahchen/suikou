@@ -23,6 +23,13 @@ import {
   visibleComments,
 } from "../store-context"
 import { useReviewCommands } from "../commands"
+import {
+  mergeFileView,
+  structureEntry,
+  structureFile,
+  useReviewStructure,
+  type MergedFileView,
+} from "../use-review-structure"
 import { viewComponentFor } from "./registry"
 import { FileVerdictMenu } from "../TopBarVerdictMenu"
 import { useMusubiSnapshot } from "../../musubi"
@@ -41,14 +48,15 @@ export const AllFilesView = observer(function AllFilesView(props: {
   reviewStore: ReviewStore
 }) {
   const { reviewId, reviewSnapshot, reviewStore } = props
-  const count = reviewSnapshot.body.files.length
+  const structure = useReviewStructure()
 
-  if (count === 0) {
-    if (reviewSnapshot.body.file_entries.status === "loading") {
-      return <Notice title="Loading files…" message="Fetching the review's file list." />
-    }
+  // The file roster is static (structure); an empty review is known without the
+  // live snapshot. The live children only carry comments/verdicts.
+  if (structure.file_entries.length === 0) {
     return <Notice title="No files" message="This review has no files yet." />
   }
+
+  const count = reviewSnapshot.body.files.length
 
   // reviewSnapshot.body.files[i] and reviewStore.body.files[i] are parallel: same
   // index is the same file. Merge into pairs and sort by path for a stable order.
@@ -123,11 +131,19 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   reviewSnapshot: ReviewSnapshot
   fileSnapshot: FileSnapshot
 }) {
-  const fileSnapshot = props.fileSnapshot
   const commands = useReviewCommands()
+  const structure = useReviewStructure()
   const wide = useMediaQuery(WIDE_QUERY)
 
-  const path = fileSnapshot.path
+  const path = props.fileSnapshot.path
+  // Overlay static identity (structure) onto the live snapshot (comments/
+  // verdicts), joined by path, so the renderers keep their identity as the live
+  // snapshot sheds its static fields.
+  const fileSnapshot = mergeFileView(
+    props.fileSnapshot,
+    structureFile(structure, path),
+    structureEntry(structure, path),
+  )
   const minted = fileSnapshot.artifact_id !== null
   const expanded = !uiStore.isFileCollapsed(props.reviewId, path)
   const [rawView, setRawView] = useState(false)
@@ -143,7 +159,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     void commands.setDraftVerdict.dispatch({ verdict: next })
   }
 
-  const reviewKind = props.reviewSnapshot.body.kind
+  const reviewKind = structure.kind
   const image = isImagePath(path)
   const viewKind: ViewKind = reviewKind === "diff" ? "diff" : isHtmlPath(path) ? "html" : "file"
 
@@ -163,7 +179,13 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     live && !minted && !image,
   )
   const contentState = minted ? minStat : unminStat
-  const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, uiStore.theme)
+  const etag = (minted ? fileSnapshot.current_round.content_hash : fileSnapshot.content_hash) ?? ""
+  const rawLines = useRawHighlight(
+    live && !image ? contentState.text : "",
+    path,
+    uiStore.theme,
+    etag,
+  )
 
   const previewable = isPreviewable(path) && viewKind === "file"
   const slash = path.lastIndexOf("/")
@@ -175,6 +197,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
       base: fileSnapshot.artifact_id ? assetBase(fileSnapshot.artifact_id) : "",
       dir: slash === -1 ? "" : path.slice(0, slash),
     },
+    etag,
   )
 
   const comments = (fileSnapshot.comments as unknown as { items: Comment[] }).items
@@ -315,7 +338,7 @@ function BodyPlaceholder() {
 }
 
 const StackedImage = observer(function StackedImage(props: {
-  fileSnapshot: FileSnapshot
+  fileSnapshot: MergedFileView
   reviewId: string
 }) {
   const { fileSnapshot, reviewId } = props

@@ -31,6 +31,7 @@ const DIFF_LAYOUT_KEY = "suikou-diff-layout"
 const FILE_DISPLAY_MODE_KEY = "suikou-file-display-mode"
 const HIDE_REVIEWED_KEY = "suikou-hide-reviewed"
 const COLLAPSED_FILES_KEY = "suikou-collapsed-files"
+const DRAFTS_KEY = "suikou-drafts"
 
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
@@ -71,6 +72,13 @@ export class UiStore {
   // entry is removed only on successful submit or an explicit cancel. The
   // legacy single-file scope (`null`) maps to the empty-string key.
   drafts: Record<string, ComposerDraft> = {}
+
+  // Persisted draft store namespaced by reviewId, so a refresh / socket drop
+  // never loses an in-progress comment and the legacy single-file scope ("")
+  // can't bleed across reviews. `drafts` mirrors the current review's slice;
+  // `setReviewScope` swaps it in when a review mounts.
+  private draftsByReview: Record<string, Record<string, ComposerDraft>> = {}
+  private currentReviewId: string | null = null
 
   // Visible mint-on-click affordance: the path currently being minted into
   // an artifact by an `open_file` command. Survives the navigation that
@@ -156,6 +164,15 @@ export class UiStore {
       }
     }
 
+    const savedDrafts = localStorage.getItem(DRAFTS_KEY)
+    if (savedDrafts) {
+      try {
+        this.draftsByReview = JSON.parse(savedDrafts)
+      } catch {
+        // Corrupt JSON: ignore and start from no persisted drafts.
+      }
+    }
+
     this.applyTheme()
   }
 
@@ -224,6 +241,15 @@ export class UiStore {
     this.typeFilters[type] = !this.typeFilters[type]
   }
 
+  // Point the live `drafts` map at a review's persisted slice. Called when a
+  // review mounts so its in-progress drafts are restored, and later edits
+  // persist under the right review.
+  setReviewScope(reviewId: string): void {
+    if (reviewId === this.currentReviewId) return
+    this.currentReviewId = reviewId
+    this.drafts = this.draftsByReview[reviewId] ?? {}
+  }
+
   // The unsaved draft for a file, or undefined when the file has none open.
   draftFor(filePath: string | null): ComposerDraft | undefined {
     return this.drafts[filePath ?? ""]
@@ -266,6 +292,7 @@ export class UiStore {
     const next = { ...this.drafts }
     delete next[key]
     this.drafts = next
+    this.persistDrafts()
   }
 
   setComposerType(type: CritiqueType, filePath: string | null = null): void {
@@ -315,6 +342,15 @@ export class UiStore {
 
   private putDraft(filePath: string | null, draft: ComposerDraft): void {
     this.drafts = { ...this.drafts, [filePath ?? ""]: draft }
+    this.persistDrafts()
+  }
+
+  // Write the current review's draft slice back to localStorage. No-op until a
+  // review scope is set (e.g. the project board has no drafts).
+  private persistDrafts(): void {
+    if (this.currentReviewId === null) return
+    this.draftsByReview = { ...this.draftsByReview, [this.currentReviewId]: this.drafts }
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(this.draftsByReview))
   }
 
   // The current draft for a file, or an empty one so a body/type edit can land

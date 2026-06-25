@@ -23,32 +23,13 @@ defmodule SuikouWeb.Stores.FileStore do
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
 
+  # The live snapshot carries only what must stream in real time: the comment
+  # thread, the file's verdicts, and the viewed round number. The file's static
+  # identity (path title, artifact, content hashes, change status) is served by
+  # `SuikouWeb.Stores.ReviewStore`'s `load_review_structure` command and joined to
+  # this row by `path` on the client. `path` stays here as that join key.
   state do
     field(:path, String.t())
-    field(:artifact_id, String.t() | nil)
-    field(:content_hash, String.t() | nil)
-
-    field(
-      :change_status,
-      :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
-    )
-
-    field(:artifact, %{
-      id: String.t(),
-      title: String.t(),
-      approved: boolean(),
-      approved_round: integer() | nil
-    })
-
-    field(
-      :rounds,
-      list(%{
-        number: integer(),
-        content_hash: String.t(),
-        verdict: :approve | :request_changes | :comment | nil,
-        comment_count: integer()
-      })
-    )
 
     field(:current_round, %{
       number: integer(),
@@ -92,11 +73,6 @@ defmodule SuikouWeb.Stores.FileStore do
   def render(socket) do
     %{
       path: socket.assigns.path,
-      artifact_id: socket.assigns[:artifact_id],
-      content_hash: socket.assigns[:content_hash],
-      change_status: socket.assigns[:change_status],
-      artifact: socket.assigns[:artifact],
-      rounds: socket.assigns[:rounds] || [],
       current_round: socket.assigns[:current_round] || current_round(0, "", true),
       comments: comments_child(socket),
       latest_verdict: socket.assigns[:latest_verdict],
@@ -188,14 +164,10 @@ defmodule SuikouWeb.Stores.FileStore do
     case socket.assigns[:artifact_id] && Reads.get_artifact(socket.assigns[:artifact_id]) do
       %Artifact{} = artifact ->
         rounds = Reads.list_rounds(artifact.id)
-        verdicts = Submissions.verdicts_by_round(artifact.id)
-        counts = Reads.artifact_comment_counts(artifact.id, Enum.map(rounds, & &1.number))
         viewed = viewed_round(rounds, socket.assigns[:round_number])
         latest = List.last(rounds)
 
         socket
-        |> Socket.assign(:artifact, render_artifact(artifact))
-        |> Socket.assign(:rounds, Enum.map(rounds, &render_round_summary(&1, verdicts, counts)))
         |> Socket.assign(:current_round, render_current_round(viewed, latest))
         |> Socket.assign(:current_round_id, viewed && viewed.id)
         |> Socket.assign(:latest_verdict, Submissions.latest_verdict_for_artifact(artifact.id))
@@ -203,11 +175,6 @@ defmodule SuikouWeb.Stores.FileStore do
 
       _missing ->
         socket
-        |> Socket.assign(
-          :artifact,
-          missing_artifact(socket.assigns.path, socket.assigns[:artifact_id])
-        )
-        |> Socket.assign(:rounds, [])
         |> Socket.assign(:current_round, current_round(0, "", true))
         |> Socket.assign(:current_round_id, nil)
         |> Socket.assign(:latest_verdict, nil)
@@ -220,33 +187,6 @@ defmodule SuikouWeb.Stores.FileStore do
 
   defp viewed_round(rounds, number),
     do: Enum.find(rounds, List.last(rounds), &(&1.number == number))
-
-  defp render_artifact(%Artifact{} = artifact) do
-    %{
-      id: artifact.id,
-      title: artifact.title,
-      approved: not is_nil(artifact.approved_round),
-      approved_round: artifact.approved_round
-    }
-  end
-
-  defp missing_artifact(path, artifact_id) do
-    %{
-      id: artifact_id || "",
-      title: path,
-      approved: false,
-      approved_round: nil
-    }
-  end
-
-  defp render_round_summary(%Round{} = round, verdicts, counts) do
-    %{
-      number: round.number,
-      content_hash: round.content_hash,
-      verdict: Map.get(verdicts, round.id),
-      comment_count: Map.get(counts, round.number, 0)
-    }
-  end
 
   defp render_current_round(nil, _latest_round) do
     current_round(0, "", true)

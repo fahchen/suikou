@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client"
 import { RouterProvider } from "@tanstack/react-router"
+import { registerSW } from "virtual:pwa-register"
 
 import { ErrorBoundary } from "./components/error-overlay"
 import { debug } from "./debug"
@@ -7,6 +8,10 @@ import { MusubiProvider, socket } from "./musubi"
 import { router } from "./router"
 import "./stores/ui-store"
 import "./index.css"
+
+// Precache the app shell so an iOS Safari forced reload paints from cache.
+// autoUpdate swaps in a new SW silently on the next load.
+registerSW({ immediate: true })
 
 const rootElement = document.getElementById("root")
 if (!rootElement) {

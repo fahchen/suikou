@@ -3,7 +3,6 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
   import Suikou.Factory
 
-  alias Musubi.AsyncResult
   alias Musubi.Socket
   alias Musubi.Testing
   alias Suikou.Events
@@ -48,12 +47,43 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     end
   end
 
+  describe "load_review_structure" do
+    test "replies with chrome, file entries, and per-file content identity" do
+      %{review: review} = file_selection_review(["first.md", "second.md"])
+      {:ok, first} = Reviews.open_file(review, "first.md")
+      review_id = review.id
+      first_id = first.id
+
+      page = mount_review(review_id)
+
+      {:ok, reply} = Testing.dispatch_command(page, :load_review_structure, %{})
+
+      assert %{review_id: ^review_id, name: "rv", kind: :file} = reply
+      assert Enum.map(reply.file_entries, & &1.path) == ["first.md", "second.md"]
+
+      minted = Enum.find(reply.files, &(&1.path == "first.md"))
+      assert %{artifact_id: ^first_id, artifact: %{id: ^first_id, title: "first.md"}} = minted
+      assert %{current_round: %{content_hash: hash}} = minted
+      assert is_binary(hash)
+
+      unminted = Enum.find(reply.files, &(&1.path == "second.md"))
+      assert %{artifact_id: nil, artifact: nil, current_round: nil} = unminted
+    end
+
+    test "replies with empty structure when the review is gone" do
+      page = mount_review("00000000-0000-7000-8000-000000000000")
+
+      assert {:ok, %{name: "", kind: :file, file_entries: [], files: []}} =
+               Testing.dispatch_command(page, :load_review_structure, %{})
+    end
+  end
+
   describe "review root" do
     test "renders an empty snapshot when the review is gone" do
       page = mount_review("00000000-0000-7000-8000-000000000000")
 
       assert %{review_id: "00000000-0000-7000-8000-000000000000"} = Testing.render(page)
-      assert %{name: "", files: []} = Testing.render(page, ["body"])
+      assert %{files: [], structure_version: 0} = Testing.render(page, ["body"])
     end
 
     test "handle_info refreshes the body, and targets one file on an artifact-scoped change" do
@@ -111,10 +141,10 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert find_file_child(files, "first.md").id == first_id
       assert find_file_child(files, "second.md").id == "second.md"
 
-      assert %{artifact_id: ^first_id, current_round: %{number: 0}} =
+      assert %{path: "first.md", current_round: %{number: 0}} =
                Testing.render(page, ["body", "files", first_id])
 
-      assert %{artifact_id: nil, current_round: %{number: 0}, artifact: %{title: "second.md"}} =
+      assert %{path: "second.md", current_round: %{number: 0}} =
                Testing.render(page, ["body", "files", "second.md"])
     end
   end
@@ -127,19 +157,20 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
     Enum.find(files, &(&1.assigns.path == path))
   end
 
-  # Re-renders the body until its async `file_entries` resolves. Blocks on the
-  # resolution patch rather than spinning, so the load task finishes before the
-  # sandbox connection is reclaimed.
+  # Re-renders the body until its async file list resolves into rendered file
+  # children. Blocks on the resolution patch rather than spinning, so the load
+  # task finishes before the sandbox connection is reclaimed. Only used by
+  # callers that expect at least one file.
   defp await_files(page) do
     snapshot = Testing.render(page, ["body"])
 
-    case snapshot.file_entries do
-      %AsyncResult{status: :ok} ->
-        snapshot
-
-      %AsyncResult{} ->
+    case snapshot.files do
+      [] ->
         assert_receive {:patch, _envelope}
         await_files(page)
+
+      _files ->
+        snapshot
     end
   end
 

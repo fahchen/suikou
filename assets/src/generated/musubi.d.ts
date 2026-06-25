@@ -173,11 +173,6 @@ declare namespace Musubi {
       "SuikouWeb.Stores.FileStore",
       {
         path: string
-        artifact_id: string | null
-        content_hash: string | null
-        change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null
-        artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
-        rounds: Array<{ number: number; content_hash: string; verdict: "approve" | "request_changes" | "comment" | null; comment_count: number }>
         current_round: { number: number; content_hash: string; is_latest: boolean }
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
         latest_verdict: "approve" | "request_changes" | "comment" | null
@@ -209,6 +204,13 @@ declare namespace Musubi {
         review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }> }>>
       },
       {
+        load_board: {
+          payload: {}
+          reply: {
+            projects: Array<{ id: string; name: string; path: string; respect_gitignore: boolean; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; base_ref: string | null; head_ref: string | null; base_sha: string | null; head_sha: string | null; creation_base_sha: string | null; creation_head_sha: string | null; refs_moved: boolean }> }>
+            review_files: Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }> }>
+          }
+        }
         create_project: {
           payload: {
             name: string
@@ -331,15 +333,12 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ReviewBodyStore": StoreDef<
       "SuikouWeb.Stores.ReviewBodyStore",
       {
-        name: string
-        kind: "file" | "diff"
-        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
-        file_entries: Musubi.AsyncField<Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>>
         files: Musubi.StoreField<"SuikouWeb.Stores.FileStore">[]
         has_unpublished: boolean
         round_summaries: { number: number; comment_count: number; unresolved_count: number }[]
         selected_round: number
         latest_round: number
+        structure_version: number
       },
       {}
     >
@@ -351,6 +350,17 @@ declare namespace Musubi {
         body: Musubi.StoreField<"SuikouWeb.Stores.ReviewBodyStore">
       },
       {
+        load_review_structure: {
+          payload: {}
+          reply: {
+            review_id: string
+            name: string
+            kind: "file" | "diff"
+            latest_round: number
+            file_entries: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>
+            files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; artifact: { id: string; title: string } | null; current_round: { content_hash: string } | null }>
+          }
+        }
         submit_review: {
           payload: {}
           reply: {

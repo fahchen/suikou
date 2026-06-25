@@ -12,7 +12,8 @@ import { useFileStore } from "./store-context";
 import { isImagePath, isBinaryContent } from "./file-type";
 import { adjacentReviewFiles } from "./file-order";
 import { reviewFileTarget } from "./review-navigation";
-import { type ReviewFileEntry, type ReviewSnapshot } from "./types";
+import { structureFile, useReviewStructure, type StructureFileEntry } from "./use-review-structure";
+import { type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
 import { resolveViewKind, viewCapabilities } from "./view-kind";
@@ -29,6 +30,7 @@ export const TopBar = observer(function TopBar(props: {
   const commands = useReviewCommands();
   const navigate = useNavigate();
   const prefetchReview = usePrefetchReviewStore();
+  const structure = useReviewStructure();
   const rawView = useLocation().pathname.endsWith("/raw");
   const wide = useMediaQuery(WIDE_QUERY);
 
@@ -39,11 +41,11 @@ export const TopBar = observer(function TopBar(props: {
   // Absent for a frame mid-reconnect (store node not re-hydrated yet).
   if (!fileSnapshot) return null;
 
-  const title = fileSnapshot.artifact.title;
+  const title = structureFile(structure, fileSnapshot.path)?.artifact?.title ?? fileSnapshot.path;
   const image = isImagePath(title);
   const binary = isBinaryContent(content);
   const commentsSupported = !image && !binary;
-  const viewKind = resolveViewKind({ kind: reviewSnapshot.body.kind, title });
+  const viewKind = resolveViewKind({ kind: structure.kind, title });
   const capabilities = viewCapabilities({
     kind: viewKind,
     previewable,
@@ -58,14 +60,14 @@ export const TopBar = observer(function TopBar(props: {
   // the active one.
   const hasUnpublishedWork = reviewSnapshot.body.has_unpublished;
 
-  const fileEntries = reviewSnapshot.body.file_entries.data ?? [];
+  const fileEntries = structure.file_entries;
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
   const showFileNav = uiStore.fileDisplayMode === "single";
 
-  async function navigateToFile(file: ReviewFileEntry, dir: "prev" | "next") {
+  async function navigateToFile(file: StructureFileEntry, dir: "prev" | "next") {
     setNavPending(dir);
     try {
-      void navigate(reviewFileTarget(reviewSnapshot.review_id, file.path, rawView));
+      void navigate(reviewFileTarget(structure.review_id, file.path, rawView));
     } finally {
       setNavPending(null);
     }
@@ -80,8 +82,8 @@ export const TopBar = observer(function TopBar(props: {
         aria-label="Previous file"
         disabled={!prevFile || navPending !== null}
         onClick={() => prevFile && void navigateToFile(prevFile, "prev")}
-        onMouseEnter={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
-        onFocus={() => prevFile && prefetchReview(reviewSnapshot.review_id)}
+        onMouseEnter={() => prevFile && prefetchReview(structure.review_id)}
+        onFocus={() => prevFile && prefetchReview(structure.review_id)}
       >
         <ChevronLeft className="text-muted-foreground" />
       </Button>
@@ -93,8 +95,8 @@ export const TopBar = observer(function TopBar(props: {
         aria-label="Next file"
         disabled={!nextFile || navPending !== null}
         onClick={() => nextFile && void navigateToFile(nextFile, "next")}
-        onMouseEnter={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
-        onFocus={() => nextFile && prefetchReview(reviewSnapshot.review_id)}
+        onMouseEnter={() => nextFile && prefetchReview(structure.review_id)}
+        onFocus={() => nextFile && prefetchReview(structure.review_id)}
       >
         <ChevronRight className="text-muted-foreground" />
       </Button>
@@ -121,7 +123,7 @@ export const TopBar = observer(function TopBar(props: {
             </Button>
           )}
           <TopBarDisplayMenu
-            reviewId={reviewSnapshot.review_id}
+            reviewId={structure.review_id}
             filePath={title}
             rawView={rawView}
             capabilities={capabilities}

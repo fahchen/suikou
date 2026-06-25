@@ -668,6 +668,29 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
+  describe "load_board" do
+    @tag :tmp_dir
+    test "replies with projects and grouped review files", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, reply} = Testing.dispatch_command(page, :load_board, %{})
+
+      assert %{projects: [%{name: "Docs", reviews: [%{id: review_id, name: "Launch"}]}]} = reply
+      assert review_id == review.id
+      assert [%{review_id: ^review_id, files: [%{path: "plan.md"}]}] = reply.review_files
+    end
+
+    test "replies with empty lists when nothing is registered" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{projects: [], review_files: []}} =
+               Testing.dispatch_command(page, :load_board, %{})
+    end
+  end
+
   describe "list_review_files" do
     @tag :tmp_dir
     test "replies with the expanded files and their minted state", %{tmp_dir: dir} do

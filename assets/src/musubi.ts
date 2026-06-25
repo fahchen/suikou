@@ -13,6 +13,28 @@ const socketUrl = import.meta.env.DEV
 
 export const socket = new Socket(socketUrl)
 
+// Free the socket while the page is frozen so Safari can keep the page in
+// bfcache — an open WebSocket makes a page bfcache-ineligible, which on iOS
+// forces a full reload on resume instead of an instant in-memory restore. On
+// `pageshow` (including a bfcache restore, when no React effect re-runs)
+// reconnect; musubi re-mounts its roots on socket reopen, and the SWR caches
+// keep the last-good view painted meanwhile. Uses `pagehide`/`pageshow`, never
+// `beforeunload`/`unload` — those listeners would themselves disable bfcache.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    socket.disconnect()
+  })
+  const reconnect = () => {
+    if (!socket.isConnected()) socket.connect()
+  }
+  window.addEventListener("pageshow", reconnect)
+  // iOS Safari does not always fire `pageshow` on resume; `visibilitychange` to
+  // visible is the reliable signal to reconnect a socket we released on hide.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") reconnect()
+  })
+}
+
 /**
  * Live WebSocket connectivity. `useMusubiConnectionStatus` only reports the
  * initial connect; it stays "ready" after a mid-session drop. The phoenix socket,
@@ -35,7 +57,10 @@ export function useSocketConnected(): boolean {
 // discard stale entries.
 export const storeCache = {
   persister: createStorageCachePersister(localStorage),
-  buster: "v3"
+  buster: "v3",
+  // Effectively never expire; buster is the real invalidator. Max 32-bit
+  // setTimeout delay (~24.8d) — Infinity coerces to 0 and would evict on unmount.
+  gcTime: 2_147_483_647
 }
 
 export const {

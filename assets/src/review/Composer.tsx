@@ -2,7 +2,7 @@ import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 
 import { uiStore } from "../stores/ui-store";
-import { ComposerTextarea } from "./ComposerTextarea";
+import { CommentComposer } from "./CommentComposer";
 import { useReviewCommands } from "./commands";
 import { SquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,30 +41,20 @@ export const Composer = observer(function Composer(props: {
     ui.setComposerBody(`${body}${body ? "\n" : ""}${fence}`, path);
   }
 
-  function add() {
-    // Close the composer the instant you submit, so it never overlaps the real
-    // comment fading in from the refreshed snapshot (the overlap was the flicker).
-    // `closeComposer` deletes the draft synchronously, so a double-fire (tap-tap,
-    // or Enter+click in one React batch) sees it gone and bails — one dispatch.
+  // The draft renders optimistically in the composer's `submitting` state while
+  // the command is awaited, then `closeComposer` tears it down on confirmation —
+  // exactly as the real comment fades in from the refreshed snapshot, so the two
+  // never overlap (that overlap was the flicker). On failure the draft is kept
+  // and the composer falls back to editing.
+  function submit() {
     const current = ui.draftFor(path);
-    if (!current || !current.body.trim()) return;
-    void commands.addComment.dispatch({
+    if (!current) return Promise.resolve();
+    return commands.addComment.dispatch({
       scope: current.scope,
       critique_type: current.type,
       body: current.body.trim(),
       anchor: { type: "line_range", start_line: props.startLine, end_line: props.endLine },
     });
-    ui.closeComposer(path);
-  }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      add();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      ui.closeComposer(path);
-    }
   }
 
   return (
@@ -104,55 +94,36 @@ export const Composer = observer(function Composer(props: {
         </div>
       </div>
 
-      <ComposerTextarea
+      <CommentComposer
         autoFocus
-        className="min-h-20 rounded-md"
+        textareaClassName="min-h-20 rounded-md"
         placeholder="Leave a comment. Markdown supported."
         value={body}
-        onChange={(e) => ui.setComposerBody(e.target.value, path)}
-        onKeyDown={onKeyDown}
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground"
-          onClick={suggest}
-        >
-          <SquarePlus size={13} />
-          Suggest
-        </Button>
-        <span className="hidden text-[11px] text-faint sm:inline">
-          Saved as a pending draft until you submit the review.
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => ui.closeComposer(path)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={commands.addComment.disabled || !body.trim()}
-            onClick={add}
-          >
-            Add comment
-            <kbd
-              aria-hidden
-              className="hidden rounded bg-on-accent/20 px-1 font-sans text-[10px] leading-4 sm:inline"
+        onChange={(value) => ui.setComposerBody(value, path)}
+        onSubmit={submit}
+        onSuccess={() => ui.closeComposer(path)}
+        onCancel={() => ui.closeComposer(path)}
+        submitLabel="Add comment"
+        submitKbd
+        disabled={commands.addComment.disabled}
+        leadingAction={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={suggest}
             >
-              ⌘⏎
-            </kbd>
-          </Button>
-        </div>
-      </div>
+              <SquarePlus size={13} />
+              Suggest
+            </Button>
+            <span className="hidden text-[11px] text-faint sm:inline">
+              Saved as a pending draft until you submit the review.
+            </span>
+          </>
+        }
+      />
     </motion.div>
   );
 });

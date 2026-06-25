@@ -1,10 +1,9 @@
 import { useState } from "react";
 
 import type { Comment } from "./types";
-import { ComposerTextarea } from "./ComposerTextarea";
+import { CommentComposer } from "./CommentComposer";
 import { useReviewCommands } from "./commands";
 import type { CritiqueType } from "../stores/ui-store";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -20,24 +19,23 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
   const [body, setBody] = useState(comment.body);
   const [type, setType] = useState<CritiqueType>(comment.critique_type);
 
-  function save() {
-    if (!body.trim()) return;
-    void commands.editComment.dispatch({
-      comment_id: comment.id,
-      body: body.trim(),
-      critique_type: type,
-    });
-    onDone();
-  }
-
   return (
-    <div className="flex flex-col gap-2">
-      <ComposerTextarea
-        className="min-h-16"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-      />
-      <div className="flex items-center gap-2">
+    <CommentComposer
+      value={body}
+      onChange={setBody}
+      onSubmit={(text) =>
+        commands.editComment.dispatch({
+          comment_id: comment.id,
+          body: text,
+          critique_type: type,
+        })
+      }
+      onSuccess={onDone}
+      onCancel={onDone}
+      submitLabel="Save"
+      disabled={commands.editComment.disabled}
+      textareaClassName="min-h-16"
+      leadingAction={
         <Select value={type} onValueChange={(v) => setType(v as CritiqueType)}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -48,13 +46,7 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
             <SelectItem value="note">note</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button size="sm" disabled={commands.editComment.disabled} onClick={save}>
-          Save
-        </Button>
-      </div>
-    </div>
+      }
+    />
   );
 }

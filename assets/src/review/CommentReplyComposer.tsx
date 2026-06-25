@@ -2,9 +2,9 @@ import { useState } from "react";
 import { CircleCheck, MessageSquarePlus, SquarePlus } from "lucide-react";
 
 import type { Comment } from "./types";
+import { CommentComposer } from "./CommentComposer";
 import { useReviewCommands } from "./commands";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
-import { ComposerTextarea } from "./ComposerTextarea";
 import { Button } from "@/components/ui/button";
 
 /** Suggest/reply box plus the resolve action for one comment. */
@@ -21,13 +21,6 @@ export function CommentReplyComposer(props: { comment: Comment }) {
   // Wide screens keep the full composer open; narrow ones collapse it to a
   // one-tap Reply so a column of inline cards stays scannable.
   const open = wide || expanded;
-
-  function send() {
-    if (!body.trim()) return;
-    void commands.reply.dispatch({ comment_id: comment.id, body: body.trim() });
-    setBody("");
-    setExpanded(false);
-  }
 
   const resolveAction = comment.status === "published" && !comment.resolved && (
     <Button
@@ -75,23 +68,20 @@ export function CommentReplyComposer(props: { comment: Comment }) {
           Suggest
         </Button>
       </div>
-      <ComposerTextarea
+      <CommentComposer
         autoFocus={expanded}
         placeholder={placeholder}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
+        onSubmit={(text) => commands.reply.dispatch({ comment_id: comment.id, body: text })}
+        onSuccess={() => {
+          setBody("");
+          setExpanded(false);
+        }}
+        submitLabel={replyLabel}
+        disabled={commands.reply.disabled}
+        leadingAction={resolveAction}
       />
-      <div className="flex items-center gap-2">
-        {resolveAction}
-        <Button
-          size="sm"
-          className="ml-auto"
-          disabled={commands.reply.disabled || !body.trim()}
-          onClick={send}
-        >
-          {replyLabel}
-        </Button>
-      </div>
     </div>
   );
 }

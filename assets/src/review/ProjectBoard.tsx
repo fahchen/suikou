@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -23,16 +31,17 @@ import {
   Trash2,
 } from "lucide-react";
 
-import type { StoreProxy, StoreSnapshot } from "@musubi/react";
+import type { CommandReply, StoreProxy } from "@musubi/react";
 
 import {
   storeCache,
   useMusubiCommand,
   useMusubiRoot,
-  useMusubiSnapshot,
   usePrefetchReviewStore,
+  useSocketConnected,
 } from "../musubi";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
+import { readCommandCache, writeCommandCache } from "./command-cache";
 import { FileTree } from "./FileTree";
 import { ReviewFileTree } from "./ReviewFileTree";
 import { orderedReviewFiles } from "./file-order";
@@ -60,11 +69,24 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Toggle } from "@/components/ui/toggle";
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
-type BoardSnapshot = StoreSnapshot<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>;
-type BoardProject = BoardSnapshot["projects"][number];
+type LoadBoardReply = CommandReply<"SuikouWeb.Stores.ProjectBoardStore", "load_board", Musubi.Stores>;
+type ReviewFilesGrouped = LoadBoardReply["review_files"];
+type BoardProject = LoadBoardReply["projects"][number];
 type BoardReview = BoardProject["reviews"][number];
-type ReviewFilesAsync = BoardSnapshot["review_files"];
-type ReviewFileEntry = NonNullable<ReviewFilesAsync["data"]>[number]["files"][number];
+type ReviewFileEntry = ReviewFilesGrouped[number]["files"][number];
+
+// Single board per app, so one fixed key for its cached `load_board` reply.
+const BOARD_CACHE_KEY = "suikou-board";
+
+// The board chrome and list now render from a `load_board` request-response
+// command held in component state, not from a live snapshot subscription — so a
+// hard WebSocket disconnect leaves the board intact. A mutation deep in a dialog
+// or composer signals success up to `Board` through this context, which refetches.
+const BoardRefetchContext = createContext<() => void>(() => {});
+
+function useBoardRefetch(): () => void {
+  return useContext(BoardRefetchContext);
+}
 
 const KIND_META: Record<
   BoardReview["kind"],
@@ -92,19 +114,17 @@ const KIND_META: Record<
   },
 };
 
-/** Per-review file list from the async board field — `null` until it resolves. */
-function filesForReview(reviewFiles: ReviewFilesAsync, reviewId: string): ReviewFileEntry[] | null {
-  const entry = reviewFiles.data?.find((e) => e.review_id === reviewId);
-  return entry ? entry.files : null;
+/**
+ * Per-review file list from the grouped `load_board` reply. Every review is
+ * present in the reply (the server walks them all), so a missing entry means an
+ * empty selection — both collapse to `[]`.
+ */
+function filesForReview(reviewFiles: ReviewFilesGrouped, reviewId: string): ReviewFileEntry[] {
+  return reviewFiles.find((e) => e.review_id === reviewId)?.files ?? [];
 }
 
-function fileCountLabel(
-  files: ReviewFileEntry[] | null,
-  status: ReviewFilesAsync["status"],
-): string {
-  if (files) return `${files.length} ${files.length === 1 ? "file" : "files"}`;
-  if (status === "failed") return "–";
-  return "Loading…";
+function fileCountLabel(files: ReviewFileEntry[]): string {
+  return `${files.length} ${files.length === 1 ? "file" : "files"}`;
 }
 
 // Synchronous cache probe used to decide whether the board has a warm snapshot
@@ -161,53 +181,141 @@ function Board({
   store: BoardStore;
   onOpen: (reviewId: string, path: string) => void;
 }) {
-  const snapshot = useMusubiSnapshot(store);
+  const loadBoard = useMusubiCommand(store, "load_board");
+  const connected = useSocketConnected();
+  // Seed from the last-good cached board so a forced reload paints the projects
+  // on the first frame; the command below revalidates it (SWR).
+  const [board, setBoard] = useState<LoadBoardReply | null>(() =>
+    readCommandCache<LoadBoardReply>(BOARD_CACHE_KEY),
+  );
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  if (!snapshot) return null;
-  const hasProjects = snapshot.projects.length > 0;
+
+  // Latest board, read inside callbacks without re-arming the reconnect effect.
+  const boardRef = useRef<LoadBoardReply | null>(null);
+  boardRef.current = board;
+
+  // Manual refetch after a mutation (the socket is up here). Keep the last-good
+  // list on a transient failure rather than blanking the board.
+  const refetch = useCallback(() => {
+    loadBoard
+      .dispatch({})
+      .then((reply) => {
+        setBoard(reply);
+        writeCommandCache(BOARD_CACHE_KEY, reply);
+        setError(null);
+      })
+      .catch((cause: Error) => {
+        if (boardRef.current === null) setError(cause.message);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch on mount and retry through reconnect. The phoenix socket reopens a beat
+  // before the musubi channel re-joins, so an eager dispatch on reconnect rejects
+  // with "Store is not connected"; retry through that window and keep the last-good
+  // board on screen. Only surface a hard error on the first load, after retries.
+  useEffect(() => {
+    if (!connected) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+
+    const attempt = () => {
+      loadBoard
+        .dispatch({})
+        .then((reply) => {
+          if (cancelled) return;
+          setBoard(reply);
+          writeCommandCache(BOARD_CACHE_KEY, reply);
+          setError(null);
+        })
+        .catch((cause: Error) => {
+          if (cancelled) return;
+          attempts += 1;
+          if (boardRef.current === null && attempts >= 5) {
+            setError(cause.message);
+            return;
+          }
+          timer = setTimeout(attempt, 400);
+        });
+    };
+
+    attempt();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-10 sm:px-7 sm:py-16">
-      <header className="mb-9 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-[22px] font-semibold tracking-[-0.018em] text-heading">Reviews</h1>
-          <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-            Register a working directory, then group its files into reviews.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button
-            variant="pill"
-            size="icon"
-            onClick={() => setCreating(true)}
-            title="New project"
-            aria-label="New project"
-          >
-            <FolderPlus className="size-4 text-muted-foreground" />
-          </Button>
-          <ThemeMenu />
-        </div>
-      </header>
+    <BoardRefetchContext.Provider value={refetch}>
+      <div className="mx-auto max-w-3xl px-5 py-10 sm:px-7 sm:py-16">
+        <header className="mb-9 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[22px] font-semibold tracking-[-0.018em] text-heading">Reviews</h1>
+            <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+              Register a working directory, then group its files into reviews.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              variant="pill"
+              size="icon"
+              onClick={() => setCreating(true)}
+              title="New project"
+              aria-label="New project"
+            >
+              <FolderPlus className="size-4 text-muted-foreground" />
+            </Button>
+            <ThemeMenu />
+          </div>
+        </header>
 
-      {hasProjects ? (
-        <div className="space-y-10">
-          {snapshot.projects.map((project) => (
-            <ProjectSection
-              key={project.id}
-              store={store}
-              project={project}
-              reviewFiles={snapshot.review_files}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="mt-6 text-[12px] text-faint">
-          No projects yet. Create one to start reviewing its files.
-        </p>
-      )}
+        <BoardBody store={store} board={board} error={error} onOpen={onOpen} />
 
-      <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
+        <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
+      </div>
+    </BoardRefetchContext.Provider>
+  );
+}
+
+function BoardBody({
+  store,
+  board,
+  error,
+  onOpen,
+}: {
+  store: BoardStore;
+  board: LoadBoardReply | null;
+  error: string | null;
+  onOpen: (reviewId: string, path: string) => void;
+}) {
+  if (error !== null) {
+    return <p className="mt-6 text-[12px] text-red">Could not load projects. {error}</p>;
+  }
+  if (board === null) {
+    return <p className="mt-6 text-[12px] text-faint">Loading projects…</p>;
+  }
+  if (board.projects.length === 0) {
+    return (
+      <p className="mt-6 text-[12px] text-faint">
+        No projects yet. Create one to start reviewing its files.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-10">
+      {board.projects.map((project) => (
+        <ProjectSection
+          key={project.id}
+          store={store}
+          project={project}
+          reviewFiles={board.review_files}
+          onOpen={onOpen}
+        />
+      ))}
     </div>
   );
 }
@@ -220,13 +328,14 @@ function ProjectSection({
 }: {
   store: BoardStore;
   project: BoardProject;
-  reviewFiles: ReviewFilesAsync;
+  reviewFiles: ReviewFilesGrouped;
   onOpen: (reviewId: string, path: string) => void;
 }) {
   const [composing, setComposing] = useState<"files" | "diff" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingSettings, setEditingSettings] = useState(false);
   const removeProject = useMusubiCommand(store, "delete_project");
+  const refetch = useBoardRefetch();
   const reviewCount = project.reviews.length;
   const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
 
@@ -331,7 +440,6 @@ function ProjectSection({
                 project={project}
                 review={review}
                 files={filesForReview(reviewFiles, review.id)}
-                filesStatus={reviewFiles.status}
                 onOpen={onOpen}
               />
             ))}
@@ -366,7 +474,7 @@ function ProjectSection({
               size="sm"
               disabled={removeProject.isPending}
               onClick={() => {
-                void removeProject.dispatch({ project_id: project.id });
+                void removeProject.dispatch({ project_id: project.id }).then(refetch);
                 setConfirmDelete(false);
               }}
             >
@@ -392,15 +500,13 @@ function ReviewCard({
   project,
   review,
   files,
-  filesStatus,
   index,
   onOpen,
 }: {
   store: BoardStore;
   project: BoardProject;
   review: BoardReview;
-  files: ReviewFileEntry[] | null;
-  filesStatus: ReviewFilesAsync["status"];
+  files: ReviewFileEntry[];
   index: number;
   onOpen: (reviewId: string, path: string) => void;
 }) {
@@ -414,18 +520,16 @@ function ReviewCard({
   const narrow = !useMediaQuery(WIDE_QUERY);
   const remove = useMusubiCommand(store, "delete_review");
   const rename = useMusubiCommand(store, "rename_review");
+  const refetch = useBoardRefetch();
   const prefetchReview = usePrefetchReviewStore();
   const open = editing || expanded;
   const [pendingPath, setPendingPath] = useState<string | null>(null);
-  const fileCount = files?.length ?? 0;
-  const filesLoading = files === null && filesStatus !== "failed";
-  const canOpen = fileCount > 0;
+  const canOpen = files.length > 0;
   // An HTML review is a file-selection review whose files are all HTML docs;
   // there is no distinct board `kind` for it, so detect it from the resolved
   // file list to set it apart from a generic file selection at a glance.
   const isHtmlReview =
     review.kind === "file_selection" &&
-    files !== null &&
     files.length > 0 &&
     files.every((file) => isHtmlPath(file.path));
 
@@ -439,7 +543,7 @@ function ReviewCard({
   }
 
   function openReview() {
-    if (!files || files.length === 0) return;
+    if (files.length === 0) return;
     void handleOpen(orderedReviewFiles(files)[0].path);
   }
 
@@ -447,7 +551,7 @@ function ReviewCard({
   // hover-then-click paints instantly. Unminted files stay skipped because
   // route entry is now the only place that mints `artifact_id`s.
   function prefetchFirstFile() {
-    const first = files ? orderedReviewFiles(files)[0] : undefined;
+    const first = orderedReviewFiles(files)[0];
     if (first?.artifact_id) prefetchReview(first.artifact_id);
   }
 
@@ -461,7 +565,7 @@ function ReviewCard({
     const next = draftName.trim();
     setRenaming(false);
     if (next && next !== review.name) {
-      void rename.dispatch({ review_id: review.id, name: next });
+      void rename.dispatch({ review_id: review.id, name: next }).then(refetch);
     }
   }
 
@@ -527,11 +631,8 @@ function ReviewCard({
           <button
             type="button"
             disabled={!canOpen || pendingPath !== null}
-            aria-busy={filesLoading}
             aria-label={`Open ${review.name}`}
-            title={
-              filesLoading ? "Loading review files…" : canOpen ? "Open review" : "No files to open"
-            }
+            title={canOpen ? "Open review" : "No files to open"}
             onClick={openReview}
             onMouseEnter={prefetchFirstFile}
             onFocus={prefetchFirstFile}
@@ -553,16 +654,7 @@ function ReviewCard({
               className="ml-auto hidden shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-faint sm:inline-flex"
               title={fullTimestamp(review.inserted_at)}
             >
-              {filesLoading ? (
-                <span className="inline-flex items-center gap-1" aria-label="Loading files">
-                  <Loader2 size={11} className="animate-spin" aria-hidden />
-                  <span className="h-2.5 w-10 animate-pulse rounded-sm bg-soft" />
-                </span>
-              ) : (
-                <span aria-label={`${fileCountLabel(files, filesStatus)}`}>
-                  {fileCountLabel(files, filesStatus)}
-                </span>
-              )}
+              <span aria-label={fileCountLabel(files)}>{fileCountLabel(files)}</span>
               <span aria-hidden className="text-line-strong">
                 ·
               </span>
@@ -633,11 +725,7 @@ function ReviewCard({
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="overflow-hidden"
             >
-              {files === null ? (
-                <p className="border-t border-line px-3.5 py-3 text-[12px] text-faint">
-                  {filesStatus === "failed" ? "Could not load files." : "Loading…"}
-                </p>
-              ) : files.length === 0 ? (
+              {files.length === 0 ? (
                 <p className="border-t border-line px-3.5 py-3 text-[12px] text-faint">
                   No files in this review.
                 </p>
@@ -678,7 +766,7 @@ function ReviewCard({
               size="sm"
               disabled={remove.isPending}
               onClick={() => {
-                void remove.dispatch({ review_id: review.id });
+                void remove.dispatch({ review_id: review.id }).then(refetch);
                 setConfirmDelete(false);
               }}
             >
@@ -823,6 +911,7 @@ function ReviewComposer({
   const create = useMusubiCommand(store, "create_review");
   const update = useMusubiCommand(store, "update_review_files");
   const list = useMusubiCommand(store, "list_dir");
+  const refetch = useBoardRefetch();
   const [name, setName] = useState("");
   const [selected, setSelected] = useState<Set<string>>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -854,6 +943,7 @@ function ReviewComposer({
         return;
       }
 
+      refetch();
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save review");
@@ -920,6 +1010,7 @@ function DiffReviewComposer({
 }) {
   const listBranches = useMusubiCommand(store, "list_branches");
   const create = useMusubiCommand(store, "create_diff_review");
+  const refetch = useBoardRefetch();
   const [name, setName] = useState("");
   const [branches, setBranches] = useState<BranchGroups | null>(null);
   const [defaultBranch, setDefaultBranch] = useState<string | null>(null);
@@ -966,6 +1057,7 @@ function DiffReviewComposer({
         setError(reply.error);
         return;
       }
+      refetch();
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create diff review");
@@ -1057,6 +1149,7 @@ function CreateProjectDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { dispatch, isPending } = useMusubiCommand(store, "create_project");
+  const refetch = useBoardRefetch();
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [respectGitignore, setRespectGitignore] = useState(true);
@@ -1082,6 +1175,7 @@ function CreateProjectDialog({
       setName("");
       setPath("");
       setRespectGitignore(true);
+      refetch();
       onOpenChange(false);
     } else {
       setError(reply.error ?? "Could not create project");
@@ -1192,6 +1286,7 @@ function EditProjectSettingsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { dispatch, isPending } = useMusubiCommand(store, "update_project");
+  const refetch = useBoardRefetch();
   const [respectGitignore, setRespectGitignore] = useState(project.respect_gitignore);
   const [error, setError] = useState<string | null>(null);
 
@@ -1213,6 +1308,7 @@ function EditProjectSettingsDialog({
     if (reply.error) {
       setError(reply.error);
     } else {
+      refetch();
       onOpenChange(false);
     }
   }

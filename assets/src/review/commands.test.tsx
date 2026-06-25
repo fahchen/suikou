@@ -6,10 +6,12 @@ import { useReviewCommands } from "./commands"
 import type { FileStore, ReviewStore } from "./types"
 
 // This test exercises dispatch routing, not connection state. Stub the socket
-// connectivity hook as connected so the command gate stays open.
+// connectivity hook as connected and the snapshot as present so the command gate
+// (which now also requires the live store to be hydrated) stays open.
 vi.mock("../musubi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../musubi")>()),
-  useSocketConnected: () => true
+  useSocketConnected: () => true,
+  useMusubiSnapshot: () => ({})
 }))
 
 // Minimal stand-ins for a Musubi store proxy: the command hook only ever touches

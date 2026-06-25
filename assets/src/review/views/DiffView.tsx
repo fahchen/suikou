@@ -69,7 +69,20 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
       />
     )
 
-  const stranded = comments.filter((c) => !c.anchor || c.outdated)
+  // Lines actually present in the current diff, per side. A diff_hunk comment
+  // whose line is gone (the diff changed) can't pin to a row, so it strands to
+  // the top; an outdated comment whose line still exists pins to it (marked
+  // outdated) rather than jumping to the top.
+  const diffLines = new Set<string>()
+  for (const hunk of parsed.hunks) {
+    for (const row of hunk.rows) {
+      if (row.old) diffLines.add(`old:${row.old.lineNo}`)
+      if (row.new) diffLines.add(`new:${row.new.lineNo}`)
+    }
+  }
+  const stranded = comments.filter(
+    (c) => c.anchor?.type !== "diff_hunk" || !diffLines.has(`${c.anchor.side}:${c.anchor.start_line}`),
+  )
 
   function onGutterClick(side: DiffSide, lineNo: number, shift: boolean): void {
     if (selection && selection.side === side && shift) {
@@ -293,7 +306,7 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
   const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
   const matches = inline
     ? comments.filter((c) => {
-        if (c.anchor?.type !== "diff_hunk" || c.outdated) return false
+        if (c.anchor?.type !== "diff_hunk") return false
         return c.anchor.side === row.side && c.anchor.start_line === lineNo
       })
     : []
@@ -434,7 +447,7 @@ function SideCell(props: {
 function AnchoredComments(props: { row: DiffRow; comments: Comment[] }) {
   const { row, comments } = props
   const matches = comments.filter((c) => {
-    if (c.anchor?.type !== "diff_hunk" || c.outdated) return false
+    if (c.anchor?.type !== "diff_hunk") return false
     const cell = c.anchor.side === "old" ? row.old : row.new
     return cell != null && c.anchor.start_line === cell.lineNo
   })
