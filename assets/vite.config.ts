@@ -86,6 +86,9 @@ export default defineConfig({
     // it offline / in DevTools with these maps. Runtime remap would need a dep.
     sourcemap: true
   },
+  // The highlight worker dynamic-imports Shiki grammars, so its bundle
+  // code-splits — unsupported by the default "iife" worker format.
+  worker: { format: "es" },
   server: {
     host: true,
     allowedHosts: [".ts.net"],
