@@ -136,14 +136,16 @@ describe("HtmlView", () => {
     }
   })
 
-  it("renders the iframe with sandbox=allow-same-origin and NO allow-scripts", async () => {
+  // allow-scripts is required for Safari (WebKit bug 218086): without it, the
+  // parent's pointer/click/selection listeners on the same-origin sandboxed
+  // iframe never fire, so element commenting is dead in Safari.
+  it("renders the iframe with sandbox=allow-same-origin allow-scripts", async () => {
     render(
       <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
     )
     const iframe = await screen.findByTitle("page.html")
     const sandbox = iframe.getAttribute("sandbox") ?? ""
-    expect(sandbox).toBe("allow-same-origin")
-    expect(sandbox).not.toMatch(/allow-scripts/)
+    expect(sandbox).toBe("allow-same-origin allow-scripts")
   })
 
   it("injects a <base> tag pointing at the artifact asset route", async () => {
@@ -176,12 +178,11 @@ describe("HtmlView", () => {
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
       target: { value: "fix this heading" }
     })
-    fireEvent.click(screen.getByRole("button", { name: "Fix required" }))
     fireEvent.click(screen.getByRole("button", { name: "Add comment" }))
 
     expect(dispatch).toHaveBeenCalledWith({
       scope: "located",
-      critique_type: "fix_required",
+      critique_type: "note",
       body: "fix this heading",
       anchor: { type: "element", selector: "#hello", quote: "hello" }
     })
