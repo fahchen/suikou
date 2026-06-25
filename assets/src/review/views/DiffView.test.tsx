@@ -54,7 +54,13 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     blocks: [],
     previewable: false,
     rawLines: null,
-    snapshot: {} as unknown as ReviewView["snapshot"],
+    // `.txt` has no grammar, so diff highlighting is a no-op and lines stay plain
+    // text — the assertions below match on raw line text.
+    snapshot: {
+      artifact: { id: "", title: "notes.txt" },
+      current_round: { content_hash: null },
+      content_hash: null
+    } as unknown as ReviewView["snapshot"],
     reviewKind: "file",
     reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",

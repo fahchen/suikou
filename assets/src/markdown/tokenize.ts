@@ -20,23 +20,19 @@ let nextId = 0
 let worker: Worker | null = null
 
 /**
- * Builds `tokenize`'s cache key from the backend content hash, the resolved
+ * Builds a tokenization cache key from the backend content hash, the resolved
  * Shiki theme name, and a per-view discriminator so the raw view and each
- * markdown fence cache independently. Centralized so producers can't drift.
+ * markdown fence key independently. Shared by `tokenize` and the persistent
+ * render cache so producers can't drift.
  */
 export const tokenKey = (etag: string, shikiTheme: string, extra: string) =>
   `${etag}|${shikiTheme}|${extra}`
 
-/** Cached tokens for `cacheKey`, or undefined if not yet tokenized this session. */
-export function peekTokens(cacheKey: string): ThemedToken[][] | undefined {
-  return cache.get(cacheKey)
-}
-
 /**
- * Tokenizes `code` off the main thread via a lazily-spawned module worker and
- * memoizes the result by `cacheKey` (content hash + theme). Concurrent calls for
- * the same key share one in-flight promise so the worker tokenizes each
- * file/theme pair at most once; cache hits resolve synchronously.
+ * Tokenizes `code` off the main thread via a lazily-spawned module worker,
+ * memoizing the result by `cacheKey` for this session. Concurrent calls for the
+ * same key share one in-flight promise so the worker tokenizes each input once.
+ * Cross-reload reuse is the caller's job (see `render-cache`).
  */
 export function tokenize(
   code: string,

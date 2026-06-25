@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { AnimatePresence, motion } from "motion/react"
 import { Plus, SquarePlus } from "lucide-react"
+import type { ThemedToken } from "shiki"
 
 import type { Comment } from "../types"
 import { CRITIQUE_META } from "../types"
@@ -17,6 +18,7 @@ import {
   type DiffSide,
   type ParsedDiff
 } from "../diff-parse"
+import { useDiffHighlight, type DiffTokens } from "../use-diff-highlight"
 import { uiStore, type CritiqueType } from "../../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
 import { Button } from "@/components/ui/button"
@@ -47,6 +49,35 @@ const ROW_KIND_CLASS: Record<DiffRow["kind"], { old: string; new: string }> = {
 
 const SIDE_LABEL: Record<DiffSide, string> = { old: "old", new: "new" }
 
+// Shiki encodes font style as a bitmask (1 italic, 2 bold, 4 underline).
+function tokenStyle(token: ThemedToken): React.CSSProperties {
+  const style: React.CSSProperties = { color: token.color }
+  const fontStyle = token.fontStyle ?? 0
+  if (fontStyle & 1) style.fontStyle = "italic"
+  if (fontStyle & 2) style.fontWeight = "bold"
+  if (fontStyle & 4) style.textDecoration = "underline"
+  return style
+}
+
+/** A diff cell's content: syntax tokens when this side's line is highlighted,
+ * else the plain text (a single space keeps a blank line clickable). */
+function diffCellContent(
+  side: DiffSide,
+  lineNo: number,
+  text: string,
+  diffTokens: DiffTokens
+): React.ReactNode {
+  const tokens = diffTokens[side].get(lineNo)
+  if (tokens) {
+    return tokens.map((token, j) => (
+      <span key={j} style={tokenStyle(token)}>
+        {token.content}
+      </span>
+    ))
+  }
+  return text === "" ? " " : text
+}
+
 export const DiffView = observer(function DiffView(props: ViewProps) {
   const { view, inline, nested } = props
   const { content, contentError, loading, comments } = view
@@ -57,6 +88,10 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
   const layout = uiStore.diffLayout === "side" && wide ? "side" : "unified"
 
   const parsed = useMemo<ParsedDiff>(() => parseUnifiedDiff(content), [content])
+
+  const minted = Boolean(view.snapshot.artifact.id)
+  const etag = (minted ? view.snapshot.current_round.content_hash : view.snapshot.content_hash) ?? ""
+  const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, uiStore.theme, etag)
 
   if (contentError) return <Notice title="Can't load this diff" message={contentError} nested={nested} />
   if (loading && content === "") return <Notice title="Loading…" message="Fetching the diff." nested={nested} />
@@ -122,6 +157,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
           inline={inline}
           layout={layout}
           selection={selection}
+          diffTokens={diffTokens}
           onGutterClick={onGutterClick}
           closeComposer={closeComposer}
         />
@@ -139,10 +175,11 @@ const HunkBlock = observer(function HunkBlock(props: {
   inline: boolean
   layout: Layout
   selection: Selection | null
+  diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { hunk, parsed, comments, inline, layout, selection, onGutterClick, closeComposer } = props
+  const { hunk, parsed, comments, inline, layout, selection, diffTokens, onGutterClick, closeComposer } = props
   const unifiedRows = useMemo(
     () => (layout === "unified" ? toUnifiedRows(hunk.rows) : []),
     [hunk.rows, layout]
@@ -162,6 +199,7 @@ const HunkBlock = observer(function HunkBlock(props: {
                 comments={comments}
                 inline={inline}
                 selection={selection}
+                diffTokens={diffTokens}
                 onGutterClick={onGutterClick}
                 closeComposer={closeComposer}
               />
@@ -174,6 +212,7 @@ const HunkBlock = observer(function HunkBlock(props: {
                 comments={comments}
                 inline={inline}
                 selection={selection}
+                diffTokens={diffTokens}
                 onGutterClick={onGutterClick}
                 closeComposer={closeComposer}
               />
@@ -229,10 +268,11 @@ const DiffRowView = observer(function DiffRowView(props: {
   comments: Comment[]
   inline: boolean
   selection: Selection | null
+  diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { row, parsed, comments, inline, selection, onGutterClick, closeComposer } = props
+  const { row, parsed, comments, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const tone = ROW_KIND_CLASS[row.kind]
   const composerOpen =
     selection != null &&
@@ -247,6 +287,7 @@ const DiffRowView = observer(function DiffRowView(props: {
           side="old"
           tone={tone.old}
           selection={selection}
+          diffTokens={diffTokens}
           onGutterClick={onGutterClick}
         />
         <SideCell
@@ -254,6 +295,7 @@ const DiffRowView = observer(function DiffRowView(props: {
           side="new"
           tone={tone.new}
           selection={selection}
+          diffTokens={diffTokens}
           onGutterClick={onGutterClick}
         />
       </div>
@@ -291,10 +333,11 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
   comments: Comment[]
   inline: boolean
   selection: Selection | null
+  diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { row, parsed, comments, inline, selection, onGutterClick, closeComposer } = props
+  const { row, parsed, comments, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const lineNo = row.side === "old" ? row.oldNo : row.newNo
   const tone = UNIFIED_KIND_CLASS[row.kind]
   const selected =
@@ -336,7 +379,11 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
         <div
           className={`min-w-0 whitespace-pre-wrap break-words pl-1 pr-2 leading-5 text-text [overflow-wrap:anywhere] ${cellTone}`}
         >
-          {row.text === "" ? " " : row.text}
+          {lineNo != null
+            ? diffCellContent(row.side, lineNo, row.text, diffTokens)
+            : row.text === ""
+              ? " "
+              : row.text}
         </div>
       </div>
 
@@ -399,9 +446,10 @@ function SideCell(props: {
   side: DiffSide
   tone: string
   selection: Selection | null
+  diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
 }) {
-  const { cell, side, tone, selection, onGutterClick } = props
+  const { cell, side, tone, selection, diffTokens, onGutterClick } = props
   const selected =
     cell != null &&
     selection != null &&
@@ -438,7 +486,7 @@ function SideCell(props: {
       <div
         className={`min-w-0 whitespace-pre-wrap break-words pl-2 leading-5 text-text [overflow-wrap:anywhere] ${cellTone}`}
       >
-        {cell.text === "" ? " " : cell.text}
+        {diffCellContent(side, cell.lineNo, cell.text, diffTokens)}
       </div>
     </>
   )
