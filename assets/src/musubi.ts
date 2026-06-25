@@ -57,7 +57,10 @@ export function useSocketConnected(): boolean {
 // discard stale entries.
 export const storeCache = {
   persister: createStorageCachePersister(localStorage),
-  buster: "v3"
+  buster: "v3",
+  // Effectively never expire; buster is the real invalidator. Max 32-bit
+  // setTimeout delay (~24.8d) — Infinity coerces to 0 and would evict on unmount.
+  gcTime: 2_147_483_647
 }
 
 export const {
