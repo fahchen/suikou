@@ -1,22 +1,27 @@
 import { useEffect, useState } from "react"
-import type { BundledLanguage, ThemedToken } from "shiki"
+import type { ThemedToken } from "shiki"
 
 import { THEME_CODE, type ThemeName } from "../themes"
-import { ensureLang, getHighlighter, shikiLangForPath } from "../markdown/highlighter"
+import { shikiLangForPath } from "../markdown/highlighter"
+import { peekTokens, tokenize, tokenKey } from "../markdown/tokenize"
 
 /**
  * Syntax-highlighted tokens for the raw file view, one entry per source line, or
- * null when the file type has no grammar (rendered as plain text). Re-runs when
- * the content, file path, or theme changes; resolves progressively so the raw
- * text shows immediately and upgrades to colour once Shiki tokenizes.
+ * null when the file type has no grammar (rendered as plain text). Tokenization
+ * runs off the main thread and is cached by `etag` + theme, so a revisit paints
+ * coloured immediately with no plain flash; a cold key shows raw text first and
+ * upgrades to colour once the worker tokenizes.
  */
 export function useRawHighlight(
   content: string,
   path: string,
-  theme: ThemeName
+  theme: ThemeName,
+  etag = ""
 ): ThemedToken[][] | null {
   const lang = shikiLangForPath(path)
-  const [lines, setLines] = useState<ThemedToken[][] | null>(null)
+  const shikiTheme = THEME_CODE[theme].shiki
+  const cacheKey = tokenKey(etag, shikiTheme, "raw")
+  const [lines, setLines] = useState<ThemedToken[][] | null>(() => peekTokens(cacheKey) ?? null)
 
   useEffect(() => {
     if (!lang) {
@@ -24,17 +29,16 @@ export function useRawHighlight(
       return
     }
 
+    const cached = peekTokens(cacheKey)
+    if (cached) {
+      setLines(cached)
+      return
+    }
+
     let cancelled = false
     setLines(null)
 
-    getHighlighter()
-      .then(async (highlighter) => {
-        await ensureLang(highlighter, lang)
-        const { shiki } = THEME_CODE[theme]
-        const loaded = highlighter.getLoadedLanguages().includes(lang) ? lang : "text"
-        return highlighter.codeToTokens(content, { lang: loaded as BundledLanguage, theme: shiki })
-          .tokens
-      })
+    tokenize(content, lang, shikiTheme, cacheKey)
       .then((tokens) => {
         if (!cancelled) setLines(tokens)
       })
@@ -45,7 +49,7 @@ export function useRawHighlight(
     return () => {
       cancelled = true
     }
-  }, [content, path, lang, theme])
+  }, [content, lang, shikiTheme, cacheKey])
 
   return lines
 }

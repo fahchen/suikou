@@ -246,11 +246,18 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
 
   const reviewKind = structure.kind;
 
-  const blocks = useMarkdown(previewable ? content : "", ui.theme, ui.markdownFlavor, {
-    base: minted ? assetBase(snapshot.artifact.id) : "",
-    dir: slash === -1 ? "" : title.slice(0, slash),
-  });
-  const rawLines = useRawHighlight(content, title, ui.theme);
+  const etag = (minted ? snapshot.current_round.content_hash : snapshot.content_hash) ?? "";
+  const blocks = useMarkdown(
+    previewable ? content : "",
+    ui.theme,
+    ui.markdownFlavor,
+    {
+      base: minted ? assetBase(snapshot.artifact.id) : "",
+      dir: slash === -1 ? "" : title.slice(0, slash),
+    },
+    etag,
+  );
+  const rawLines = useRawHighlight(content, title, ui.theme, etag);
   const loading = blocks.loading || contentLoading;
 
   const seenIds = useRef<Set<string> | null>(null);

@@ -179,7 +179,13 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     live && !minted && !image,
   )
   const contentState = minted ? minStat : unminStat
-  const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, uiStore.theme)
+  const etag = (minted ? fileSnapshot.current_round.content_hash : fileSnapshot.content_hash) ?? ""
+  const rawLines = useRawHighlight(
+    live && !image ? contentState.text : "",
+    path,
+    uiStore.theme,
+    etag,
+  )
 
   const previewable = isPreviewable(path) && viewKind === "file"
   const slash = path.lastIndexOf("/")
@@ -191,6 +197,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
       base: fileSnapshot.artifact_id ? assetBase(fileSnapshot.artifact_id) : "",
       dir: slash === -1 ? "" : path.slice(0, slash),
     },
+    etag,
   )
 
   const comments = (fileSnapshot.comments as unknown as { items: Comment[] }).items
