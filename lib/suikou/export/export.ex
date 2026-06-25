@@ -56,7 +56,6 @@ defmodule Suikou.Export do
           artifact_id: Ecto.UUID.t(),
           title: String.t(),
           verdict: Submission.verdict() | nil,
-          approved: boolean(),
           comments: [comment_view()]
         }
 
@@ -134,7 +133,6 @@ defmodule Suikou.Export do
       artifact_id: artifact.id,
       title: artifact.title,
       verdict: Submissions.latest_verdict_for_artifact(artifact.id),
-      approved: not is_nil(artifact.approved_round),
       comments: published_comments(artifact.id, round, scope, lines)
     }
   end
