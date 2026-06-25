@@ -5,17 +5,15 @@ import { SquarePlus } from "lucide-react";
 
 import { CommentComposer } from "../CommentComposer";
 import { useReviewCommands } from "../commands";
-import { CRITIQUE_META } from "../types";
 import { uiStore, type CritiqueType } from "../../stores/ui-store";
 import { Button } from "@/components/ui/button";
-
-const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
-
-const TYPE_TONE: Record<string, string> = {
-  red: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
-  amber: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/30",
-  muted: "bg-soft text-heading ring-1 ring-inset ring-line",
-};
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface HtmlAnchorTarget {
   artifactId: string;
@@ -74,28 +72,9 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
       transition={{ duration: 0.18, ease: "easeOut" }}
       className={frame}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        {variant === "rail" && (
-          <span className="text-[12px] font-medium text-heading">New comment on selected region</span>
-        )}
-        <div className="flex flex-wrap gap-1 sm:ml-auto">
-          {TYPES.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              aria-pressed={type === kind}
-              className={`inline-flex h-6 cursor-pointer items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
-                type === kind
-                  ? TYPE_TONE[CRITIQUE_META[kind].tone]
-                  : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
-              }`}
-              onClick={() => setType(kind)}
-            >
-              {CRITIQUE_META[kind].label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {variant === "rail" && (
+        <span className="text-[12px] font-medium text-heading">New comment on selected region</span>
+      )}
 
       <blockquote className="max-h-24 overflow-y-auto whitespace-pre-line break-words rounded-md border border-line bg-editor px-2 py-1.5 text-[12px] text-muted-foreground">
         {target.quote || (
@@ -115,17 +94,30 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
         submitLabel="Add comment"
         disabled={commands.addComment.disabled}
         leadingAction={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={suggest}
-            disabled={target.quote === ""}
-          >
-            <SquarePlus size={13} />
-            Quote
-          </Button>
+          <>
+            <Select value={type} onValueChange={(v) => setType(v as CritiqueType)}>
+              <SelectTrigger size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fix_required">fix_required</SelectItem>
+                <SelectItem value="needs_answer">needs_answer</SelectItem>
+                <SelectItem value="note">note</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground"
+              title="Quote selected text"
+              aria-label="Quote selected text"
+              onClick={suggest}
+              disabled={target.quote === ""}
+            >
+              <SquarePlus size={13} />
+            </Button>
+          </>
         }
       />
     </motion.div>
