@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
 import { SquarePlus } from "lucide-react";
 
-import { ComposerTextarea } from "../ComposerTextarea";
+import { CommentComposer } from "../CommentComposer";
 import { useReviewCommands } from "../commands";
 import { CRITIQUE_META } from "../types";
 import { uiStore, type CritiqueType } from "../../stores/ui-store";
@@ -45,14 +45,16 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
     setBody((prev) => `${prev}${prev ? "\n\n" : ""}${fence}\n\n`);
   }
 
-  async function add(): Promise<void> {
-    if (!body.trim()) return;
-    await commands.addComment.dispatch({
+  function submit(text: string): Promise<unknown> {
+    return commands.addComment.dispatch({
       scope: "located",
       critique_type: type,
-      body: body.trim(),
+      body: text,
       anchor: { type: "element", selector: target.selector, quote: target.quote },
     });
+  }
+
+  function done(): void {
     setBody("");
     setType("note");
     uiStore.setHtmlAnchorTarget(null);
@@ -101,48 +103,31 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
         )}
       </blockquote>
 
-      <ComposerTextarea
+      <CommentComposer
         autoFocus
-        className="min-h-20 rounded-md"
+        textareaClassName="min-h-20 rounded-md"
         placeholder="Leave a comment. Markdown supported."
         value={body}
-        onChange={(e) => setBody(e.target.value)}
-        onSubmit={() => void add()}
+        onChange={setBody}
+        onSubmit={submit}
+        onSuccess={done}
         onCancel={onClose}
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground"
-          onClick={suggest}
-          disabled={target.quote === ""}
-        >
-          <SquarePlus size={13} />
-          Quote
-        </Button>
-        <div className="ml-auto flex items-center gap-2">
+        submitLabel="Add comment"
+        disabled={commands.addComment.disabled}
+        leadingAction={
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="text-muted-foreground"
-            onClick={onClose}
+            onClick={suggest}
+            disabled={target.quote === ""}
           >
-            Cancel
+            <SquarePlus size={13} />
+            Quote
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={commands.addComment.isPending || !body.trim()}
-            onClick={() => void add()}
-          >
-            Add comment
-          </Button>
-        </div>
-      </div>
+        }
+      />
     </motion.div>
   );
 });
