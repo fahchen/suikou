@@ -38,6 +38,7 @@ function highlightStyle(): string {
   const tint = (color: string, pct: number) =>
     `color-mix(in oklch, ${color} ${pct}%, transparent)`
   return `
+::selection{background:${tint(blue, 28)};}
 .${COMMENT_HIGHLIGHT_CLASS}{outline:1.5px dashed ${blue};outline-offset:2px;background:${tint(blue, 6)};cursor:pointer;}
 .${HOVER_HIGHLIGHT_CLASS}{outline:1.5px solid ${blue};outline-offset:2px;background:${tint(blue, 7)};cursor:pointer;transition:outline-color 140ms cubic-bezier(0.22,1,0.36,1),outline-width 140ms cubic-bezier(0.22,1,0.36,1),background 140ms cubic-bezier(0.22,1,0.36,1);}
 .${TARGET_HIGHLIGHT_CLASS}{outline:2px solid ${focus};outline-offset:3px;background:${tint(focus, 12)};cursor:pointer;}
