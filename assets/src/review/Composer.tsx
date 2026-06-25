@@ -72,9 +72,7 @@ export const Composer = observer(function Composer(props: {
             ? `line ${props.startLine}`
             : `lines ${props.startLine}-${props.endLine}`}
         </span>
-        <span className="hidden text-[11px] text-faint">
-          Tap another line to extend.
-        </span>
+        <span className="hidden text-[11px] text-faint">Tap another line to extend.</span>
         <div className="flex flex-wrap gap-1 sm:ml-auto">
           {TYPES.map((option) => (
             <button
