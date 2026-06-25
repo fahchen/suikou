@@ -148,8 +148,10 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       round = source_round("line 1\nline 2\n")
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
 
-      assert %{"review_id" => ^review_id, "submission_version" => 0, "artifacts" => [_artifact]} =
+      assert %{"review_id" => ^review_id, "submission_version" => 0, "artifacts" => [artifact]} =
                run(%{"review_id" => review_id}, &CLI.export/0)
+
+      refute Map.has_key?(artifact, "approved")
     end
 
     test "emits review_not_found for an unknown review" do
@@ -216,6 +218,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                task |> Task.await() |> Jason.decode!()
 
       assert Enum.map(comments, & &1["body"]) == ["open"]
+      assert Enum.all?(comments, &(not Map.has_key?(&1, "resolved_round")))
     end
   end
 

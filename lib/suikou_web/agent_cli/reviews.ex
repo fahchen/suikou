@@ -239,7 +239,11 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   @spec export() :: :ok
   def export do
     payload = AgentCLI.read_payload()
-    AgentCLI.emit(snapshot(payload["review_id"], scope(payload)))
+
+    payload["review_id"]
+    |> snapshot(scope(payload))
+    |> drop_resolved_round()
+    |> AgentCLI.emit()
   end
 
   @doc """
@@ -274,7 +278,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
         await(review_id, scope, version, deadline)
       end)
 
-    AgentCLI.emit(reply)
+    AgentCLI.emit(drop_resolved_round(reply))
   end
 
   # The server-configured window caps how long a single call blocks. An optional
@@ -335,6 +339,20 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   # is theirs, so the human owes the next move on nothing.
   defp addressed?(comment) do
     not is_nil(comment.resolved_round) or match?(%{author: :agent}, List.last(comment.replies))
+  end
+
+  # `resolved_round` drives the latest-round working-set filter (`addressed?`), so
+  # it lives on the Export view but is stripped from the emitted JSON — the agent
+  # acts on the comment, not on resolution bookkeeping. Stripped after the filter
+  # has run, never before.
+  defp drop_resolved_round(%{artifacts: artifacts} = export) do
+    %{export | artifacts: Enum.map(artifacts, &drop_comment_rounds/1)}
+  end
+
+  defp drop_resolved_round(other), do: other
+
+  defp drop_comment_rounds(%{comments: comments} = artifact) do
+    %{artifact | comments: Enum.map(comments, &Map.delete(&1, :resolved_round))}
   end
 
   defp with_project(project_id, fun) do

@@ -8,22 +8,22 @@ import {
   type MarkdownFlavor,
   type RenderedBlock
 } from "./render"
+import { loadCached, peekCached, saveCached } from "./render-cache"
 
 export interface MarkdownState {
   blocks: RenderedBlock[]
   loading: boolean
 }
 
-// Fully-highlighted block lists keyed by content hash + theme + flavor, so a
-// revisit / theme toggle / remount paints colored instantly with no re-parse.
-const blockCache = new Map<string, RenderedBlock[]>()
+const keyOf = (etag: string, theme: ThemeName, flavor: MarkdownFlavor) =>
+  `${etag}|${theme}|md:${flavor}`
 
 /**
- * Renders markdown to line-mapped blocks progressively: structure and plain
- * (uncolored) code paint synchronously on the first frame, then Shiki colour
- * swaps in once a worker tokenizes the fences. Re-runs when content, theme,
- * flavor, the image asset context, or the content hash (`etag`) changes; a
- * cached fully-colored result for the key resolves instantly.
+ * Renders markdown to line-mapped blocks. A cache hit (content hash + theme +
+ * flavor) paints the finished blocks directly — no parse, no worker. On a miss
+ * it renders progressively: structure and plain code paint synchronously, then
+ * Shiki colour swaps in once a worker tokenizes the fences, and the finished
+ * blocks are cached for the next visit / reload.
  */
 export function useMarkdown(
   content: string,
@@ -32,7 +32,10 @@ export function useMarkdown(
   asset?: AssetContext,
   etag = ""
 ): MarkdownState {
-  const [state, setState] = useState<MarkdownState>({ blocks: [], loading: true })
+  const [state, setState] = useState<MarkdownState>(() => {
+    const cached = content === "" ? undefined : peekCached<RenderedBlock[]>(keyOf(etag, theme, flavor))
+    return cached ? { blocks: cached, loading: false } : { blocks: [], loading: content !== "" }
+  })
 
   useEffect(() => {
     if (content === "") {
@@ -40,23 +43,31 @@ export function useMarkdown(
       return
     }
 
-    const key = `${etag}|${theme}|${flavor}`
-    const cached = blockCache.get(key)
-    if (cached) {
-      setState({ blocks: cached, loading: false })
+    const key = keyOf(etag, theme, flavor)
+    const warm = peekCached<RenderedBlock[]>(key)
+    if (warm) {
+      setState({ blocks: warm, loading: false })
       return
     }
 
     let cancelled = false
-    const { blocks, fences } = parseMarkdown(content, theme, flavor, asset)
-    setState({ blocks, loading: false })
-
-    highlightBlocks(blocks, fences, theme, etag).then((full) => {
-      if (!cancelled) {
-        blockCache.set(key, full)
-        setState({ blocks: full, loading: false })
+    void (async () => {
+      const cached = await loadCached<RenderedBlock[]>(key)
+      if (cancelled) return
+      if (cached) {
+        setState({ blocks: cached, loading: false })
+        return
       }
-    })
+
+      const { blocks, fences } = parseMarkdown(content, theme, flavor, asset)
+      if (cancelled) return
+      setState({ blocks, loading: false })
+
+      const full = await highlightBlocks(blocks, fences, theme, etag)
+      if (cancelled) return
+      void saveCached(key, full)
+      setState({ blocks: full, loading: false })
+    })()
 
     return () => {
       cancelled = true

@@ -57,21 +57,21 @@ defmodule Suikou.ExportTest do
     assert is_binary(JSON.encode!(export))
   end
 
-  test "an approved artifact reports its approval and verdict" do
+  test "an approved artifact reports the approve verdict" do
     artifact = insert(:round).artifact
     %{round: round2} = advance(artifact.id, "v2\n")
     {:ok, _submission} = Submissions.submit(round2.id, :approve)
 
-    assert {:ok, %{verdict: :approve, approved: true}} =
-             Export.export(artifact.id)
+    assert {:ok, %{verdict: :approve} = export} = Export.export(artifact.id)
+    refute Map.has_key?(export, :approved)
   end
 
-  test "a request_changes verdict reports not approved" do
+  test "a request_changes verdict is reported" do
     round = insert(:round)
     artifact = round.artifact
     {:ok, _submission} = Submissions.submit(round.id, :request_changes)
 
-    assert {:ok, %{verdict: :request_changes, approved: false}} = Export.export(artifact.id)
+    assert {:ok, %{verdict: :request_changes}} = Export.export(artifact.id)
   end
 
   test "a comment's published replies travel with it" do
@@ -136,9 +136,9 @@ defmodule Suikou.ExportTest do
     assert first == second
   end
 
-  test "an artifact with no reviews exports a nil verdict and no approval round" do
+  test "an artifact with no reviews exports a nil verdict" do
     artifact = insert(:round).artifact
-    assert {:ok, %{verdict: nil, approved: false, comments: []}} = Export.export(artifact.id)
+    assert {:ok, %{verdict: nil, comments: []}} = Export.export(artifact.id)
   end
 
   test "an unknown artifact id returns an error" do
