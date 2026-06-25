@@ -33,7 +33,12 @@ function useDefaultReviewCommands() {
   // The file snapshot is defined only once the root has mounted and its first
   // patch landed, so gate writes on that (plus the live socket).
   const connected = useSocketConnected();
-  const ready = connected && useMusubiSnapshot(fileStore) !== undefined;
+  // Call the snapshot hook unconditionally — a `connected && useMusubiSnapshot(...)`
+  // short-circuit would skip the hook while disconnected and break hook order on
+  // the next render (the "Should have a queue" crash on a Safari background/resume,
+  // where the socket drops then reconnects).
+  const fileSnapshot = useMusubiSnapshot(fileStore);
+  const ready = connected && fileSnapshot !== undefined;
   const gate = <T extends { isPending: boolean }>(command: T) => ({
     ...command,
     disabled: !ready || command.isPending,
