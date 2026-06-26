@@ -22,7 +22,7 @@ export function HomeButton() {
 
 export function TopBarShell(props: { left?: ReactNode; right: ReactNode }) {
   return (
-    <header className="pointer-events-none sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
+    <header className="pointer-events-none sticky top-0 z-20 mx-auto flex w-full max-w-[1760px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-10">
       <div className="pointer-events-auto flex min-w-0 items-center gap-2">
         <HomeButton />
         {props.left}
