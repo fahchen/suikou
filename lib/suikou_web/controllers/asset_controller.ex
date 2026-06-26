@@ -27,7 +27,7 @@ defmodule SuikouWeb.AssetController do
   @spec show(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def show(conn, %{"artifact_id" => artifact_id, "path" => segments}) do
     case Artifacts.resolve_asset(artifact_id, Path.join(segments)) do
-      {:ok, absolute} -> serve_file(conn, absolute)
+      {:ok, absolute} -> serve_content(conn, {:file, absolute})
       {:error, _reason} -> send_resp(conn, 404, "")
     end
   end
@@ -125,19 +125,19 @@ defmodule SuikouWeb.AssetController do
 
   defp serve_review_raw(conn, %Review{} = review, path) do
     case Reviews.fetch_raw_by_path(review, path) do
-      {:ok, {:file, absolute}} -> serve_file(conn, absolute)
-      {:ok, {:inline, bytes, content_type}} -> serve_inline(conn, bytes, content_type)
+      {:ok, source} -> serve_content(conn, source)
       {:error, _reason} -> send_resp(conn, 404, "")
     end
   end
 
-  # Reviewed text (a file source or an inline diff) is what the frontend
-  # syntax-highlights and caches by content identity. Serve it with a strong
-  # ETag = hash of the exact bytes sent, so the client keys its highlight cache
-  # off the real content rather than the round's stored hash, which can lag a
-  # live edit. `no-cache` forces revalidation (the URL isn't content-stamped);
-  # an unchanged file then answers 304. Binary assets/raw bytes skip this and
-  # stream zero-copy via `serve_file`.
+  # Every served file (reviewed text, inline diff, image, raw blob) answers with
+  # a strong ETag = hash of the exact bytes sent. The frontend keys its highlight
+  # cache off this for text and lets the browser revalidate images by it; either
+  # way the identity tracks the real content, not the round's stored hash, which
+  # can lag a live edit. `no-cache` forces revalidation (the URL isn't
+  # content-stamped); an unchanged file then answers 304.
+  # ponytail: reads the whole file into memory to hash it — fine for review-sized
+  # assets; stream-hash + send_file if a large-blob route ever needs it.
   defp serve_content(conn, {:file, absolute}) do
     case File.read(absolute) do
       {:ok, bytes} -> send_content(conn, bytes, MIME.from_path(absolute))
@@ -163,17 +163,5 @@ defmodule SuikouWeb.AssetController do
     else
       send_resp(conn, 200, bytes)
     end
-  end
-
-  defp serve_file(conn, absolute) do
-    conn
-    |> put_resp_content_type(MIME.from_path(absolute), nil)
-    |> send_file(200, absolute)
-  end
-
-  defp serve_inline(conn, bytes, content_type) do
-    conn
-    |> put_resp_content_type(content_type, nil)
-    |> send_resp(200, bytes)
   end
 end
