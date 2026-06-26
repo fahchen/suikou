@@ -24,7 +24,17 @@ const LANGS = [
   "toml",
   "diff",
   "markdown",
-  "gherkin"
+  "gherkin",
+  "c",
+  "cpp",
+  "csharp",
+  "java",
+  "ruby",
+  "php",
+  "swift",
+  "kotlin",
+  "lua",
+  "scala"
 ] satisfies readonly BundledLanguage[]
 
 /** File extension (no dot, lowercase) to the Shiki language that highlights it. */
@@ -56,7 +66,24 @@ const RAW_EXTENSIONS: Record<string, string> = {
   markdown: "markdown",
   diff: "diff",
   patch: "diff",
-  feature: "gherkin"
+  feature: "gherkin",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hh: "cpp",
+  cs: "csharp",
+  java: "java",
+  rb: "ruby",
+  php: "php",
+  swift: "swift",
+  kt: "kotlin",
+  kts: "kotlin",
+  lua: "lua",
+  scala: "scala",
+  sc: "scala"
 }
 
 const SUPPORTED = new Set<string>(LANGS)
