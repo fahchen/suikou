@@ -8,9 +8,9 @@ export interface ContentState {
   error: string | null
   /** True when the backend answered 404 (deliberate placeholder, do not retry). */
   missing: boolean
-  /** Strong ETag of the served bytes (hash of `text`), or "" when unavailable.
-   * The highlight cache key, so it tracks the displayed content rather than a
-   * possibly-stale snapshot hash. */
+  /** Highlight cache key for the served bytes: the strong ETag (hash of `text`)
+   * when the backend sends one, else the caller's revision key as a per-file
+   * fallback. Never "" for present content, so files can't collide on one key. */
   etag: string
 }
 
@@ -97,7 +97,10 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
         }
         if (!res.ok) throw new Error(`content unavailable (${res.status})`)
         const text = await res.text()
-        const etag = res.headers.get("etag") ?? ""
+        // Prefer the served bytes' strong ETag; fall back to the caller's revision
+        // key when the backend omits it, so the highlight cache stays per-file
+        // instead of collapsing every file onto one empty-string key.
+        const etag = res.headers.get("etag") || cacheKey
         if (!cancelled) setState({ text, loading: false, error: null, missing: false, etag })
       })
       .catch((err: Error) => {
