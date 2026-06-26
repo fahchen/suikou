@@ -61,6 +61,21 @@ defmodule SuikouWeb.AssetControllerTest do
       assert response(conn, 404)
     end
 
+    test "sets a content ETag and answers 304 when it matches", %{conn: conn} do
+      %{artifact: artifact} = project_with_file("docs/plan.md", "# Plan\n")
+
+      conn = get(conn, "/api/review/#{artifact.id}/content")
+      assert [etag] = get_resp_header(conn, "etag")
+      assert ["no-cache"] = get_resp_header(conn, "cache-control")
+
+      revalidated =
+        build_conn()
+        |> put_req_header("if-none-match", etag)
+        |> get("/api/review/#{artifact.id}/content")
+
+      assert response(revalidated, 304) == ""
+    end
+
     @tag :tmp_dir
     test "serves a git-diff artifact's live diff inline as text/x-diff",
          %{conn: conn, tmp_dir: dir} do
