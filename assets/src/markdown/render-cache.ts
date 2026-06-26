@@ -10,7 +10,8 @@ import { openDB, type IDBPDatabase } from "idb"
 const DB_NAME = "suikou-highlight"
 const STORE = "render"
 // v2: keys dropped the theme component and token colours became `var(--shiki-*)`.
-const BUSTER = "v2"
+// v3: force-drop any stale entries cached by a pre-fix build.
+const BUSTER = "v3"
 // ponytail: global count cap, oldest-first overflow; per-key LRU if it matters.
 const MAX_ENTRIES = 400
 

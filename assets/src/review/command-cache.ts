@@ -5,7 +5,7 @@
 //
 // `BUSTER` is the data-shape version: bump it whenever a cached reply's shape
 // changes so deployed clients drop old entries instead of rendering them wrong.
-const BUSTER = "v1"
+const BUSTER = "v2"
 
 interface Entry<T> {
   buster: string
