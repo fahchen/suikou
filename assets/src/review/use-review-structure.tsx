@@ -164,7 +164,10 @@ export function mergeFileView(
 ): MergedFileView {
   const title = file?.artifact?.title ?? file?.path ?? live.path
   return {
-    path: live.path,
+    // Identity comes from the structure (keyed by the route path), not the live
+    // snapshot: the live store node can lag a beat behind a client-side file
+    // switch, and trusting `live.path` would fetch the previous file's source.
+    path: file?.path ?? entry?.path ?? live.path,
     artifact_id: file?.artifact_id ?? null,
     content_hash: file?.content_hash ?? null,
     change_status: entry?.change_status ?? null,

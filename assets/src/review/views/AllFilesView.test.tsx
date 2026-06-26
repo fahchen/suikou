@@ -243,11 +243,11 @@ describe("AllFilesView card rendering", () => {
   })
 })
 
-describe("AllFilesView raw/rendered toggle", () => {
-  it("flips a previewable file between rendered and raw source", async () => {
+describe("AllFilesView source/rendered toggle", () => {
+  it("flips a previewable file between rendered and source", async () => {
     fetchMock.mockResolvedValue(okResponse("# heading"))
     renderAllFiles([[{ path: "doc.md", artifact_id: "art-d", current_round_hash: "hd" }]])
-    const toggle = await screen.findByRole("button", { name: /Show raw source/i })
+    const toggle = await screen.findByRole("button", { name: /Show source/i })
     expect(toggle).toHaveAttribute("aria-pressed", "false")
     fireEvent.click(toggle)
     const back = await screen.findByRole("button", { name: /Show rendered/i })

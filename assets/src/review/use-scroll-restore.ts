@@ -57,7 +57,7 @@ export function useScrollRestore(options: ScrollRestoreOptions): void {
     return () => {
       container.removeEventListener("scroll", onScroll)
       if (timer !== null) window.clearTimeout(timer)
-      // Final save: on key change (rendered↔raw swap on the same mount) this
+      // Final save: on key change (rendered↔source swap on the same mount) this
       // captures the outgoing view's offset before its restore runs; on unmount
       // it captures the last position before navigating away.
       save()

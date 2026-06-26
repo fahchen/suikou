@@ -1,17 +1,17 @@
 // @vitest-environment node
-import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 
-import Parser from "web-tree-sitter"
+import { Parser, Language } from "web-tree-sitter"
 import { beforeAll, describe, expect, it } from "vitest"
 
 import { buildOutline, langForPath, type Lang } from "./outline"
 
-const require = createRequire(import.meta.url)
-
 const WASM: Partial<Record<Lang, string>> = {
   gherkin: fileURLToPath(new URL("./wasm/tree-sitter-gherkin.wasm", import.meta.url)),
-  typescript: require.resolve("tree-sitter-wasms/out/tree-sitter-typescript.wasm")
+  typescript: fileURLToPath(new URL("./wasm/tree-sitter-typescript.wasm", import.meta.url)),
+  ruby: fileURLToPath(new URL("./wasm/tree-sitter-ruby.wasm", import.meta.url)),
+  java: fileURLToPath(new URL("./wasm/tree-sitter-java.wasm", import.meta.url)),
+  toml: fileURLToPath(new URL("./wasm/tree-sitter-toml.wasm", import.meta.url))
 }
 
 async function parse(content: string, lang: Lang) {
@@ -19,8 +19,10 @@ async function parse(content: string, lang: Lang) {
   if (!wasm) throw new Error(`no grammar wasm registered for ${lang}`)
 
   const parser = new Parser()
-  parser.setLanguage(await Parser.Language.load(wasm))
-  return buildOutline(parser.parse(content).rootNode, content.split("\n"), lang)
+  parser.setLanguage(await Language.load(wasm))
+  const tree = parser.parse(content)
+  if (!tree) throw new Error(`failed to parse ${lang}`)
+  return buildOutline(tree.rootNode, content.split("\n"), lang)
 }
 
 describe("langForPath", () => {
@@ -30,6 +32,10 @@ describe("langForPath", () => {
     expect(langForPath("util.ts")).toBe("typescript")
     expect(langForPath("spec/login.feature")).toBe("gherkin")
     expect(langForPath("config.yaml")).toBe("yaml")
+    expect(langForPath("src/main.cpp")).toBe("cpp")
+    expect(langForPath("Service.cs")).toBe("c_sharp")
+    expect(langForPath("app/models/user.rb")).toBe("ruby")
+    expect(langForPath("Cargo.toml")).toBe("toml")
   })
 
   it("returns null for markdown and unknown types", () => {
@@ -87,6 +93,37 @@ describe("buildOutline", () => {
     expect(items).toEqual([
       { level: 1, text: "class Outer", line: 1 },
       { level: 2, text: "method()", line: 2 }
+    ])
+  })
+
+  it("nests Ruby modules, classes and methods", async () => {
+    const source = ["module Auth", "  class Session", "    def login", "    end", "  end", "end"].join("\n")
+    const items = await parse(source, "ruby")
+
+    expect(items).toEqual([
+      { level: 1, text: "module Auth", line: 1 },
+      { level: 2, text: "class Session", line: 2 },
+      { level: 3, text: "def login", line: 3 }
+    ])
+  })
+
+  it("nests Java classes and methods", async () => {
+    const source = ["class Greeter {", "  void hello() {", "  }", "}"].join("\n")
+    const items = await parse(source, "java")
+
+    expect(items).toEqual([
+      { level: 1, text: "class Greeter", line: 1 },
+      { level: 2, text: "void hello()", line: 2 }
+    ])
+  })
+
+  it("lists TOML tables and table arrays flat", async () => {
+    const source = ["[server]", 'host = "localhost"', "", "[[server.ports]]", "n = 80"].join("\n")
+    const items = await parse(source, "toml")
+
+    expect(items).toEqual([
+      { level: 1, text: "[server]", line: 1 },
+      { level: 1, text: "[[server.ports]]", line: 4 }
     ])
   })
 })

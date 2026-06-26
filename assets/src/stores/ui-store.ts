@@ -3,7 +3,7 @@ import { makeAutoObservable } from "mobx"
 import type { MarkdownFlavor } from "../markdown/render"
 import { THEMES, type ThemeName } from "../themes"
 
-export type DocView = "rendered" | "raw"
+export type DocView = "rendered" | "source"
 export type CommentMode = "inline" | "side"
 export type StatusFilter = "all" | "unresolved" | "resolved"
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
@@ -36,7 +36,7 @@ const DRAFTS_KEY = "suikou-drafts"
 /**
  * Ephemeral, client-only UI state for the review surface. Server-owned data
  * (artifacts, rounds, comments) lives in the Musubi ReviewStore; MobX holds only
- * transient interaction state — active theme, render/raw view, comment layout,
+ * transient interaction state — active theme, render/source view, comment layout,
  * filters, and the in-progress comment composer draft.
  */
 export class UiStore {
@@ -86,11 +86,11 @@ export class UiStore {
   // mounted shell stays visible until the new shell takes over.
   mintingPath: string | null = null
 
-  // Per-file render-vs-raw override in all-files (stacked) mode. Keyed by file
+  // Per-file render-vs-source override in all-files (stacked) mode. Keyed by file
   // path so each stacked card owns its display independently of the others;
   // unset means the file falls back to its default (rendered). Transient
   // session state — not persisted.
-  fileRawView: Record<string, boolean> = {}
+  fileSourceView: Record<string, boolean> = {}
 
   // Per-file collapse state in all-files (stacked) mode, keyed by review then
   // path. Persisted so a reviewer's collapsed files survive reload. Only
@@ -312,12 +312,12 @@ export class UiStore {
     this.mintingPath = path
   }
 
-  setFileRawView(path: string, raw: boolean): void {
-    this.fileRawView = { ...this.fileRawView, [path]: raw }
+  setFileSourceView(path: string, source: boolean): void {
+    this.fileSourceView = { ...this.fileSourceView, [path]: source }
   }
 
-  getFileRawView(path: string): boolean {
-    return this.fileRawView[path] ?? false
+  getFileSourceView(path: string): boolean {
+    return this.fileSourceView[path] ?? false
   }
 
   setFileCollapsed(reviewId: string, path: string, collapsed: boolean): void {

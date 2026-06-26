@@ -47,16 +47,16 @@ function highlightStyle(): string {
 }
 
 /**
- * Dispatcher that picks the raw or interactive sub-view. Kept as a thin
- * branchy wrapper with NO hooks of its own so flipping `forceRaw` between
+ * Dispatcher that picks the source or interactive sub-view. Kept as a thin
+ * branchy wrapper with NO hooks of its own so flipping `forceSource` between
  * renders doesn't change the parent's hook count.
  */
 export const HtmlView = observer(function HtmlView(props: ViewProps) {
-  const { view, forceRaw, inline, nested } = props
-  if (forceRaw) {
+  const { view, forceSource, inline, nested } = props
+  if (forceSource) {
     return (
       <Editor
-        view="raw"
+        view="source"
         content={view.content}
         contentError={view.contentError}
         blocks={view.blocks}
@@ -646,6 +646,13 @@ function HtmlToolbar(props: {
  * matting + a small `Rendered HTML` chip — reads the white surface as
  * deliberate paper, not a contrast bug.
  */
+// The white "paper" surface inside the matting. The drop shadow is intentionally
+// neutral-on-white (not a theme elevation token) so the paper reads the same
+// whether the matting is light or dark; kept here as one source so the matted
+// and fullscreen frames can't drift apart.
+const HTML_PAPER_SURFACE =
+  "overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5"
+
 function HtmlPaperFrame(props: {
   children: React.ReactNode
   nested?: boolean
@@ -670,8 +677,8 @@ function HtmlPaperFrame(props: {
       ? "bg-soft p-3 sm:p-4"
       : "rounded-xl border border-line bg-soft p-3 shadow-[var(--elev-1)] ring-1 ring-inset ring-line-soft sm:p-4"
   const inner = props.fullscreen
-    ? "min-h-0 flex-1 overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5"
-    : "overflow-hidden rounded-md bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_8px_24px_-12px_rgba(15,23,42,0.18)] ring-1 ring-inset ring-black/5"
+    ? `min-h-0 flex-1 ${HTML_PAPER_SURFACE}`
+    : HTML_PAPER_SURFACE
   return (
     <section aria-label="Rendered HTML preview" className={outer}>
       <header className="mb-2 flex items-center justify-between gap-2">

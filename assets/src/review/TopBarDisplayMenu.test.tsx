@@ -30,7 +30,8 @@ import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
 
 const capabilities: ViewCapabilities = {
   diffLayout: false,
-  rawToggle: false,
+  sourceToggle: false,
+  htmlInteraction: false,
   markdownFlavor: false,
   wrapLines: false,
   density: false,
@@ -42,7 +43,7 @@ function renderMenu(sideCommentsAllowed: boolean) {
     <TopBarDisplayMenu
       reviewId="r-1"
       filePath="docs/plan.md"
-      rawView={false}
+      sourceView={false}
       capabilities={capabilities}
       viewKind="file"
       diffLayoutAllowed={false}

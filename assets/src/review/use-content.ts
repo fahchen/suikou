@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { contentUrl, reviewFileContentUrl } from "./urls"
 
@@ -8,9 +8,9 @@ export interface ContentState {
   error: string | null
   /** True when the backend answered 404 (deliberate placeholder, do not retry). */
   missing: boolean
-  /** Strong ETag of the served bytes (hash of `text`), or "" when unavailable.
-   * The highlight cache key, so it tracks the displayed content rather than a
-   * possibly-stale snapshot hash. */
+  /** Highlight cache key for the served bytes: the strong ETag (hash of `text`)
+   * when the backend sends one, else the caller's revision key as a per-file
+   * fallback. Never "" for present content, so files can't collide on one key. */
   etag: string
 }
 
@@ -66,15 +66,28 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
     missing: false,
     etag: ""
   })
+  const lastUrl = useRef(url)
 
   useEffect(() => {
     if (url === null) {
+      lastUrl.current = url
       setState({ text: "", loading: false, error: null, missing: false, etag: "" })
       return
     }
 
     let cancelled = false
-    setState((prev) => ({ ...prev, loading: true, error: null, missing: false }))
+    // Keep the prior text only when re-fetching the SAME file (a new revision),
+    // to avoid a blank flash. Clear it when the file (url) changed, so switching
+    // files never shows the previous file's source while the new one loads.
+    const sameFile = lastUrl.current === url
+    lastUrl.current = url
+    setState((prev) => ({
+      ...prev,
+      text: sameFile ? prev.text : "",
+      loading: true,
+      error: null,
+      missing: false
+    }))
 
     fetch(url)
       .then(async (res) => {
@@ -84,7 +97,10 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
         }
         if (!res.ok) throw new Error(`content unavailable (${res.status})`)
         const text = await res.text()
-        const etag = res.headers.get("etag") ?? ""
+        // Prefer the served bytes' strong ETag; fall back to the caller's revision
+        // key when the backend omits it, so the highlight cache stays per-file
+        // instead of collapsing every file onto one empty-string key.
+        const etag = res.headers.get("etag") || cacheKey
         if (!cancelled) setState({ text, loading: false, error: null, missing: false, etag })
       })
       .catch((err: Error) => {

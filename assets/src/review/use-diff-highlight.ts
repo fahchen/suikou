@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import type { ThemedToken } from "shiki"
 
-import { THEME_CODE, type ThemeName } from "../themes"
 import { shikiLangForPath } from "../markdown/highlighter"
 import { tokenize, tokenKey } from "../markdown/tokenize"
 import { loadCached, peekCached, saveCached } from "../markdown/render-cache"
@@ -18,26 +17,21 @@ const EMPTY: DiffTokens = { old: new Map(), new: new Map() }
 /**
  * Syntax-highlighted tokens for the two-column / unified diff view, keyed per
  * side by diff line number, or empty maps when the file type has no grammar. A
- * cache hit (content hash + theme) paints coloured immediately with no plain
- * flash; a cold key shows raw text first, tokenizes off the main thread, then
- * caches the result for the next visit / reload — mirroring `useRawHighlight`,
- * but for two blobs (old side + new side).
+ * cache hit (content hash) paints coloured immediately with no plain flash; a
+ * cold key shows raw text first, tokenizes off the main thread, then caches the
+ * result for the next visit / reload — mirroring `useRawHighlight`, but for two
+ * blobs (old side + new side). Tokenization is theme-independent (css-variables
+ * theme), so the active `[data-theme]` recolours the tokens in pure CSS.
  *
  * Each side is tokenized as its own joined blob of just the lines present in the
  * diff, so a multi-line construct (string/comment) that spans a hunk gap loses
  * the cross-gap context a full file would give it. That's inherent to diffs and
  * accepted here; we never reconstruct the whole file.
  */
-export function useDiffHighlight(
-  parsed: ParsedDiff,
-  path: string,
-  theme: ThemeName,
-  etag = ""
-): DiffTokens {
+export function useDiffHighlight(parsed: ParsedDiff, path: string, etag = ""): DiffTokens {
   const lang = shikiLangForPath(path)
-  const shikiTheme = THEME_CODE[theme].shiki
-  const oldKey = tokenKey(etag, shikiTheme, "diff:old")
-  const newKey = tokenKey(etag, shikiTheme, "diff:new")
+  const oldKey = tokenKey(etag, "diff:old")
+  const newKey = tokenKey(etag, "diff:new")
   const [tokens, setTokens] = useState<DiffTokens>(() =>
     lang
       ? { old: seedSide(parsed, "old", oldKey), new: seedSide(parsed, "new", newKey) }
@@ -85,7 +79,7 @@ export function useDiffHighlight(
 
         try {
           const text = cells.map((c) => c.text).join("\n")
-          const t = await tokenize(text, lang, shikiTheme, key)
+          const t = await tokenize(text, lang, key)
           if (cancelled) return
           void saveCached(key, t)
           next[side] = mapCells(cells, t)
@@ -102,7 +96,7 @@ export function useDiffHighlight(
     return () => {
       cancelled = true
     }
-  }, [parsed, lang, shikiTheme, oldKey, newKey])
+  }, [parsed, lang, oldKey, newKey])
 
   return tokens
 }

@@ -20,12 +20,12 @@ import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { Verdict } from "./types"
 
 export const FileHeader = observer(function FileHeader(props: {
-  rawView: boolean
+  sourceView: boolean
   content: string
   verdict: Verdict | null
   onVerdictChange: (verdict: Verdict) => void
 }) {
-  const { rawView, content, verdict, onVerdictChange } = props
+  const { sourceView, content, verdict, onVerdictChange } = props
   const fileStore = useFileStore()
   const fileSnapshot = useMusubiSnapshot(fileStore)
   const structure = useReviewStructure()
@@ -47,7 +47,7 @@ export const FileHeader = observer(function FileHeader(props: {
     kind: viewKind,
     previewable,
     image,
-    rawView,
+    sourceView,
     binary
   })
 
@@ -56,7 +56,7 @@ export const FileHeader = observer(function FileHeader(props: {
     (c) => c.scope !== "review"
   ).length
 
-  function setRawView(next: boolean) {
+  function setSourceView(next: boolean) {
     void navigate(reviewFileTarget(structure.review_id, title, next))
   }
 
@@ -69,7 +69,7 @@ export const FileHeader = observer(function FileHeader(props: {
   }
 
   async function selectFile(file: StructureFileEntry) {
-    void navigate(reviewFileTarget(structure.review_id, file.path, rawView))
+    void navigate(reviewFileTarget(structure.review_id, file.path, sourceView))
   }
 
   return (
@@ -81,8 +81,8 @@ export const FileHeader = observer(function FileHeader(props: {
       viewKind={viewKind}
       commentCount={commentCount}
       capabilities={capabilities}
-      rawView={rawView}
-      onRawViewChange={setRawView}
+      sourceView={sourceView}
+      onSourceViewChange={setSourceView}
       files={files}
       onSelectFile={(file) => void selectFile(file)}
       commentCountFor={commentCountFor}

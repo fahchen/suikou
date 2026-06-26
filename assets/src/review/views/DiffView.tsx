@@ -68,7 +68,7 @@ function diffCellContent(
   diffTokens: DiffTokens
 ): React.ReactNode {
   const tokens = diffTokens[side].get(lineNo)
-  if (tokens) {
+  if (tokens && tokens.length > 0) {
     return tokens.map((token, j) => (
       <span key={j} style={tokenStyle(token)}>
         {token.content}
@@ -89,7 +89,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
 
   const parsed = useMemo<ParsedDiff>(() => parseUnifiedDiff(content), [content])
 
-  const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, uiStore.theme, etag)
+  const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, etag)
 
   if (contentError) return <Notice title="Can't load this diff" message={contentError} nested={nested} />
   if (loading && content === "") return <Notice title="Loading…" message="Fetching the diff." nested={nested} />

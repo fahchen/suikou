@@ -7,9 +7,9 @@ beforeEach(() => {
 })
 
 describe("scrollPositionKey", () => {
-  it("namespaces by artifact and view so rendered and raw stay separate", () => {
+  it("namespaces by artifact and view so rendered and source stay separate", () => {
     expect(scrollPositionKey("art-1", "rendered")).toBe("art-1:rendered")
-    expect(scrollPositionKey("art-1", "raw")).toBe("art-1:raw")
+    expect(scrollPositionKey("art-1", "source")).toBe("art-1:source")
   })
 })
 
@@ -22,11 +22,11 @@ describe("save/load round-trip", () => {
 
   it("keeps offsets isolated per artifact and per view", () => {
     saveScrollOffset(scrollPositionKey("art-1", "rendered"), 100)
-    saveScrollOffset(scrollPositionKey("art-1", "raw"), 200)
+    saveScrollOffset(scrollPositionKey("art-1", "source"), 200)
     saveScrollOffset(scrollPositionKey("art-2", "rendered"), 300)
 
     expect(loadScrollOffset(scrollPositionKey("art-1", "rendered"))).toBe(100)
-    expect(loadScrollOffset(scrollPositionKey("art-1", "raw"))).toBe(200)
+    expect(loadScrollOffset(scrollPositionKey("art-1", "source"))).toBe(200)
     expect(loadScrollOffset(scrollPositionKey("art-2", "rendered"))).toBe(300)
   })
 

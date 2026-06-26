@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 
-import type { ThemeName } from "../themes"
 import {
   highlightBlocks,
   parseMarkdown,
@@ -15,25 +14,24 @@ export interface MarkdownState {
   loading: boolean
 }
 
-const keyOf = (etag: string, theme: ThemeName, flavor: MarkdownFlavor) =>
-  `${etag}|${theme}|md:${flavor}`
+const keyOf = (etag: string, flavor: MarkdownFlavor) => `${etag}|md:${flavor}`
 
 /**
- * Renders markdown to line-mapped blocks. A cache hit (content hash + theme +
- * flavor) paints the finished blocks directly — no parse, no worker. On a miss
- * it renders progressively: structure and plain code paint synchronously, then
- * Shiki colour swaps in once a worker tokenizes the fences, and the finished
- * blocks are cached for the next visit / reload.
+ * Renders markdown to line-mapped blocks. A cache hit (content hash + flavor)
+ * paints the finished blocks directly — no parse, no worker. On a miss it renders
+ * progressively: structure and plain code paint synchronously, then Shiki colour
+ * swaps in once a worker tokenizes the fences, and the finished blocks are cached
+ * for the next visit / reload. Tokenization is theme-independent (css-variables
+ * theme), so the active `[data-theme]` recolours cached blocks in pure CSS.
  */
 export function useMarkdown(
   content: string,
-  theme: ThemeName,
   flavor: MarkdownFlavor = "gfm",
   asset?: AssetContext,
   etag = ""
 ): MarkdownState {
   const [state, setState] = useState<MarkdownState>(() => {
-    const cached = content === "" ? undefined : peekCached<RenderedBlock[]>(keyOf(etag, theme, flavor))
+    const cached = content === "" ? undefined : peekCached<RenderedBlock[]>(keyOf(etag, flavor))
     return cached ? { blocks: cached, loading: false } : { blocks: [], loading: content !== "" }
   })
 
@@ -43,7 +41,7 @@ export function useMarkdown(
       return
     }
 
-    const key = keyOf(etag, theme, flavor)
+    const key = keyOf(etag, flavor)
     const warm = peekCached<RenderedBlock[]>(key)
     if (warm) {
       setState({ blocks: warm, loading: false })
@@ -59,11 +57,11 @@ export function useMarkdown(
         return
       }
 
-      const { blocks, fences } = parseMarkdown(content, theme, flavor, asset)
+      const { blocks, fences } = parseMarkdown(content, flavor, asset)
       if (cancelled) return
       setState({ blocks, loading: false })
 
-      const full = await highlightBlocks(blocks, fences, theme, etag)
+      const full = await highlightBlocks(blocks, fences, etag)
       if (cancelled) return
       void saveCached(key, full)
       setState({ blocks: full, loading: false })
@@ -72,7 +70,7 @@ export function useMarkdown(
     return () => {
       cancelled = true
     }
-  }, [content, theme, flavor, asset?.base, asset?.dir, etag])
+  }, [content, flavor, asset?.base, asset?.dir, etag])
 
   return state
 }

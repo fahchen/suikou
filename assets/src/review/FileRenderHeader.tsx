@@ -31,8 +31,8 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   viewKind: ViewKind
   commentCount: number
   capabilities: ViewCapabilities
-  rawView: boolean
-  onRawViewChange: (raw: boolean) => void
+  sourceView: boolean
+  onSourceViewChange: (source: boolean) => void
   verdictChip: React.ReactNode
   // File switcher: present together when the path should open a file picker.
   files?: ReviewFileEntry[]
@@ -50,8 +50,8 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
     viewKind,
     commentCount,
     capabilities,
-    rawView,
-    onRawViewChange,
+    sourceView,
+    onSourceViewChange,
     verdictChip,
     files,
     onSelectFile,
@@ -94,40 +94,38 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   return (
     <div className={container}>
       {variant === "stacked" && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={onToggleExpand}
           aria-expanded={expanded ?? false}
           aria-label={expanded ? "Collapse file" : "Expand file"}
           title={expanded ? "Collapse file" : "Expand file"}
-          className="-ml-1 inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-0.5 text-faint transition-colors hover:bg-hover hover:text-muted-foreground"
+          className="-ml-1 text-faint hover:text-muted-foreground"
         >
           <ChevronRight
-            size={13}
             className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
               expanded ? "rotate-90" : ""
             }`}
           />
-        </button>
+        </Button>
       )}
       <ChangeStatusIcon status={changeStatus} size={12} />
       {pathLabel}
       {tocSupported && (
         <TopBarTocMenu content={outlineContent} path={filePath} />
       )}
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
         {headerControls}
-        {viewKind === "html" ? (
-          <HtmlModeToggle rawView={rawView} onRawViewChange={onRawViewChange} />
-        ) : (
-          capabilities.rawToggle && (
-            <RawViewToggle
-              rawView={rawView}
-              onChange={onRawViewChange}
-              viewKind={viewKind}
-            />
-          )
+        {(capabilities.sourceToggle ||
+          (capabilities.htmlInteraction && !sourceView)) && (
+          <div className="flex items-center gap-1">
+            {capabilities.htmlInteraction && !sourceView && <HtmlInteractionToggle />}
+            {capabilities.sourceToggle && (
+              <SourceToggle sourceView={sourceView} onChange={onSourceViewChange} />
+            )}
+          </div>
         )}
         {verdictChip}
       </div>
@@ -155,26 +153,25 @@ function CommentCountChip(props: { count: number }) {
 }
 
 /**
- * Per-file render-vs-raw control. Single icon toggle: shows what the user will
- * see AFTER clicking (Code = "view source", Eye = "view rendered") so the
- * affordance reads as the next action, not the current state.
+ * Per-file rendered-vs-source control, shared by markdown and html. Single icon
+ * toggle: shows what the user will see AFTER clicking (Code = "view source", Eye
+ * = "view rendered") so the affordance reads as the next action, not the current
+ * state.
  */
-function RawViewToggle(props: {
-  rawView: boolean
-  onChange: (raw: boolean) => void
-  viewKind: ViewKind
+function SourceToggle(props: {
+  sourceView: boolean
+  onChange: (source: boolean) => void
 }) {
-  const sourceLabel = props.viewKind === "html" ? "HTML source" : "raw source"
-  const title = props.rawView ? "Show rendered" : `Show ${sourceLabel}`
-  const Icon = props.rawView ? Eye : Code2
+  const title = props.sourceView ? "Show rendered" : "Show source"
+  const Icon = props.sourceView ? Eye : Code2
   return (
     <Button
       variant="pill"
       size="icon-xs"
       title={title}
       aria-label={title}
-      aria-pressed={props.rawView}
-      onClick={() => props.onChange(!props.rawView)}
+      aria-pressed={props.sourceView}
+      onClick={() => props.onChange(!props.sourceView)}
     >
       <Icon className="text-muted-foreground" />
     </Button>
@@ -182,43 +179,24 @@ function RawViewToggle(props: {
 }
 
 /**
- * Single cycling control for the rendered HTML view: click rotates through
- * Comment (hover + click anchor a comment) → Interact (listeners off so the
- * scripted page handles its own clicks) → Source (raw HTML) → Comment.
- * Comment/Interact live in ui-store; Source is the raw route. The icon shows
- * the current mode; the title names what the next click switches to.
+ * Rendered-HTML interaction toggle, the comment↔interact axis (orthogonal to the
+ * source toggle, which owns rendered↔source). Comment (default): hover + click
+ * anchor a comment, with clicks intercepted. Interact: listeners off so the
+ * scripted page handles its own pointer events. The icon shows the current mode;
+ * the title names what the next click switches to.
  */
-const HtmlModeToggle = observer(function HtmlModeToggle(props: {
-  rawView: boolean
-  onRawViewChange: (raw: boolean) => void
-}) {
-  const { rawView, onRawViewChange } = props
-  const mode = rawView ? "source" : uiStore.htmlInteractive ? "interact" : "comment"
-
-  const next = { comment: "interact", interact: "source", source: "comment" } as const
-  const Icon = { comment: MessageSquare, interact: MousePointerClick, source: Code2 }[mode]
-  const label = { comment: "Comment", interact: "Interact", source: "HTML source" }[mode]
-
-  function cycle(): void {
-    const to = next[mode]
-    if (to === "comment") {
-      uiStore.setHtmlInteractive(false)
-      onRawViewChange(false)
-    } else if (to === "interact") {
-      uiStore.setHtmlInteractive(true)
-      onRawViewChange(false)
-    } else {
-      onRawViewChange(true)
-    }
-  }
-
+const HtmlInteractionToggle = observer(function HtmlInteractionToggle() {
+  const interactive = uiStore.htmlInteractive
+  const Icon = interactive ? MousePointerClick : MessageSquare
+  const label = interactive ? "Interact" : "Comment"
   return (
     <Button
       variant="pill"
       size="icon-xs"
       title={`${label} mode — click to switch`}
       aria-label={`${label} mode, click to switch`}
-      onClick={cycle}
+      aria-pressed={interactive}
+      onClick={() => uiStore.setHtmlInteractive(!interactive)}
     >
       <Icon className="text-muted-foreground" />
     </Button>

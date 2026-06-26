@@ -45,7 +45,7 @@ const DENSITY_OPTIONS: { value: Density; label: string }[] = [
 export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
   reviewId: string;
   filePath: string;
-  rawView: boolean;
+  sourceView: boolean;
   capabilities: ViewCapabilities;
   viewKind: ViewKind;
   /** Side-by-side diff fits only on wide screens; narrow forces unified. */
@@ -56,9 +56,9 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
    */
   sideCommentsAllowed: boolean;
 }) {
-  const { reviewId, filePath, rawView, capabilities, viewKind, diffLayoutAllowed, sideCommentsAllowed } =
+  const { reviewId, filePath, sourceView, capabilities, viewKind, diffLayoutAllowed, sideCommentsAllowed } =
     props;
-  const sourceLabel = viewKind === "html" ? "HTML" : "Markdown";
+  const renderedLabel = viewKind === "html" ? "HTML" : "Markdown";
   const ui = uiStore;
   const navigate = useNavigate();
 
@@ -159,19 +159,19 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </Row>
           )}
 
-          {capabilities.rawToggle && (
-            <Row label={sourceLabel}>
+          {capabilities.sourceToggle && (
+            <Row label={renderedLabel}>
               <ToggleGroup
                 size="sm"
                 variant="outline"
-                value={[rawView ? "raw" : "rendered"]}
+                value={[sourceView ? "source" : "rendered"]}
                 onValueChange={(v) =>
                   v[0] &&
-                  void navigate(reviewFileTarget(reviewId, filePath, v[0] === "raw"))
+                  void navigate(reviewFileTarget(reviewId, filePath, v[0] === "source"))
                 }
               >
                 <ToggleGroupItem value="rendered">Rendered</ToggleGroupItem>
-                <ToggleGroupItem value="raw">Raw</ToggleGroupItem>
+                <ToggleGroupItem value="source">Source</ToggleGroupItem>
               </ToggleGroup>
             </Row>
           )}

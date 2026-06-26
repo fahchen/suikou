@@ -1,9 +1,29 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { renderHook, waitFor } from "@testing-library/react"
 
-import { contentErrorFrom, MISSING_CONTENT_MESSAGE, type ContentState } from "./use-content"
+import {
+  contentErrorFrom,
+  MISSING_CONTENT_MESSAGE,
+  useReviewFileContent,
+  type ContentState
+} from "./use-content"
 
 function state(overrides: Partial<ContentState>): ContentState {
   return { text: "", loading: false, error: null, missing: false, etag: "", ...overrides }
+}
+
+function mockFetch(etag: string | null): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve({
+        status: 200,
+        ok: true,
+        text: () => Promise.resolve("source bytes"),
+        headers: { get: (k: string) => (k.toLowerCase() === "etag" ? etag : null) }
+      } as unknown as Response)
+    )
+  )
 }
 
 describe("contentErrorFrom", () => {
@@ -23,5 +43,30 @@ describe("contentErrorFrom", () => {
 
   it("prefers the missing copy over a stale error", () => {
     expect(contentErrorFrom(state({ missing: true, error: "boom" }))).toBe(MISSING_CONTENT_MESSAGE)
+  })
+})
+
+describe("useReviewFileContent etag", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("uses the served ETag as the highlight key when present", async () => {
+    mockFetch('"sha-of-bytes"')
+    const { result } = renderHook(() =>
+      useReviewFileContent("review-1", "lib/a.ex", "hash-a", true)
+    )
+    await waitFor(() => expect(result.current.text).toBe("source bytes"))
+    expect(result.current.etag).toBe('"sha-of-bytes"')
+  })
+
+  it("falls back to the per-file revision key when the backend omits the ETag", async () => {
+    mockFetch(null)
+    const { result } = renderHook(() =>
+      useReviewFileContent("review-1", "lib/a.ex", "hash-a", true)
+    )
+    await waitFor(() => expect(result.current.text).toBe("source bytes"))
+    // Not "" — an empty key would collide every file onto one cache entry.
+    expect(result.current.etag).toBe("hash-a")
   })
 })

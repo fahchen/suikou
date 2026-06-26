@@ -45,6 +45,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
   command :load_review_structure do
     reply do
       field(:review_id, String.t())
+      # False when no review has this id, so the client can tell a missing review
+      # apart from a real-but-empty one and render "review not found" rather than
+      # "file not found".
+      field(:exists, boolean())
       field(:name, String.t())
       field(:kind, :file | :diff)
       field(:latest_round, integer())
@@ -145,6 +149,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
           %{
             review_id: review_id,
+            exists: true,
             name: review.name,
             kind: review_kind(review),
             latest_round: latest_round(review_id),
@@ -155,6 +160,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
         nil ->
           %{
             review_id: review_id,
+            exists: false,
             name: "",
             kind: :file,
             latest_round: 0,

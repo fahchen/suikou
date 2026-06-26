@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest"
 import { parseMarkdown, renderCommentBody, type RenderedBlock } from "./render"
 
 function blocksOf(content: string): RenderedBlock[] {
-  return parseMarkdown(content, "github").blocks
+  return parseMarkdown(content).blocks
 }
 
 function items(blocks: RenderedBlock[]) {
@@ -126,7 +126,7 @@ describe("parseMarkdown code-fence splitting", () => {
   })
 
   it("records one fence job per fenced block for off-thread tokenization", () => {
-    const { fences } = parseMarkdown(FENCE, "github")
+    const { fences } = parseMarkdown(FENCE)
     expect(fences.length).toBe(1)
     expect(fences[0]).toMatchObject({
       startLine: 2,
@@ -156,7 +156,7 @@ describe("parseMarkdown code-fence splitting", () => {
   })
 
   it("does not record a fence job for a mermaid fence", () => {
-    const { fences } = parseMarkdown("```mermaid\ngraph TD\nA-->B\n```", "github")
+    const { fences } = parseMarkdown("```mermaid\ngraph TD\nA-->B\n```")
     expect(fences.length).toBe(0)
   })
 })
