@@ -73,6 +73,9 @@ function AllFilesStructureGate(props: { reviewId: string; reviewStore: ReviewSto
 
   if (error !== null) return <ErrorPage {...errorCopy(error)} />;
   if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;
+  // No review carries this id (vs. a real review with no files): show
+  // review-not-found, not the empty-file-list notice.
+  if (structure.exists === false) return <ErrorPage {...errorCopy("review_not_found")} />;
 
   return (
     <ReviewStructureProvider structure={structure}>
