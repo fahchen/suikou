@@ -8,7 +8,9 @@ import { openDB, type IDBPDatabase } from "idb"
 // BUSTER when a stored shape changes.
 const DB_NAME = "suikou-highlight"
 const STORE = "render"
-const BUSTER = "v1"
+// v2: keys switched from the snapshot content_hash to the served-bytes ETag, so
+// old entries can never be read back — drop them instead of letting LRU age them.
+const BUSTER = "v2"
 // ponytail: global count cap, oldest-first overflow; per-key LRU if it matters.
 const MAX_ENTRIES = 400
 
