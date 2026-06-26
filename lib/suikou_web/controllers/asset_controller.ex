@@ -50,8 +50,7 @@ defmodule SuikouWeb.AssetController do
   @spec content(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def content(conn, %{"artifact_id" => artifact_id}) do
     case Artifacts.content_source(artifact_id) do
-      {:ok, {:file, absolute}} -> serve_file(conn, absolute)
-      {:ok, {:inline, bytes, content_type}} -> serve_inline(conn, bytes, content_type)
+      {:ok, source} -> serve_content(conn, source)
       {:error, _reason} -> send_resp(conn, 404, "")
     end
   end
@@ -119,8 +118,7 @@ defmodule SuikouWeb.AssetController do
 
   defp serve_review_path(conn, %Review{} = review, path) do
     case Reviews.fetch_content_by_path(review, path) do
-      {:ok, {:file, absolute}} -> serve_file(conn, absolute)
-      {:ok, {:inline, bytes, content_type}} -> serve_inline(conn, bytes, content_type)
+      {:ok, source} -> serve_content(conn, source)
       {:error, _reason} -> send_resp(conn, 404, "")
     end
   end
@@ -130,6 +128,40 @@ defmodule SuikouWeb.AssetController do
       {:ok, {:file, absolute}} -> serve_file(conn, absolute)
       {:ok, {:inline, bytes, content_type}} -> serve_inline(conn, bytes, content_type)
       {:error, _reason} -> send_resp(conn, 404, "")
+    end
+  end
+
+  # Reviewed text (a file source or an inline diff) is what the frontend
+  # syntax-highlights and caches by content identity. Serve it with a strong
+  # ETag = hash of the exact bytes sent, so the client keys its highlight cache
+  # off the real content rather than the round's stored hash, which can lag a
+  # live edit. `no-cache` forces revalidation (the URL isn't content-stamped);
+  # an unchanged file then answers 304. Binary assets/raw bytes skip this and
+  # stream zero-copy via `serve_file`.
+  defp serve_content(conn, {:file, absolute}) do
+    case File.read(absolute) do
+      {:ok, bytes} -> send_content(conn, bytes, MIME.from_path(absolute))
+      {:error, _reason} -> send_resp(conn, 404, "")
+    end
+  end
+
+  defp serve_content(conn, {:inline, bytes, content_type}) do
+    send_content(conn, bytes, content_type)
+  end
+
+  defp send_content(conn, bytes, content_type) do
+    etag = ~s("#{Base.encode16(:crypto.hash(:sha256, bytes), case: :lower)}")
+
+    conn =
+      conn
+      |> put_resp_content_type(content_type, nil)
+      |> put_resp_header("etag", etag)
+      |> put_resp_header("cache-control", "no-cache")
+
+    if etag in get_req_header(conn, "if-none-match") do
+      send_resp(conn, 304, "")
+    else
+      send_resp(conn, 200, bytes)
     end
   end
 

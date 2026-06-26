@@ -247,7 +247,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
 
   const reviewKind = structure.kind;
 
-  const etag = (minted ? snapshot.current_round.content_hash : snapshot.content_hash) ?? "";
+  const etag = contentState.etag;
   const blocks = useMarkdown(
     previewable ? content : "",
     ui.theme,
@@ -311,6 +311,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
               reviewSnapshot,
               content,
               contentError,
+              etag,
               blocks: blocks.blocks,
               loading,
               comments,

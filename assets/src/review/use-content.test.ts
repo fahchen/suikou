@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest"
 import { contentErrorFrom, MISSING_CONTENT_MESSAGE, type ContentState } from "./use-content"
 
 function state(overrides: Partial<ContentState>): ContentState {
-  return { text: "", loading: false, error: null, missing: false, ...overrides }
+  return { text: "", loading: false, error: null, missing: false, etag: "", ...overrides }
 }
 
 describe("contentErrorFrom", () => {

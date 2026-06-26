@@ -8,6 +8,10 @@ export interface ContentState {
   error: string | null
   /** True when the backend answered 404 (deliberate placeholder, do not retry). */
   missing: boolean
+  /** Strong ETag of the served bytes (hash of `text`), or "" when unavailable.
+   * The highlight cache key, so it tracks the displayed content rather than a
+   * possibly-stale snapshot hash. */
+  etag: string
 }
 
 /**
@@ -59,31 +63,33 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
     text: "",
     loading: url !== null,
     error: null,
-    missing: false
+    missing: false,
+    etag: ""
   })
 
   useEffect(() => {
     if (url === null) {
-      setState({ text: "", loading: false, error: null, missing: false })
+      setState({ text: "", loading: false, error: null, missing: false, etag: "" })
       return
     }
 
     let cancelled = false
-    setState((prev) => ({ text: prev.text, loading: true, error: null, missing: false }))
+    setState((prev) => ({ ...prev, loading: true, error: null, missing: false }))
 
     fetch(url)
       .then(async (res) => {
         if (res.status === 404) {
-          if (!cancelled) setState({ text: "", loading: false, error: null, missing: true })
+          if (!cancelled) setState({ text: "", loading: false, error: null, missing: true, etag: "" })
           return
         }
         if (!res.ok) throw new Error(`content unavailable (${res.status})`)
         const text = await res.text()
-        if (!cancelled) setState({ text, loading: false, error: null, missing: false })
+        const etag = res.headers.get("etag") ?? ""
+        if (!cancelled) setState({ text, loading: false, error: null, missing: false, etag })
       })
       .catch((err: Error) => {
         if (!cancelled)
-          setState({ text: "", loading: false, error: err.message, missing: false })
+          setState({ text: "", loading: false, error: err.message, missing: false, etag: "" })
       })
 
     return () => {
