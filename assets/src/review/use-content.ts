@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { contentUrl, reviewFileContentUrl } from "./urls"
 
@@ -61,15 +61,27 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
     error: null,
     missing: false
   })
+  const lastUrl = useRef(url)
 
   useEffect(() => {
     if (url === null) {
+      lastUrl.current = url
       setState({ text: "", loading: false, error: null, missing: false })
       return
     }
 
     let cancelled = false
-    setState((prev) => ({ text: prev.text, loading: true, error: null, missing: false }))
+    // Keep the prior text only when re-fetching the SAME file (a new revision),
+    // to avoid a blank flash. Clear it when the file (url) changed, so switching
+    // files never shows the previous file's source while the new one loads.
+    const sameFile = lastUrl.current === url
+    lastUrl.current = url
+    setState((prev) => ({
+      text: sameFile ? prev.text : "",
+      loading: true,
+      error: null,
+      missing: false
+    }))
 
     fetch(url)
       .then(async (res) => {
