@@ -49,6 +49,7 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
   return {
     content,
     contentError: null,
+    etag: "",
     loading: false,
     comments,
     blocks: [],

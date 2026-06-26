@@ -21,11 +21,14 @@ export function useRawHighlight(
   const lang = shikiLangForPath(path)
   const cacheKey = tokenKey(etag, "raw")
   const [lines, setLines] = useState<ThemedToken[][] | null>(() =>
-    lang ? (peekCached<ThemedToken[][]>(cacheKey) ?? null) : null
+    lang && content !== "" ? (peekCached<ThemedToken[][]>(cacheKey) ?? null) : null
   )
 
   useEffect(() => {
-    if (!lang) {
+    // Skip empty content: there's nothing to colour, and its etag is "" until the
+    // fetch resolves, so tokenizing here would cache [] under the shared empty-etag
+    // key and let unrelated files read each other's entry.
+    if (!lang || content === "") {
       setLines(null)
       return
     }

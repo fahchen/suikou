@@ -80,7 +80,7 @@ function diffCellContent(
 
 export const DiffView = observer(function DiffView(props: ViewProps) {
   const { view, inline, nested } = props
-  const { content, contentError, loading, comments } = view
+  const { content, contentError, loading, comments, etag } = view
   const [selection, setSelection] = useState<Selection | null>(null)
   const wide = useMediaQuery(WIDE_QUERY)
   // Side-by-side needs the screen real estate; narrow viewports fall back to
@@ -89,8 +89,6 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
 
   const parsed = useMemo<ParsedDiff>(() => parseUnifiedDiff(content), [content])
 
-  const minted = Boolean(view.snapshot.artifact.id)
-  const etag = (minted ? view.snapshot.current_round.content_hash : view.snapshot.content_hash) ?? ""
   const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, etag)
 
   if (contentError) return <Notice title="Can't load this diff" message={contentError} nested={nested} />

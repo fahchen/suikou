@@ -179,7 +179,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     live && !minted && !image,
   )
   const contentState = minted ? minStat : unminStat
-  const etag = (minted ? fileSnapshot.current_round.content_hash : fileSnapshot.content_hash) ?? ""
+  const etag = contentState.etag
   const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, etag)
 
   const previewable = isPreviewable(path) && viewKind === "file"
@@ -215,6 +215,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     reviewSnapshot: props.reviewSnapshot,
     content: contentState.text,
     contentError,
+    etag,
     blocks: blocks.blocks,
     loading,
     comments: railComments,

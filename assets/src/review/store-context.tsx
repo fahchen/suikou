@@ -54,6 +54,9 @@ export interface ReviewView {
   content: string
   /** Set when the content route fails (file deleted, moved, or unreadable). */
   contentError: string | null
+  /** Strong ETag of the fetched content bytes — the highlight cache key, so it
+   * tracks the displayed content rather than a possibly-stale snapshot hash. */
+  etag: string
   blocks: RenderedBlock[]
   loading: boolean
   comments: Comment[]
