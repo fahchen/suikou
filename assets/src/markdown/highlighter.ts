@@ -1,6 +1,5 @@
 import { createHighlighter, type BundledLanguage, type Highlighter } from "shiki"
-
-import { SHIKI_THEMES } from "../themes"
+import { createCssVariablesTheme } from "shiki/core"
 
 // Languages we offer grammars for. Grammars are *not* loaded up front: each is
 // dynamically imported by `ensureLang` on first use, so a view only pays for the
@@ -88,11 +87,24 @@ const RAW_EXTENSIONS: Record<string, string> = {
 
 const SUPPORTED = new Set<string>(LANGS)
 
+/** Name of the single css-variables theme every code path tokenizes with. */
+export const SHIKI_THEME = "css-variables"
+
+// One theme-independent theme: token colours are emitted as `var(--shiki-*)`, so
+// a view tokenizes once and theme switching is pure CSS (the active `[data-theme]`
+// block in shiki-themes.css supplies the palette). `fontStyle` keeps the
+// italic/bold/underline bitmask the renderers read.
+const CSS_VARIABLES_THEME = createCssVariablesTheme({
+  name: SHIKI_THEME,
+  variablePrefix: "--shiki-",
+  fontStyle: true
+})
+
 let instance: Promise<Highlighter> | null = null
 
 export function getHighlighter(): Promise<Highlighter> {
   if (!instance) {
-    instance = createHighlighter({ themes: SHIKI_THEMES, langs: [] })
+    instance = createHighlighter({ themes: [CSS_VARIABLES_THEME], langs: [] })
   }
   return instance
 }

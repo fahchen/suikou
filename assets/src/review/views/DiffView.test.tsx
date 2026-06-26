@@ -76,7 +76,7 @@ beforeEach(() => {
 
 describe("DiffView", () => {
   it("renders both sides with their own line numbers", () => {
-    render(<DiffView view={makeView(DIFF)} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF)} forceSource={false} inline={true} />)
     // Each side carries lines 1..2; old keeps `keep` then `old line`, new keeps
     // `keep` then `new line`. Line gutters render as buttons.
     expect(screen.getByRole("button", { name: /old line 1/i })).toBeInTheDocument()
@@ -88,18 +88,18 @@ describe("DiffView", () => {
   })
 
   it("shows the no-changes notice when the diff is empty", () => {
-    render(<DiffView view={makeView("")} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView("")} forceSource={false} inline={true} />)
     expect(screen.getByText(/No changes/)).toBeInTheDocument()
   })
 
   it("opens the diff-hunk composer when the reviewer clicks a gutter", () => {
-    render(<DiffView view={makeView(DIFF)} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF)} forceSource={false} inline={true} />)
     fireEvent.click(screen.getByRole("button", { name: /new line 2/i }))
     expect(screen.getByText(/New comment on new line 2/)).toBeInTheDocument()
   })
 
   it("dispatches add_comment with a diff_hunk anchor carrying side + lines", () => {
-    render(<DiffView view={makeView(DIFF)} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF)} forceSource={false} inline={true} />)
     fireEvent.click(screen.getByRole("button", { name: /new line 2/i }))
 
     fireEvent.change(screen.getByPlaceholderText(/Leave a comment/), {
@@ -120,7 +120,7 @@ describe("DiffView", () => {
 
   it("extends the selection within one side on shift-click", () => {
     const wider = ["@@ -1,3 +1,3 @@", "-a", "-b", "-c", "+A", "+B", "+C"].join("\n")
-    render(<DiffView view={makeView(wider)} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(wider)} forceSource={false} inline={true} />)
     fireEvent.click(screen.getByRole("button", { name: /old line 1/i }))
     fireEvent.click(screen.getByRole("button", { name: /old line 3/i }), { shiftKey: true })
 
@@ -153,7 +153,7 @@ describe("DiffView", () => {
       replies: []
     } as unknown as Comment
 
-    render(<DiffView view={makeView(DIFF, [comment])} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF, [comment])} forceSource={false} inline={true} />)
     expect(screen.getByText("looks off")).toBeInTheDocument()
   })
 
@@ -172,7 +172,7 @@ describe("DiffView", () => {
       replies: []
     } as unknown as Comment
 
-    render(<DiffView view={makeView(DIFF, [comment])} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF, [comment])} forceSource={false} inline={true} />)
     expect(screen.getByText("general note")).toBeInTheDocument()
   })
 
@@ -192,7 +192,7 @@ describe("DiffView", () => {
       replies: []
     } as unknown as Comment
 
-    render(<DiffView view={makeView(DIFF, [comment])} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF, [comment])} forceSource={false} inline={true} />)
     expect(screen.getByText("stale note")).toBeInTheDocument()
   })
 
@@ -200,7 +200,7 @@ describe("DiffView", () => {
     // Defaults: matchMedia(wide) returns false → layout falls back to unified
     // regardless of uiStore.diffLayout. The unified row carries a +/- marker.
     uiStore.setDiffLayout("side")
-    render(<DiffView view={makeView(DIFF)} forceRaw={false} inline={true} />)
+    render(<DiffView view={makeView(DIFF)} forceSource={false} inline={true} />)
     expect(screen.getByText("+")).toBeInTheDocument()
     expect(screen.getByText("-")).toBeInTheDocument()
   })
@@ -221,7 +221,7 @@ describe("DiffView", () => {
     } as unknown as Comment
 
     const view = makeView(DIFF, [comment])
-    const { container } = render(<DiffView view={view} forceRaw={false} inline={false} />)
+    const { container } = render(<DiffView view={view} forceSource={false} inline={false} />)
     expect(within(container).queryByText("rail-only")).toBeNull()
   })
 })

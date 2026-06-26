@@ -31,7 +31,7 @@ export const TopBar = observer(function TopBar(props: {
   const navigate = useNavigate();
   const prefetchReview = usePrefetchReviewStore();
   const structure = useReviewStructure();
-  const rawView = useLocation().pathname.endsWith("/raw");
+  const sourceView = (useLocation().search as { view?: string }).view === "source";
   const wide = useMediaQuery(WIDE_QUERY);
 
   // Per-file data from the FileStore context (always present in single-file view).
@@ -50,7 +50,7 @@ export const TopBar = observer(function TopBar(props: {
     kind: viewKind,
     previewable,
     image,
-    rawView,
+    sourceView,
     binary,
   });
 
@@ -67,7 +67,7 @@ export const TopBar = observer(function TopBar(props: {
   async function navigateToFile(file: StructureFileEntry, dir: "prev" | "next") {
     setNavPending(dir);
     try {
-      void navigate(reviewFileTarget(structure.review_id, file.path, rawView));
+      void navigate(reviewFileTarget(structure.review_id, file.path, sourceView));
     } finally {
       setNavPending(null);
     }
@@ -125,7 +125,7 @@ export const TopBar = observer(function TopBar(props: {
           <TopBarDisplayMenu
             reviewId={structure.review_id}
             filePath={title}
-            rawView={rawView}
+            sourceView={sourceView}
             capabilities={capabilities}
             viewKind={viewKind}
             diffLayoutAllowed={wide}

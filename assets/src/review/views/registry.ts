@@ -9,8 +9,9 @@ import { HtmlView } from "./HtmlView"
 /** Props every registered view receives. */
 export interface ViewProps {
   view: ReviewView
-  /** Set by the `/raw` child route to force the source view for file artifacts. */
-  forceRaw: boolean
+  /** Set from the `?view=source` search param to force the source view for file
+   * artifacts. */
+  forceSource: boolean
   /** True when the side-rail layout is not used and anchored comments render inline. */
   inline: boolean
   /**

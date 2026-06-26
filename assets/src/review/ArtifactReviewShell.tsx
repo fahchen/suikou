@@ -193,7 +193,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   const structure = useReviewStructure();
   const commands = useReviewCommands();
   const search = useSearch({ strict: false }) as { view?: string };
-  const rawView = search.view === "raw";
+  const sourceView = search.view === "source";
 
   // Overlay the file's static identity (from the structure command) onto its
   // live snapshot (comments/verdicts), joined by path. Renderers read this
@@ -250,7 +250,6 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   const etag = (minted ? snapshot.current_round.content_hash : snapshot.content_hash) ?? "";
   const blocks = useMarkdown(
     previewable ? content : "",
-    ui.theme,
     ui.markdownFlavor,
     {
       base: minted ? assetBase(snapshot.artifact.id) : "",
@@ -258,7 +257,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
     },
     etag,
   );
-  const rawLines = useRawHighlight(content, title, ui.theme, etag);
+  const rawLines = useRawHighlight(content, title, etag);
   const loading = blocks.loading || contentLoading;
 
   const seenIds = useRef<Set<string> | null>(null);
@@ -284,7 +283,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   useScrollRestore({
     container: mainEl,
     artifactId: snapshot.artifact.id,
-    view: rawView ? "raw" : "rendered",
+    view: sourceView ? "source" : "rendered",
     ready: !loading,
     enabled: true,
   });
@@ -323,7 +322,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             <HeaderSlotProvider>
               <article className="overflow-hidden rounded-xl border border-line bg-editor">
                 <FileHeader
-                  rawView={rawView}
+                  sourceView={sourceView}
                   content={content}
                   verdict={verdict}
                   onVerdictChange={changeVerdict}

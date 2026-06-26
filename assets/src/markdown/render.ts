@@ -7,7 +7,6 @@ import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
 import sup from "markdown-it-sup"
 
-import { THEME_CODE, type ThemeName } from "../themes"
 import { resolveLang } from "./highlighter"
 import { renderMermaid } from "./mermaid"
 import { tokenize, tokenKey } from "./tokenize"
@@ -84,7 +83,6 @@ export interface FenceJob {
  */
 export function parseMarkdown(
   content: string,
-  _theme: ThemeName,
   flavor: MarkdownFlavor = "gfm",
   asset?: AssetContext
 ): { blocks: RenderedBlock[]; fences: FenceJob[] } {
@@ -149,26 +147,24 @@ export function parseMarkdown(
 }
 
 /**
- * Tokenizes each fence off the main thread (cached by `etag` + theme) and swaps
- * the Shiki-colored line HTML back onto the matching plain code blocks, returning
- * a new block array. A fence whose tokenization rejects keeps its plain blocks,
- * so the preview degrades to uncolored rather than breaking.
+ * Tokenizes each fence off the main thread (cached by `etag`; theme-independent)
+ * and swaps the Shiki-colored line HTML back onto the matching plain code blocks,
+ * returning a new block array. A fence whose tokenization rejects keeps its plain
+ * blocks, so the preview degrades to uncolored rather than breaking.
  */
 export async function highlightBlocks(
   blocks: RenderedBlock[],
   fences: FenceJob[],
-  theme: ThemeName,
   etag: string
 ): Promise<RenderedBlock[]> {
-  const shikiTheme = THEME_CODE[theme].shiki
   const next = blocks.slice()
 
   await Promise.all(
     fences.map(async (fence) => {
-      const cacheKey = tokenKey(etag, shikiTheme, `fence:${fence.startLine}:${fence.lang}`)
+      const cacheKey = tokenKey(etag, `fence:${fence.startLine}:${fence.lang}`)
       let lines: string[]
       try {
-        lines = codeLinesHtml(await tokenize(fence.code, fence.lang, shikiTheme, cacheKey))
+        lines = codeLinesHtml(await tokenize(fence.code, fence.lang, cacheKey))
       } catch {
         return
       }

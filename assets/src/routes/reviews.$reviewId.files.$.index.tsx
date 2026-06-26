@@ -14,13 +14,13 @@ const RenderedEditorRoute = observer(function RenderedEditorRoute() {
   const wide = useMediaQuery(WIDE_QUERY)
   const inline = uiStore.commentMode !== "side" || !wide
   const ViewComponent = viewComponentFor(resolveViewKind({ kind: view.reviewKind, title: view.snapshot.artifact.title }))
-  const rawView = search.view === "raw"
+  const sourceView = search.view === "source"
   return (
     <FileScopeProvider
       artifactId={view.snapshot.artifact.id}
       filePath={view.snapshot.artifact.title}
     >
-      <ViewComponent view={view} forceRaw={rawView} inline={inline} nested />
+      <ViewComponent view={view} forceSource={sourceView} inline={inline} nested />
     </FileScopeProvider>
   )
 })

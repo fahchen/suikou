@@ -112,7 +112,7 @@ describe("HtmlView", () => {
       const initial = makeView("")
       const loadingView: ReviewView = { ...initial, loading: true }
       const { rerender } = render(
-        <HtmlView view={loadingView} forceRaw={false} inline={true} />
+        <HtmlView view={loadingView} forceSource={false} inline={true} />
       )
       // Loading placeholder rendered (hook count = baseline).
       await screen.findByText("Loading…")
@@ -122,7 +122,7 @@ describe("HtmlView", () => {
       rerender(
         <HtmlView
           view={makeView(`<p id="hi">hi</p>`)}
-          forceRaw={false}
+          forceSource={false}
           inline={true}
         />
       )
@@ -141,7 +141,7 @@ describe("HtmlView", () => {
   // iframe never fire, so element commenting is dead in Safari.
   it("renders the iframe with sandbox=allow-same-origin allow-scripts", async () => {
     render(
-      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+      <HtmlView view={makeView("<p>hi</p>")} forceSource={false} inline={true} />
     )
     const iframe = await screen.findByTitle("page.html")
     const sandbox = iframe.getAttribute("sandbox") ?? ""
@@ -150,7 +150,7 @@ describe("HtmlView", () => {
 
   it("injects a <base> tag pointing at the artifact asset route", async () => {
     render(
-      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+      <HtmlView view={makeView("<p>hi</p>")} forceSource={false} inline={true} />
     )
     const iframe = (await screen.findByTitle("page.html")) as HTMLIFrameElement
     const srcdoc = iframe.getAttribute("srcdoc") ?? ""
@@ -161,7 +161,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="hello">hello world</p>`)}
-        forceRaw={false}
+        forceSource={false}
         inline={true}
       />
     )
@@ -196,7 +196,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="hello">hello world</p>`)}
-        forceRaw={false}
+        forceSource={false}
         inline={true}
       />
     )
@@ -231,7 +231,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="kept">still here</p>`, [carried])}
-        forceRaw={false}
+        forceSource={false}
         inline={true}
       />
     )
@@ -263,7 +263,7 @@ describe("HtmlView", () => {
       <>
         <HtmlView
           view={makeView(`<p id="kept">still here</p>`, [carried])}
-          forceRaw={false}
+          forceSource={false}
           inline={false}
         />
         <CommentCard comment={carried} context="rail" />
@@ -281,7 +281,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="hello">hello world</p>`)}
-        forceRaw={false}
+        forceSource={false}
         inline={true}
       />
     )
@@ -301,7 +301,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="hello">hello world</p>`)}
-        forceRaw={false}
+        forceSource={false}
         inline={true}
       />
     )
@@ -326,7 +326,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="hello">hello world</p>`)}
-        forceRaw={false}
+        forceSource={false}
         inline={false}
       />
     )
@@ -367,7 +367,7 @@ describe("HtmlView", () => {
     render(
       <HtmlView
         view={makeView(`<p id="kept">still here</p>`, [located])}
-        forceRaw={false}
+        forceSource={false}
         inline={false}
       />
     )
@@ -377,7 +377,7 @@ describe("HtmlView", () => {
 
   it("zoom controls step the level and clamp at the bounds", async () => {
     render(
-      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+      <HtmlView view={makeView("<p>hi</p>")} forceSource={false} inline={true} />
     )
     await screen.findByTitle("page.html")
 
@@ -398,7 +398,7 @@ describe("HtmlView", () => {
 
   it("toggles a fullscreen overlay and exits on Escape", async () => {
     render(
-      <HtmlView view={makeView("<p>hi</p>")} forceRaw={false} inline={true} />
+      <HtmlView view={makeView("<p>hi</p>")} forceSource={false} inline={true} />
     )
     await screen.findByTitle("page.html")
     const frame = screen.getByLabelText("Rendered HTML preview")
@@ -415,11 +415,11 @@ describe("HtmlView", () => {
     expect(screen.getByRole("button", { name: "Fullscreen" })).toBeInTheDocument()
   })
 
-  it("forceRaw: opens the line composer and dispatches a line_range anchor", async () => {
+  it("forceSource: opens the line composer and dispatches a line_range anchor", async () => {
     render(
       <HtmlView
         view={makeView("<p>one</p>\n<p>two</p>")}
-        forceRaw={true}
+        forceSource={true}
         inline={true}
       />
     )

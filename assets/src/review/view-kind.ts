@@ -23,7 +23,7 @@ type ArtifactHint = { kind: "file" | "diff"; title: string }
 /**
  * Map an artifact to its view kind. Diff-kind artifacts route to the diff view
  * regardless of file extension; otherwise `.html`/`.htm` route to the html view,
- * and everything else is a file view (markdown/image/raw).
+ * and everything else is a file view (markdown/image/source).
  */
 export function resolveViewKind(artifact: ArtifactHint): ViewKind {
   if (artifact.kind === "diff") return "diff"
@@ -39,11 +39,15 @@ export function resolveViewKind(artifact: ArtifactHint): ViewKind {
 export interface ViewCapabilities {
   /** Diff layout toggle (unified vs side-by-side) — only for diff artifacts. */
   diffLayout: boolean
-  /** Rendered/raw toggle — only for files with a rendered preview (markdown). */
-  rawToggle: boolean
+  /** Rendered/source toggle — only when the file has both a rendered preview and
+   * a source view (markdown, html). */
+  sourceToggle: boolean
+  /** HTML comment/interact toggle — only for html; the header shows it only when
+   * rendered (the source view has no interaction axis). */
+  htmlInteraction: boolean
   /** Markdown flavor toggle — only for previewable files in rendered mode. */
   markdownFlavor: boolean
-  /** Soft-wrap toggle — only for raw text views (not images / diffs / html). */
+  /** Soft-wrap toggle — only for source text views (not images / diffs / html). */
   wrapLines: boolean
   /** Density (reading rhythm) — only meaningful for the markdown render view. */
   density: boolean
@@ -55,20 +59,21 @@ interface CapabilityHint {
   kind: ViewKind
   previewable: boolean
   image: boolean
-  rawView: boolean
+  sourceView: boolean
   binary: boolean
 }
 
 export function viewCapabilities(hint: CapabilityHint): ViewCapabilities {
-  const { kind, previewable, image, rawView, binary } = hint
+  const { kind, previewable, image, sourceView, binary } = hint
   const fileKind = kind === "file"
   const htmlKind = kind === "html"
   return {
     diffLayout: kind === "diff",
-    rawToggle: (fileKind && previewable && !image) || htmlKind,
-    markdownFlavor: fileKind && previewable && !rawView && !image,
-    wrapLines: fileKind && !image && !binary && (rawView || !previewable),
-    density: fileKind && previewable && !rawView && !image,
+    sourceToggle: (fileKind && previewable && !image && !binary) || htmlKind,
+    htmlInteraction: htmlKind,
+    markdownFlavor: fileKind && previewable && !sourceView && !image,
+    wrapLines: fileKind && !image && !binary && (sourceView || !previewable),
+    density: fileKind && previewable && !sourceView && !image,
     comments: !image && !binary
   }
 }

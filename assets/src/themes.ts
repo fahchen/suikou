@@ -33,10 +33,13 @@ export const THEME_LABELS: Record<ThemeName, string> = {
 }
 
 /**
- * Maps each UI theme to its Shiki syntax theme; `dark` drives Mermaid's darkMode.
- * Shiki ships no separate Storm/Moon/Day grammars, so those reuse `tokyo-night`
- * (dark) or `one-light` (the Day variant). Keep `dark` in sync with the
- * `@custom-variant dark` selector list in index.css.
+ * Maps each UI theme to its Shiki syntax theme and dark flag. `shiki` is the
+ * source theme whose colours `scripts/gen-theme-css.ts` extracts into the
+ * `--shiki-*` palette for that theme (runtime tokenization itself is
+ * theme-independent via the css-variables theme); `dark` drives Mermaid's
+ * darkMode. Shiki ships no separate Storm/Moon/Day grammars, so those reuse
+ * `tokyo-night` (dark) or `one-light` (the Day variant). Keep `dark` in sync with
+ * the `@custom-variant dark` selector list in index.css.
  */
 export const THEME_CODE: Record<ThemeName, { shiki: string; dark: boolean }> = {
   github: { shiki: "github-light", dark: false },
@@ -53,6 +56,3 @@ export const THEME_CODE: Record<ThemeName, { shiki: string; dark: boolean }> = {
   "catppuccin-mocha": { shiki: "catppuccin-mocha", dark: true },
   "rose-pine": { shiki: "rose-pine", dark: true }
 }
-
-/** Unique Shiki themes to preload (several UI themes share one grammar). */
-export const SHIKI_THEMES = [...new Set(THEMES.map((t) => THEME_CODE[t].shiki))]

@@ -112,7 +112,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
     kind: "file",
     previewable: false,
     image: false,
-    rawView: false,
+    sourceView: false,
     binary: false,
   });
 
@@ -193,7 +193,7 @@ const AllFilesShellHeader = observer(function AllFilesShellHeader(props: {
           <TopBarDisplayMenu
             reviewId={reviewId}
             filePath={firstFilePath}
-            rawView={false}
+            sourceView={false}
             capabilities={allFilesCapabilities}
             viewKind="file"
             diffLayoutAllowed={false}

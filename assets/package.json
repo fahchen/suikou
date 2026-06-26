@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "vp check",
-    "build:grammar": "bash scripts/build-grammars.sh"
+    "build:grammar": "bash scripts/build-grammars.sh",
+    "build:theme-css": "bun run scripts/gen-theme-css.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

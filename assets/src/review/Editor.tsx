@@ -71,7 +71,7 @@ export const Editor = observer(function Editor(props: EditorProps) {
         nested={props.nested}
       />
     );
-  if (props.view === "raw") return <RawView {...props} />;
+  if (props.view === "source") return <RawView {...props} />;
   return <RenderView {...props} />;
 });
 

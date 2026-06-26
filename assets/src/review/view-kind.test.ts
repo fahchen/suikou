@@ -32,39 +32,41 @@ describe("viewCapabilities", () => {
       kind: "diff",
       previewable: false,
       image: false,
-      rawView: false,
+      sourceView: false,
       binary: false
     })
     expect(diff.diffLayout).toBe(true)
     expect(diff.markdownFlavor).toBe(false)
-    expect(diff.rawToggle).toBe(false)
+    expect(diff.sourceToggle).toBe(false)
+    expect(diff.htmlInteraction).toBe(false)
     expect(diff.wrapLines).toBe(false)
   })
 
-  it("exposes markdown + raw toggles for previewable files", () => {
+  it("exposes markdown + source toggles for previewable files", () => {
     const md = viewCapabilities({
       kind: "file",
       previewable: true,
       image: false,
-      rawView: false,
+      sourceView: false,
       binary: false
     })
     expect(md.markdownFlavor).toBe(true)
-    expect(md.rawToggle).toBe(true)
+    expect(md.sourceToggle).toBe(true)
+    expect(md.htmlInteraction).toBe(false)
     expect(md.density).toBe(true)
     expect(md.wrapLines).toBe(false)
   })
 
-  it("exposes wrap toggle in raw view of a previewable file", () => {
-    const raw = viewCapabilities({
+  it("exposes wrap toggle in source view of a previewable file", () => {
+    const source = viewCapabilities({
       kind: "file",
       previewable: true,
       image: false,
-      rawView: true,
+      sourceView: true,
       binary: false
     })
-    expect(raw.wrapLines).toBe(true)
-    expect(raw.markdownFlavor).toBe(false)
+    expect(source.wrapLines).toBe(true)
+    expect(source.markdownFlavor).toBe(false)
   })
 
   it("hides markdown/wrap/comments controls for images", () => {
@@ -72,45 +74,50 @@ describe("viewCapabilities", () => {
       kind: "file",
       previewable: false,
       image: true,
-      rawView: false,
+      sourceView: false,
       binary: false
     })
     expect(img.markdownFlavor).toBe(false)
-    expect(img.rawToggle).toBe(false)
+    expect(img.sourceToggle).toBe(false)
     expect(img.wrapLines).toBe(false)
     expect(img.comments).toBe(false)
   })
 
-  it("hides comment plumbing for binary content", () => {
+  it("hides comment plumbing and the source toggle for binary content", () => {
     const bin = viewCapabilities({
       kind: "file",
       previewable: false,
       image: false,
-      rawView: false,
+      sourceView: false,
       binary: true
     })
     expect(bin.comments).toBe(false)
+    expect(bin.sourceToggle).toBe(false)
     expect(bin.wrapLines).toBe(false)
   })
 
-  it("exposes raw toggle for html artifacts so source is viewable", () => {
+  it("exposes the source toggle + html interaction for html artifacts", () => {
     const rendered = viewCapabilities({
       kind: "html",
       previewable: false,
       image: false,
-      rawView: false,
+      sourceView: false,
       binary: false
     })
-    expect(rendered.rawToggle).toBe(true)
-    const raw = viewCapabilities({
+    expect(rendered.sourceToggle).toBe(true)
+    expect(rendered.htmlInteraction).toBe(true)
+    const source = viewCapabilities({
       kind: "html",
       previewable: false,
       image: false,
-      rawView: true,
+      sourceView: true,
       binary: false
     })
-    expect(raw.rawToggle).toBe(true)
-    expect(raw.diffLayout).toBe(false)
+    expect(source.sourceToggle).toBe(true)
+    // The interaction axis is meaningless in source view; the header gates it on
+    // !sourceView, but the capability itself stays kind-driven.
+    expect(source.htmlInteraction).toBe(true)
+    expect(source.diffLayout).toBe(false)
   })
 })
 

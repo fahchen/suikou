@@ -4,11 +4,13 @@ import { openDB, type IDBPDatabase } from "idb"
 // markdown `RenderedBlock[]` or raw `ThemedToken[][]` — backing an in-memory
 // map. Survives a full reload (iOS Safari evicting a backgrounded tab) so a
 // revisit paints directly, skipping both parse and tokenization. Keyed by
-// content_hash + theme, so changed content never reads a stale entry. Bump
-// BUSTER when a stored shape changes.
+// content_hash only (tokenization is theme-independent, so one entry serves
+// every theme), so changed content never reads a stale entry. Bump BUSTER when a
+// stored shape changes.
 const DB_NAME = "suikou-highlight"
 const STORE = "render"
-const BUSTER = "v1"
+// v2: keys dropped the theme component and token colours became `var(--shiki-*)`.
+const BUSTER = "v2"
 // ponytail: global count cap, oldest-first overflow; per-key LRU if it matters.
 const MAX_ENTRIES = 400
 

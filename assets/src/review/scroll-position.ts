@@ -2,7 +2,7 @@ import type { DocView } from "../stores/ui-store"
 
 // Single localStorage entry holding every remembered single-file scroll offset,
 // so the page lands where the reviewer left off after a file switch or a hard
-// reload. Rendered and raw views have different content heights, so each gets
+// reload. Rendered and source views have different content heights, so each gets
 // its own key (`${artifactId}:${view}`). Kept as one flat map under one key —
 // entries are never pruned (one number per file/view is tiny); revisit if a
 // huge multi-file review ever makes the map worth trimming.

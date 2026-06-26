@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import type { ThemedToken } from "shiki"
 
-import { THEME_CODE, type ThemeName } from "../themes"
 import { shikiLangForPath } from "../markdown/highlighter"
 import { tokenize, tokenKey } from "../markdown/tokenize"
 import { loadCached, peekCached, saveCached } from "../markdown/render-cache"
@@ -9,19 +8,18 @@ import { loadCached, peekCached, saveCached } from "../markdown/render-cache"
 /**
  * Syntax-highlighted tokens for the raw file view, one entry per source line, or
  * null when the file type has no grammar (rendered as plain text). A cache hit
- * (content hash + theme) paints coloured immediately with no plain flash; a cold
- * key shows raw text first, tokenizes off the main thread, then caches the result
- * for the next visit / reload.
+ * (content hash) paints coloured immediately with no plain flash; a cold key
+ * shows raw text first, tokenizes off the main thread, then caches the result for
+ * the next visit / reload. Tokenization is theme-independent (css-variables
+ * theme), so the active `[data-theme]` recolours the tokens in pure CSS.
  */
 export function useRawHighlight(
   content: string,
   path: string,
-  theme: ThemeName,
   etag = ""
 ): ThemedToken[][] | null {
   const lang = shikiLangForPath(path)
-  const shikiTheme = THEME_CODE[theme].shiki
-  const cacheKey = tokenKey(etag, shikiTheme, "raw")
+  const cacheKey = tokenKey(etag, "raw")
   const [lines, setLines] = useState<ThemedToken[][] | null>(() =>
     lang ? (peekCached<ThemedToken[][]>(cacheKey) ?? null) : null
   )
@@ -50,7 +48,7 @@ export function useRawHighlight(
       }
 
       try {
-        const tokens = await tokenize(content, lang, shikiTheme, cacheKey)
+        const tokens = await tokenize(content, lang, cacheKey)
         if (cancelled) return
         void saveCached(cacheKey, tokens)
         setLines(tokens)
@@ -62,7 +60,7 @@ export function useRawHighlight(
     return () => {
       cancelled = true
     }
-  }, [content, lang, shikiTheme, cacheKey])
+  }, [content, lang, cacheKey])
 
   return lines
 }

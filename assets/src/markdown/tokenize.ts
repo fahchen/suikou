@@ -20,13 +20,13 @@ let nextId = 0
 let worker: Worker | null = null
 
 /**
- * Builds a tokenization cache key from the backend content hash, the resolved
- * Shiki theme name, and a per-view discriminator so the raw view and each
- * markdown fence key independently. Shared by `tokenize` and the persistent
- * render cache so producers can't drift.
+ * Builds a tokenization cache key from the backend content hash and a per-view
+ * discriminator so the raw view and each markdown fence key independently.
+ * Tokenization is theme-independent (css-variables theme), so the key carries no
+ * theme. Shared by `tokenize` and the persistent render cache so producers can't
+ * drift.
  */
-export const tokenKey = (etag: string, shikiTheme: string, extra: string) =>
-  `${etag}|${shikiTheme}|${extra}`
+export const tokenKey = (etag: string, extra: string) => `${etag}|${extra}`
 
 /**
  * Tokenizes `code` off the main thread via a lazily-spawned module worker,
@@ -37,7 +37,6 @@ export const tokenKey = (etag: string, shikiTheme: string, extra: string) =>
 export function tokenize(
   code: string,
   lang: string,
-  shikiTheme: string,
   cacheKey: string
 ): Promise<ThemedToken[][]> {
   const cached = cache.get(cacheKey)
@@ -49,7 +48,7 @@ export function tokenize(
   const id = nextId++
   const promise = new Promise<ThemedToken[][]>((resolve, reject) => {
     pending.set(id, { resolve, reject })
-    const request: TokenizeRequest = { id, code, lang, theme: shikiTheme }
+    const request: TokenizeRequest = { id, code, lang }
     ensureWorker().postMessage(request)
   })
     .then((tokens) => {

@@ -47,16 +47,16 @@ function highlightStyle(): string {
 }
 
 /**
- * Dispatcher that picks the raw or interactive sub-view. Kept as a thin
- * branchy wrapper with NO hooks of its own so flipping `forceRaw` between
+ * Dispatcher that picks the source or interactive sub-view. Kept as a thin
+ * branchy wrapper with NO hooks of its own so flipping `forceSource` between
  * renders doesn't change the parent's hook count.
  */
 export const HtmlView = observer(function HtmlView(props: ViewProps) {
-  const { view, forceRaw, inline, nested } = props
-  if (forceRaw) {
+  const { view, forceSource, inline, nested } = props
+  if (forceSource) {
     return (
       <Editor
-        view="raw"
+        view="source"
         content={view.content}
         contentError={view.contentError}
         blocks={view.blocks}

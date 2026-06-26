@@ -91,7 +91,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
 
   const minted = Boolean(view.snapshot.artifact.id)
   const etag = (minted ? view.snapshot.current_round.content_hash : view.snapshot.content_hash) ?? ""
-  const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, uiStore.theme, etag)
+  const diffTokens = useDiffHighlight(parsed, view.snapshot.artifact.title, etag)
 
   if (contentError) return <Notice title="Can't load this diff" message={contentError} nested={nested} />
   if (loading && content === "") return <Notice title="Loading…" message="Fetching the diff." nested={nested} />
