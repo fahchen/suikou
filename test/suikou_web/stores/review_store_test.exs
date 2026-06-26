@@ -58,7 +58,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
       {:ok, reply} = Testing.dispatch_command(page, :load_review_structure, %{})
 
-      assert %{review_id: ^review_id, name: "rv", kind: :file} = reply
+      assert %{review_id: ^review_id, exists: true, name: "rv", kind: :file} = reply
       assert Enum.map(reply.file_entries, & &1.path) == ["first.md", "second.md"]
 
       minted = Enum.find(reply.files, &(&1.path == "first.md"))
@@ -70,10 +70,10 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert %{artifact_id: nil, artifact: nil, current_round: nil} = unminted
     end
 
-    test "replies with empty structure when the review is gone" do
+    test "flags a gone review with exists: false so the client shows review-not-found" do
       page = mount_review("00000000-0000-7000-8000-000000000000")
 
-      assert {:ok, %{name: "", kind: :file, file_entries: [], files: []}} =
+      assert {:ok, %{exists: false, name: "", kind: :file, file_entries: [], files: []}} =
                Testing.dispatch_command(page, :load_review_structure, %{})
     end
   end

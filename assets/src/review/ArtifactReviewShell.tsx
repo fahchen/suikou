@@ -87,6 +87,9 @@ function ReviewStructureGate(props: { path: string; reviewId: string }) {
 
   if (error !== null) return <ErrorPage {...errorCopy(error)} />;
   if (structure === null) return <ReviewShellSkeleton label="Loading review…" />;
+  // No review carries this id (vs. a real review that happens to have no files):
+  // surface "review not found", not the per-file missing-file prompt.
+  if (structure.exists === false) return <ErrorPage {...errorCopy("review_not_found")} />;
 
   return (
     <ReviewStructureProvider structure={structure}>

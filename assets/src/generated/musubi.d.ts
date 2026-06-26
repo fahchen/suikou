@@ -354,6 +354,7 @@ declare namespace Musubi {
           payload: {}
           reply: {
             review_id: string
+            exists: boolean
             name: string
             kind: "file" | "diff"
             latest_round: number
