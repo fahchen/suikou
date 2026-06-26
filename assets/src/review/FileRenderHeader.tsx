@@ -94,33 +94,38 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   return (
     <div className={container}>
       {variant === "stacked" && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={onToggleExpand}
           aria-expanded={expanded ?? false}
           aria-label={expanded ? "Collapse file" : "Expand file"}
           title={expanded ? "Collapse file" : "Expand file"}
-          className="-ml-1 inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-0.5 text-faint transition-colors hover:bg-hover hover:text-muted-foreground"
+          className="-ml-1 text-faint hover:text-muted-foreground"
         >
           <ChevronRight
-            size={13}
             className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
               expanded ? "rotate-90" : ""
             }`}
           />
-        </button>
+        </Button>
       )}
       <ChangeStatusIcon status={changeStatus} size={12} />
       {pathLabel}
       {tocSupported && (
         <TopBarTocMenu content={outlineContent} path={filePath} />
       )}
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
         {headerControls}
-        {capabilities.htmlInteraction && !sourceView && <HtmlInteractionToggle />}
-        {capabilities.sourceToggle && (
-          <SourceToggle sourceView={sourceView} onChange={onSourceViewChange} />
+        {(capabilities.sourceToggle ||
+          (capabilities.htmlInteraction && !sourceView)) && (
+          <div className="flex items-center gap-1">
+            {capabilities.htmlInteraction && !sourceView && <HtmlInteractionToggle />}
+            {capabilities.sourceToggle && (
+              <SourceToggle sourceView={sourceView} onChange={onSourceViewChange} />
+            )}
+          </div>
         )}
         {verdictChip}
       </div>
