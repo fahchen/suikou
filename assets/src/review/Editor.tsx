@@ -734,7 +734,9 @@ const RawView = observer(function RawView(props: EditorProps) {
  * plain text (a single space keeps a blank line clickable). */
 function rawContent(line: string, tokens: ThemedToken[] | undefined): React.ReactNode {
   if (line === "") return " ";
-  if (tokens) {
+  // A non-empty line with an empty token array (e.g. a stale/garbled cache entry)
+  // must fall back to plain text — mapping `[]` would render the line blank.
+  if (tokens && tokens.length > 0) {
     return tokens.map((token, j) => (
       <span key={j} style={tokenStyle(token)}>
         {token.content}

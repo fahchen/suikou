@@ -68,7 +68,7 @@ function diffCellContent(
   diffTokens: DiffTokens
 ): React.ReactNode {
   const tokens = diffTokens[side].get(lineNo)
-  if (tokens) {
+  if (tokens && tokens.length > 0) {
     return tokens.map((token, j) => (
       <span key={j} style={tokenStyle(token)}>
         {token.content}
