@@ -3,10 +3,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 import type { ViewCapabilities } from "./view-kind";
 
+const route = vi.hoisted(() => ({ pathname: "/reviews/r-1/files/docs/plan.md" }));
+
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => () => undefined,
   useRouterState: (opts: { select: (s: { location: { pathname: string } }) => unknown }) =>
-    opts.select({ location: { pathname: "/reviews/r-1/files/docs/plan.md" } }),
+    opts.select({ location: { pathname: route.pathname } }),
 }));
 
 beforeAll(() => {
@@ -54,7 +56,27 @@ function renderMenu(sideCommentsAllowed: boolean) {
   );
 }
 
+describe("TopBarDisplayMenu file mode follows the route", () => {
+  it("reads single on a file route — the all-files-only Reviewed row is hidden", () => {
+    route.pathname = "/reviews/r-1/files/docs/plan.md";
+    renderMenu(true);
+    fireEvent.click(screen.getByTitle("Display settings"));
+    expect(screen.queryByText("Reviewed")).not.toBeInTheDocument();
+  });
+
+  it("reads all on the index route — the Reviewed row shows", () => {
+    route.pathname = "/reviews/r-1";
+    renderMenu(true);
+    fireEvent.click(screen.getByTitle("Display settings"));
+    expect(screen.getByText("Reviewed")).toBeInTheDocument();
+  });
+});
+
 describe("TopBarDisplayMenu comments mode", () => {
+  beforeAll(() => {
+    route.pathname = "/reviews/r-1/files/docs/plan.md";
+  });
+
   it("offers the Side toggle when the side rail has room", () => {
     renderMenu(true);
     fireEvent.click(screen.getByTitle("Display settings"));
