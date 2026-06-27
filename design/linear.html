@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Suikou · Linear design language</title>
+<title>Suikou · Linear app grammar</title>
 <style>
 /* ============================================================
-   SUIKOU - reimagined in the Linear (linear.app) design language
+   SUIKOU - reimagined with the Linear (linear.app) APP STRUCTURE
    Self-contained. No network. System fonts. Inline SVG icons.
+   Sidebar + status-grouped list + detail-with-properties + cmdK.
    Dark-first, indigo accent, hairline borders, dense lists.
    ============================================================ */
 
@@ -15,38 +16,34 @@
   color-scheme: dark;
 
   /* --- Dark theme (hero) --- */
-  /* Near-black desaturated, faint cool/indigo tint */
   --bg:        oklch(16% 0.006 265);   /* window / app background */
   --bg-1:      oklch(17.5% 0.006 265); /* sidebar */
   --panel:     oklch(19% 0.006 265);   /* panels / cards */
   --panel-2:   oklch(21.5% 0.007 265); /* raised / hover row */
   --panel-3:   oklch(24% 0.008 265);   /* input / pressed */
 
-  /* Hairline borders, very low contrast */
   --line:      oklch(100% 0 0 / 0.07);
   --line-2:    oklch(100% 0 0 / 0.11);
   --line-3:    oklch(100% 0 0 / 0.16);
 
-  /* Text - cool neutral, never pure white */
-  --tx-0:      oklch(96% 0.004 265);   /* primary */
-  --tx-1:      oklch(78% 0.005 265);   /* secondary */
-  --tx-2:      oklch(63% 0.006 265);   /* tertiary / meta */
-  --tx-3:      oklch(50% 0.006 265);   /* faint / disabled */
+  --tx-0:      oklch(96% 0.004 265);
+  --tx-1:      oklch(78% 0.005 265);
+  --tx-2:      oklch(63% 0.006 265);
+  --tx-3:      oklch(50% 0.006 265);
 
-  /* Accent - Linear indigo/violet (#5E6AD2 family) */
   --accent:        oklch(56% 0.16 280);
   --accent-hi:     oklch(62% 0.17 280);
   --accent-soft:   oklch(56% 0.16 280 / 0.16);
   --accent-line:   oklch(56% 0.16 280 / 0.40);
   --on-accent:     oklch(98% 0.005 280);
 
-  /* Status semantics - low-chroma glyphs/pills */
-  --green:   oklch(70% 0.15 155);   /* approve / added */
-  --red:     oklch(64% 0.18 22);    /* request changes / deleted */
-  --amber:   oklch(76% 0.13 78);    /* needs answer */
-  --blue:    oklch(68% 0.13 248);   /* comment / note */
-  --gray:    oklch(62% 0.006 265);  /* neutral */
-  --purple:  oklch(64% 0.15 300);   /* modified */
+  --green:   oklch(70% 0.15 155);
+  --red:     oklch(64% 0.18 22);
+  --amber:   oklch(76% 0.13 78);
+  --blue:    oklch(68% 0.13 248);
+  --gray:    oklch(62% 0.006 265);
+  --purple:  oklch(64% 0.15 300);
+  --orange:  oklch(72% 0.15 50);
 
   --radius:   8px;
   --radius-s: 6px;
@@ -92,6 +89,7 @@
   --blue:    oklch(54% 0.15 248);
   --gray:    oklch(55% 0.006 265);
   --purple:  oklch(52% 0.17 300);
+  --orange:  oklch(60% 0.16 50);
 
   --shadow-pop: 0 0 0 1px oklch(20% 0.02 265 / 0.08),
                 0 8px 16px oklch(20% 0.02 265 / 0.10),
@@ -102,7 +100,6 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
 body {
@@ -126,10 +123,7 @@ body {
 .wrap { max-width: 1240px; margin: 0 auto; }
 
 /* ---------- Page header ---------- */
-.page-head {
-  display: flex; align-items: center; gap: 16px;
-  margin-bottom: 44px;
-}
+.page-head { display: flex; align-items: center; gap: 16px; margin-bottom: 44px; }
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand-mark {
   width: 30px; height: 30px; border-radius: 8px;
@@ -160,11 +154,8 @@ body {
   box-shadow: 0 1px 2px oklch(0% 0 0 / 0.2);
 }
 
-/* ---------- Screen captions + window frame ---------- */
-.caption {
-  display: flex; align-items: baseline; gap: 10px;
-  margin: 56px 0 14px; padding-left: 2px;
-}
+/* ---------- Captions + window frame ---------- */
+.caption { display: flex; align-items: baseline; gap: 10px; margin: 56px 0 14px; padding-left: 2px; }
 .caption .num {
   font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
   color: var(--accent-hi);
@@ -173,6 +164,11 @@ body {
 }
 .caption h2 { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
 .caption p { color: var(--tx-2); font-size: 12.5px; }
+.caption .map {
+  margin-left: auto; font-size: 11px; color: var(--tx-3);
+  border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 7px;
+}
+.caption .map b { color: var(--tx-1); font-weight: 600; }
 
 .win {
   border-radius: var(--radius-l);
@@ -192,17 +188,21 @@ body {
 .traffic .r { background: oklch(64% 0.16 25); }
 .traffic .y { background: oklch(78% 0.13 85); }
 .traffic .g { background: oklch(72% 0.15 145); }
-.titlebar .tt {
-  font-size: 12px; color: var(--tx-2); font-weight: 500;
-  margin-left: 6px;
-}
+.titlebar .tt { font-size: 12px; color: var(--tx-2); font-weight: 500; margin-left: 6px; }
 .titlebar .tt b { color: var(--tx-1); font-weight: 600; }
+.titlebar .spacer { flex: 1; }
+.sync {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--tx-2);
+}
+.sync .live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px oklch(70% 0.15 155 / 0.18); }
 
-/* ---------- App layout (3 columns) ---------- */
-.app { display: grid; grid-template-columns: 216px 1fr 280px; min-height: 560px; }
-.app.two { grid-template-columns: 216px 1fr; }
+/* ---------- App layout ---------- */
+.app { display: grid; grid-template-columns: 224px 1fr 268px; min-height: 580px; }
+.app.two { grid-template-columns: 224px 1fr; }
+.app.detail { grid-template-columns: 200px 1fr 252px; }
 
-/* Sidebar */
+/* ===== Sidebar ===== */
 .side {
   background: var(--bg-1);
   border-right: 1px solid var(--line);
@@ -212,7 +212,7 @@ body {
 .ws {
   display: flex; align-items: center; gap: 9px;
   padding: 6px 8px; border-radius: var(--radius-s);
-  cursor: pointer; margin-bottom: 4px;
+  cursor: pointer; margin-bottom: 6px;
 }
 .ws:hover { background: var(--panel-2); }
 .ws .ava {
@@ -222,7 +222,8 @@ body {
   font-size: 11px; font-weight: 700; flex-shrink: 0;
 }
 .ws .nm { font-size: 13px; font-weight: 600; flex: 1; letter-spacing: -0.01em; }
-.ws svg { width: 14px; height: 14px; color: var(--tx-3); }
+.ws .cv { width: 14px; height: 14px; color: var(--tx-3); }
+.ws .pen { width: 15px; height: 15px; color: var(--tx-3); }
 
 .cmdk-btn {
   display: flex; align-items: center; gap: 8px;
@@ -240,12 +241,18 @@ body {
   display: inline-flex; align-items: center; gap: 1px;
 }
 
-.nav-sec { margin-top: 10px; }
+.nav-sec { margin-top: 8px; }
+.nav-sec.tight { margin-top: 2px; }
 .nav-label {
+  display: flex; align-items: center; gap: 6px;
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--tx-3);
-  padding: 4px 9px 5px;
+  padding: 6px 9px 5px;
 }
+.nav-label .cv { width: 11px; height: 11px; color: var(--tx-3); }
+.nav-label .spacer { flex: 1; }
+.nav-label .add { width: 14px; height: 14px; color: var(--tx-3); cursor: pointer; opacity: 0.6; }
+.nav-label .add:hover { opacity: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 9px;
   padding: 5px 9px; border-radius: var(--radius-s);
@@ -253,15 +260,14 @@ body {
 }
 .nav-item:hover { background: var(--panel-2); }
 .nav-item.active { background: var(--panel-2); color: var(--tx-0); font-weight: 550; }
-.nav-item.active::before {
-  content: ""; position: absolute; left: -8px; top: 50%;
-  transform: translateY(-50%);
-  width: 3px; height: 16px; border-radius: 2px; background: var(--accent);
-}
-.nav-item svg { width: 15px; height: 15px; color: var(--tx-2); flex-shrink: 0; }
-.nav-item.active svg { color: var(--accent-hi); }
-.nav-item .t { flex: 1; font-size: 13px; }
+.nav-item.active > svg:first-child { color: var(--accent-hi); }
+.nav-item > svg:first-child { width: 15px; height: 15px; color: var(--tx-2); flex-shrink: 0; }
+.nav-item .t { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item .ct { font-size: 11px; color: var(--tx-3); font-variant-numeric: tabular-nums; }
+.nav-item .ct.badge {
+  color: var(--on-accent); background: var(--accent);
+  border-radius: 999px; padding: 0 6px; font-weight: 600; font-size: 10.5px;
+}
 .dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 .side .footer { margin-top: auto; padding: 6px 4px 2px; }
@@ -274,9 +280,9 @@ body {
   color: var(--on-accent); flex-shrink: 0;
 }
 .usr .nm { font-size: 12.5px; font-weight: 500; flex: 1; }
-.usr svg { width: 13px; height: 13px; color: var(--tx-3); }
+.usr .cv { width: 13px; height: 13px; color: var(--tx-3); }
 
-/* ---------- Main column ---------- */
+/* ===== Main column ===== */
 .main { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
 .main-head {
   display: flex; align-items: center; gap: 10px;
@@ -305,6 +311,7 @@ body {
 .ico-btn:hover { background: var(--panel-2); color: var(--tx-0); }
 .ico-btn svg { width: 15px; height: 15px; }
 
+/* view-by + filter segment bar */
 .filter-bar {
   display: flex; align-items: center; gap: 8px;
   height: 38px; padding: 0 16px;
@@ -320,99 +327,124 @@ body {
 .fchip:hover { background: var(--panel-2); }
 .fchip svg { width: 13px; height: 13px; color: var(--tx-2); }
 .fchip.dashed { border-style: dashed; color: var(--tx-2); }
+.fchip .lk { color: var(--tx-3); font-weight: 500; }
+.fchip b { color: var(--tx-0); font-weight: 600; }
 .filter-bar .spacer { flex: 1; }
 .count-tag { font-size: 11.5px; color: var(--tx-3); font-variant-numeric: tabular-nums; }
+.seg-toggle {
+  display: inline-flex; padding: 2px; gap: 1px;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 7px;
+}
+.seg-toggle button {
+  display: grid; place-items: center; width: 26px; height: 22px;
+  border: none; background: transparent; color: var(--tx-3); cursor: pointer;
+  border-radius: 5px;
+}
+.seg-toggle button svg { width: 14px; height: 14px; }
+.seg-toggle button[aria-pressed="true"] { background: var(--panel-3); color: var(--tx-0); }
 
-/* ---------- File list rows ---------- */
-.list { padding: 6px 8px; overflow: auto; flex: 1; }
-.list-group-label {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 600; color: var(--tx-2);
-  padding: 9px 8px 6px; letter-spacing: -0.005em;
+/* ===== File list (grouped by verdict status) ===== */
+.list { padding: 0; overflow: auto; flex: 1; }
+.group { border-bottom: 1px solid var(--line); }
+.group:last-child { border-bottom: none; }
+.group-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 16px; background: var(--bg-1);
+  cursor: pointer; position: relative;
 }
-.list-group-label svg { width: 13px; height: 13px; color: var(--tx-3); }
-.list-group-label .cnt {
-  font-size: 10.5px; color: var(--tx-3); font-weight: 500;
-  background: var(--panel-2); border-radius: 999px; padding: 0 6px;
-  margin-left: 2px;
-}
+.group-head:hover .ghover { opacity: 1; }
+.group-head .cv { width: 13px; height: 13px; color: var(--tx-3); }
+.group-head .glyph { width: 15px; height: 15px; }
+.group-head .gname { font-size: 12.5px; font-weight: 600; color: var(--tx-0); letter-spacing: -0.005em; }
+.group-head .gcnt { font-size: 11px; color: var(--tx-3); font-variant-numeric: tabular-nums; }
+.group-head .spacer { flex: 1; }
+.group-head .ghover { display: flex; gap: 4px; opacity: 0; }
+.group-head .ghover svg { width: 14px; height: 14px; color: var(--tx-3); cursor: pointer; }
 
 .frow {
   display: grid;
-  grid-template-columns: 18px 1fr auto auto auto;
+  grid-template-columns: 16px 1fr auto auto auto auto;
   align-items: center; gap: 11px;
-  padding: 7px 10px; border-radius: var(--radius-s);
+  padding: 6.5px 16px 6.5px 36px;
   cursor: pointer; position: relative;
 }
 .frow:hover { background: var(--panel-2); }
 .frow.sel { background: var(--accent-soft); }
+/* Linear keyboard cursor on the selected row */
 .frow.sel::before {
-  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px;
-  width: 2px; border-radius: 2px; background: var(--accent);
+  content: ""; position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 2px; border-radius: 0 2px 2px 0; background: var(--accent);
 }
 
-/* Status glyph - ringed/segmented like Linear issue status */
-.glyph { width: 15px; height: 15px; }
-.fpath { display: flex; align-items: baseline; gap: 1px; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
+.glyph { width: 15px; height: 15px; flex-shrink: 0; }
+.fpath { display: flex; align-items: baseline; gap: 0; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
 .fpath .dir { color: var(--tx-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fpath .base { color: var(--tx-0); font-weight: 500; }
-.frow.sel .fpath .base { color: var(--tx-0); }
 
-/* Verdict pill - low-chroma w/ leading dot */
-.pill {
+/* change-status pill (added / modified / deleted) as a low-chroma label w/ dot */
+.lpill {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 550; line-height: 1.6;
-  border-radius: 999px; padding: 1.5px 9px 1.5px 8px;
-  border: 1px solid var(--line-2); color: var(--tx-1);
+  font-size: 10.5px; font-weight: 550; line-height: 1.6;
+  border-radius: 999px; padding: 1px 8px 1px 7px;
+  border: 1px solid var(--line-2); color: var(--tx-2);
   white-space: nowrap;
 }
-.pill .d { width: 7px; height: 7px; border-radius: 50%; }
-.pill.approve { color: var(--green); border-color: oklch(70% 0.15 155 / 0.30); }
-.pill.approve .d { background: var(--green); }
-.pill.request { color: var(--red); border-color: oklch(64% 0.18 22 / 0.30); }
-.pill.request .d { background: var(--red); }
-.pill.comment { color: var(--blue); border-color: oklch(68% 0.13 248 / 0.30); }
-.pill.comment .d { background: var(--blue); }
-.pill.pending { color: var(--tx-2); border-style: dashed; }
-.pill.pending .d { background: var(--tx-3); }
+.lpill .d { width: 6px; height: 6px; border-radius: 50%; }
+.lpill.added .d { background: var(--green); }
+.lpill.added { color: var(--green); border-color: oklch(70% 0.15 155 / 0.28); }
+.lpill.modified .d { background: var(--purple); }
+.lpill.modified { color: var(--purple); border-color: oklch(64% 0.15 300 / 0.28); }
+.lpill.deleted .d { background: var(--red); }
+.lpill.deleted { color: var(--red); border-color: oklch(64% 0.18 22 / 0.28); }
+
+/* priority glyph (Linear's bar-stack) */
+.prio { display: flex; align-items: flex-end; gap: 1.5px; height: 12px; width: 13px; }
+.prio i { width: 3px; border-radius: 1px; background: var(--tx-3); }
+.prio i:nth-child(1) { height: 5px; }
+.prio i:nth-child(2) { height: 8px; }
+.prio i:nth-child(3) { height: 11px; }
+.prio.p-high i { background: var(--red); }
+.prio.p-med i:nth-child(1), .prio.p-med i:nth-child(2) { background: var(--amber); }
+.prio.p-low i:nth-child(1) { background: var(--tx-2); }
+
+.avatar {
+  width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 9px; font-weight: 700;
+  color: var(--on-accent); flex-shrink: 0;
+}
+.av.a1, .avatar.a1 { background: linear-gradient(150deg, oklch(70% 0.13 30), oklch(62% 0.15 10)); }
+.av.a2, .avatar.a2 { background: linear-gradient(150deg, oklch(66% 0.14 250), oklch(58% 0.16 270)); }
+.av.bot, .avatar.bot { background: linear-gradient(150deg, oklch(62% 0.15 300), oklch(54% 0.16 280)); }
 
 .ccount {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 11.5px; color: var(--tx-2); font-variant-numeric: tabular-nums;
-  min-width: 30px; justify-content: flex-end;
+  min-width: 26px; justify-content: flex-end;
 }
 .ccount svg { width: 13px; height: 13px; color: var(--tx-3); }
 .ccount.zero { color: var(--tx-3); }
-.utime { font-size: 11.5px; color: var(--tx-3); width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.utime { font-size: 11.5px; color: var(--tx-3); width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* ---------- Right properties panel ---------- */
+/* ===== Right properties panel ===== */
 .props {
   background: var(--bg-1);
   border-left: 1px solid var(--line);
-  padding: 14px; display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 12px; display: flex; flex-direction: column; gap: 1px;
   overflow: auto;
 }
-.props-title { font-size: 13px; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 6px; }
+.props-title { font-size: 12px; font-weight: 650; letter-spacing: -0.01em; color: var(--tx-2); padding: 4px 4px 8px; }
 .prop-row {
-  display: grid; grid-template-columns: 92px 1fr; align-items: center;
-  gap: 10px; padding: 6px 4px; min-height: 30px;
+  display: grid; grid-template-columns: 84px 1fr; align-items: center;
+  gap: 8px; padding: 6px 6px; min-height: 30px; border-radius: var(--radius-s);
+  cursor: pointer;
 }
-.prop-row .k { font-size: 12px; color: var(--tx-2); }
-.prop-row .v { font-size: 12.5px; color: var(--tx-0); display: flex; align-items: center; gap: 7px; }
-.prop-row .v .av {
-  width: 18px; height: 18px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--on-accent);
-}
-.av.a1 { background: linear-gradient(150deg, oklch(70% 0.13 30), oklch(62% 0.15 10)); }
-.av.a2 { background: linear-gradient(150deg, oklch(66% 0.14 250), oklch(58% 0.16 270)); }
-.av.bot { background: linear-gradient(150deg, oklch(62% 0.15 300), oklch(54% 0.16 280)); }
-.prop-div { height: 1px; background: var(--line); margin: 8px 0; }
-.mini-stat { display: flex; gap: 14px; padding: 4px; }
-.mini-stat .s { display: flex; flex-direction: column; gap: 1px; }
-.mini-stat .s .n { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.mini-stat .s .l { font-size: 10.5px; color: var(--tx-2); text-transform: uppercase; letter-spacing: 0.03em; }
-.progress { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; margin: 4px 4px 0; }
-.progress i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.prop-row:hover { background: var(--panel-2); }
+.prop-row .k { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--tx-2); }
+.prop-row .k svg { width: 14px; height: 14px; color: var(--tx-3); }
+.prop-row .v { font-size: 12.5px; color: var(--tx-0); display: flex; align-items: center; gap: 7px; min-width: 0; }
+.prop-row .v .glyph { width: 14px; height: 14px; }
+.prop-row .v.mono { font-family: var(--mono); font-size: 11.5px; color: var(--tx-1); }
+.prop-div { height: 1px; background: var(--line); margin: 8px 2px; }
 
 .label-pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -421,24 +453,41 @@ body {
 }
 .label-pill .d { width: 7px; height: 7px; border-radius: 50%; }
 
-/* ---------- File review: code reader ---------- */
+.props .progress { height: 5px; border-radius: 3px; background: var(--panel-3); overflow: hidden; margin: 6px 6px 4px; }
+.props .progress i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.props .pmeta { font-size: 11px; color: var(--tx-2); padding: 0 6px 4px; }
+
+/* ===== Detail: code reader ===== */
 .reader { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
 .reader-bar {
   display: flex; align-items: center; gap: 10px;
   height: 42px; padding: 0 14px;
   border-bottom: 1px solid var(--line); background: var(--bg);
 }
-.reader-bar .fpath { font-size: 12.5px; flex: 1; }
+.reader-bar .crumb { display: flex; align-items: center; gap: 6px; font-size: 13px; flex: 1; min-width: 0; }
+.reader-bar .crumb .glyph { width: 14px; height: 14px; }
+.reader-bar .crumb .fpath { font-size: 12.5px; }
+.reader-bar .spacer { flex: 1; }
 .diffstat { display: flex; gap: 8px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .diffstat .add { color: var(--green); }
 .diffstat .del { color: var(--red); }
+.reader-bar .nav-arrows { display: flex; gap: 2px; }
 
-.code { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow: auto; flex: 1; padding: 6px 0; }
+.detail-title {
+  display: flex; align-items: center; gap: 9px;
+  padding: 14px 18px 10px;
+}
+.detail-title .glyph { width: 17px; height: 17px; }
+.detail-title h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+.detail-title h3 .dir { color: var(--tx-3); font-weight: 400; font-family: var(--mono); font-size: 13px; }
+.detail-title h3 .base { font-family: var(--mono); }
+
+.code { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; overflow: auto; padding: 4px 0 8px; }
+.code.framed { border-top: 1px solid var(--line); }
 .cl { display: grid; grid-template-columns: 46px 1fr; position: relative; }
 .cl .gut {
   text-align: right; padding-right: 14px; color: var(--tx-3);
   user-select: none; font-variant-numeric: tabular-nums;
-  border-right: 1px solid transparent;
 }
 .cl .src { padding: 0 16px; white-space: pre; color: var(--tx-1); }
 .cl:hover { background: var(--panel-2); }
@@ -446,8 +495,12 @@ body {
 .cl.has-comment { background: oklch(56% 0.16 280 / 0.07); }
 .cl.has-comment .gut { color: var(--accent-hi); }
 .cl.sel-line { background: var(--accent-soft); }
-.cl.sel-line .gut { color: var(--accent-hi); }
-/* hover affordance: add-comment plus on gutter */
+.cl.sel-line .gut { color: var(--accent-hi); font-weight: 600; }
+/* a multi-line selected RANGE (Linear-style anchor range) */
+.cl.range { background: var(--accent-soft); }
+.cl.range .gut { color: var(--accent-hi); }
+.cl.range.range-top { box-shadow: inset 0 1px 0 var(--accent-line); }
+.cl.range.range-bot { box-shadow: inset 0 -1px 0 var(--accent-line); }
 .cl .add-c {
   position: absolute; left: 24px; top: 50%; transform: translate(-50%,-50%);
   width: 16px; height: 16px; border-radius: 4px;
@@ -458,7 +511,6 @@ body {
 .cl:hover .add-c { display: grid; }
 .cl .add-c svg { width: 11px; height: 11px; }
 
-/* syntax tint (Linear-restrained) */
 .tk-kw { color: oklch(72% 0.12 300); }
 .tk-fn { color: oklch(74% 0.11 230); }
 .tk-at { color: oklch(75% 0.12 78); }
@@ -466,7 +518,6 @@ body {
 .tk-cm { color: var(--tx-3); font-style: italic; }
 .tk-mod { color: oklch(76% 0.10 200); }
 
-/* diff lines */
 .cl.add { background: oklch(70% 0.15 155 / 0.10); }
 .cl.add .gut { color: oklch(70% 0.15 155 / 0.8); }
 .cl.add .src::before { content: "+ "; color: var(--green); }
@@ -475,19 +526,21 @@ body {
 .cl.del .src::before { content: "- "; color: var(--red); }
 .cl.ctx .src::before { content: "  "; }
 
-/* inline comment composer (anchored under a line) */
+/* inline composer anchored under a line */
 .composer {
   margin: 4px 14px 8px 46px;
   border: 1px solid var(--accent-line); border-radius: var(--radius);
   background: var(--panel); box-shadow: 0 4px 16px oklch(0% 0 0 / 0.25);
   overflow: hidden;
 }
+.composer.center { margin: 12px auto; max-width: 560px; }
 .composer-head {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-bottom: 1px solid var(--line);
 }
 .composer-head .anchor { font-size: 11.5px; color: var(--tx-2); font-family: var(--mono); }
 .composer-head .anchor b { color: var(--accent-hi); }
+.composer-head .spacer { flex: 1; }
 .seg {
   display: inline-flex; gap: 2px; padding: 2px;
   background: var(--bg); border: 1px solid var(--line-2); border-radius: 7px;
@@ -532,36 +585,21 @@ body {
 .btn .kbd { background: oklch(100% 0 0 / 0.14); border-color: transparent; color: inherit; opacity: 0.85; }
 .btn.primary .kbd { background: oklch(0% 0 0 / 0.18); color: var(--on-accent); }
 
-/* ---------- Comments / activity thread (right) ---------- */
-.thread {
-  background: var(--bg-1); border-left: 1px solid var(--line);
-  display: flex; flex-direction: column; min-width: 0;
+/* ===== Activity / comment thread (under code, left pane) ===== */
+.activity {
+  border-top: 1px solid var(--line); background: var(--bg-1);
+  padding: 14px 18px 4px;
 }
-.thread-head {
-  display: flex; align-items: center; gap: 8px;
-  height: 42px; padding: 0 14px; border-bottom: 1px solid var(--line);
+.activity-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
 }
-.thread-head .t { font-size: 13px; font-weight: 650; flex: 1; letter-spacing: -0.01em; }
-.thread-head .c { font-size: 11px; color: var(--tx-3); }
+.activity-head svg { width: 15px; height: 15px; color: var(--tx-2); }
+.activity-head .t { font-size: 12.5px; font-weight: 650; color: var(--tx-0); }
+.activity-head .c { font-size: 11px; color: var(--tx-3); }
+.activity-head .spacer { flex: 1; }
+.activity-head .sub-link { font-size: 11px; color: var(--tx-2); cursor: pointer; }
 
-/* verdict status menu (Linear status-picker style) */
-.verdict-menu { padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.verdict-menu .lbl { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-3); margin-bottom: 7px; }
-.vmenu { display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; }
-.vmenu .opt {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 11px; cursor: pointer; font-size: 12.5px; color: var(--tx-1);
-  background: var(--panel);
-}
-.vmenu .opt:hover { background: var(--panel-2); }
-.vmenu .opt.cur { background: var(--accent-soft); color: var(--tx-0); font-weight: 550; }
-.vmenu .opt .glyph { width: 15px; height: 15px; flex-shrink: 0; }
-.vmenu .opt .t { flex: 1; }
-.vmenu .opt .check { width: 14px; height: 14px; color: var(--accent-hi); opacity: 0; }
-.vmenu .opt.cur .check { opacity: 1; }
-.vmenu .opt .kbd { opacity: 0.7; }
-
-.thread-list { flex: 1; overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 16px; }
+.thread-list { display: flex; flex-direction: column; gap: 18px; }
 .comment { display: flex; flex-direction: column; gap: 7px; }
 .cmt-head { display: flex; align-items: center; gap: 8px; }
 .cmt-head .av {
@@ -598,9 +636,22 @@ body {
   background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--radius-s);
   padding: 8px 10px; margin-top: 7px; white-space: pre; overflow: auto; color: var(--tx-1);
 }
+/* reactions row */
+.reactions { display: flex; gap: 6px; padding-left: 30px; margin-top: 2px; }
+.reaction {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--tx-2); cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.reaction.on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent-hi); }
+.reaction .add-react { color: var(--tx-3); }
+.reaction .add-react svg { width: 12px; height: 12px; display: block; }
 
-.replies { padding-left: 30px; display: flex; flex-direction: column; gap: 12px; margin-top: 4px;
-  border-left: 1px solid var(--line); margin-left: 10px; padding-left: 19px; }
+.replies {
+  display: flex; flex-direction: column; gap: 12px; margin-top: 4px;
+  border-left: 1px solid var(--line); margin-left: 10px; padding-left: 19px;
+}
 .reply { display: flex; flex-direction: column; gap: 5px; }
 .reply .cmt-body { padding-left: 28px; }
 .agent-badge {
@@ -616,30 +667,46 @@ body {
   border-radius: var(--radius-s); padding: 8px 10px; color: var(--tx-0);
 }
 
-.thread-foot { border-top: 1px solid var(--line); padding: 10px 14px; }
+/* composer pinned at the bottom of the activity feed */
+.activity-composer {
+  position: sticky; bottom: 0;
+  border-top: 1px solid var(--line); background: var(--bg-1);
+  padding: 12px 18px 14px; margin: 14px -18px 0;
+}
 .reply-box {
-  display: flex; align-items: center; gap: 8px;
-  border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 10px;
-  background: var(--panel); color: var(--tx-3); font-size: 12.5px;
+  display: flex; align-items: center; gap: 9px;
+  border: 1px solid var(--line-2); border-radius: var(--radius); padding: 8px 11px;
+  background: var(--panel);
 }
-.reply-box .spacer { flex: 1; }
+.reply-box .av {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--on-accent); flex-shrink: 0;
+}
+.reply-box .ph { flex: 1; color: var(--tx-3); font-size: 12.5px; }
+.reply-box .tools { display: flex; gap: 8px; align-items: center; color: var(--tx-3); }
+.reply-box .tools svg { width: 15px; height: 15px; cursor: pointer; }
+.reply-box .tools svg:hover { color: var(--tx-1); }
+.reply-box .send {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-s);
+  background: var(--accent); color: var(--on-accent);
+}
+.reply-box .send svg { width: 14px; height: 14px; }
 
-/* ---------- Command menu (⌘K) ---------- */
+/* ===== Command menu (cmdK) ===== */
 .cmdk-stage {
-  position: relative; min-height: 440px; padding: 26px;
-  background:
-    repeating-linear-gradient(135deg, oklch(100% 0 0 / 0.012) 0 2px, transparent 2px 22px),
-    var(--bg);
-  display: grid; place-items: start center;
+  position: relative; min-height: 470px; padding: 0;
+  display: grid;
 }
+/* the app sits underneath, dimmed */
+.cmdk-stage .app { min-height: 470px; filter: saturate(0.9); }
 .cmdk-stage::after {
-  content: ""; position: absolute; inset: 0;
-  background: oklch(0% 0 0 / 0.42); backdrop-filter: blur(1px);
+  content: ""; position: absolute; inset: 0; z-index: 5;
+  background: oklch(0% 0 0 / 0.46); backdrop-filter: blur(2px);
 }
-[data-theme="light"] .cmdk-stage::after { background: oklch(40% 0.02 265 / 0.22); }
+[data-theme="light"] .cmdk-stage::after { background: oklch(40% 0.02 265 / 0.26); }
 .palette {
-  position: relative; z-index: 1; width: 560px; max-width: 100%;
-  margin-top: 18px;
+  position: absolute; z-index: 6; top: 56px; left: 50%; transform: translateX(-50%);
+  width: 560px; max-width: calc(100% - 48px);
   background: var(--panel); border: 1px solid var(--line-3);
   border-radius: var(--radius-l); box-shadow: var(--shadow-pop);
   overflow: hidden;
@@ -657,7 +724,7 @@ body {
   border: 1px solid var(--line-2); border-radius: 5px; padding: 2px 8px;
   display: inline-flex; align-items: center; gap: 5px;
 }
-.pal-body { padding: 6px; max-height: 360px; overflow: auto; }
+.pal-body { padding: 6px; max-height: 350px; overflow: auto; }
 .pal-group-label {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--tx-3); padding: 9px 10px 5px;
@@ -686,8 +753,8 @@ body {
 .footer-note { text-align: center; color: var(--tx-3); font-size: 11.5px; margin-top: 60px; }
 
 @media (max-width: 1080px) {
-  .app, .app.two { grid-template-columns: 200px 1fr; }
-  .props, .thread { display: none; }
+  .app, .app.two, .app.detail { grid-template-columns: 200px 1fr; }
+  .props { display: none; }
 }
 </style>
 </head>
@@ -704,7 +771,7 @@ body {
       </div>
       <div>
         <h1>Suikou</h1>
-        <div class="sub">Code review, reimagined in the Linear design language</div>
+        <div class="sub">Code review, rebuilt in the Linear app grammar</div>
       </div>
     </div>
     <div class="spacer"></div>
@@ -720,17 +787,20 @@ body {
     </div>
   </header>
 
-  <!-- ===== Screen 1: Review workspace / board ===== -->
+  <!-- ===== Screen 1: Review workspace / List ===== -->
   <div class="caption">
     <span class="num">01</span>
-    <h2>Review workspace</h2>
-    <p>Sidebar of reviews and saved views; the selected review's files as a dense list.</p>
+    <h2>Review workspace / List</h2>
+    <p>Sidebar nav, files grouped by verdict status, inline metadata, ⌘K hint.</p>
+    <span class="map">Linear: <b>status-grouped issue list</b></span>
   </div>
 
   <div class="win">
     <div class="titlebar">
       <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
-      <span class="tt"><b>Suikou</b> · verdict-batching review</span>
+      <span class="tt"><b>Suikou</b> · verdict-batching</span>
+      <div class="spacer"></div>
+      <span class="sync"><span class="live"></span>Live · Round 2</span>
     </div>
 
     <div class="app">
@@ -739,7 +809,8 @@ body {
         <div class="ws">
           <div class="ava">S</div>
           <div class="nm">Suikou</div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>
+          <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>
+          <svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5h7a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7"/><path d="M15.5 4.5l4 4L9 19l-4 1 1-4z"/></svg>
         </div>
 
         <div class="cmdk-btn">
@@ -748,50 +819,54 @@ body {
           <span class="kbd">⌘K</span>
         </div>
 
-        <div class="nav-sec">
+        <div class="nav-sec tight">
           <div class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-            <span class="t">Inbox</span><span class="ct">4</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H8l-4 4z"/></svg>
+            <span class="t">Inbox</span><span class="ct badge">4</span>
           </div>
           <div class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
             <span class="t">My reviews</span><span class="ct">7</span>
           </div>
         </div>
 
         <div class="nav-sec">
-          <div class="nav-label">Reviews</div>
+          <div class="nav-label">
+            <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+            <span>Workspace</span><span class="spacer"></span>
+            <svg class="add" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
           <div class="nav-item active">
-            <span class="dot-sm" style="background:var(--amber)"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             <span class="t">verdict-batching</span><span class="ct">9</span>
           </div>
           <div class="nav-item">
-            <span class="dot-sm" style="background:var(--blue)"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             <span class="t">re-anchoring fixes</span><span class="ct">5</span>
           </div>
           <div class="nav-item">
-            <span class="dot-sm" style="background:var(--green)"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             <span class="t">live-content ETags</span><span class="ct">2</span>
-          </div>
-          <div class="nav-item">
-            <span class="dot-sm" style="background:var(--gray)"></span>
-            <span class="t">highlight cache</span><span class="ct">0</span>
           </div>
         </div>
 
         <div class="nav-sec">
-          <div class="nav-label">Views</div>
-          <div class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M3 6h18M8 18h8"/></svg>
-            <span class="t">Awaiting my verdict</span>
+          <div class="nav-label">
+            <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+            <span>Views</span><span class="spacer"></span>
+            <svg class="add" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           </div>
           <div class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.6 6.6L21 9l-5 4.3L17.5 21 12 17.3 6.5 21 8 13.3 3 9l6.4-.4z"/></svg>
-            <span class="t">Changes requested</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>
+            <span class="t">Needs verdict</span><span class="ct">3</span>
           </div>
           <div class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-            <span class="t">Recently updated</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.6a2 2 0 0 1 3.4 0l7.5 13A2 2 0 0 1 19.5 20H4.5a2 2 0 0 1-1.7-3z"/><path d="M12 9v4M12 16.5v.2"/></svg>
+            <span class="t">Has blockers</span><span class="ct">2</span>
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>
+            <span class="t">Awaiting agent</span><span class="ct">1</span>
           </div>
         </div>
 
@@ -799,237 +874,289 @@ body {
           <div class="usr">
             <div class="av">RK</div>
             <div class="nm">Rin Kuroda</div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+            <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
           </div>
         </div>
       </aside>
 
-      <!-- Main: file list -->
+      <!-- Main: file list grouped by verdict status -->
       <section class="main">
         <div class="main-head">
           <div class="crumb">
-            <span class="root">Reviews</span>
+            <span class="root">Workspace</span>
             <span class="sep">/</span>
             <span class="cur">verdict-batching</span>
           </div>
           <div class="spacer"></div>
           <span class="round-pill">Round <b>2</b> of 3</span>
-          <button class="ico-btn" title="Filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg></button>
-          <button class="ico-btn" title="Display"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <button class="ico-btn" title="Display options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <button class="ico-btn" title="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button>
         </div>
 
         <div class="filter-bar">
-          <button class="fchip"><span class="dot-sm" style="background:var(--red)"></span>Changes requested<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg></button>
-          <button class="fchip dashed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add filter</button>
+          <button class="fchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg><span class="lk">Filter</span></button>
+          <button class="fchip"><span class="lk">Grouped by</span> <b>verdict</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg></button>
           <div class="spacer"></div>
           <span class="count-tag">9 files · 6 comments</span>
+          <div class="seg-toggle">
+            <button aria-pressed="true" title="List"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></button>
+            <button aria-pressed="false" title="Board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="6" height="16" rx="1.5"/><rect x="10.5" y="4" width="6" height="11" rx="1.5"/><rect x="18" y="4" width="3" height="8" rx="1.5"/></svg></button>
+          </div>
         </div>
 
         <div class="list">
-          <div class="list-group-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            lib/suikou/critique <span class="cnt">4</span>
+          <!-- GROUP: Changes requested -->
+          <div class="group">
+            <div class="group-head">
+              <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span class="gname">Changes requested</span>
+              <span class="gcnt">2</span>
+              <span class="spacer"></span>
+              <span class="ghover">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+              </span>
+            </div>
+
+            <div class="frow sel">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
+              <span class="lpill modified"><span class="d"></span>Modified</span>
+              <span class="prio p-high"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>3</span>
+              <span class="utime">2h</span>
+            </div>
+
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/reviews/</span><span class="base">submission.ex</span></span>
+              <span class="lpill modified"><span class="d"></span>Modified</span>
+              <span class="prio p-med"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>1</span>
+              <span class="utime">4h</span>
+            </div>
           </div>
 
-          <!-- modified, request -->
-          <div class="frow sel">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg></span>
-            <span class="fpath"><span class="dir">comment/</span><span class="base">anchoring.ex</span></span>
-            <span class="pill request"><span class="d"></span>Changes</span>
-            <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>3</span>
-            <span class="utime">2h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg></span>
-            <span class="fpath"><span class="dir">comment/</span><span class="base">visibility.ex</span></span>
-            <span class="pill comment"><span class="d"></span>Comment</span>
-            <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>1</span>
-            <span class="utime">2h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6" stroke-dasharray="2.4 2.4"/><circle cx="8" cy="8" r="2.4" fill="var(--green)"/></svg></span>
-            <span class="fpath"><span class="dir">verdict/</span><span class="base">batch.ex</span></span>
-            <span class="pill approve"><span class="d"></span>Approved</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">3h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg></span>
-            <span class="fpath"><span class="dir">comment/</span><span class="base">thread.ex</span></span>
-            <span class="pill pending"><span class="d"></span>Pending</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">3h ago</span>
+          <!-- GROUP: Commented -->
+          <div class="group">
+            <div class="group-head">
+              <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
+              <span class="gname">Commented</span>
+              <span class="gcnt">2</span>
+              <span class="spacer"></span>
+              <span class="ghover">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+              </span>
+            </div>
+
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">visibility.ex</span></span>
+              <span class="lpill modified"><span class="d"></span>Modified</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a2">DT</span>
+              <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>1</span>
+              <span class="utime">2h</span>
+            </div>
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
+              <span class="fpath"><span class="dir">test/suikou/critique/comment/</span><span class="base">anchoring_test.exs</span></span>
+              <span class="lpill added"><span class="d"></span>Added</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a2">DT</span>
+              <span class="ccount zero">·</span>
+              <span class="utime">2h</span>
+            </div>
           </div>
 
-          <div class="list-group-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            lib/suikou/reviews <span class="cnt">3</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg></span>
-            <span class="fpath"><span class="dir"></span><span class="base">submission.ex</span></span>
-            <span class="pill approve"><span class="d"></span>Approved</span>
-            <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>1</span>
-            <span class="utime">4h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6" stroke-dasharray="2.4 2.4"/><circle cx="8" cy="8" r="2.4" fill="var(--green)"/></svg></span>
-            <span class="fpath"><span class="dir"></span><span class="base">verdicts.ex</span></span>
-            <span class="pill approve"><span class="d"></span>Approved</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">4h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M5.2 8h5.6" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <span class="fpath"><span class="dir"></span><span class="base">legacy_round.ex</span></span>
-            <span class="pill approve"><span class="d"></span>Approved</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">5h ago</span>
+          <!-- GROUP: Approved -->
+          <div class="group">
+            <div class="group-head">
+              <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="gname">Approved</span>
+              <span class="gcnt">3</span>
+              <span class="spacer"></span>
+              <span class="ghover">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+              </span>
+            </div>
+
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/verdict/</span><span class="base">batch.ex</span></span>
+              <span class="lpill added"><span class="d"></span>Added</span>
+              <span class="prio p-med"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount zero">·</span>
+              <span class="utime">3h</span>
+            </div>
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/reviews/</span><span class="base">verdicts.ex</span></span>
+              <span class="lpill modified"><span class="d"></span>Modified</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>1</span>
+              <span class="utime">4h</span>
+            </div>
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/reviews/</span><span class="base">legacy_round.ex</span></span>
+              <span class="lpill deleted"><span class="d"></span>Deleted</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount zero">·</span>
+              <span class="utime">5h</span>
+            </div>
           </div>
 
-          <div class="list-group-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            test/suikou/critique <span class="cnt">2</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg></span>
-            <span class="fpath"><span class="dir">comment/</span><span class="base">anchoring_test.exs</span></span>
-            <span class="pill comment"><span class="d"></span>Comment</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">2h ago</span>
-          </div>
-          <div class="frow">
-            <span class="glyph"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6" stroke-dasharray="2.4 2.4"/><circle cx="8" cy="8" r="2.4" fill="var(--green)"/></svg></span>
-            <span class="fpath"><span class="dir">verdict/</span><span class="base">batch_test.exs</span></span>
-            <span class="pill pending"><span class="d"></span>Pending</span>
-            <span class="ccount zero">·</span>
-            <span class="utime">2h ago</span>
+          <!-- GROUP: Not reviewed -->
+          <div class="group">
+            <div class="group-head">
+              <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5" transform="rotate(-90 10 10)"/></svg>
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--tx-3)" stroke-width="1.6" stroke-dasharray="2.6 2.4"/></svg>
+              <span class="gname">Not reviewed</span>
+              <span class="gcnt">2</span>
+              <span class="spacer"></span>
+              <span class="ghover">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>
+              </span>
+            </div>
+
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--tx-3)" stroke-width="1.6" stroke-dasharray="2.6 2.4"/></svg>
+              <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">thread.ex</span></span>
+              <span class="lpill modified"><span class="d"></span>Modified</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount zero">·</span>
+              <span class="utime">3h</span>
+            </div>
+            <div class="frow">
+              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--tx-3)" stroke-width="1.6" stroke-dasharray="2.6 2.4"/></svg>
+              <span class="fpath"><span class="dir">test/suikou/verdict/</span><span class="base">batch_test.exs</span></span>
+              <span class="lpill added"><span class="d"></span>Added</span>
+              <span class="prio p-low"><i></i><i></i><i></i></span>
+              <span class="avatar a1">RK</span>
+              <span class="ccount zero">·</span>
+              <span class="utime">2h</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Right: properties -->
+      <!-- Right: review-level properties -->
       <aside class="props">
-        <div class="props-title">verdict-batching</div>
-        <div class="mini-stat">
-          <div class="s"><span class="n">9</span><span class="l">Files</span></div>
-          <div class="s"><span class="n">6</span><span class="l">Comments</span></div>
-          <div class="s"><span class="n" style="color:var(--red)">1</span><span class="l">Changes</span></div>
-        </div>
-        <div class="progress"><i style="width:67%"></i></div>
-        <div style="font-size:11px;color:var(--tx-2);padding:6px 4px 0">6 of 9 files have a verdict</div>
-
+        <div class="props-title">Review</div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Status</span><span class="v"><span class="dot-sm" style="background:var(--amber)"></span>In review</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Reviewer</span><span class="v"><span class="av a1" style="width:18px;height:18px;font-size:9px">RK</span>Rin Kuroda</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>Author</span><span class="v"><span class="av bot" style="width:18px;height:18px;font-size:8px">AI</span>Suikou Agent</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/></svg>Round</span><span class="v">2 of 3</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M6 8.4v7.2M18 8v3a4 4 0 0 1-4 4H8"/><circle cx="18" cy="6" r="2.4"/></svg>Branch</span><span class="v mono">feat/verdict-batching</span></div>
         <div class="prop-div"></div>
-        <div class="prop-row"><span class="k">Status</span><span class="v"><span class="pill request" style="border:none;padding-left:0"><span class="d"></span>In review</span></span></div>
-        <div class="prop-row"><span class="k">Reviewer</span><span class="v"><span class="av a1">RK</span>Rin Kuroda</span></div>
-        <div class="prop-row"><span class="k">Author</span><span class="v"><span class="av bot">AI</span>Suikou Agent</span></div>
-        <div class="prop-row"><span class="k">Round</span><span class="v">2 of 3</span></div>
-        <div class="prop-row"><span class="k">Branch</span><span class="v" style="font-family:var(--mono);font-size:11.5px;color:var(--tx-1)">feat/verdict-batching</span></div>
-        <div class="prop-row"><span class="k">Updated</span><span class="v" style="color:var(--tx-1)">2 hours ago</span></div>
-
-        <div class="prop-div"></div>
-        <div class="prop-row" style="grid-template-columns:1fr;align-items:start">
-          <span class="k" style="margin-bottom:6px">Labels</span>
+        <div class="prop-row" style="grid-template-columns:1fr;align-items:start;cursor:default">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6.6a2 2 0 0 0 .6 1.4l7 7a2 2 0 0 0 2.8 0l6.6-6.6a2 2 0 0 0 0-2.8l-7-7A2 2 0 0 0 9.6 3H5a2 2 0 0 0-2 2z"/><circle cx="7.5" cy="7.5" r="1.1"/></svg>Labels</span>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 4px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 6px 4px">
           <span class="label-pill"><span class="d" style="background:var(--purple)"></span>refactor</span>
           <span class="label-pill"><span class="d" style="background:var(--amber)"></span>needs-answer</span>
           <span class="label-pill"><span class="d" style="background:var(--blue)"></span>realtime</span>
         </div>
+        <div class="prop-div"></div>
+        <div class="props-title" style="padding-top:0">Progress</div>
+        <div class="progress"><i style="width:67%"></i></div>
+        <div class="pmeta">6 of 9 files have a verdict · 1 blocker</div>
       </aside>
     </div>
   </div>
 
-  <!-- ===== Screen 2: File review ===== -->
+  <!-- ===== Screen 2: File detail ===== -->
   <div class="caption">
     <span class="num">02</span>
-    <h2>File review</h2>
-    <p>Code with a line gutter, an inline composer, the comments thread, and a verdict status menu.</p>
+    <h2>File detail</h2>
+    <p>Two-pane: file content + activity thread on the left, properties sidebar on the right.</p>
+    <span class="map">Linear: <b>issue detail</b></span>
   </div>
 
   <div class="win">
     <div class="titlebar">
       <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
       <span class="tt"><b>anchoring.ex</b> · lib/suikou/critique/comment</span>
+      <div class="spacer"></div>
+      <span class="sync"><span class="live"></span>Live</span>
     </div>
 
-    <div class="app">
-      <!-- compact file list rail -->
+    <div class="app detail">
+      <!-- compact file rail (sidebar in detail mode) -->
       <aside class="side">
         <div class="ws">
           <div class="ava">S</div>
           <div class="nm">Suikou</div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg>
+          <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg>
+        </div>
+        <div class="nav-sec tight">
+          <div class="nav-label"><span>verdict-batching · R2</span></div>
+          <div class="frow sel" style="grid-template-columns:16px 1fr auto;padding:6px 9px;border-radius:6px">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="fpath" style="font-size:12px"><span class="base">anchoring.ex</span></span>
+            <span class="ccount" style="min-width:0">3</span>
+          </div>
+          <div class="frow" style="grid-template-columns:16px 1fr auto;padding:6px 9px;border-radius:6px">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
+            <span class="fpath" style="font-size:12px"><span class="base">visibility.ex</span></span>
+            <span class="ccount" style="min-width:0">1</span>
+          </div>
+          <div class="frow" style="grid-template-columns:16px 1fr auto;padding:6px 9px;border-radius:6px">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="fpath" style="font-size:12px"><span class="base">batch.ex</span></span>
+          </div>
+          <div class="frow" style="grid-template-columns:16px 1fr auto;padding:6px 9px;border-radius:6px">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--tx-3)" stroke-width="1.6" stroke-dasharray="2.6 2.4"/></svg>
+            <span class="fpath" style="font-size:12px"><span class="base">thread.ex</span></span>
+          </div>
         </div>
         <div class="nav-sec">
-          <div class="nav-label">verdict-batching · R2</div>
-          <div class="frow sel" style="grid-template-columns:18px 1fr auto;padding:6px 8px">
-            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg>
-            <span class="fpath"><span class="base">anchoring.ex</span></span>
-            <span class="pill request" style="border:none;padding:0"><span class="d"></span></span>
-          </div>
-          <div class="frow" style="grid-template-columns:18px 1fr auto;padding:6px 8px">
-            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg>
-            <span class="fpath"><span class="base">visibility.ex</span></span>
-            <span class="pill comment" style="border:none;padding:0"><span class="d"></span></span>
-          </div>
-          <div class="frow" style="grid-template-columns:18px 1fr auto;padding:6px 8px">
-            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6" stroke-dasharray="2.4 2.4"/><circle cx="8" cy="8" r="2.4" fill="var(--green)"/></svg>
-            <span class="fpath"><span class="base">batch.ex</span></span>
-            <span class="pill approve" style="border:none;padding:0"><span class="d"></span></span>
-          </div>
-          <div class="frow" style="grid-template-columns:18px 1fr auto;padding:6px 8px">
-            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--purple)" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="var(--purple)"/></svg>
-            <span class="fpath"><span class="base">submission.ex</span></span>
-            <span class="pill approve" style="border:none;padding:0"><span class="d"></span></span>
-          </div>
-        </div>
-        <div class="nav-sec">
-          <div class="nav-label">Shortcuts</div>
+          <div class="nav-label"><span>Keyboard</span></div>
           <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Comment line</span><span class="kbd">C</span></div>
-          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Next file</span><span class="kbd">⌥↓</span></div>
           <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Set verdict</span><span class="kbd">V</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Next file</span><span class="kbd">J</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Prev file</span><span class="kbd">K</span></div>
         </div>
       </aside>
 
-      <!-- code reader -->
+      <!-- LEFT pane: content + activity thread -->
       <section class="reader">
         <div class="reader-bar">
-          <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
-          <span class="pill request"><span class="d"></span>Changes requested</span>
+          <div class="crumb">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
+          </div>
+          <div class="spacer"></div>
           <div class="diffstat"><span class="add">+12</span><span class="del">−4</span></div>
+          <div class="nav-arrows">
+            <button class="ico-btn" title="Previous file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+            <button class="ico-btn" title="Next file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+          </div>
         </div>
 
-        <div class="code">
+        <div class="detail-title">
+          <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <h3><span class="dir">comment/</span><span class="base">anchoring.ex</span></h3>
+        </div>
+
+        <div class="code framed">
           <div class="cl ctx"><span class="gut">38</span><span class="src"><span class="tk-at">@doc</span> <span class="tk-st">"""</span></span></div>
           <div class="cl ctx"><span class="gut">39</span><span class="src"><span class="tk-st">  Resolves the stored anchor to a live line in the current file content.</span></span></div>
           <div class="cl ctx"><span class="gut">40</span><span class="src"><span class="tk-st">  """</span></span></div>
-          <div class="cl has-comment sel-line">
-            <span class="gut">41</span>
-            <span class="src"><span class="tk-kw">def</span> <span class="tk-fn">get_anchor</span>(content, %Comment{} = comment) <span class="tk-kw">do</span></span>
-            <span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
-          </div>
-
-          <!-- inline composer anchored to line 41 -->
-          <div class="composer">
-            <div class="composer-head">
-              <span class="anchor">Anchored to <b>anchoring.ex:41</b></span>
-              <div class="spacer" style="flex:1"></div>
-              <div class="seg" role="group" aria-label="Comment type">
-                <button class="fix" aria-pressed="true"><span class="d"></span>fix_required</button>
-                <button class="ask" aria-pressed="false"><span class="d"></span>needs_answer</button>
-                <button class="note" aria-pressed="false"><span class="d"></span>note</button>
-              </div>
-            </div>
-            <textarea rows="2" placeholder="Add your critique...">This get_ should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to fetch_anchor/2 if you want the {:ok, _} | :error shape instead.</textarea>
-            <div class="composer-foot">
-              <span class="hint">Markdown supported · <span class="kbd">⌘↵</span> to submit</span>
-              <div class="spacer"></div>
-              <button class="btn">Cancel <span class="kbd">Esc</span></button>
-              <button class="btn primary">Add comment <span class="kbd">⌘↵</span></button>
-            </div>
-          </div>
-
+          <div class="cl has-comment"><span class="gut">41</span><span class="src"><span class="tk-kw">def</span> <span class="tk-fn">get_anchor</span>(content, %Comment{} = comment) <span class="tk-kw">do</span></span></div>
           <div class="cl ctx"><span class="gut">42</span><span class="src">    line = <span class="tk-mod">Map</span>.get(comment.meta, <span class="tk-at">:line</span>)</span></div>
           <div class="cl del"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.fetch!(content.lines, line)</span></div>
           <div class="cl add"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.get(content.lines, line)</span></div>
@@ -1040,133 +1167,251 @@ body {
           <div class="cl add"><span class="gut">48</span><span class="src">    fingerprint = <span class="tk-mod">Anchoring</span>.<span class="tk-fn">fingerprint</span>(old_content, comment.line)</span></div>
           <div class="cl add"><span class="gut">49</span><span class="src">    <span class="tk-mod">Anchoring</span>.<span class="tk-fn">relocate</span>(new_content, fingerprint)</span></div>
           <div class="cl ctx"><span class="gut">50</span><span class="src">  <span class="tk-kw">end</span></span></div>
-          <div class="cl ctx"><span class="gut">51</span><span class="src"></span></div>
-          <div class="cl ctx"><span class="gut">52</span><span class="src"><span class="tk-kw">defp</span> <span class="tk-fn">fingerprint</span>(content, line) <span class="tk-kw">do</span></span></div>
-          <div class="cl ctx"><span class="gut">53</span><span class="src">    content.lines |> <span class="tk-mod">Enum</span>.<span class="tk-fn">at</span>(line - 1, <span class="tk-st">""</span>) |> <span class="tk-mod">String</span>.<span class="tk-fn">trim</span>()</span></div>
-          <div class="cl ctx"><span class="gut">54</span><span class="src">  <span class="tk-kw">end</span></span></div>
+        </div>
+
+        <!-- activity / comment feed -->
+        <div class="activity">
+          <div class="activity-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>
+            <span class="t">Activity</span>
+            <span class="c">3 comments</span>
+            <span class="spacer"></span>
+            <span class="sub-link">Show resolved</span>
+          </div>
+
+          <div class="thread-list">
+            <!-- comment 1: fix_required + AI reply + reactions -->
+            <div class="comment">
+              <div class="cmt-head">
+                <span class="av a1">RK</span>
+                <span class="who">Rin Kuroda</span>
+                <span class="time">2h ago</span>
+                <span class="cmt-anchor">L43</span>
+                <div class="spacer"></div>
+                <span class="ctype fix"><span class="d"></span>fix_required</span>
+              </div>
+              <div class="cmt-body">
+                <p>This <code>Map.fetch!/2</code> raises when a comment outlives its line. After re-anchoring fails we still want a graceful miss, so switch to <code>Map.get/2</code> and let the caller decide.</p>
+              </div>
+              <div class="reactions">
+                <span class="reaction on">👍 2</span>
+                <span class="reaction"><span class="add-react"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span></span>
+              </div>
+              <div class="replies">
+                <div class="reply agent">
+                  <div class="cmt-head">
+                    <span class="av bot">AI</span>
+                    <span class="who">Suikou Agent</span>
+                    <span class="agent-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>Agent</span>
+                    <span class="time">1h ago</span>
+                  </div>
+                  <div class="cmt-body">
+                    <p>Done. Changed to <code>Map.get/2</code> and added a fallback that re-anchors before reading:</p>
+                    <div class="codeblock">line = Map.get(comment.meta, :line)
+Map.get(content.lines, line)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- comment 2: needs_answer + human reply -->
+            <div class="comment">
+              <div class="cmt-head">
+                <span class="av a1">RK</span>
+                <span class="who">Rin Kuroda</span>
+                <span class="time">2h ago</span>
+                <span class="cmt-anchor">L47</span>
+                <div class="spacer"></div>
+                <span class="ctype ask"><span class="d"></span>needs_answer</span>
+              </div>
+              <div class="cmt-body">
+                <p>Does <code>reanchor/3</code> hold when two adjacent lines have identical fingerprints? Curious whether you tie-break on distance from the original index.</p>
+              </div>
+              <div class="replies">
+                <div class="reply">
+                  <div class="cmt-head">
+                    <span class="av a2">DT</span>
+                    <span class="who">Dario Toma</span>
+                    <span class="time">1h ago</span>
+                  </div>
+                  <div class="cmt-body">
+                    <p>Yes. Ties resolve to the candidate nearest the prior line number. There is a fixture for it in <code>anchoring_test.exs</code>.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- comment 3: note -->
+            <div class="comment">
+              <div class="cmt-head">
+                <span class="av a2">DT</span>
+                <span class="who">Dario Toma</span>
+                <span class="time">3h ago</span>
+                <span class="cmt-anchor">L52</span>
+                <div class="spacer"></div>
+                <span class="ctype note"><span class="d"></span>note</span>
+              </div>
+              <div class="cmt-body">
+                <p>Minor: the fingerprint trims whitespace but keeps case. Fine for now, just flagging in case indentation-only diffs become noisy.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- composer pinned at bottom of feed -->
+          <div class="activity-composer">
+            <div class="reply-box">
+              <span class="av a1">RK</span>
+              <span class="ph">Leave a comment...</span>
+              <div class="tools">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 7l1.4 12.2a1.5 1.5 0 0 0 1.5 1.3h10.2a1.5 1.5 0 0 0 1.5-1.3L20 7M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" transform="scale(0)"/><path d="M21 15l-5-5L5 21"/><circle cx="8.5" cy="8.5" r="1.8"/><rect x="3" y="3" width="18" height="18" rx="2.5"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4 4 0 0 0 7 0M9 9.5v.2M15 9.5v.2"/></svg>
+              </div>
+              <span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- comments thread -->
-      <aside class="thread">
-        <div class="thread-head">
-          <span class="t">Comments</span>
-          <span class="c">3 on this file</span>
+      <!-- RIGHT pane: per-file properties -->
+      <aside class="props">
+        <div class="props-title">Properties</div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>Verdict</span>
+          <span class="v"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg><span style="color:var(--red)">Request changes</span></span>
         </div>
-
-        <div class="verdict-menu">
-          <div class="lbl">File verdict</div>
-          <div class="vmenu">
-            <div class="opt">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span class="t">Approve</span>
-              <span class="kbd">A</span>
-            </div>
-            <div class="opt cur">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.2M8 10.6v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
-              <span class="t">Request changes</span>
-              <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            </div>
-            <div class="opt">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
-              <span class="t">Comment</span>
-              <span class="kbd">N</span>
-            </div>
-          </div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12a3 3 0 0 0 3 3h6M6 3a2 2 0 1 0 0 .01M15 18a2 2 0 1 0 0 .01M18 9a2 2 0 1 0 0 .01M18 11a6 6 0 0 1-6 6"/></svg>Change</span>
+          <span class="v"><span class="lpill modified"><span class="d"></span>Modified</span></span>
         </div>
-
-        <div class="thread-list">
-          <!-- comment 1: fix_required, with AI reply -->
-          <div class="comment">
-            <div class="cmt-head">
-              <span class="av a1">RK</span>
-              <span class="who">Rin Kuroda</span>
-              <span class="time">2h ago</span>
-              <div class="spacer"></div>
-              <span class="ctype fix"><span class="d"></span>fix_required</span>
-            </div>
-            <div style="padding-left:30px;margin-top:-3px"><span class="cmt-anchor">anchoring.ex:43</span></div>
-            <div class="cmt-body">
-              <p>This <code>Map.fetch!/2</code> raises when a comment outlives its line. After re-anchoring fails we still want a graceful miss, so switch to <code>Map.get/2</code> and let the caller decide.</p>
-            </div>
-            <div class="replies">
-              <div class="reply agent">
-                <div class="cmt-head">
-                  <span class="av bot">AI</span>
-                  <span class="who">Suikou Agent</span>
-                  <span class="agent-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>Agent</span>
-                  <span class="time">1h ago</span>
-                </div>
-                <div class="cmt-body">
-                  <p>Done. Changed to <code>Map.get/2</code> and added a fallback that re-anchors before reading:</p>
-                  <div class="codeblock">line = Map.get(comment.meta, :line)
-Map.get(content.lines, line)</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- comment 2: needs_answer -->
-          <div class="comment">
-            <div class="cmt-head">
-              <span class="av a1">RK</span>
-              <span class="who">Rin Kuroda</span>
-              <span class="time">2h ago</span>
-              <div class="spacer"></div>
-              <span class="ctype ask"><span class="d"></span>needs_answer</span>
-            </div>
-            <div style="padding-left:30px;margin-top:-3px"><span class="cmt-anchor">anchoring.ex:47</span></div>
-            <div class="cmt-body">
-              <p>Does <code>reanchor/3</code> hold when two adjacent lines have identical fingerprints? Curious whether you tie-break on distance from the original index.</p>
-            </div>
-            <div class="replies">
-              <div class="reply">
-                <div class="cmt-head">
-                  <span class="av a2">DT</span>
-                  <span class="who">Dario Toma</span>
-                  <span class="time">1h ago</span>
-                </div>
-                <div class="cmt-body">
-                  <p>Yes. Ties resolve to the candidate nearest the prior line number. There is a fixture for it in <code>anchoring_test.exs</code>.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- comment 3: note -->
-          <div class="comment">
-            <div class="cmt-head">
-              <span class="av a2">DT</span>
-              <span class="who">Dario Toma</span>
-              <span class="time">3h ago</span>
-              <div class="spacer"></div>
-              <span class="ctype note"><span class="d"></span>note</span>
-            </div>
-            <div style="padding-left:30px;margin-top:-3px"><span class="cmt-anchor">anchoring.ex:52</span></div>
-            <div class="cmt-body">
-              <p>Minor: the fingerprint trims whitespace but keeps case. Fine for now, just flagging in case indentation-only diffs become noisy.</p>
-            </div>
-          </div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/></svg>Round</span>
+          <span class="v">2 of 3</span>
         </div>
-
-        <div class="thread-foot">
-          <div class="reply-box">
-            <span>Reply or press</span>
-            <span class="kbd">C</span>
-            <span>to comment a line</span>
-            <div class="spacer"></div>
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-hi)"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Anchor</span>
+          <span class="v mono">L41–L43</span>
         </div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>Types</span>
+          <span class="v" style="gap:5px"><span class="dot-sm" style="background:var(--red)"></span><span class="dot-sm" style="background:var(--amber)"></span><span class="dot-sm" style="background:var(--blue)"></span><span style="color:var(--tx-2);font-size:11.5px;margin-left:2px">All</span></span>
+        </div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Assignee</span>
+          <span class="v"><span class="av a1" style="width:18px;height:18px;font-size:9px">RK</span>Rin Kuroda</span>
+        </div>
+        <div class="prop-div"></div>
+        <div class="prop-row" style="grid-template-columns:1fr;align-items:start;cursor:default">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6.6a2 2 0 0 0 .6 1.4l7 7a2 2 0 0 0 2.8 0l6.6-6.6a2 2 0 0 0 0-2.8l-7-7A2 2 0 0 0 9.6 3H5a2 2 0 0 0-2 2z"/><circle cx="7.5" cy="7.5" r="1.1"/></svg>Labels</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 6px 4px">
+          <span class="label-pill"><span class="d" style="background:var(--purple)"></span>refactor</span>
+          <span class="label-pill"><span class="d" style="background:var(--red)"></span>blocker</span>
+        </div>
+        <div class="prop-div"></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Created</span><span class="v" style="color:var(--tx-1)">May 14, 09:12</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Updated</span><span class="v" style="color:var(--tx-1)">2 hours ago</span></div>
       </aside>
     </div>
   </div>
 
-  <!-- ===== Screen 3: Command menu (⌘K) ===== -->
+  <!-- ===== Screen 3: Inline line comment ===== -->
   <div class="caption">
     <span class="num">03</span>
-    <h2>Command menu</h2>
-    <p>The ⌘K palette with grouped actions: verdicts, comments, jump to file, switch round.</p>
+    <h2>Inline line comment</h2>
+    <p>Selected line range in the gutter; the inline composer anchored to the line with type pills.</p>
+    <span class="map">Linear: <b>inline create on selection</b></span>
+  </div>
+
+  <div class="win">
+    <div class="titlebar">
+      <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <span class="tt"><b>anchoring.ex</b> · commenting L41–L43</span>
+      <div class="spacer"></div>
+      <span class="sync"><span class="kbd">C</span> to comment</span>
+    </div>
+
+    <div class="app two">
+      <!-- compact rail -->
+      <aside class="side">
+        <div class="ws">
+          <div class="ava">S</div>
+          <div class="nm">Suikou</div>
+          <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg>
+        </div>
+        <div class="nav-sec tight">
+          <div class="nav-label"><span>Selection</span></div>
+          <div class="nav-item" style="cursor:default"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span class="t" style="color:var(--tx-2)">Lines</span><span class="kbd">41–43</span></div>
+          <div class="nav-item" style="cursor:default"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><span class="t" style="color:var(--tx-2)">File</span><span class="kbd">anchoring.ex</span></div>
+        </div>
+        <div class="nav-sec">
+          <div class="nav-label"><span>Keyboard</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Extend range</span><span class="kbd">⇧↓</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">fix_required</span><span class="kbd">1</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">needs_answer</span><span class="kbd">2</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">note</span><span class="kbd">3</span></div>
+          <div class="nav-item" style="cursor:default"><span class="t" style="color:var(--tx-2)">Submit</span><span class="kbd">⌘↵</span></div>
+        </div>
+      </aside>
+
+      <!-- code reader with selected range + anchored composer -->
+      <section class="reader">
+        <div class="reader-bar">
+          <div class="crumb">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
+          </div>
+          <div class="spacer"></div>
+          <span class="round-pill" style="padding:2px 9px"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-hi)"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Selected <b>L41–L43</b></span>
+        </div>
+
+        <div class="code framed">
+          <div class="cl ctx"><span class="gut">37</span><span class="src">  <span class="tk-kw">end</span></span></div>
+          <div class="cl ctx"><span class="gut">38</span><span class="src"><span class="tk-at">@doc</span> <span class="tk-st">"""</span></span></div>
+          <div class="cl ctx"><span class="gut">39</span><span class="src"><span class="tk-st">  Resolves the stored anchor to a live line in the current file content.</span></span></div>
+          <div class="cl ctx"><span class="gut">40</span><span class="src"><span class="tk-st">  """</span></span></div>
+
+          <!-- selected range L41-L43 -->
+          <div class="cl range range-top"><span class="gut">41</span><span class="src"><span class="tk-kw">def</span> <span class="tk-fn">get_anchor</span>(content, %Comment{} = comment) <span class="tk-kw">do</span></span></div>
+          <div class="cl range"><span class="gut">42</span><span class="src">    line = <span class="tk-mod">Map</span>.get(comment.meta, <span class="tk-at">:line</span>)</span></div>
+          <div class="cl range range-bot"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.fetch!(content.lines, line)</span></div>
+
+          <!-- inline composer anchored to the selection -->
+          <div class="composer">
+            <div class="composer-head">
+              <span class="anchor">Anchored to <b>anchoring.ex:41–43</b></span>
+              <div class="spacer"></div>
+              <div class="seg" role="group" aria-label="Comment type">
+                <button class="fix" aria-pressed="true"><span class="d"></span>fix_required</button>
+                <button class="ask" aria-pressed="false"><span class="d"></span>needs_answer</button>
+                <button class="note" aria-pressed="false"><span class="d"></span>note</button>
+              </div>
+            </div>
+            <textarea rows="3" placeholder="Add your critique...">This get_ raises on a miss via Map.fetch!/2. Per the lookup-naming convention a get_ should return nil, not raise. Either switch to Map.get/2, or rename to fetch_anchor/2 to signal the {:ok, _} | :error shape.</textarea>
+            <div class="composer-foot">
+              <span class="hint">Markdown supported · <span class="kbd">⌘↵</span> to submit</span>
+              <div class="spacer"></div>
+              <button class="btn">Cancel <span class="kbd">Esc</span></button>
+              <button class="btn primary">Add comment <span class="kbd">⌘↵</span></button>
+            </div>
+          </div>
+
+          <div class="cl ctx"><span class="gut">44</span><span class="src">  <span class="tk-kw">end</span></span></div>
+          <div class="cl ctx"><span class="gut">45</span><span class="src"></span></div>
+          <div class="cl ctx"><span class="gut">46</span><span class="src"><span class="tk-cm"># Re-anchors a comment after the underlying file content shifts.</span></span></div>
+          <div class="cl ctx"><span class="gut">47</span><span class="src"><span class="tk-kw">defp</span> <span class="tk-fn">reanchor</span>(comment, old_content, new_content) <span class="tk-kw">do</span></span></div>
+          <div class="cl ctx"><span class="gut">48</span><span class="src">    fingerprint = <span class="tk-mod">Anchoring</span>.<span class="tk-fn">fingerprint</span>(old_content, comment.line)</span></div>
+          <div class="cl ctx"><span class="gut">49</span><span class="src">  <span class="tk-kw">end</span></span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===== Screen 4: Command menu (⌘K) ===== -->
+  <div class="caption">
+    <span class="num">04</span>
+    <h2>Command menu (⌘K)</h2>
+    <p>The palette open over the app: grouped commands, each row icon + label + shortcut.</p>
+    <span class="map">Linear: <b>⌘K command menu</b></span>
   </div>
 
   <div class="win">
@@ -1174,23 +1419,52 @@ Map.get(content.lines, line)</div>
       <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
       <span class="tt"><b>⌘K</b> · command menu</span>
     </div>
+
     <div class="cmdk-stage">
+      <!-- dimmed app underneath -->
+      <div class="app detail" aria-hidden="true">
+        <aside class="side">
+          <div class="ws"><div class="ava">S</div><div class="nm">Suikou</div><svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 10l5 5 5-5"/></svg></div>
+          <div class="cmdk-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search or jump to</span><span class="kbd">⌘K</span></div>
+          <div class="nav-sec tight">
+            <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="t">verdict-batching</span><span class="ct">9</span></div>
+            <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="t">re-anchoring fixes</span><span class="ct">5</span></div>
+          </div>
+        </aside>
+        <section class="reader">
+          <div class="reader-bar"><div class="crumb"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg><span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span></div></div>
+          <div class="code framed">
+            <div class="cl ctx"><span class="gut">40</span><span class="src"><span class="tk-st">  """</span></span></div>
+            <div class="cl has-comment"><span class="gut">41</span><span class="src"><span class="tk-kw">def</span> <span class="tk-fn">get_anchor</span>(content, %Comment{} = comment) <span class="tk-kw">do</span></span></div>
+            <div class="cl ctx"><span class="gut">42</span><span class="src">    line = <span class="tk-mod">Map</span>.get(comment.meta, <span class="tk-at">:line</span>)</span></div>
+            <div class="cl ctx"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.get(content.lines, line)</span></div>
+            <div class="cl ctx"><span class="gut">44</span><span class="src">  <span class="tk-kw">end</span></span></div>
+          </div>
+        </section>
+        <aside class="props">
+          <div class="props-title">Properties</div>
+          <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>Verdict</span><span class="v"><span style="color:var(--red)">Request changes</span></span></div>
+          <div class="prop-row"><span class="k">Round</span><span class="v">2 of 3</span></div>
+        </aside>
+      </div>
+
+      <!-- palette -->
       <div class="palette">
         <div class="pal-input">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
-          <span class="ctx-pill"><span class="dot-sm" style="background:var(--purple)"></span>anchoring.ex</span>
+          <span class="ctx-pill"><svg class="glyph" viewBox="0 0 16 16" width="13" height="13" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>anchoring.ex</span>
           <div class="q">set ver<span class="cursor"></span></div>
         </div>
 
         <div class="pal-body">
-          <div class="pal-group-label">Verdict</div>
+          <div class="pal-group-label">Set verdict</div>
           <div class="pal-row active">
-            <span class="pico"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="pico"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" fill="oklch(70% 0.15 155 / 0.18)" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             <span class="lbl">Set verdict <span class="muted">→ Approve</span></span>
             <span class="rt-kbd"><span class="kbd">V</span><span class="kbd">A</span></span>
           </div>
           <div class="pal-row">
-            <span class="pico"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.2M8 10.6v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="pico"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg></span>
             <span class="lbl">Set verdict <span class="muted">→ Request changes</span></span>
             <span class="rt-kbd"><span class="kbd">V</span><span class="kbd">R</span></span>
           </div>
@@ -1200,42 +1474,49 @@ Map.get(content.lines, line)</div>
             <span class="rt-kbd"><span class="kbd">V</span><span class="kbd">N</span></span>
           </div>
 
-          <div class="pal-group-label">Comment</div>
+          <div class="pal-group-label">Add comment</div>
           <div class="pal-row">
             <span class="pico"><span class="dot-sm" style="background:var(--red)"></span></span>
             <span class="lbl">Add comment <span class="muted">· fix_required</span></span>
-            <span class="rt-kbd"><span class="kbd">C</span></span>
+            <span class="rt-kbd"><span class="kbd">C</span><span class="kbd">1</span></span>
           </div>
           <div class="pal-row">
             <span class="pico"><span class="dot-sm" style="background:var(--amber)"></span></span>
             <span class="lbl">Add comment <span class="muted">· needs_answer</span></span>
+            <span class="rt-kbd"><span class="kbd">C</span><span class="kbd">2</span></span>
           </div>
           <div class="pal-row">
             <span class="pico"><span class="dot-sm" style="background:var(--blue)"></span></span>
             <span class="lbl">Add comment <span class="muted">· note</span></span>
+            <span class="rt-kbd"><span class="kbd">C</span><span class="kbd">3</span></span>
           </div>
 
           <div class="pal-group-label">Navigate</div>
           <div class="pal-row">
             <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <span class="lbl">Jump to file <span class="muted">→ visibility.ex</span></span>
-            <span class="rt-kbd"><span class="kbd">⌥↓</span></span>
+            <span class="lbl">Go to file <span class="muted">→ visibility.ex</span></span>
+            <span class="rt-kbd"><span class="kbd">G</span><span class="kbd">F</span></span>
           </div>
           <div class="pal-row">
             <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/></svg></span>
-            <span class="lbl">Switch round <span class="muted">→ Round 3</span></span>
+            <span class="lbl">Change round <span class="muted">→ Round 3</span></span>
             <span class="rt-kbd"><span class="kbd">G</span><span class="kbd">R</span></span>
           </div>
           <div class="pal-row">
-            <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-            <span class="lbl">Submit round <span class="muted">· publish verdicts</span></span>
-            <span class="rt-kbd"><span class="kbd">⌘⏎</span></span>
+            <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span>
+            <span class="lbl">Copy <span class="muted">· anchor link</span></span>
+            <span class="rt-kbd"><span class="kbd">⌘C</span></span>
+          </div>
+          <div class="pal-row">
+            <span class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg></span>
+            <span class="lbl">Filter <span class="muted">· by comment type</span></span>
+            <span class="rt-kbd"><span class="kbd">F</span></span>
           </div>
         </div>
 
         <div class="pal-foot">
           <span class="it"><span class="kbd">↑↓</span> navigate</span>
-          <span class="it"><span class="kbd">⏎</span> select</span>
+          <span class="it"><span class="kbd">↵</span> select</span>
           <span class="it"><span class="kbd">esc</span> close</span>
           <div class="spacer"></div>
           <span class="it">Suikou command menu</span>
@@ -1244,52 +1525,47 @@ Map.get(content.lines, line)</div>
     </div>
   </div>
 
-  <!-- ===== Screen 4: Light-theme snapshot ===== -->
+  <!-- ===== Screen 5: Light theme (file detail) ===== -->
   <div class="caption">
-    <span class="num">04</span>
+    <span class="num">05</span>
     <h2>Light theme</h2>
-    <p>The same file-review surface under the light palette (also reachable via the toggle above).</p>
+    <p>The same file-detail surface under the light palette; toggle above flips the whole page.</p>
+    <span class="map">Linear: <b>light mode</b></span>
   </div>
 
   <div class="win" data-theme="light" style="background:var(--bg)">
     <div class="titlebar">
       <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
       <span class="tt"><b>anchoring.ex</b> · light</span>
+      <div class="spacer"></div>
+      <span class="sync"><span class="live"></span>Live</span>
     </div>
 
     <div class="app two">
-      <!-- code reader -->
+      <!-- LEFT pane: content + activity -->
       <section class="reader">
         <div class="reader-bar">
-          <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
-          <span class="pill request"><span class="d"></span>Changes requested</span>
+          <div class="crumb">
+            <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="fpath"><span class="dir">lib/suikou/critique/comment/</span><span class="base">anchoring.ex</span></span>
+          </div>
+          <div class="spacer"></div>
           <div class="diffstat"><span class="add">+12</span><span class="del">−4</span></div>
         </div>
-        <div class="code">
+
+        <div class="detail-title">
+          <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <h3><span class="dir">comment/</span><span class="base">anchoring.ex</span></h3>
+        </div>
+
+        <div class="code framed">
           <div class="cl ctx"><span class="gut">40</span><span class="src"><span class="tk-st">  """</span></span></div>
           <div class="cl has-comment sel-line">
             <span class="gut">41</span>
             <span class="src"><span class="tk-kw">def</span> <span class="tk-fn">get_anchor</span>(content, %Comment{} = comment) <span class="tk-kw">do</span></span>
             <span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </div>
-          <div class="composer">
-            <div class="composer-head">
-              <span class="anchor">Anchored to <b>anchoring.ex:41</b></span>
-              <div class="spacer" style="flex:1"></div>
-              <div class="seg" role="group" aria-label="Comment type">
-                <button class="fix" aria-pressed="true"><span class="d"></span>fix_required</button>
-                <button class="ask" aria-pressed="false"><span class="d"></span>needs_answer</button>
-                <button class="note" aria-pressed="false"><span class="d"></span>note</button>
-              </div>
-            </div>
-            <textarea rows="2" placeholder="Add your critique...">This get_ should return nil on a miss, not raise. Rename to fetch_anchor/2 if you want the {:ok, _} | :error shape instead.</textarea>
-            <div class="composer-foot">
-              <span class="hint">Markdown supported · <span class="kbd">⌘↵</span> to submit</span>
-              <div class="spacer"></div>
-              <button class="btn">Cancel <span class="kbd">Esc</span></button>
-              <button class="btn primary">Add comment <span class="kbd">⌘↵</span></button>
-            </div>
-          </div>
+          <div class="cl ctx"><span class="gut">42</span><span class="src">    line = <span class="tk-mod">Map</span>.get(comment.meta, <span class="tk-at">:line</span>)</span></div>
           <div class="cl del"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.fetch!(content.lines, line)</span></div>
           <div class="cl add"><span class="gut">43</span><span class="src">    <span class="tk-mod">Map</span>.get(content.lines, line)</span></div>
           <div class="cl ctx"><span class="gut">44</span><span class="src">  <span class="tk-kw">end</span></span></div>
@@ -1298,69 +1574,69 @@ Map.get(content.lines, line)</div>
           <div class="cl add"><span class="gut">48</span><span class="src">    fingerprint = <span class="tk-mod">Anchoring</span>.<span class="tk-fn">fingerprint</span>(old_content, comment.line)</span></div>
           <div class="cl ctx"><span class="gut">49</span><span class="src">  <span class="tk-kw">end</span></span></div>
         </div>
-      </section>
 
-      <!-- thread -->
-      <aside class="thread">
-        <div class="thread-head"><span class="t">Comments</span><span class="c">3 on this file</span></div>
-        <div class="verdict-menu">
-          <div class="lbl">File verdict</div>
-          <div class="vmenu">
-            <div class="opt">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--green)" stroke-width="1.6"/><path d="M5.4 8.2l1.8 1.8 3.4-3.6" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span class="t">Approve</span><span class="kbd">A</span>
-            </div>
-            <div class="opt cur">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.2M8 10.6v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg>
-              <span class="t">Request changes</span>
-              <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            </div>
-            <div class="opt">
-              <svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--blue)" stroke-width="1.6"/><circle cx="8" cy="8" r="2.2" fill="var(--blue)"/></svg>
-              <span class="t">Comment</span><span class="kbd">N</span>
-            </div>
+        <div class="activity">
+          <div class="activity-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11 7.4L3 21l2-6a8 8 0 1 1 16-3.5z"/></svg>
+            <span class="t">Activity</span>
+            <span class="c">3 comments</span>
           </div>
-        </div>
-        <div class="thread-list">
-          <div class="comment">
-            <div class="cmt-head">
-              <span class="av a1">RK</span><span class="who">Rin Kuroda</span><span class="time">2h ago</span>
-              <div class="spacer"></div><span class="ctype fix"><span class="d"></span>fix_required</span>
-            </div>
-            <div style="padding-left:30px;margin-top:-3px"><span class="cmt-anchor">anchoring.ex:43</span></div>
-            <div class="cmt-body"><p>This <code>Map.fetch!/2</code> raises when a comment outlives its line. Switch to <code>Map.get/2</code> and let the caller decide.</p></div>
-            <div class="replies">
-              <div class="reply agent">
-                <div class="cmt-head">
-                  <span class="av bot">AI</span><span class="who">Suikou Agent</span>
-                  <span class="agent-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>Agent</span>
-                  <span class="time">1h ago</span>
+          <div class="thread-list">
+            <div class="comment">
+              <div class="cmt-head">
+                <span class="av a1">RK</span><span class="who">Rin Kuroda</span><span class="time">2h ago</span>
+                <span class="cmt-anchor">L43</span>
+                <div class="spacer"></div><span class="ctype fix"><span class="d"></span>fix_required</span>
+              </div>
+              <div class="cmt-body"><p>This <code>Map.fetch!/2</code> raises when a comment outlives its line. Switch to <code>Map.get/2</code> and let the caller decide.</p></div>
+              <div class="replies">
+                <div class="reply agent">
+                  <div class="cmt-head">
+                    <span class="av bot">AI</span><span class="who">Suikou Agent</span>
+                    <span class="agent-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M5 8h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>Agent</span>
+                    <span class="time">1h ago</span>
+                  </div>
+                  <div class="cmt-body"><p>Done. Switched to <code>Map.get/2</code> with a re-anchor fallback before the read.</p></div>
                 </div>
-                <div class="cmt-body"><p>Done. Switched to <code>Map.get/2</code> with a re-anchor fallback before the read.</p></div>
               </div>
             </div>
-          </div>
-          <div class="comment">
-            <div class="cmt-head">
-              <span class="av a1">RK</span><span class="who">Rin Kuroda</span><span class="time">2h ago</span>
-              <div class="spacer"></div><span class="ctype ask"><span class="d"></span>needs_answer</span>
+            <div class="comment">
+              <div class="cmt-head">
+                <span class="av a1">RK</span><span class="who">Rin Kuroda</span><span class="time">2h ago</span>
+                <span class="cmt-anchor">L47</span>
+                <div class="spacer"></div><span class="ctype ask"><span class="d"></span>needs_answer</span>
+              </div>
+              <div class="cmt-body"><p>How does <code>reanchor/3</code> tie-break when two adjacent lines share a fingerprint?</p></div>
             </div>
-            <div style="padding-left:30px;margin-top:-3px"><span class="cmt-anchor">anchoring.ex:47</span></div>
-            <div class="cmt-body"><p>How does <code>reanchor/3</code> tie-break when two adjacent lines share a fingerprint?</p></div>
+          </div>
+          <div class="activity-composer">
+            <div class="reply-box">
+              <span class="av a1">RK</span>
+              <span class="ph">Leave a comment...</span>
+              <span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            </div>
           </div>
         </div>
-        <div class="thread-foot">
-          <div class="reply-box">
-            <span>Reply or press</span><span class="kbd">C</span><span>to comment a line</span>
-            <div class="spacer"></div>
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-hi)"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </div>
+      </section>
+
+      <!-- RIGHT pane: properties -->
+      <aside class="props">
+        <div class="props-title">Properties</div>
+        <div class="prop-row">
+          <span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>Verdict</span>
+          <span class="v"><svg class="glyph" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--red)" stroke-width="1.6"/><path d="M8 4.6v3.4M8 10.8v.2" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"/></svg><span style="color:var(--red)">Request changes</span></span>
         </div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12a3 3 0 0 0 3 3h6M18 11a6 6 0 0 1-6 6"/></svg>Change</span><span class="v"><span class="lpill modified"><span class="d"></span>Modified</span></span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/></svg>Round</span><span class="v">2 of 3</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Anchor</span><span class="v mono">L41–L43</span></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Assignee</span><span class="v"><span class="av a1" style="width:18px;height:18px;font-size:9px">RK</span>Rin Kuroda</span></div>
+        <div class="prop-div"></div>
+        <div class="prop-row"><span class="k"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Updated</span><span class="v" style="color:var(--tx-1)">2 hours ago</span></div>
       </aside>
     </div>
   </div>
 
-  <p class="footer-note">Suikou · Linear design-language exploration · self-contained mockup, no network</p>
+  <p class="footer-note">Suikou · Linear app-grammar exploration · self-contained mockup, no network</p>
 
 </div>
 

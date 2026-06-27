@@ -3,43 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Suikou · Raycast-style exploration</title>
+<title>Suikou as a Raycast extension</title>
 <style>
 /* ============================================================
-   SUIKOU reimagined as a Raycast-style command app.
-   One floating command window. Dark, translucent chrome over a
-   blurred wallpaper. Colorful per-item icon tiles. Bottom action
-   bar with shortcut hints. ⌘K action panel. Form view.
-   Self-contained: no network, no web fonts, inline SVG, CSS tiles.
+   SUIKOU modeled AS a real Raycast extension.
+   ONE fixed ~750px floating window. A navigation stack: each
+   action pushes a view; the top bar shows a back chevron when
+   pushed. Primitives: List, List+Detail (isShowingDetail),
+   ActionPanel (cmd-K), Form, Detail.Metadata. Bottom action bar
+   is persistent. Self-contained: no network, no web fonts,
+   inline SVG, CSS tiles, OKLCH color.
    ============================================================ */
 
 :root {
   color-scheme: dark;
 
-  /* ---- Neutrals: very slightly cool-tinted dark (hue ~265) ---- */
-  --bg-window:    oklch(20% 0.012 265 / 0.82);  /* the floating window fill */
-  --bg-window-2:  oklch(23% 0.012 265 / 0.78);  /* search bar / footer band */
-  --bg-detail:    oklch(17.5% 0.012 265 / 0.55);/* detail pane sunk surface */
-  --bg-row-sel:   oklch(100% 0 0 / 0.07);        /* selected row light fill */
+  --bg-window:    oklch(20% 0.012 265 / 0.84);
+  --bg-window-2:  oklch(23.5% 0.012 265 / 0.8);
+  --bg-detail:    oklch(17.5% 0.012 265 / 0.55);
+  --bg-row-sel:   oklch(100% 0 0 / 0.075);
   --bg-row-hover: oklch(100% 0 0 / 0.035);
-  --bg-tile:      oklch(28% 0.012 265);          /* default icon tile base */
-  --bg-pop:       oklch(22% 0.013 265 / 0.92);   /* action panel / dropdown */
-  --bg-chip:      oklch(100% 0 0 / 0.07);         /* kbd chip + tag fill */
+  --bg-tile:      oklch(28% 0.012 265);
+  --bg-pop:       oklch(22% 0.013 265 / 0.93);
+  --bg-chip:      oklch(100% 0 0 / 0.07);
   --bg-code:      oklch(15.5% 0.012 265 / 0.6);
 
-  /* ---- Ink (text) ---- */
-  --ink-0: oklch(96% 0.004 265);   /* primary label */
-  --ink-1: oklch(78% 0.006 265);   /* subtitle */
-  --ink-2: oklch(63% 0.008 265);   /* tertiary / section caps */
-  --ink-3: oklch(52% 0.008 265);   /* faint / shortcut glyphs */
+  --ink-0: oklch(96% 0.004 265);
+  --ink-1: oklch(78% 0.006 265);
+  --ink-2: oklch(63% 0.008 265);
+  --ink-3: oklch(52% 0.008 265);
 
-  /* ---- Raycast accent: brand red/coral ---- */
-  --accent:      oklch(67% 0.19 25);   /* ~ #FF6363 */
+  --accent:      oklch(67% 0.19 25);
   --accent-deep: oklch(62% 0.20 25);
   --accent-soft: oklch(67% 0.19 25 / 0.16);
   --on-accent:   oklch(99% 0.01 25);
 
-  /* ---- Verdict semantics ---- */
   --approve:      oklch(74% 0.15 155);
   --approve-soft: oklch(74% 0.15 155 / 0.16);
   --request:      oklch(67% 0.19 25);
@@ -47,38 +45,29 @@
   --comment-v:    oklch(72% 0.12 250);
   --comment-soft: oklch(72% 0.12 250 / 0.16);
 
-  /* ---- Comment-type semantics ---- */
-  --type-fix:  oklch(67% 0.19 25);    /* fix_required - red */
-  --type-ask:  oklch(74% 0.13 80);    /* needs_answer - amber */
-  --type-note: oklch(68% 0.10 250);   /* note - cool blue/gray */
+  --type-fix:  oklch(67% 0.19 25);
+  --type-ask:  oklch(74% 0.13 80);
+  --type-note: oklch(68% 0.10 250);
 
-  /* ---- Colorful icon-tile hues (soft, distinct) ---- */
-  --tile-red:    oklch(66% 0.18 25);
-  --tile-orange: oklch(72% 0.15 55);
-  --tile-amber:  oklch(76% 0.13 85);
-  --tile-green:  oklch(72% 0.15 155);
-  --tile-teal:   oklch(70% 0.12 190);
-  --tile-blue:   oklch(66% 0.15 250);
-  --tile-indigo: oklch(60% 0.16 280);
-  --tile-purple: oklch(64% 0.16 305);
-  --tile-pink:   oklch(70% 0.16 350);
-  --tile-gray:   oklch(58% 0.012 265);
+  --add:  oklch(74% 0.15 155);
+  --add-soft: oklch(74% 0.15 155 / 0.16);
+  --mod:  oklch(72% 0.12 250);
+  --mod-soft: oklch(72% 0.12 250 / 0.16);
+  --del:  oklch(67% 0.19 25);
+  --del-soft: oklch(67% 0.19 25 / 0.16);
 
-  /* ---- Diff ---- */
   --diff-add-bg: oklch(72% 0.15 155 / 0.12);
   --diff-add-mk: oklch(76% 0.15 155);
   --diff-del-bg: oklch(67% 0.19 25 / 0.12);
   --diff-del-mk: oklch(74% 0.18 25);
 
-  /* ---- Syntax (cool dark, low glare) ---- */
-  --syn-key:  oklch(74% 0.13 305);   /* def / do / end - purple */
-  --syn-fn:   oklch(76% 0.12 230);   /* function names - blue */
-  --syn-atom: oklch(78% 0.13 70);    /* :atoms - amber */
-  --syn-str:  oklch(76% 0.13 150);   /* strings - green */
-  --syn-com:  oklch(56% 0.02 265);   /* comments - gray */
-  --syn-mod:  oklch(80% 0.10 200);   /* Modules - teal */
+  --syn-key:  oklch(74% 0.13 305);
+  --syn-fn:   oklch(76% 0.12 230);
+  --syn-atom: oklch(78% 0.13 70);
+  --syn-str:  oklch(76% 0.13 150);
+  --syn-com:  oklch(56% 0.02 265);
+  --syn-mod:  oklch(80% 0.10 200);
 
-  /* ---- Lines / shadows ---- */
   --hair:        oklch(100% 0 0 / 0.08);
   --hair-strong: oklch(100% 0 0 / 0.14);
   --shadow-win:  0 0 0 0.5px oklch(100% 0 0 / 0.10) inset,
@@ -86,7 +75,7 @@
                  0 24px 70px oklch(8% 0.02 265 / 0.62),
                  0 6px 22px oklch(8% 0.02 265 / 0.45);
   --shadow-pop:  0 0 0 0.5px oklch(100% 0 0 / 0.12) inset,
-                 0 18px 50px oklch(8% 0.02 265 / 0.62);
+                 0 18px 50px oklch(8% 0.02 265 / 0.64);
   --blur: blur(28px) saturate(165%);
 
   --r-win: 12px;
@@ -97,17 +86,18 @@
 
   --font: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --win-w: 750px;
 }
 
-/* Optional light variant (Raycast supports light) */
 [data-theme="light"] {
   color-scheme: light;
-  --bg-window:    oklch(98% 0.004 265 / 0.78);
-  --bg-window-2:  oklch(96% 0.004 265 / 0.8);
+  --bg-window:    oklch(98% 0.004 265 / 0.8);
+  --bg-window-2:  oklch(96% 0.004 265 / 0.82);
   --bg-detail:    oklch(99% 0.003 265 / 0.55);
   --bg-row-sel:   oklch(20% 0.02 265 / 0.07);
   --bg-row-hover: oklch(20% 0.02 265 / 0.035);
-  --bg-pop:       oklch(99% 0.003 265 / 0.94);
+  --bg-pop:       oklch(99% 0.003 265 / 0.95);
   --bg-chip:      oklch(20% 0.02 265 / 0.07);
   --bg-code:      oklch(97% 0.003 265 / 0.7);
   --ink-0: oklch(28% 0.01 265);
@@ -120,7 +110,6 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 
 body {
@@ -128,7 +117,6 @@ body {
   font-size: 13px;
   line-height: 1.45;
   color: var(--ink-0);
-  /* Blurred wallpaper backdrop: warm/cool color field, no images */
   background:
     radial-gradient(60% 55% at 18% 12%, oklch(56% 0.16 28) 0%, transparent 60%),
     radial-gradient(55% 60% at 86% 8%, oklch(52% 0.15 320) 0%, transparent 58%),
@@ -138,46 +126,34 @@ body {
   min-height: 100vh;
   padding: 40px 28px 96px;
 }
-
-/* Frosted softening over the wallpaper so window contrast reads */
 body::before {
   content: "";
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   backdrop-filter: blur(1px);
   background: oklch(18% 0.02 265 / 0.18);
-  pointer-events: none;
-  z-index: 0;
+  pointer-events: none; z-index: 0;
 }
 
-.page { position: relative; z-index: 1; max-width: 1140px; margin: 0 auto; }
+.page { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; }
 
 /* ---------- Page header ---------- */
-.page-head { margin-bottom: 30px; }
+.page-head { margin-bottom: 6px; }
 .page-head h1 {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
   color: oklch(99% 0.01 25);
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: flex; align-items: center; gap: 12px;
 }
 .brandmark {
-  width: 34px; height: 34px;
-  border-radius: 9px;
+  width: 34px; height: 34px; border-radius: 9px;
   display: grid; place-items: center;
-  background:
-    radial-gradient(120% 120% at 30% 20%, oklch(74% 0.19 30), oklch(58% 0.20 18));
+  background: radial-gradient(120% 120% at 30% 20%, oklch(74% 0.19 30), oklch(58% 0.20 18));
   box-shadow: 0 0 0 0.5px oklch(100% 0 0 / 0.25) inset, 0 4px 14px oklch(58% 0.2 25 / 0.5);
   color: oklch(99% 0.01 25);
 }
 .brandmark svg { width: 20px; height: 20px; }
 .page-head p {
-  margin-top: 10px;
-  color: oklch(92% 0.02 280 / 0.85);
-  max-width: 640px;
-  font-size: 13.5px;
+  margin-top: 10px; color: oklch(92% 0.02 280 / 0.85);
+  max-width: 660px; font-size: 13.5px;
 }
 .theme-toggle {
   margin-top: 16px; display: inline-flex; gap: 6px;
@@ -192,10 +168,7 @@ body::before {
 .theme-toggle button.on { background: oklch(100% 0 0 / 0.2); color: oklch(99% 0.01 25); font-weight: 600; }
 
 /* ---------- Screen caption ---------- */
-.caption {
-  margin: 38px 0 14px;
-  display: flex; align-items: baseline; gap: 10px;
-}
+.caption { margin: 40px 0 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .caption .num {
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
   color: oklch(99% 0.01 25);
@@ -204,69 +177,97 @@ body::before {
   border-radius: 999px; padding: 2px 9px;
 }
 .caption h2 { font-size: 15px; font-weight: 650; color: oklch(98% 0.01 280); letter-spacing: -0.01em; }
-.caption span { font-size: 12.5px; color: oklch(90% 0.02 280 / 0.7); }
+.caption .prim {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: oklch(86% 0.05 250); background: oklch(72% 0.12 250 / 0.16);
+  border: 0.5px solid oklch(72% 0.12 250 / 0.3);
+  border-radius: 999px; padding: 2px 9px;
+}
+.caption span.desc { font-size: 12.5px; color: oklch(90% 0.02 280 / 0.7); width: 100%; }
+
+/* ---------- Stack-depth ribbon ---------- */
+.stack {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 auto 10px; width: var(--win-w);
+  font-size: 11px; color: oklch(90% 0.02 280 / 0.6);
+}
+.stack .crumb {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  background: oklch(100% 0 0 / 0.06); border: 0.5px solid oklch(100% 0 0 / 0.1);
+}
+.stack .crumb.top { background: oklch(67% 0.19 25 / 0.2); border-color: oklch(67% 0.19 25 / 0.4); color: oklch(92% 0.06 25); font-weight: 600; }
+.stack .sep { color: oklch(80% 0.02 280 / 0.4); }
 
 /* ============================================================
-   THE FLOATING COMMAND WINDOW
+   THE FIXED COMMAND WINDOW (one width across all views)
    ============================================================ */
 .win {
   position: relative;
+  width: var(--win-w); margin: 0 auto;
   border-radius: var(--r-win);
   background: var(--bg-window);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   box-shadow: var(--shadow-win);
   border: 0.5px solid oklch(100% 0 0 / 0.06);
   overflow: hidden;
 }
-.win.wide { width: 760px; }
-.win.split { width: 1040px; }
 
-/* ---- Search bar ---- */
-.searchbar {
-  display: flex; align-items: center; gap: 11px;
-  height: 56px; padding: 0 16px;
+/* ---- Top bar: optional back chevron + search/title ---- */
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  height: 54px; padding: 0 14px;
   background: var(--bg-window-2);
   border-bottom: 0.5px solid var(--hair);
 }
-.searchbar .lead { width: 20px; height: 20px; color: var(--ink-2); flex: 0 0 auto; }
-.searchbar input {
-  flex: 1; background: transparent; border: 0; outline: 0;
-  font: inherit; font-size: 16px; color: var(--ink-0);
-  letter-spacing: -0.01em;
+.back {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 5px 9px 5px 6px; border-radius: 7px;
+  background: var(--bg-chip); border: 0.5px solid var(--hair-strong);
+  color: var(--ink-1); font-size: 12.5px; cursor: default;
 }
-.searchbar input::placeholder { color: var(--ink-3); }
+.back svg { width: 15px; height: 15px; }
+.back b { color: var(--ink-0); font-weight: 600; }
+.lead { width: 20px; height: 20px; color: var(--ink-2); flex: 0 0 auto; }
+.search-wrap { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.search-wrap input {
+  flex: 1; background: transparent; border: 0; outline: 0;
+  font: inherit; font-size: 16px; color: var(--ink-0); letter-spacing: -0.01em;
+}
+.search-wrap input::placeholder { color: var(--ink-3); }
+.caret { width: 1.5px; height: 19px; background: var(--accent); border-radius: 1px; animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+/* form/title top bar (non-search) */
+.titlebar .vtitle { flex: 1; font-size: 15px; font-weight: 600; color: var(--ink-0); letter-spacing: -0.01em; }
+
 .scope-pill {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: var(--bg-chip);
-  border: 0.5px solid var(--hair-strong);
+  display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
+  background: var(--bg-chip); border: 0.5px solid var(--hair-strong);
   border-radius: 7px; padding: 5px 9px 5px 7px;
   font-size: 12px; color: var(--ink-1); white-space: nowrap;
 }
-.scope-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px oklch(67% 0.19 25 / 0.7); }
+.scope-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--approve); box-shadow: 0 0 8px oklch(74% 0.15 155 / 0.7); }
 .scope-pill b { color: var(--ink-0); font-weight: 600; }
 .scope-pill .rnd { color: var(--ink-2); }
 
-/* ---- Body / list ---- */
-.body { max-height: 540px; overflow: hidden; }
+/* ---- List body ---- */
+.body { max-height: 470px; overflow: hidden; }
 .list { padding: 8px; }
 .sec-head {
   font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
-  color: var(--ink-2); padding: 10px 10px 5px;
+  color: var(--ink-2); padding: 11px 10px 5px;
+  display: flex; align-items: center; justify-content: space-between;
 }
+.sec-head .count { font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
 
-/* ---- A command/list row ---- */
+/* ---- A List.Item row ---- */
 .row {
   display: flex; align-items: center; gap: 11px;
-  padding: 7px 10px; border-radius: var(--r-row); cursor: default;
-  position: relative;
+  padding: 7px 10px; border-radius: var(--r-row); cursor: default; position: relative;
 }
 .row:hover { background: var(--bg-row-hover); }
 .row.sel { background: var(--bg-row-sel); }
-.row.sel::after {
-  content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 2.5px;
-  border-radius: 2px; background: var(--accent);
-}
+
 .tile {
   width: 26px; height: 26px; border-radius: var(--r-tile);
   display: grid; place-items: center; flex: 0 0 auto;
@@ -275,7 +276,6 @@ body::before {
   color: oklch(98% 0.02 280);
 }
 .tile svg { width: 15px; height: 15px; }
-/* tile color variants */
 .t-red    { background: linear-gradient(150deg, oklch(70% 0.18 30), oklch(60% 0.19 18)); }
 .t-orange { background: linear-gradient(150deg, oklch(75% 0.15 60), oklch(66% 0.16 45)); }
 .t-amber  { background: linear-gradient(150deg, oklch(79% 0.13 90), oklch(72% 0.14 75)); }
@@ -291,44 +291,47 @@ body::before {
 .row .title { display: flex; align-items: center; gap: 8px; }
 .row .title .name { font-size: 13.5px; color: var(--ink-0); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .title .name.mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: -0.01em; }
-.row .sub {
-  font-size: 12px; color: var(--ink-2); margin-top: 1px;
-  font-family: var(--mono); letter-spacing: -0.01em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.row .sub { font-size: 12px; color: var(--ink-2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .sub.mono { font-family: var(--mono); letter-spacing: -0.01em; }
 .row .accessory { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
-.tag {
-  font-size: 11px; color: var(--ink-1); background: var(--bg-chip);
-  border: 0.5px solid var(--hair); border-radius: var(--r-chip);
-  padding: 2px 7px; white-space: nowrap;
-}
 
-/* file change status badge */
+/* unread/live dot accessory */
+.udot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px oklch(67% 0.19 25 / 0.7); }
+
+/* file change-status tile glyph */
 .stat {
   width: 17px; height: 17px; border-radius: 4px; flex: 0 0 auto;
   display: grid; place-items: center;
   font-size: 10.5px; font-weight: 700; font-family: var(--mono);
 }
-.stat.a { color: var(--approve);  background: var(--approve-soft); }
-.stat.m { color: var(--comment-v); background: var(--comment-soft); }
-.stat.d { color: var(--request);  background: var(--request-soft); }
+.stat.a { color: var(--add);  background: var(--add-soft); }
+.stat.m { color: var(--mod);  background: var(--mod-soft); }
+.stat.d { color: var(--del);  background: var(--del-soft); }
 
-/* verdict chip */
-.vchip {
-  font-size: 11px; font-weight: 600; border-radius: var(--r-chip);
-  padding: 2px 8px; white-space: nowrap;
-}
+/* verdict tag */
+.vchip { font-size: 11px; font-weight: 600; border-radius: var(--r-chip); padding: 2px 8px; white-space: nowrap; }
 .vchip.approve { color: var(--approve); background: var(--approve-soft); }
 .vchip.request { color: var(--request); background: var(--request-soft); }
 .vchip.comment { color: var(--comment-v); background: var(--comment-soft); }
+.vchip.none    { color: var(--ink-3); background: var(--bg-chip); border: 0.5px solid var(--hair); }
 
 /* comment count pill */
 .ccount {
   font-size: 11px; font-weight: 700; min-width: 18px; height: 18px;
   border-radius: 999px; padding: 0 6px;
   display: inline-flex; align-items: center; justify-content: center;
-  color: var(--on-accent); background: var(--accent);
+  color: var(--ink-1); background: var(--bg-chip); border: 0.5px solid var(--hair);
 }
+.ccount.hot { color: var(--on-accent); background: var(--accent); border: 0; }
+
+/* text accessory */
+.acc-text { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+
+/* resolved / outdated tags */
+.rtag { font-size: 10.5px; font-weight: 600; border-radius: var(--r-chip); padding: 2px 7px; white-space: nowrap; }
+.rtag.resolved { color: var(--approve); background: var(--approve-soft); }
+.rtag.outdated { color: var(--type-ask); background: oklch(74% 0.13 80 / 0.16); }
+.rtag.open     { color: var(--accent); background: var(--accent-soft); }
 
 /* kbd chip */
 .kbd {
@@ -362,64 +365,69 @@ body::before {
   font-size: 12.5px; color: var(--ink-0); font-weight: 500;
   padding: 4px 7px; border-radius: 7px;
 }
-.ab-action.primary { color: var(--ink-0); }
 .ab-action.primary .kbd { background: var(--accent-soft); border-color: oklch(67% 0.19 25 / 0.4); color: oklch(82% 0.12 25); }
 .ab-sep { width: 0.5px; height: 18px; background: var(--hair-strong); }
 
 /* ============================================================
-   SPLIT DETAIL VIEW
+   LIST + DETAIL  (isShowingDetail) - NARROW list, Detail right
    ============================================================ */
-.split-body { display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+.split-body { display: grid; grid-template-columns: 270px 1fr; min-height: 0; }
 .split-body .left {
   border-right: 0.5px solid var(--hair);
-  padding: 8px; overflow: hidden;
-  max-height: 560px;
+  padding: 8px; overflow: hidden; max-height: 500px;
 }
 .split-body .detail {
   background: var(--bg-detail);
   display: flex; flex-direction: column;
-  max-height: 560px; overflow: hidden;
+  max-height: 500px; overflow: hidden;
 }
+/* compact rows in the narrow list */
+.split-body .left .row { padding: 6px 8px; gap: 9px; }
+.split-body .left .row .accessory { gap: 5px; }
 
-/* detail header */
-.detail-head {
-  padding: 14px 16px 12px; border-bottom: 0.5px solid var(--hair);
-  flex: 0 0 auto;
+/* detail = content area + Detail.Metadata rail */
+.detail-inner { display: grid; grid-template-columns: 1fr 200px; flex: 1; min-height: 0; }
+.detail-content { overflow: hidden; border-right: 0.5px solid var(--hair); display: flex; flex-direction: column; }
+.detail-content .dc-head {
+  padding: 10px 14px; border-bottom: 0.5px solid var(--hair); flex: 0 0 auto;
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+  display: flex; align-items: center; gap: 7px;
 }
-.detail-head .dh-path {
-  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
-  display: flex; align-items: center; gap: 8px;
-}
-.detail-head .dh-path .stat { width: 16px; height: 16px; }
-.detail-head .dh-path b { color: var(--ink-0); }
-.detail-head h3 { font-size: 16px; font-weight: 650; margin-top: 8px; letter-spacing: -0.01em; }
+.detail-content .dc-head .stat { width: 15px; height: 15px; }
+.detail-content .dc-head b { color: var(--ink-0); }
+.dc-scroll { flex: 1; overflow: hidden; padding: 6px 0; }
 
-/* metadata panel */
-.meta-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
-  margin-top: 12px;
-  background: var(--hair); border: 0.5px solid var(--hair);
-  border-radius: 8px; overflow: hidden;
-}
-.meta-cell { background: var(--bg-window); padding: 8px 10px; }
-.meta-cell .k { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2); }
-.meta-cell .v { font-size: 13px; font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
-.meta-cell .v.approve { color: var(--approve); }
-.meta-cell .v.request { color: var(--request); }
-.dot-s { width: 7px; height: 7px; border-radius: 50%; }
+/* Detail.Metadata - vertical Label / TagList / separator rows */
+.metadata { padding: 12px 14px; overflow: hidden; }
+.md-row { padding: 8px 0; }
+.md-row .mk { font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 5px; }
+.md-row .mv { font-size: 13px; font-weight: 600; color: var(--ink-0); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.md-row .mv.approve { color: var(--approve); }
+.md-row .mv.request { color: var(--request); }
+.md-row .mv.comment { color: var(--comment-v); }
+.md-sep { height: 0.5px; background: var(--hair); margin: 2px 0; }
+.dot-s { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .dot-s.request { background: var(--request); }
-.dot-s.modified { background: var(--comment-v); }
-
-/* detail scroll body */
-.detail-scroll { flex: 1; overflow: hidden; padding: 4px 0; }
+.dot-s.approve { background: var(--approve); }
+.dot-s.modified { background: var(--mod); }
+.dot-s.added { background: var(--add); }
+.dot-s.deleted { background: var(--del); }
+/* TagList row inside metadata */
+.md-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.md-tag { font-size: 10.5px; font-weight: 600; border-radius: var(--r-chip); padding: 2px 7px; }
+.md-tag.fix { color: var(--type-fix); background: oklch(67% 0.19 25 / 0.15); }
+.md-tag.ask { color: var(--type-ask); background: oklch(74% 0.13 80 / 0.16); }
+.md-tag.note { color: var(--type-note); background: oklch(68% 0.10 250 / 0.16); }
 
 /* code reader */
-.code { font-family: var(--mono); font-size: 12.5px; line-height: 1.65; padding: 6px 0; }
-.cl { display: flex; padding: 0 16px; }
-.cl .ln { width: 30px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 16px; user-select: none; }
+.code { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; padding: 4px 0; }
+.cl { display: flex; padding: 0 14px; }
+.cl .ln { width: 26px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 14px; user-select: none; }
 .cl .ct { white-space: pre; color: var(--ink-1); }
 .cl.flag { background: var(--accent-soft); }
 .cl.flag .ln { color: oklch(80% 0.12 25); }
+.cl .pin { margin-left: auto; color: var(--accent); display: inline-flex; align-items: center; }
+.cl .pin svg { width: 13px; height: 13px; }
 .k1 { color: var(--syn-key); }
 .f1 { color: var(--syn-fn); }
 .a1 { color: var(--syn-atom); }
@@ -428,64 +436,51 @@ body::before {
 .m1 { color: var(--syn-mod); }
 
 /* diff lines */
-.dl { display: flex; padding: 0 16px; }
-.dl .dg { width: 30px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 12px; user-select: none; }
-.dl .dm { width: 14px; flex: 0 0 auto; text-align: center; user-select: none; }
+.dl { display: flex; padding: 0 14px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+.dl .dg { width: 30px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 10px; user-select: none; }
+.dl .dm { width: 12px; flex: 0 0 auto; text-align: center; user-select: none; color: var(--ink-3); }
 .dl .dc { white-space: pre; color: var(--ink-1); }
+.dl.hunk { color: var(--comment-v); }
 .dl.add { background: var(--diff-add-bg); }
 .dl.add .dm, .dl.add .dc { color: var(--diff-add-mk); }
 .dl.del { background: var(--diff-del-bg); }
 .dl.del .dm, .dl.del .dc { color: var(--diff-del-mk); }
 
-/* inline comment thread inside detail */
-.comments { border-top: 0.5px solid var(--hair); padding: 12px 16px 16px; }
-.comments .ch {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--ink-2); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+/* rendered markdown (thread detail) */
+.md-doc { padding: 14px 16px; overflow: hidden; }
+.md-doc .turn { margin-bottom: 16px; }
+.md-doc .turn:last-child { margin-bottom: 0; }
+.md-doc .byline { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.md-doc .av {
+  width: 22px; height: 22px; border-radius: 6px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700;
 }
-.comments .ch .cn { color: var(--ink-1); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; letter-spacing: 0; text-transform: none; font-weight: 600; }
-.cmt { padding: 10px 12px; border-radius: 9px; background: var(--bg-window); border: 0.5px solid var(--hair); margin-bottom: 9px; }
-.cmt .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.cmt .ttype {
-  font-size: 10.5px; font-weight: 700; border-radius: var(--r-chip); padding: 2px 7px;
-  text-transform: uppercase; letter-spacing: 0.03em;
-}
-.ttype.fix  { color: var(--type-fix);  background: oklch(67% 0.19 25 / 0.15); }
-.ttype.ask  { color: var(--type-ask);  background: oklch(74% 0.13 80 / 0.16); }
-.ttype.note { color: var(--type-note); background: oklch(68% 0.10 250 / 0.16); }
-.cmt .anchor { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
-.cmt .who { font-size: 12px; color: var(--ink-1); margin-left: auto; }
-.cmt .ctext { font-size: 12.5px; color: var(--ink-0); line-height: 1.5; }
-.cmt .ctext code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: oklch(82% 0.1 80); }
-.cmt .reply { margin-top: 9px; padding-top: 9px; border-top: 0.5px solid var(--hair); display: flex; gap: 9px; }
-.cmt .reply .av {
-  width: 22px; height: 22px; border-radius: 6px; flex: 0 0 auto; display: grid; place-items: center;
-  font-size: 10px; font-weight: 700;
-  background: linear-gradient(150deg, oklch(66% 0.15 252), oklch(58% 0.16 280));
-  color: oklch(98% 0.02 280);
-}
-.cmt .reply .rb { flex: 1; }
-.cmt .reply .rwho { font-size: 11.5px; font-weight: 600; color: var(--ink-1); display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-.cmt .reply .rwho .agtag {
+.md-doc .av.you { background: linear-gradient(150deg, oklch(70% 0.16 30), oklch(60% 0.17 18)); color: oklch(98% 0.01 25); }
+.md-doc .av.agent { background: linear-gradient(150deg, oklch(66% 0.15 252), oklch(58% 0.16 280)); color: oklch(98% 0.02 280); }
+.md-doc .byline .nm { font-size: 12.5px; font-weight: 600; color: var(--ink-0); }
+.md-doc .byline .agtag {
   font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em;
   background: oklch(72% 0.12 250 / 0.2); color: var(--comment-v);
   border-radius: 3px; padding: 1px 5px;
 }
-.cmt .reply .rtext { font-size: 12.5px; color: var(--ink-0); line-height: 1.5; }
-.cmt .reply .rtext code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: oklch(80% 0.1 305); }
+.md-doc .byline .when { font-size: 11.5px; color: var(--ink-3); margin-left: auto; }
+.md-doc .turn p { font-size: 13px; color: var(--ink-0); line-height: 1.55; margin: 0 0 7px 32px; }
+.md-doc .turn p:last-child { margin-bottom: 0; }
+.md-doc code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: oklch(82% 0.1 80); }
+.md-doc pre {
+  margin: 4px 0 7px 32px; padding: 9px 11px; border-radius: 8px;
+  background: var(--bg-code); border: 0.5px solid var(--hair);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.6; color: var(--ink-1); white-space: pre; overflow: hidden;
+}
+.md-doc pre code { background: transparent; padding: 0; color: var(--syn-str); }
 
 /* ============================================================
-   OVERLAY + ACTION PANEL (⌘K)
+   ACTION PANEL (cmd-K) overlay
    ============================================================ */
 .overlay-host { position: relative; }
-.dim {
-  position: absolute; inset: 0;
-  background: oklch(10% 0.02 265 / 0.5);
-  backdrop-filter: blur(1.5px);
-}
+.dim { position: absolute; inset: 0; background: oklch(10% 0.02 265 / 0.5); backdrop-filter: blur(1.5px); }
 .action-panel {
-  position: absolute; right: 8px; bottom: 50px;
-  width: 320px;
+  position: absolute; right: 8px; bottom: 50px; width: 330px;
   background: var(--bg-pop);
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   border-radius: var(--r-pop);
@@ -493,15 +488,13 @@ body::before {
   border: 0.5px solid oklch(100% 0 0 / 0.08);
   overflow: hidden;
 }
+.ap-scroll { max-height: 360px; overflow: hidden; }
 .ap-head {
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink-2); padding: 11px 13px 6px;
 }
 .ap-list { padding: 4px; }
-.ap-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 9px; border-radius: 7px; cursor: default;
-}
+.ap-item { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 7px; cursor: default; }
 .ap-item:hover { background: var(--bg-row-hover); }
 .ap-item.sel { background: var(--bg-row-sel); }
 .ap-ic { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; color: var(--ink-1); }
@@ -515,33 +508,33 @@ body::before {
 .ap-item .lbl { flex: 1; font-size: 13px; color: var(--ink-0); }
 .ap-item .ks { display: flex; gap: 3px; }
 .ap-sep { height: 0.5px; background: var(--hair); margin: 4px 6px; }
-.ap-search {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 12px; border-top: 0.5px solid var(--hair);
-}
+.ap-search { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-top: 0.5px solid var(--hair); }
 .ap-search svg { width: 15px; height: 15px; color: var(--ink-3); }
 .ap-search input { flex: 1; background: transparent; border: 0; outline: 0; font: inherit; font-size: 13px; color: var(--ink-0); }
 .ap-search input::placeholder { color: var(--ink-3); }
 
 /* ============================================================
-   FORM VIEW (compose comment)
+   FORM VIEW
    ============================================================ */
-.form-body { padding: 18px 18px 6px; }
-.form-row { margin-bottom: 16px; }
+.form-body { padding: 6px 0 4px; }
+.form-row { display: grid; grid-template-columns: 130px 1fr; gap: 14px; align-items: start; padding: 12px 18px; }
+.form-row + .form-row { border-top: 0.5px solid var(--hair); }
 .form-row .flabel {
-  font-size: 12px; font-weight: 600; color: var(--ink-1); margin-bottom: 7px;
-  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 500; color: var(--ink-1); padding-top: 8px;
+  display: flex; align-items: center; gap: 6px;
 }
 .form-row .flabel .req { color: var(--accent); }
+.form-field { min-width: 0; }
+
 .anchor-box {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 9px;
   background: var(--bg-code); border: 0.5px solid var(--hair);
-  border-radius: 8px; padding: 8px 11px;
+  border-radius: 8px; padding: 9px 11px;
   font-family: var(--mono); font-size: 12px; color: var(--ink-1);
 }
 .anchor-box .stat { flex: 0 0 auto; }
 .anchor-box b { color: var(--ink-0); }
-.anchor-box .ln { color: var(--accent); }
+.anchor-box .ln { color: var(--accent); margin-left: auto; white-space: nowrap; }
 
 .dropdown {
   display: flex; align-items: center; justify-content: space-between;
@@ -551,11 +544,12 @@ body::before {
 .dropdown .dd-val { display: flex; align-items: center; gap: 9px; font-size: 13px; }
 .dropdown .dd-val .tdot { width: 9px; height: 9px; border-radius: 50%; }
 .dropdown .dd-val .tdot.fix { background: var(--type-fix); }
+.dropdown .dd-val .tdot.note { background: var(--type-note); }
 .dropdown svg { width: 15px; height: 15px; color: var(--ink-2); }
+.dropdown.open { border-color: oklch(67% 0.19 25 / 0.5); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .dd-menu {
-  margin-top: 6px;
-  background: var(--bg-pop);
+  margin-top: 6px; background: var(--bg-pop);
   border: 0.5px solid var(--hair-strong); border-radius: 9px;
   box-shadow: var(--shadow-pop); overflow: hidden; padding: 4px;
 }
@@ -573,30 +567,23 @@ body::before {
 .dd-opt .check svg { width: 15px; height: 15px; }
 
 .ta {
-  width: 100%; min-height: 116px; resize: none;
-  background: var(--bg-code); border: 0.5px solid var(--hair-strong);
+  width: 100%; min-height: 104px; resize: none;
+  background: var(--bg-code); border: 0.5px solid oklch(67% 0.19 25 / 0.5);
   border-radius: 8px; padding: 11px 12px;
-  font: inherit; font-size: 13.5px; color: var(--ink-0); line-height: 1.55;
-  outline: 0;
+  font: inherit; font-size: 13.5px; color: var(--ink-0); line-height: 1.55; outline: 0;
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.ta:focus { border-color: oklch(67% 0.19 25 / 0.55); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ta::placeholder { color: var(--ink-3); }
-.form-hint { font-size: 11.5px; color: var(--ink-2); margin-top: 6px; }
+.form-hint { font-size: 11.5px; color: var(--ink-2); margin-top: 7px; }
 .form-hint code { font-family: var(--mono); background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: var(--ink-1); }
 
 /* utility */
 .mono { font-family: var(--mono); }
 .dir { color: var(--ink-3); }
-.realtime {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; color: var(--approve);
-}
+.realtime { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--approve); }
 .realtime .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--approve); box-shadow: 0 0 8px oklch(74% 0.15 155 / 0.8); }
 
-.foot {
-  text-align: center; color: oklch(88% 0.02 280 / 0.55);
-  font-size: 11.5px; margin-top: 44px;
-}
+.foot { text-align: center; color: oklch(88% 0.02 280 / 0.55); font-size: 11.5px; margin-top: 48px; }
 </style>
 </head>
 <body>
@@ -607,9 +594,9 @@ body::before {
       <span class="brandmark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M16 14l3 3 4-5"/></svg>
       </span>
-      Suikou, as Raycast
+      Suikou, as a Raycast extension
     </h1>
-    <p>A style exploration that reframes the Suikou code-review tool as a Raycast-style command app. One floating, translucent window over a blurred wallpaper. Search, files, verdicts, comments, and rounds all driven by a command list, a split detail view, an action panel, and keyboard shortcuts.</p>
+    <p>Not a themed web page. Suikou modeled from Raycast's real primitives: one fixed 750px window and a navigation stack. Each action pushes a view; a back chevron pops it. List, List with Detail, ActionPanel, and Form, with a persistent bottom action bar.</p>
     <div class="theme-toggle">
       <button class="on" onclick="setTheme('dark', this)">Dark</button>
       <button onclick="setTheme('light', this)">Light</button>
@@ -617,101 +604,151 @@ body::before {
   </header>
 
   <!-- ============================================================
-       SCREEN 1 - ROOT COMMAND VIEW
+       01 - ROOT LIST  (navigation stack depth 1)
        ============================================================ -->
   <div class="caption">
     <span class="num">01</span>
-    <h2>Root command view</h2>
-    <span>Search bar with a review scope pill; files mixed with quick actions; the signature bottom action bar.</span>
+    <h2>Root List</h2>
+    <span class="prim">List</span>
+    <span class="desc">The default view. Search bar filters; sections per project; List.Items are reviews with file-count, round, and unread-dot accessories.</span>
   </div>
+  <div class="stack"><span class="crumb top">Reviews</span></div>
 
-  <div class="win wide" style="margin: 0 auto;">
-    <div class="searchbar">
+  <div class="win">
+    <div class="topbar">
       <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
-      <input value="" placeholder="Search files, comments, actions..." readonly>
-      <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
+      <div class="search-wrap"><input value="" placeholder="Search reviews..." readonly></div>
     </div>
 
     <div class="body">
       <div class="list">
-        <div class="sec-head">Files · 5 in review</div>
+        <div class="sec-head">Suikou <span class="count">2 active</span></div>
 
         <div class="row sel">
-          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <span class="tile t-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
           <div class="meta">
-            <div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div>
-            <div class="sub"><span class="dir">lib/suikou/critique/comment/</span></div>
+            <div class="title"><span class="name">Re-anchor comments after a re-edit</span></div>
+            <div class="sub mono">feat/reanchor · opened 2h ago</div>
           </div>
-          <div class="accessory"><span class="vchip request">Request changes</span><span class="ccount">3</span><span class="tag">File</span></div>
+          <div class="accessory"><span class="acc-text">5 files</span><span class="vchip request">Round 2</span><span class="udot" title="unread agent reply"></span></div>
         </div>
 
         <div class="row">
-          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <span class="tile t-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
           <div class="meta">
-            <div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div>
-            <div class="sub"><span class="dir">lib/suikou/critique/comment/</span></div>
+            <div class="title"><span class="name">Verdict aggregation per round</span></div>
+            <div class="sub mono">feat/round-verdict · opened yesterday</div>
           </div>
-          <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span><span class="tag">File</span></div>
+          <div class="accessory"><span class="acc-text">8 files</span><span class="vchip comment">Round 1</span></div>
         </div>
 
+        <div class="sec-head">Musubi runtime <span class="count">1 active</span></div>
+
         <div class="row">
-          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
           <div class="meta">
-            <div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div>
-            <div class="sub"><span class="dir">lib/suikou/critique/queries/</span></div>
+            <div class="title"><span class="name">Presence diffing for live counters</span></div>
+            <div class="sub mono">fix/presence-diff · opened 3d ago</div>
           </div>
-          <div class="accessory"><span class="vchip approve">Approve</span><span class="tag">File</span></div>
+          <div class="accessory"><span class="acc-text">3 files</span><span class="vchip approve">Approved</span></div>
         </div>
 
+        <div class="sec-head">Recently submitted</div>
+
         <div class="row">
-          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <span class="tile t-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
           <div class="meta">
-            <div class="title"><span class="stat m">M</span><span class="name mono">submission.ex</span></div>
-            <div class="sub"><span class="dir">lib/suikou/reviews/</span></div>
+            <div class="title"><span class="name">Slim the agent export JSON</span></div>
+            <div class="sub mono">chore/slim-export · merged 1d ago</div>
           </div>
-          <div class="accessory"><span class="vchip approve">Approve</span><span class="tag">File</span></div>
-        </div>
-
-        <div class="row">
-          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-          <div class="meta">
-            <div class="title"><span class="stat d">D</span><span class="name mono">finders.ex</span></div>
-            <div class="sub"><span class="dir">lib/suikou/reviews/</span></div>
-          </div>
-          <div class="accessory"><span class="tag">File</span></div>
-        </div>
-
-        <div class="sec-head">Actions</div>
-
-        <div class="row">
-          <span class="tile t-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
-          <div class="meta"><div class="title"><span class="name">Add comment to current file</span></div><div class="sub" style="font-family:var(--font)">Anchor a fix, question, or note to a line</div></div>
-          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">N</span><span class="tag">Command</span></div>
-        </div>
-
-        <div class="row">
-          <span class="tile t-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
-          <div class="meta"><div class="title"><span class="name">Set verdict for current file</span></div><div class="sub" style="font-family:var(--font)">Approve · Request changes · Comment</div></div>
-          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">V</span><span class="tag">Command</span></div>
-        </div>
-
-        <div class="row">
-          <span class="tile t-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
-          <div class="meta"><div class="title"><span class="name">Switch round</span></div><div class="sub" style="font-family:var(--font)">Round 2 (draft) · Round 1 · Round 0</div></div>
-          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">R</span><span class="tag">Command</span></div>
-        </div>
-
-        <div class="row">
-          <span class="tile t-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/><path d="M3 17l4 4"/></svg></span>
-          <div class="meta"><div class="title"><span class="name">Submit round for review</span></div><div class="sub" style="font-family:var(--font)">Publishes 4 verdicts and 5 comments to the agent</div></div>
-          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">↵</span><span class="tag">Command</span></div>
+          <div class="accessory"><span class="acc-text">6 files</span><span class="vchip none">Closed</span></div>
         </div>
       </div>
     </div>
 
     <div class="actionbar">
       <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
-      <span class="ctx"><b>Suikou</b> · feat/reanchor</span>
+      <span class="ctx"><b>Suikou</b> · 3 active reviews</span>
+      <span class="spacer"></span>
+      <span class="ab-action primary">Open Review <span class="kbd solo">↵</span></span>
+      <span class="ab-sep"></span>
+      <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       02 - REVIEW FILE LIST  (pushed, stack depth 2)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">02</span>
+    <h2>Review file List</h2>
+    <span class="prim">List</span>
+    <span class="desc">Pushed from a review. Back chevron returns to Reviews. The search bar has a typed query ("anchor") filtering files live; List.Items carry a change-status tile, basename, dir subtitle, and verdict + comment-count accessories.</span>
+  </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb top">Re-anchor comments</span></div>
+
+  <div class="win">
+    <div class="topbar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>Reviews</b></span>
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <div class="search-wrap"><input value="anchor" placeholder="Search files..." readonly><span class="caret"></span></div>
+      <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
+    </div>
+
+    <div class="body">
+      <div class="list">
+        <div class="sec-head">Files matching "anchor" <span class="count">2 of 5</span></div>
+
+        <div class="row sel">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div>
+            <div class="sub mono"><span class="dir">lib/suikou/critique/comment/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip request">Request changes</span><span class="ccount hot">3</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat a">A</span><span class="name mono">anchor_range.ex</span></div>
+            <div class="sub mono"><span class="dir">lib/suikou/critique/comment/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span></div>
+        </div>
+
+        <div class="sec-head">Hidden by filter <span class="count">3 files</span></div>
+
+        <div class="row" style="opacity:.45">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">visibility.ex</span></div>
+            <div class="sub mono"><span class="dir">lib/suikou/critique/comment/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip approve">Approve</span></div>
+        </div>
+        <div class="row" style="opacity:.45">
+          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">submission.ex</span></div>
+            <div class="sub mono"><span class="dir">lib/suikou/reviews/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip approve">Approve</span></div>
+        </div>
+        <div class="row" style="opacity:.45">
+          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat d">D</span><span class="name mono">legacy_finder.ex</span></div>
+            <div class="sub mono"><span class="dir">lib/suikou/reviews/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip none">No verdict</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actionbar">
+      <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+      <span class="ctx"><b>Re-anchor comments</b> · Round 2 draft</span>
       <span class="spacer"></span>
       <span class="ab-action primary">Open File <span class="kbd solo">↵</span></span>
       <span class="ab-sep"></span>
@@ -720,132 +757,100 @@ body::before {
   </div>
 
   <!-- ============================================================
-       SCREEN 2 - LIST + DETAIL (FILE REVIEW)
+       03 - FILE LIST + DETAIL  (isShowingDetail, stack depth 3)
        ============================================================ -->
   <div class="caption">
-    <span class="num">02</span>
-    <h2>List and detail, file review</h2>
-    <span>File list on the left; syntax-highlighted source, metadata panel, and the comment thread on the right.</span>
+    <span class="num">03</span>
+    <h2>File List with Detail</h2>
+    <span class="prim">List · isShowingDetail</span>
+    <span class="desc">Narrow file List on the left, Detail on the right: syntax-highlighted Elixir plus a Detail.Metadata rail of vertical Label and TagList rows with separators.</span>
   </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb">Re-anchor comments</span><span class="sep">›</span><span class="crumb top">anchoring.ex</span></div>
 
-  <div class="win split" style="margin: 0 auto;">
-    <div class="searchbar">
+  <div class="win">
+    <div class="topbar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>Files</b></span>
       <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
-      <input value="anchoring" placeholder="Search files, comments, actions..." readonly>
+      <div class="search-wrap"><input value="" placeholder="Filter files..." readonly></div>
       <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
     </div>
 
     <div class="split-body">
-      <!-- LEFT: file list -->
+      <!-- LEFT: narrow file list -->
       <div class="left">
         <div class="list" style="padding:0">
-          <div class="sec-head">Files</div>
-
+          <div class="sec-head" style="padding-left:8px">Files</div>
           <div class="row sel">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
             <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div></div>
-            <div class="accessory"><span class="vchip request">Changes</span><span class="ccount">3</span></div>
+            <div class="accessory"><span class="ccount hot">3</span></div>
           </div>
           <div class="row">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div></div>
-            <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span></div>
+            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">anchor_range.ex</span></div></div>
+            <div class="accessory"><span class="ccount">1</span></div>
           </div>
           <div class="row">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div></div>
-            <div class="accessory"><span class="vchip approve">Approve</span></div>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">visibility.ex</span></div></div>
+            <div class="accessory"><span class="rtag resolved">✓</span></div>
           </div>
           <div class="row">
             <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
             <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">submission.ex</span></div></div>
-            <div class="accessory"><span class="vchip approve">Approve</span></div>
+            <div class="accessory"><span class="rtag resolved">✓</span></div>
           </div>
           <div class="row">
             <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <div class="meta"><div class="title"><span class="stat d">D</span><span class="name mono">finders.ex</span></div></div>
+            <div class="meta"><div class="title"><span class="stat d">D</span><span class="name mono">legacy_finder.ex</span></div></div>
             <div class="accessory"></div>
-          </div>
-
-          <div class="sec-head">Reviews</div>
-          <div class="row">
-            <span class="tile t-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
-            <div class="meta"><div class="title"><span class="name">Re-anchoring</span></div><div class="sub" style="font-family:var(--font)">Round 2 draft · 4 files awaiting submit</div></div>
-            <div class="accessory"><span class="realtime"><span class="pulse"></span>live</span></div>
           </div>
         </div>
       </div>
 
-      <!-- RIGHT: detail -->
+      <!-- RIGHT: detail = content + metadata rail -->
       <div class="detail">
-        <div class="detail-head">
-          <div class="dh-path"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></div>
-          <h3>Re-anchoring</h3>
-          <div class="meta-grid">
-            <div class="meta-cell"><div class="k">Verdict</div><div class="v request"><span class="dot-s request"></span>Changes</div></div>
-            <div class="meta-cell"><div class="k">Status</div><div class="v"><span class="dot-s modified"></span>Modified</div></div>
-            <div class="meta-cell"><div class="k">Comments</div><div class="v">3 open</div></div>
-            <div class="meta-cell"><div class="k">Round</div><div class="v">2 · draft</div></div>
-          </div>
-        </div>
-
-        <div class="detail-scroll">
-          <div class="code">
-            <div class="cl"><span class="ln">38</span><span class="ct"><span class="k1">defmodule</span> <span class="m1">Suikou.Critique.Comment.Anchoring</span> <span class="k1">do</span></span></div>
-            <div class="cl"><span class="ln">39</span><span class="ct">  <span class="a1">@moduledoc</span> <span class="s1">"Resolves a comment anchor against a file revision."</span></span></div>
-            <div class="cl"><span class="ln">40</span><span class="ct"></span></div>
-            <div class="cl flag"><span class="ln">41</span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span></div>
-            <div class="cl flag"><span class="ln">42</span><span class="ct">    file</span></div>
-            <div class="cl flag"><span class="ln">43</span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
-            <div class="cl flag"><span class="ln">44</span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
-            <div class="cl"><span class="ln">45</span><span class="ct">  <span class="k1">end</span></span></div>
-            <div class="cl"><span class="ln">46</span><span class="ct"></span></div>
-            <div class="cl"><span class="ln">47</span><span class="ct">  <span class="k1">defp</span> <span class="f1">revisions</span>(file), <span class="a1">do:</span> file.<span class="f1">revisions</span> || []</span></div>
-            <div class="cl"><span class="ln">48</span><span class="ct"><span class="k1">end</span></span></div>
+        <div class="detail-inner">
+          <div class="detail-content">
+            <div class="dc-head"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></div>
+            <div class="dc-scroll">
+              <div class="code">
+                <div class="cl"><span class="ln">37</span><span class="ct"><span class="k1">defmodule</span> <span class="m1">Suikou.Critique.Comment.Anchoring</span> <span class="k1">do</span></span></div>
+                <div class="cl"><span class="ln">38</span><span class="ct">  <span class="a1">@moduledoc</span> <span class="s1">"Resolves a comment anchor against a file revision."</span></span></div>
+                <div class="cl"><span class="ln">39</span><span class="ct"></span></div>
+                <div class="cl flag"><span class="ln">41</span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span><span class="pin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L3 21l1.7-6.7A8 8 0 1 1 21 12z"/></svg></span></div>
+                <div class="cl flag"><span class="ln">42</span><span class="ct">    file</span></div>
+                <div class="cl flag"><span class="ln">43</span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
+                <div class="cl flag"><span class="ln">44</span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
+                <div class="cl"><span class="ln">45</span><span class="ct">  <span class="k1">end</span></span></div>
+                <div class="cl"><span class="ln">46</span><span class="ct"></span></div>
+                <div class="cl"><span class="ln">47</span><span class="ct">  <span class="k1">defp</span> <span class="f1">revisions</span>(file), <span class="a1">do:</span> file.<span class="f1">revisions</span> || []</span></div>
+                <div class="cl"><span class="ln">48</span><span class="ct"><span class="k1">end</span></span></div>
+              </div>
+            </div>
           </div>
 
-          <div class="comments">
-            <div class="ch">Comments <span class="cn">3 open</span> <span class="realtime" style="margin-left:auto"><span class="pulse"></span>live</span></div>
-
-            <div class="cmt">
-              <div class="top">
-                <span class="ttype fix">Fix required</span>
-                <span class="anchor">L41 · get_anchor/2</span>
-                <span class="who">you · 2h ago</span>
-              </div>
-              <div class="ctext">This <code>get_</code> should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to <code>fetch_anchor/2</code> if you want the <code>{:ok, _} | :error</code> shape instead.</div>
-              <div class="reply">
-                <span class="av">OP</span>
-                <div class="rb">
-                  <div class="rwho">opus-4.7 <span class="agtag">AGENT</span> · 1h ago</div>
-                  <div class="rtext">Renamed to <code>fetch_anchor/2</code> returning <code>{:ok, range} | :error</code>; updated the two call sites in <code>visibility.ex</code>.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="cmt">
-              <div class="top">
-                <span class="ttype ask">Needs answer</span>
-                <span class="anchor">L44 · Enum.find/2</span>
-                <span class="who">you · 2h ago</span>
-              </div>
-              <div class="ctext">Is line equality enough across re-edits, or do we need the byte offset from the diff hunk to survive a shift?</div>
-            </div>
-
-            <div class="cmt">
-              <div class="top">
-                <span class="ttype note">Note</span>
-                <span class="anchor">L47 · revisions/1</span>
-                <span class="who">you · 2h ago</span>
-              </div>
-              <div class="ctext">Nice that the fallback keeps this total. No change needed.</div>
-            </div>
+          <!-- Detail.Metadata rail -->
+          <div class="metadata">
+            <div class="md-row"><div class="mk">Verdict</div><div class="mv request"><span class="dot-s request"></span>Request changes</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Change status</div><div class="mv"><span class="dot-s modified"></span>Modified</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Round</div><div class="mv">2 <span style="font-weight:400;color:var(--ink-2)">· draft</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Comments</div><div class="mv"><span class="ccount hot">3</span> <span style="font-weight:400;color:var(--ink-2)">open</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Types</div><div class="md-tags"><span class="md-tag fix">fix_required</span><span class="md-tag ask">needs_answer</span><span class="md-tag note">note</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Anchor</div><div class="mv" style="font-family:var(--mono);font-size:12px"><span style="color:var(--accent)">L41</span> · get_anchor/2</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Connection</div><div class="mv"><span class="realtime"><span class="pulse"></span>live</span></div></div>
           </div>
         </div>
 
         <div class="actionbar">
           <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
-          <span class="ctx"><b>anchoring.ex</b></span>
+          <span class="ctx"><b>anchoring.ex</b> · L41</span>
           <span class="spacer"></span>
           <span class="ab-action primary">Add Comment <span class="kbd">⌘</span><span class="kbd solo">N</span></span>
           <span class="ab-sep"></span>
@@ -856,66 +861,79 @@ body::before {
   </div>
 
   <!-- ============================================================
-       SCREEN 3 - ACTION PANEL (⌘K) OVER DETAIL
+       04 - ACTION PANEL (cmd-K) over the Detail  (same stack depth)
        ============================================================ -->
   <div class="caption">
-    <span class="num">03</span>
-    <h2>Action panel, ⌘K</h2>
-    <span>Contextual actions anchored bottom-right: verdicts, comment types, reply, jump, switch round, copy.</span>
+    <span class="num">04</span>
+    <h2>ActionPanel</h2>
+    <span class="prim">ActionPanel · ⌘K</span>
+    <span class="desc">The interaction core. Same view as 03 with the ⌘K popover risen from the action bar: sectioned actions (Verdict, Comment, Navigation, Copy), each with an icon and shortcut, and a search field at the foot of the panel. Here the detail shows a diff.</span>
   </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb">Re-anchor comments</span><span class="sep">›</span><span class="crumb top">anchoring.ex · ⌘K</span></div>
 
-  <div class="win split overlay-host" style="margin: 0 auto;">
-    <div class="searchbar">
+  <div class="win overlay-host">
+    <div class="topbar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>Files</b></span>
       <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
-      <input value="anchoring" placeholder="Search files, comments, actions..." readonly>
+      <div class="search-wrap"><input value="" placeholder="Filter files..." readonly></div>
       <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
     </div>
 
     <div class="split-body">
       <div class="left">
         <div class="list" style="padding:0">
-          <div class="sec-head">Files</div>
+          <div class="sec-head" style="padding-left:8px">Files</div>
           <div class="row sel">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
             <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div></div>
-            <div class="accessory"><span class="vchip request">Changes</span><span class="ccount">3</span></div>
+            <div class="accessory"><span class="ccount hot">3</span></div>
           </div>
           <div class="row">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div></div>
-            <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span></div>
+            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">anchor_range.ex</span></div></div>
+            <div class="accessory"><span class="ccount">1</span></div>
           </div>
           <div class="row">
             <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
-            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div></div>
-            <div class="accessory"><span class="vchip approve">Approve</span></div>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">visibility.ex</span></div></div>
+            <div class="accessory"><span class="rtag resolved">✓</span></div>
           </div>
         </div>
       </div>
 
       <div class="detail">
-        <div class="detail-head">
-          <div class="dh-path"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></div>
-          <h3>Re-anchoring</h3>
-          <div class="meta-grid">
-            <div class="meta-cell"><div class="k">Verdict</div><div class="v request"><span class="dot-s request"></span>Changes</div></div>
-            <div class="meta-cell"><div class="k">Status</div><div class="v"><span class="dot-s modified"></span>Modified</div></div>
-            <div class="meta-cell"><div class="k">Comments</div><div class="v">3 open</div></div>
-            <div class="meta-cell"><div class="k">Round</div><div class="v">2 · draft</div></div>
+        <div class="detail-inner">
+          <div class="detail-content">
+            <div class="dc-head"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b><span style="margin-left:auto;color:var(--ink-3)">diff</span></div>
+            <div class="dc-scroll">
+              <div class="code" style="padding-top:6px">
+                <div class="dl hunk"><span class="dg"></span><span class="dm"></span><span class="dc">@@ -41,4 +41,5 @@ def get_anchor(file, line)</span></div>
+                <div class="dl del"><span class="dg">41</span><span class="dm">-</span><span class="dc">  def get_anchor(file, line) do</span></div>
+                <div class="dl add"><span class="dg">41</span><span class="dm">+</span><span class="dc">  def fetch_anchor(file, line) do</span></div>
+                <div class="dl"><span class="dg">42</span><span class="dm"> </span><span class="dc">    file</span></div>
+                <div class="dl"><span class="dg">43</span><span class="dm"> </span><span class="dc">    |> revisions()</span></div>
+                <div class="dl del"><span class="dg">44</span><span class="dm">-</span><span class="dc">    |> Enum.find(fn r -> r.line == line end)</span></div>
+                <div class="dl add"><span class="dg">44</span><span class="dm">+</span><span class="dc">    |> Enum.find(fn r -> r.line == line end)</span></div>
+                <div class="dl add"><span class="dg">45</span><span class="dm">+</span><span class="dc">    |> then(&amp;if &amp;1, do: {:ok, &amp;1}, else: :error)</span></div>
+                <div class="dl"><span class="dg">46</span><span class="dm"> </span><span class="dc">  end</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="metadata">
+            <div class="md-row"><div class="mk">Verdict</div><div class="mv request"><span class="dot-s request"></span>Request changes</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Change status</div><div class="mv"><span class="dot-s modified"></span>Modified</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Round</div><div class="mv">2 <span style="font-weight:400;color:var(--ink-2)">· draft</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Comments</div><div class="mv"><span class="ccount hot">3</span> <span style="font-weight:400;color:var(--ink-2)">open</span></div></div>
           </div>
         </div>
-        <div class="detail-scroll">
-          <div class="code">
-            <div class="cl"><span class="ln">41</span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span></div>
-            <div class="cl"><span class="ln">42</span><span class="ct">    file</span></div>
-            <div class="cl"><span class="ln">43</span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
-            <div class="cl"><span class="ln">44</span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
-            <div class="cl"><span class="ln">45</span><span class="ct">  <span class="k1">end</span></span></div>
-          </div>
-        </div>
+
         <div class="actionbar">
           <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
-          <span class="ctx"><b>anchoring.ex</b></span>
+          <span class="ctx"><b>anchoring.ex</b> · L41</span>
           <span class="spacer"></span>
           <span class="ab-action primary">Add Comment <span class="kbd">⌘</span><span class="kbd solo">N</span></span>
           <span class="ab-sep"></span>
@@ -924,69 +942,82 @@ body::before {
       </div>
     </div>
 
-    <!-- dim + action panel popover -->
+    <!-- dim + cmd-K popover rising from the action bar -->
     <div class="dim"></div>
     <div class="action-panel">
-      <div class="ap-head">Verdict</div>
-      <div class="ap-list">
-        <div class="ap-item">
-          <span class="ap-ic approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
-          <span class="lbl">Approve</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">A</span></span>
+      <div class="ap-scroll">
+        <div class="ap-head">Set Verdict</div>
+        <div class="ap-list">
+          <div class="ap-item">
+            <span class="ap-ic approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+            <span class="lbl">Approve</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">A</span></span>
+          </div>
+          <div class="ap-item sel">
+            <span class="ap-ic request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+            <span class="lbl">Request Changes</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">X</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L3 21l1.7-6.7A8 8 0 1 1 21 12z"/></svg></span>
+            <span class="lbl">Comment</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">C</span></span>
+          </div>
         </div>
-        <div class="ap-item sel">
-          <span class="ap-ic request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
-          <span class="lbl">Request changes</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">X</span></span>
-        </div>
-        <div class="ap-item">
-          <span class="ap-ic comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L3 21l1.7-6.7A8 8 0 1 1 21 12z"/></svg></span>
-          <span class="lbl">Comment only</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">C</span></span>
-        </div>
-      </div>
 
-      <div class="ap-sep"></div>
-      <div class="ap-head">Add comment</div>
-      <div class="ap-list">
-        <div class="ap-item">
-          <span class="ap-ic fix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/></svg></span>
-          <span class="lbl">Fix required</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">1</span></span>
+        <div class="ap-sep"></div>
+        <div class="ap-head">Comment</div>
+        <div class="ap-list">
+          <div class="ap-item">
+            <span class="ap-ic fix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="lbl">Add Comment</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">N</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg></span>
+            <span class="lbl">Reply to Selected Comment</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">↵</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 10h16M4 15h10"/></svg></span>
+            <span class="lbl">View All Comments</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">L</span></span>
+          </div>
         </div>
-        <div class="ap-item">
-          <span class="ap-ic ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></span>
-          <span class="lbl">Needs answer</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">2</span></span>
-        </div>
-        <div class="ap-item">
-          <span class="ap-ic note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 10h16M4 15h10"/></svg></span>
-          <span class="lbl">Note</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">3</span></span>
-        </div>
-      </div>
 
-      <div class="ap-sep"></div>
-      <div class="ap-list">
-        <div class="ap-item">
-          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg></span>
-          <span class="lbl">Reply to selected comment</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">R</span></span>
+        <div class="ap-sep"></div>
+        <div class="ap-head">Navigation</div>
+        <div class="ap-list">
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></span>
+            <span class="lbl">Open Previous File</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">[</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            <span class="lbl">Open Next File</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">]</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+            <span class="lbl">Switch Round</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">R</span></span>
+          </div>
         </div>
-        <div class="ap-item">
-          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-          <span class="lbl">Jump to file</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">P</span></span>
-        </div>
-        <div class="ap-item">
-          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
-          <span class="lbl">Switch round</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">R</span></span>
-        </div>
-        <div class="ap-item">
-          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-          <span class="lbl">Copy file path</span>
-          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">⇧</span><span class="kbd solo">C</span></span>
+
+        <div class="ap-sep"></div>
+        <div class="ap-head">Copy</div>
+        <div class="ap-list">
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="lbl">Copy Noteworthy as Markdown</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">⇧</span><span class="kbd solo">C</span></span>
+          </div>
+          <div class="ap-item">
+            <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="lbl">Copy File Path</span>
+            <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">⇧</span><span class="kbd solo">P</span></span>
+          </div>
         </div>
       </div>
 
@@ -999,76 +1030,248 @@ body::before {
   </div>
 
   <!-- ============================================================
-       SCREEN 4 - COMPOSE-COMMENT FORM
+       05 - COMPOSE COMMENT FORM  (pushed, stack depth 4)
        ============================================================ -->
   <div class="caption">
-    <span class="num">04</span>
-    <h2>Compose comment, form view</h2>
-    <span>A Raycast-style form: anchor field, comment-type dropdown, textarea, footer submit with its shortcut.</span>
+    <span class="num">05</span>
+    <h2>Compose Comment Form</h2>
+    <span class="prim">Form</span>
+    <span class="desc">A full-pane pushed view. The top bar carries the view title and a back chevron instead of search. Labeled left-aligned field rows: Form.Dropdown (type), Form.TextArea (body), Form.Dropdown (line anchor). Submit is the primary action.</span>
   </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb">Re-anchor comments</span><span class="sep">›</span><span class="crumb">anchoring.ex</span><span class="sep">›</span><span class="crumb top">Add Comment</span></div>
 
-  <div class="win wide" style="margin: 0 auto;">
-    <div class="searchbar">
-      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4h2a2 2 0 0 1 2 2v1"/><path d="M16 3l5 5-9 9-5 1 1-5z"/></svg></span>
-      <input value="" placeholder="Add Comment" readonly style="font-weight:600">
+  <div class="win">
+    <div class="topbar titlebar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>anchoring.ex</b></span>
+      <span class="vtitle">Add Comment</span>
       <span class="scope-pill"><span class="dot"></span><b>anchoring.ex</b><span class="rnd">· L41</span></span>
     </div>
 
     <div class="form-body">
       <div class="form-row">
-        <div class="flabel">Anchor</div>
-        <div class="anchor-box">
-          <span class="stat m">M</span>
-          <span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></span>
-          <span style="flex:1"></span>
-          <span class="ln">line 41 · get_anchor/2</span>
-        </div>
-      </div>
-
-      <div class="form-row">
         <div class="flabel">Type <span class="req">*</span></div>
-        <div class="dropdown">
-          <span class="dd-val"><span class="tdot fix"></span>Fix required</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
-        <div class="dd-menu">
-          <div class="dd-opt sel">
-            <span class="tdot fix"></span>
-            <span class="on"><span class="nm">Fix required</span><span class="ds">Must change before this round can be approved</span></span>
-            <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+        <div class="form-field">
+          <div class="dropdown open">
+            <span class="dd-val"><span class="tdot fix"></span>Fix required</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
           </div>
-          <div class="dd-opt">
-            <span class="tdot ask"></span>
-            <span class="on"><span class="nm">Needs answer</span><span class="ds">A question for the agent, blocks until replied</span></span>
-          </div>
-          <div class="dd-opt">
-            <span class="tdot note"></span>
-            <span class="on"><span class="nm">Note</span><span class="ds">Non-blocking observation, no reply required</span></span>
+          <div class="dd-menu">
+            <div class="dd-opt sel">
+              <span class="tdot fix"></span>
+              <span class="on"><span class="nm">Fix required</span><span class="ds">Must change before this round can be approved</span></span>
+              <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+            </div>
+            <div class="dd-opt">
+              <span class="tdot ask"></span>
+              <span class="on"><span class="nm">Needs answer</span><span class="ds">A question for the agent, blocks until replied</span></span>
+            </div>
+            <div class="dd-opt">
+              <span class="tdot note"></span>
+              <span class="on"><span class="nm">Note</span><span class="ds">Non-blocking observation, no reply required</span></span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="form-row">
         <div class="flabel">Comment <span class="req">*</span></div>
-        <textarea class="ta" readonly>This get_ should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to fetch_anchor/2 if you want the {:ok, _} | :error shape instead.</textarea>
-        <div class="form-hint">Markdown supported. Reference symbols with <code>`fetch_anchor/2`</code>. The agent is notified the moment you submit.</div>
+        <div class="form-field">
+          <textarea class="ta" readonly>This get_ should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to `fetch_anchor/2` if you want the {:ok, _} | :error shape instead.</textarea>
+          <div class="form-hint">Markdown supported. Reference symbols with <code>`fetch_anchor/2`</code>. The agent is notified the moment you save.</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="flabel">Lines</div>
+        <div class="form-field">
+          <div class="anchor-box">
+            <span class="stat m">M</span>
+            <span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></span>
+            <span class="ln">L41 - L44 · get_anchor/2</span>
+          </div>
+          <div class="form-hint">Anchored from your selection. Change the range with <code>⌘L</code>.</div>
+        </div>
       </div>
     </div>
 
     <div class="actionbar">
       <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
-      <span class="ctx">Posting to <b>Round 2</b> draft</span>
+      <span class="ctx">Saving to <b>Round 2</b> draft</span>
       <span class="spacer"></span>
-      <span class="ab-action primary">Submit Comment <span class="kbd">⌘</span><span class="kbd solo">↵</span></span>
+      <span class="ab-action primary">Save Comment <span class="kbd">⌘</span><span class="kbd solo">↵</span></span>
       <span class="ab-sep"></span>
       <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
     </div>
   </div>
 
-  <p class="foot">Suikou, reimagined in the Raycast visual language. Self-contained mockup, one of several style explorations.</p>
+  <!-- ============================================================
+       06 - COMMENTS LIST for a file  (pushed, stack depth 4)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">06</span>
+    <h2>Comments List</h2>
+    <span class="prim">List</span>
+    <span class="desc">Pushed from the file. List.Items are comments: a type tile, the first line as title, author + round subtitle, and a resolved / outdated / open accessory tag. Selecting one pushes the thread Detail.</span>
+  </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb">Re-anchor comments</span><span class="sep">›</span><span class="crumb">anchoring.ex</span><span class="sep">›</span><span class="crumb top">Comments</span></div>
+
+  <div class="win">
+    <div class="topbar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>anchoring.ex</b></span>
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <div class="search-wrap"><input value="" placeholder="Search comments..." readonly></div>
+      <span class="scope-pill"><span class="dot"></span><b>3 open</b></span>
+    </div>
+
+    <div class="body">
+      <div class="list">
+        <div class="sec-head">Round 2 <span class="count">draft</span></div>
+
+        <div class="row sel">
+          <span class="tile t-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="name">get_ should return nil on a miss, not raise</span></div>
+            <div class="sub mono">you · L41 · get_anchor/2 · 2h ago</div>
+          </div>
+          <div class="accessory"><span class="rtag resolved">Resolved by agent</span><span class="udot" title="new reply"></span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="name">Is line equality enough across re-edits?</span></div>
+            <div class="sub mono">you · L44 · Enum.find/2 · 2h ago</div>
+          </div>
+          <div class="accessory"><span class="rtag open">Awaiting answer</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 10h16M4 15h10"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="name">Nice that the fallback keeps this total</span></div>
+            <div class="sub mono">you · L47 · revisions/1 · 2h ago</div>
+          </div>
+          <div class="accessory"><span class="rtag resolved">Note</span></div>
+        </div>
+
+        <div class="sec-head">Round 1 <span class="count">submitted</span></div>
+
+        <div class="row">
+          <span class="tile t-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="name">revisions/1 fell out of date after a rebase</span></div>
+            <div class="sub mono">you · L47 · round 1 · yesterday</div>
+          </div>
+          <div class="accessory"><span class="rtag outdated">Outdated</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actionbar">
+      <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+      <span class="ctx"><b>anchoring.ex</b> · 3 open</span>
+      <span class="spacer"></span>
+      <span class="ab-action primary">Open Thread <span class="kbd solo">↵</span></span>
+      <span class="ab-sep"></span>
+      <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       07 - THREAD DETAIL  (pushed, stack depth 5)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">07</span>
+    <h2>Comment thread Detail</h2>
+    <span class="prim">List · isShowingDetail</span>
+    <span class="desc">Selecting a comment keeps the thread List on the left and renders the conversation as markdown on the right: the reviewer's comment, the AI agent's reply, with a Detail.Metadata rail for the thread's anchor, type, and resolution.</span>
+  </div>
+  <div class="stack"><span class="crumb">Reviews</span><span class="sep">›</span><span class="crumb">anchoring.ex</span><span class="sep">›</span><span class="crumb">Comments</span><span class="sep">›</span><span class="crumb top">Thread</span></div>
+
+  <div class="win">
+    <div class="topbar">
+      <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg><b>Comments</b></span>
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <div class="search-wrap"><input value="" placeholder="Search comments..." readonly></div>
+      <span class="scope-pill"><span class="dot"></span><b>Round 2</b></span>
+    </div>
+
+    <div class="split-body">
+      <div class="left">
+        <div class="list" style="padding:0">
+          <div class="sec-head" style="padding-left:8px">Thread</div>
+          <div class="row sel">
+            <span class="tile t-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/></svg></span>
+            <div class="meta"><div class="title"><span class="name">get_ returns nil</span></div></div>
+            <div class="accessory"><span class="udot"></span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></span>
+            <div class="meta"><div class="title"><span class="name">line equality?</span></div></div>
+            <div class="accessory"></div>
+          </div>
+          <div class="row">
+            <span class="tile t-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 10h16M4 15h10"/></svg></span>
+            <div class="meta"><div class="title"><span class="name">fallback total</span></div></div>
+            <div class="accessory"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="detail-inner">
+          <div class="detail-content">
+            <div class="dc-head"><span class="md-tag fix" style="font-size:10px">fix_required</span><span class="dir">L41 · get_anchor/2</span></div>
+            <div class="dc-scroll">
+              <div class="md-doc">
+                <div class="turn">
+                  <div class="byline"><span class="av you">YOU</span><span class="nm">you</span><span class="when">2h ago</span></div>
+                  <p>This <code>get_</code> should return <code>nil</code> on a miss, not raise. It breaks the lookup-naming convention.</p>
+                  <p>Rename to <code>fetch_anchor/2</code> if you want the <code>{:ok, _} | :error</code> shape instead, and update the call sites in <code>visibility.ex</code>.</p>
+                </div>
+                <div class="turn">
+                  <div class="byline"><span class="av agent">AI</span><span class="nm">opus-4.7</span><span class="agtag">AGENT</span><span class="when">1h ago</span></div>
+                  <p>Renamed to <code>fetch_anchor/2</code> returning <code>{:ok, range} | :error</code> and updated both call sites:</p>
+                  <pre><code>file
+|> revisions()
+|> Enum.find(&amp;(&amp;1.line == line))
+|> then(&amp;if &amp;1, do: {:ok, &amp;1}, else: :error)</code></pre>
+                  <p>The two readers in <code>visibility.ex</code> now pattern-match <code>{:ok, range}</code>.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="metadata">
+            <div class="md-row"><div class="mk">Type</div><div class="md-tags"><span class="md-tag fix">fix_required</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Anchor</div><div class="mv" style="font-family:var(--mono);font-size:12px"><span style="color:var(--accent)">L41</span> · get_anchor/2</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Author</div><div class="mv" style="font-weight:400;color:var(--ink-1)">you</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Round</div><div class="mv">2 <span style="font-weight:400;color:var(--ink-2)">· draft</span></div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Status</div><div class="mv approve"><span class="dot-s approve"></span>Resolved by agent</div></div>
+            <div class="md-sep"></div>
+            <div class="md-row"><div class="mk">Replies</div><div class="mv">1 <span style="font-weight:400;color:var(--ink-2)">from opus-4.7</span></div></div>
+          </div>
+        </div>
+
+        <div class="actionbar">
+          <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+          <span class="ctx"><span class="realtime"><span class="pulse"></span>live</span> · agent replied 1h ago</span>
+          <span class="spacer"></span>
+          <span class="ab-action primary">Reply <span class="kbd">⌘</span><span class="kbd solo">↵</span></span>
+          <span class="ab-sep"></span>
+          <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Suikou modeled from Raycast primitives: one fixed window, a navigation stack of List, List with Detail, ActionPanel, and Form. Self-contained mockup.</p>
 
 </div>
-
 <script>
 function setTheme(t, btn) {
   document.documentElement.setAttribute('data-theme', t);
