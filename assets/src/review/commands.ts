@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef } from "react";
 
-import { useMusubiCommand, useMusubiSnapshot, useSocketConnected } from "../musubi";
+import { socket, useMusubiCommand, useMusubiSnapshot, useSocketConnected } from "../musubi";
 import { useFileStore, useReviewStore } from "./store-context";
 import type { CommentsStore, FileStore } from "./types";
 
@@ -60,11 +60,14 @@ function useDefaultReviewCommands() {
   };
 }
 
-// Retry a command that rejects with "Store is not connected". After an iOS
-// Safari resume reload the phoenix socket reopens a beat before the musubi
-// channel re-joins, so a command fired in that window rejects before it ever
-// reaches the server — safe to retry. Never retries timeouts (the push may have
-// landed), so a genuine server rejection still surfaces.
+// Retry a command that rejects with "Store is not connected". Two cases this
+// covers: (1) after an iOS Safari resume the phoenix socket reopens a beat
+// before the musubi channel re-joins, so a command fired in that window rejects
+// before it reaches the server; (2) we release the socket on `pagehide` (a clean
+// disconnect, which phoenix never auto-reconnects), so if the resume reconnect
+// hooks missed, the socket is simply down. So on each retry we actively reconnect
+// the socket if it's closed, then wait for the channel to re-join. Never retries
+// timeouts (the push may have landed), so a genuine server rejection surfaces.
 function resilient<
   T extends { dispatch: (...args: never[]) => Promise<unknown> },
 >(command: T): T {
@@ -75,6 +78,7 @@ function resilient<
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes("not connected") && attempt < 9) {
+          if (!socket.isConnected()) socket.connect();
           await new Promise((resolve) => setTimeout(resolve, 300));
           continue;
         }
