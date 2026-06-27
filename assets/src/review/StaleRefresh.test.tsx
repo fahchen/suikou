@@ -4,16 +4,15 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { StaleRefresh } from "./StaleRefresh"
 
 describe("StaleRefresh", () => {
-  it("renders the stale badge and a refresh button", () => {
+  it("renders a labelled reload control marking the file as changed on disk", () => {
     render(<StaleRefresh onRefresh={() => {}} />)
-    expect(screen.getByText(/changed on disk/i)).toBeTruthy()
-    expect(screen.getByRole("button", { name: /refresh/i })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /changed on disk/i })).toBeTruthy()
   })
 
-  it("calls onRefresh when the refresh button is clicked", () => {
+  it("calls onRefresh when clicked", () => {
     const onRefresh = vi.fn()
     render(<StaleRefresh onRefresh={onRefresh} />)
-    fireEvent.click(screen.getByRole("button", { name: /refresh/i }))
+    fireEvent.click(screen.getByRole("button", { name: /changed on disk/i }))
     expect(onRefresh).toHaveBeenCalledTimes(1)
   })
 })
