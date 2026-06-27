@@ -20,7 +20,7 @@ const COMMENT_HIGHLIGHT_CLASS = "suikou-anchor-highlight"
 const HOVER_HIGHLIGHT_CLASS = "suikou-hover-highlight"
 const TARGET_HIGHLIGHT_CLASS = "suikou-target-highlight"
 
-const ZOOM_MIN = 0.5
+const ZOOM_MIN = 0.1
 const ZOOM_MAX = 2
 const ZOOM_STEP = 0.1
 
@@ -129,26 +129,18 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     if (doc) applyHighlightStyle(doc)
   }, [docVersion, uiStore.theme])
 
-  // Scale the rendered document on the iframe's root element. Prefer CSS `zoom`
-  // where supported (Chromium/Safari): it keeps element bounding rects in sync
-  // with the iframe's own rect so the anchor-popover positioning math stays
-  // correct. Firefox doesn't support `zoom`, so fall back to `transform: scale`
-  // with a top-left origin; transforms also scale child bounding rects, so the
-  // anchor math holds, and widening the root to `100%/z` keeps the scaled layout
-  // filling (and scrollable) instead of clipping to the unscaled box. Reapply on
-  // doc (re)load so a fresh srcdoc keeps the level.
+  // Scale the rendered document with `transform: scale` on the iframe's root.
+  // We deliberately avoid CSS `zoom`: `zoom` is subject to the browser's minimum
+  // font size, so at low levels the text stops shrinking and no longer scales
+  // proportionally with the layout. `transform` is purely geometric, so text and
+  // layout scale together at any level (down to 10%). Top-left origin + widening
+  // the root to `100%/z` keeps the scaled layout filling and scrollable instead
+  // of clipping to the unscaled box; transforms scale child bounding rects too,
+  // so the anchor-popover math holds. Reapply on doc (re)load so a fresh srcdoc
+  // keeps the level.
   useEffect(() => {
     const root = iframeRef.current?.contentDocument?.documentElement
     if (!root) return
-    const supportsZoom =
-      typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("zoom", "2")
-    if (supportsZoom) {
-      root.style.removeProperty("transform")
-      root.style.removeProperty("transform-origin")
-      root.style.removeProperty("width")
-      root.style.setProperty("zoom", String(zoom))
-      return
-    }
     root.style.removeProperty("zoom")
     root.style.transformOrigin = "top left"
     root.style.transform = `scale(${zoom})`

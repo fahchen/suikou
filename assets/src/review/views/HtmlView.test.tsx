@@ -390,10 +390,10 @@ describe("HtmlView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset zoom to 100%" }))
     expect(screen.getByText("100%")).toBeInTheDocument()
 
-    // Step down to the 50% floor; the button disables once clamped.
+    // Step down to the 10% floor; the button disables once clamped.
     const zoomOut = screen.getByRole("button", { name: "Zoom out" })
-    for (let i = 0; i < 10; i++) fireEvent.click(zoomOut)
-    expect(screen.getByText("50%")).toBeInTheDocument()
+    for (let i = 0; i < 12; i++) fireEvent.click(zoomOut)
+    expect(screen.getByText("10%")).toBeInTheDocument()
     expect(zoomOut).toBeDisabled()
   })
 
