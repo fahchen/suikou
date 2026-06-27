@@ -79,7 +79,8 @@ defmodule Suikou.MixProject do
       {:ecto_typed_schema, "~> 0.2.0"},
       {:typed_structor, "~> 0.6.1"},
       {:polymorphic_embed, "~> 5.0"},
-      {:toml, "~> 0.7.0"}
+      {:toml, "~> 0.7.0"},
+      {:file_system, "~> 1.0"}
     ]
   end
 
