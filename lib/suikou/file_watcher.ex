@@ -80,8 +80,18 @@ defmodule Suikou.FileWatcher do
     {dir_sels, file_sels} =
       Enum.split_with(selections, &File.dir?(Path.join(project_path, &1)))
 
-    {:ok, fs} = FileSystem.start_link(dirs: watch_dirs(project_path, file_sels, dir_sels))
-    FileSystem.subscribe(fs)
+    # Run inert if the OS backend is unavailable (e.g. a CI box without
+    # inotify-tools): the watcher still ref-counts subscribers and tears down
+    # cleanly, the page just gets no live-refresh signal — J5.
+    fs =
+      case FileSystem.start_link(dirs: watch_dirs(project_path, file_sels, dir_sels)) do
+        {:ok, pid} ->
+          FileSystem.subscribe(pid)
+          pid
+
+        {:error, _reason} ->
+          nil
+      end
 
     {:ok,
      %{
