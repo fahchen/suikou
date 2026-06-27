@@ -45,7 +45,13 @@ defmodule Mix.Tasks.Suikou.Package do
       mix suikou.package
       suikou stop                 # if a daemon from an older build is running
       cp dist/suikou ~/.local/bin/suikou
+      xattr -c ~/.local/bin/suikou            # drop provenance/quarantine xattrs
+      codesign --force --sign - ~/.local/bin/suikou   # re-sign ad-hoc
       suikou start                # boots the new binary, opens the browser
+
+  The `xattr`/`codesign` steps matter: `cp` invalidates the binary's ad-hoc
+  signature, and macOS then SIGKILLs the copy on exec (a silent "Killed: 9"
+  before any output). Re-signing the installed copy ad-hoc makes it runnable.
 
   Lifecycle state lives in `~/Library/Application Support/Suikou` (independent of
   the binary), so `stop`/`start` reach the daemon across versions. Runtime config
