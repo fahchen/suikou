@@ -17,7 +17,7 @@ defmodule Suikou.Events do
   @typedoc "Message delivered to subscribers after a review-affecting write."
   @type message() ::
           {:review_changed, String.t(), String.t() | nil}
-          | {:files_changed, String.t(), String.t()}
+          | {:files_changed, String.t(), String.t(), boolean()}
 
   @doc """
   Subscribes the calling process to `review_id`'s change topic.
@@ -66,21 +66,24 @@ defmodule Suikou.Events do
   end
 
   @doc """
-  Broadcasts `{:files_changed, review_id, rel_path}` to every subscriber of the
-  review, signalling that the review-relative `rel_path` changed on disk.
+  Broadcasts `{:files_changed, review_id, rel_path, exists?}` to every subscriber
+  of the review, signalling that the review-relative `rel_path` changed on disk.
+  `exists?` is false when the change was a deletion, so the client can drop the
+  file rather than mark it stale.
 
   ## Examples
 
-      Suikou.Events.files_changed("01HZ...", "lib/a.ex")
+      Suikou.Events.files_changed("01HZ...", "lib/a.ex", true)
       #=> :ok
 
   """
-  @spec files_changed(String.t(), String.t()) :: :ok | {:error, term()}
-  def files_changed(review_id, rel_path) when is_binary(review_id) and is_binary(rel_path) do
+  @spec files_changed(String.t(), String.t(), boolean()) :: :ok | {:error, term()}
+  def files_changed(review_id, rel_path, exists?)
+      when is_binary(review_id) and is_binary(rel_path) and is_boolean(exists?) do
     Phoenix.PubSub.broadcast(
       @pubsub,
       topic(review_id),
-      {:files_changed, review_id, rel_path}
+      {:files_changed, review_id, rel_path, exists?}
     )
   end
 

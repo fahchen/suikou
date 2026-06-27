@@ -3,14 +3,14 @@ defmodule Suikou.EventsTest do
 
   alias Suikou.Events
 
-  describe "files_changed/2" do
-    test "broadcasts {:files_changed, review_id, rel_path} to subscribers" do
+  describe "files_changed/3" do
+    test "broadcasts {:files_changed, review_id, rel_path, exists?} to subscribers" do
       review_id = "rv-#{System.unique_integer([:positive])}"
       Events.subscribe(review_id)
 
-      assert :ok = Events.files_changed(review_id, "lib/a.ex")
+      assert :ok = Events.files_changed(review_id, "lib/a.ex", true)
 
-      assert_receive {:files_changed, ^review_id, "lib/a.ex"}
+      assert_receive {:files_changed, ^review_id, "lib/a.ex", true}
     end
   end
 end

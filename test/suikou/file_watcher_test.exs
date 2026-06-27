@@ -3,20 +3,25 @@ defmodule Suikou.FileWatcherTest do
 
   alias Suikou.FileWatcher
 
-  describe "relative_for/3" do
-    test "returns the review-relative path for a changed file in the watched set" do
-      set = MapSet.new(["lib/a.ex", "lib/b.ex"])
-      assert FileWatcher.relative_for("/proj/lib/a.ex", "/proj", set) == "lib/a.ex"
+  describe "changed_path/4" do
+    test "returns the relative path for a file selection matched exactly" do
+      files = MapSet.new(["lib/a.ex", "lib/b.ex"])
+      assert FileWatcher.changed_path("/proj/lib/a.ex", "/proj", files, []) == "lib/a.ex"
     end
 
-    test "returns nil for a changed file not in the review's set" do
-      set = MapSet.new(["lib/a.ex"])
-      assert FileWatcher.relative_for("/proj/lib/c.ex", "/proj", set) == nil
+    test "returns the relative path for any file under a directory selection" do
+      assert FileWatcher.changed_path("/proj/docs/new.md", "/proj", MapSet.new([]), ["docs"]) ==
+               "docs/new.md"
+    end
+
+    test "returns nil for an unrelated sibling of a file selection" do
+      files = MapSet.new(["lib/a.ex"])
+      assert FileWatcher.changed_path("/proj/lib/c.ex", "/proj", files, []) == nil
     end
 
     test "returns nil for a path outside the project root" do
-      set = MapSet.new(["lib/a.ex"])
-      assert FileWatcher.relative_for("/etc/passwd", "/proj", set) == nil
+      files = MapSet.new(["lib/a.ex"])
+      assert FileWatcher.changed_path("/etc/passwd", "/proj", files, []) == nil
     end
   end
 
