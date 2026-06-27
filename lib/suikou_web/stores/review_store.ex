@@ -104,7 +104,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   defp watch_files(review_id) do
     with %Review{project: project} = review <- Reviews.get_review(review_id),
          true <- File.dir?(project.path),
-         [_ | _] = selections <- selections(review) do
+         [_first | _rest] = selections <- selections(review) do
       FileWatcher.subscribe(review_id, project.path, selections)
     else
       _absent -> :ok

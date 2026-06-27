@@ -38,24 +38,24 @@ defmodule Suikou.FileWatcherTest do
       _s1 = start_subscriber(ctx.review_id, ctx.dir)
       _s2 = start_subscriber(ctx.review_id, ctx.dir)
 
-      assert [{_watcher, _}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      assert [{_watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
     end
 
     test "watcher stays alive while another subscriber remains", ctx do
       s1 = start_subscriber(ctx.review_id, ctx.dir)
       _s2 = start_subscriber(ctx.review_id, ctx.dir)
-      [{watcher, _}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
 
       stop_subscriber(s1)
-      _ = :sys.get_state(watcher)
+      _state = :sys.get_state(watcher)
 
       assert Process.alive?(watcher)
-      assert [{^watcher, _}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      assert [{^watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
     end
 
     test "watcher stops when its last subscriber exits", ctx do
       s1 = start_subscriber(ctx.review_id, ctx.dir)
-      [{watcher, _}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
       ref = Process.monitor(watcher)
 
       stop_subscriber(s1)
