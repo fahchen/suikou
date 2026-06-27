@@ -33,6 +33,9 @@ if (typeof window !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") reconnect()
   })
+  // Network came back after a drop — reconnect a socket we may have lost. None of
+  // these fire while frozen, so they never hold the page out of bfcache.
+  window.addEventListener("online", reconnect)
 }
 
 /**
