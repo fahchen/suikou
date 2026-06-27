@@ -75,7 +75,7 @@ defmodule Suikou.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:musubi, "~> 0.11.0"},
+      {:musubi, "~> 0.12"},
       {:ecto_typed_schema, "~> 0.2.0"},
       {:typed_structor, "~> 0.6.1"},
       {:polymorphic_embed, "~> 5.0"},
