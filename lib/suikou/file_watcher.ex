@@ -89,7 +89,8 @@ defmodule Suikou.FileWatcher do
           FileSystem.subscribe(pid)
           pid
 
-        {:error, _reason} ->
+        # {:error, _} or :ignore (no OS backend, e.g. inotify-tools missing).
+        _unavailable ->
           nil
       end
 
