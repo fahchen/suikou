@@ -38,6 +38,38 @@ if (typeof window !== "undefined") {
   window.addEventListener("online", reconnect)
 }
 
+// Bumps on every reconnect (the 2nd+ socket open). Drives a full root remount
+// (see `useReconnectEpoch`): musubi's own reconnect recovery re-joins the SAME
+// server root_id, which fails when the server recreated the store under a new id
+// (its page server timed out while we were backgrounded, or it restarted). A
+// fresh mount sidesteps that — it adopts whatever root_id the server now hands
+// back instead of re-joining a dead one.
+let socketOpens = 0
+let reconnectEpoch = 0
+const epochListeners = new Set<() => void>()
+socket.onOpen(() => {
+  socketOpens += 1
+  if (socketOpens > 1) {
+    reconnectEpoch += 1
+    for (const notify of epochListeners) notify()
+  }
+})
+
+/**
+ * A counter that increments each time the socket reconnects. Use it as a React
+ * `key` on the subtree that mounts a root store so a reconnect remounts it
+ * cleanly — recovering even when the server lost the original store.
+ */
+export function useReconnectEpoch(): number {
+  return useSyncExternalStore(
+    (onChange) => {
+      epochListeners.add(onChange)
+      return () => epochListeners.delete(onChange)
+    },
+    () => reconnectEpoch
+  )
+}
+
 /**
  * Live WebSocket connectivity. `useMusubiConnectionStatus` only reports the
  * initial connect; it stays "ready" after a mid-session drop. The phoenix socket,
