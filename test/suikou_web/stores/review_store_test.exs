@@ -105,6 +105,15 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
     end
 
+    test "files_changed forwards a disk-change signal to the body" do
+      socket = %Socket{assigns: %{review_id: "rv"}}
+
+      assert {:noreply, ^socket} =
+               ReviewStore.handle_info({:files_changed, "rv", "lib/a.ex"}, socket)
+
+      assert_received {:musubi_send_update, ["body"], %{disk_changed: "lib/a.ex"}}
+    end
+
     test "add_comment on an unminted file mints instead of crashing the page server" do
       # An unminted file's FileStore is mounted with artifact_id: nil, which is
       # dropped from assigns — the key is absent, not nil. The first comment must

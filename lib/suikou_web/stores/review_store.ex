@@ -16,6 +16,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Musubi.Child
   alias Musubi.Socket
   alias Suikou.Events
+  alias Suikou.FileWatcher
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Rounds
@@ -91,7 +92,21 @@ defmodule SuikouWeb.Stores.ReviewStore do
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
     Events.subscribe(review_id)
+    watch_files(review_id)
     {:ok, Socket.assign(socket, :review_id, review_id)}
+  end
+
+  # Start (or join) the review's file watcher, ref-counted by this store process.
+  # Skipped when the review is gone or its project dir is missing, so a stale
+  # link still loads the page (just without the live-refresh signal).
+  defp watch_files(review_id) do
+    with %Review{project: project} = review <- Reviews.get_review(review_id),
+         true <- File.dir?(project.path) do
+      paths = Enum.map(Reviews.list_files(review), & &1.path)
+      FileWatcher.subscribe(review_id, project.path, paths)
+    else
+      _absent -> :ok
+    end
   end
 
   @impl Musubi.Store
@@ -120,6 +135,15 @@ defmodule SuikouWeb.Stores.ReviewStore do
       Musubi.send_update(body, %{reload: :structure})
     end
 
+    {:noreply, socket}
+  end
+
+  # A watched file changed on disk: forward the relative path to the body, which
+  # routes it to that one file's child to bump its disk_version.
+  def handle_info({:files_changed, _review_id, rel_path}, socket) do
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+    body = Socket.store_id(socket) ++ ["body"]
+    Musubi.send_update(body, %{disk_changed: rel_path})
     {:noreply, socket}
   end
 

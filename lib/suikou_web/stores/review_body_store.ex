@@ -77,6 +77,22 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     {:ok, reload_aggregates(socket)}
   end
 
+  # A file changed on disk: forward the signal to that one file's child (found by
+  # path in the current file list), which bumps its disk_version. No DB read.
+  def update(%{disk_changed: path}, socket) do
+    case file_child_id(socket, path) do
+      nil ->
+        :ok
+
+      child_id ->
+        # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+        target = Socket.store_id(socket) ++ ["files", child_id]
+        Musubi.send_update(target, %{disk_changed: true})
+    end
+
+    {:ok, socket}
+  end
+
   # A plain prop re-render (e.g. a round switch) needs no DB read — the new
   # props drive `render/1` and flow to the file children directly.
   def update(assigns, socket) do
@@ -115,6 +131,21 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   def handle_async(:file_entries, {:exit, reason}, socket) do
     prior = socket.assigns[:file_entries] || AsyncResult.loading()
     {:noreply, Socket.assign(socket, :file_entries, AsyncResult.failed(prior, {:exit, reason}))}
+  end
+
+  # The child id for a path is its artifact_id when minted, else the path itself
+  # (mirrors render_file_children). nil when the path is not in the file list.
+  defp file_child_id(socket, path) do
+    case socket.assigns[:file_entries] do
+      %AsyncResult{result: files} when is_list(files) ->
+        case Enum.find(files, &(&1.path == path)) do
+          nil -> nil
+          file -> file.artifact_id || file.path
+        end
+
+      _absent ->
+        nil
+    end
   end
 
   defp bump_structure_version(socket) do
