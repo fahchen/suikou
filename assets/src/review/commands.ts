@@ -60,14 +60,16 @@ function useDefaultReviewCommands() {
   };
 }
 
-// Retry a command that rejects with "Store is not connected", bridging the brief
-// window after a reconnect before the store is live again. If the socket is
-// closed, reconnect it (we release it on `pagehide`, a clean disconnect phoenix
-// never auto-reconnects). A reconnect also remounts the review subtree (see
-// `useReconnectEpoch`), which is what actually recovers a server-recreated store;
-// these retries just keep a command fired mid-recovery from failing outright.
-// Never retries timeouts (the push may have landed), so a genuine server
-// rejection still surfaces.
+// Retry a command that rejects with "Store is not connected", recovering the
+// connection as we go. After an iOS Safari resume the transport can be in one of
+// two bad states: closed (we release it on `pagehide`, a clean disconnect
+// phoenix never auto-reconnects, and the resume hooks may have missed), or
+// *reported* open but actually dead (the OS suspended it without a close event),
+// in which case the store channel never re-joins. So: if the socket is closed,
+// connect it; if it claims to be open yet the command still can't reach the
+// store, force a fresh transport once — musubi re-joins every root on the new
+// socket's `onOpen`. Never retries timeouts (the push may have landed), so a
+// genuine server rejection still surfaces.
 const RECONNECT_ATTEMPTS = 15;
 
 function resilient<
@@ -80,7 +82,7 @@ function resilient<
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes("not connected") && attempt < RECONNECT_ATTEMPTS) {
-          if (!socket.isConnected()) socket.connect();
+          recoverSocket(attempt);
           await new Promise((resolve) => setTimeout(resolve, 300));
           continue;
         }
@@ -89,6 +91,18 @@ function resilient<
     }
   }) as T["dispatch"];
   return { ...command, dispatch };
+}
+
+function recoverSocket(attempt: number): void {
+  if (!socket.isConnected()) {
+    socket.connect();
+  } else if (attempt === 2) {
+    // Socket claims open but the store won't join (a dead transport after an iOS
+    // suspend, or a missed re-join). Cycle it once so musubi's onOpen recovery
+    // re-joins every root on a genuinely fresh transport.
+    socket.disconnect();
+    socket.connect();
+  }
 }
 
 /**
