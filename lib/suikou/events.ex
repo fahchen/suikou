@@ -15,7 +15,9 @@ defmodule Suikou.Events do
   @pubsub Suikou.PubSub
 
   @typedoc "Message delivered to subscribers after a review-affecting write."
-  @type message() :: {:review_changed, String.t(), String.t() | nil}
+  @type message() ::
+          {:review_changed, String.t(), String.t() | nil}
+          | {:files_changed, String.t(), String.t()}
 
   @doc """
   Subscribes the calling process to `review_id`'s change topic.
@@ -60,6 +62,25 @@ defmodule Suikou.Events do
       @pubsub,
       topic(review_id),
       {:review_changed, review_id, artifact_id}
+    )
+  end
+
+  @doc """
+  Broadcasts `{:files_changed, review_id, rel_path}` to every subscriber of the
+  review, signalling that the review-relative `rel_path` changed on disk.
+
+  ## Examples
+
+      Suikou.Events.files_changed("01HZ...", "lib/a.ex")
+      #=> :ok
+
+  """
+  @spec files_changed(String.t(), String.t()) :: :ok | {:error, term()}
+  def files_changed(review_id, rel_path) when is_binary(review_id) and is_binary(rel_path) do
+    Phoenix.PubSub.broadcast(
+      @pubsub,
+      topic(review_id),
+      {:files_changed, review_id, rel_path}
     )
   end
 
