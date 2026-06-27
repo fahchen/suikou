@@ -109,9 +109,9 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       socket = %Socket{assigns: %{review_id: "rv"}}
 
       assert {:noreply, ^socket} =
-               ReviewStore.handle_info({:files_changed, "rv", "lib/a.ex"}, socket)
+               ReviewStore.handle_info({:files_changed, "rv", "lib/a.ex", true}, socket)
 
-      assert_received {:musubi_send_update, ["body"], %{disk_changed: "lib/a.ex"}}
+      assert_received {:musubi_send_update, ["body"], %{disk_changed: "lib/a.ex", exists: true}}
     end
 
     test "add_comment on an unminted file mints instead of crashing the page server" do

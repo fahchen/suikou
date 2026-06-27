@@ -97,17 +97,22 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   # Start (or join) the review's file watcher, ref-counted by this store process.
-  # Skipped when the review is gone or its project dir is missing, so a stale
-  # link still loads the page (just without the live-refresh signal).
+  # Watches the review's raw selections (files/dirs) so creates under a selected
+  # dir are noticed. Skipped when the review is gone, its project dir is missing,
+  # or it has no on-disk selections (a git-diff review), so a stale link still
+  # loads the page (just without the live-refresh signal).
   defp watch_files(review_id) do
     with %Review{project: project} = review <- Reviews.get_review(review_id),
-         true <- File.dir?(project.path) do
-      paths = Enum.map(Reviews.list_files(review), & &1.path)
-      FileWatcher.subscribe(review_id, project.path, paths)
+         true <- File.dir?(project.path),
+         [_ | _] = selections <- selections(review) do
+      FileWatcher.subscribe(review_id, project.path, selections)
     else
       _absent -> :ok
     end
   end
+
+  defp selections(%Review{source: %FileSelection{selection_paths: paths}}), do: paths
+  defp selections(%Review{source: %GitDiff{}}), do: []
 
   @impl Musubi.Store
   @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
@@ -138,12 +143,13 @@ defmodule SuikouWeb.Stores.ReviewStore do
     {:noreply, socket}
   end
 
-  # A watched file changed on disk: forward the relative path to the body, which
-  # routes it to that one file's child to bump its disk_version.
-  def handle_info({:files_changed, _review_id, rel_path}, socket) do
+  # A watched file changed on disk: forward the path and whether it still exists
+  # to the body, which either marks the file stale or re-derives the file list
+  # (a create or delete).
+  def handle_info({:files_changed, _review_id, rel_path, exists?}, socket) do
     # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     body = Socket.store_id(socket) ++ ["body"]
-    Musubi.send_update(body, %{disk_changed: rel_path})
+    Musubi.send_update(body, %{disk_changed: rel_path, exists: exists?})
     {:noreply, socket}
   end
 

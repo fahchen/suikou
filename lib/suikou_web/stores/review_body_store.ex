@@ -77,20 +77,21 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     {:ok, reload_aggregates(socket)}
   end
 
-  # A file changed on disk: forward the signal to that one file's child (found by
-  # path in the current file list), which bumps its disk_version. No DB read.
-  def update(%{disk_changed: path}, socket) do
-    case file_child_id(socket, path) do
-      nil ->
-        :ok
+  # A file changed on disk. If it is a known file that still exists, mark just
+  # that child stale (bumps its disk_version). Otherwise the file list reshaped —
+  # a create (unknown path) or delete (gone) — so re-derive it, bumping the
+  # structure version to refetch the client's chrome.
+  def update(%{disk_changed: path, exists: exists}, socket) do
+    child_id = if exists, do: file_child_id(socket, path), else: nil
 
-      child_id ->
-        # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
-        target = Socket.store_id(socket) ++ ["files", child_id]
-        Musubi.send_update(target, %{disk_changed: true})
+    if child_id do
+      # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+      target = Socket.store_id(socket) ++ ["files", child_id]
+      Musubi.send_update(target, %{disk_changed: true})
+      {:ok, socket}
+    else
+      {:ok, socket |> bump_structure_version() |> reload_aggregates() |> load_files()}
     end
-
-    {:ok, socket}
   end
 
   # A plain prop re-render (e.g. a round switch) needs no DB read — the new
