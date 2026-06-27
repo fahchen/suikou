@@ -113,16 +113,33 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   // Find the FileStore proxy and its live snapshot by matching path.
   // snapshot.body.files[i] and reviewStore.body.files[i] are parallel arrays.
   const fileIndex = live ? live.findIndex((fs) => fs.path === props.path) : -1;
-  const fileSnapshot = fileIndex >= 0 ? live![fileIndex] : undefined;
-  const fileProxy = fileIndex >= 0 ? reviewStore.body.files[fileIndex] : undefined;
+  const liveRow =
+    fileIndex >= 0
+      ? { fileSnapshot: live![fileIndex], fileProxy: reviewStore.body.files[fileIndex] }
+      : null;
 
-  if (!fileSnapshot || !fileProxy) {
-    // The path resolves to no live file row. While the snapshot is still
-    // hydrating or a mint is in flight the skeleton is correct; once the
-    // structure has settled and the path is genuinely absent from it
-    // (deleted/renamed under a directory selection, or a stale link), prompt
-    // the user to jump to one of the review's files rather than stranding them.
-    const knownPath = structure.file_entries.some((e) => e.path === props.path);
+  const knownPath = structure.file_entries.some((e) => e.path === props.path);
+
+  // A reconnect re-mounts the root with a whole-root `replace` patch, so
+  // `body.files` reads empty for a frame and the row vanishes — the same
+  // transient AllFilesView already guards against. Without a guard the file
+  // subtree unmounts to a skeleton and rebuilds: a visible reload-like flash
+  // (the file content, served from the HTTP/SWR cache, blanks and re-tokenizes).
+  // Hold the last-good row (only while the path is still a real file) so the
+  // content keeps rendering; the live row wins again the instant it returns.
+  const held = useRef<{ path: string; row: NonNullable<typeof liveRow> } | null>(null);
+  if (liveRow) {
+    held.current = { path: props.path, row: liveRow };
+  } else if (held.current && (held.current.path !== props.path || !knownPath)) {
+    held.current = null;
+  }
+  const row = liveRow ?? (held.current?.path === props.path ? held.current.row : null);
+
+  if (!row) {
+    // No live row and nothing held: a genuine miss. Once the structure has
+    // settled and the path is absent from it (deleted/renamed under a directory
+    // selection, or a stale link), prompt the user to jump to a real file;
+    // otherwise we are still on the very first hydrate, so show the skeleton.
     if (minting === null && !knownPath) {
       return <MissingFilePrompt structure={structure} path={props.path} />;
     }
@@ -137,8 +154,12 @@ const ReviewShell = observer(function ReviewShell(props: { path: string }) {
   return (
     <>
       <MintProgressStrip path={minting} />
-      <FileStoreProvider store={fileProxy}>
-        <HydratedReviewShell path={props.path} reviewSnapshot={reviewSnapshot as ReviewSnapshot} />
+      <FileStoreProvider store={row.fileProxy}>
+        <HydratedReviewShell
+          path={props.path}
+          reviewSnapshot={reviewSnapshot as ReviewSnapshot}
+          fallbackSnapshot={row.fileSnapshot}
+        />
       </FileStoreProvider>
     </>
   );
@@ -167,13 +188,12 @@ type FileSnapshotLive = ReturnType<typeof useFileSnapshot>;
 const HydratedReviewShell = observer(function HydratedReviewShell(props: {
   path: string;
   reviewSnapshot: ReviewSnapshot;
+  fallbackSnapshot: NonNullable<FileSnapshotLive>;
 }) {
-  const fileSnapshotLive = useFileSnapshot();
-
-  // Undefined while the file store node is absent mid-reconnect.
-  if (!fileSnapshotLive) {
-    return <ReviewShellSkeleton label="Connecting…" />;
-  }
+  // The file store node reads undefined for a frame mid-reconnect; fall back to
+  // the last-good row ReviewShell held so the body stays mounted instead of
+  // flashing a skeleton. The live snapshot takes over again once it is back.
+  const fileSnapshotLive = useFileSnapshot() ?? props.fallbackSnapshot;
 
   // Pass the validated snapshot down. The body must NOT re-subscribe via
   // useMusubiSnapshot: a child observer re-renders independently on the next stub
