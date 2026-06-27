@@ -5,6 +5,8 @@ import type { ViewCapabilities } from "./view-kind";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => () => undefined,
+  useRouterState: (opts: { select: (s: { location: { pathname: string } }) => unknown }) =>
+    opts.select({ location: { pathname: "/reviews/r-1/files/docs/plan.md" } }),
 }));
 
 beforeAll(() => {
