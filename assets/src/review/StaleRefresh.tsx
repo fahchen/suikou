@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button"
 export function StaleRefresh(props: { onRefresh: () => void }) {
   return (
     <Button
-      variant="ghost"
+      variant="pill"
       size="icon-xs"
       onClick={props.onRefresh}
       title="Changed on disk — reload"
       aria-label="Changed on disk — reload"
-      className="bg-amber-soft text-amber ring-1 ring-inset ring-amber/30 hover:bg-amber-soft hover:text-amber"
+      className="text-amber hover:text-amber"
     >
       <RotateCw />
     </Button>
