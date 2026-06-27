@@ -7,7 +7,7 @@ import { FileVerdictMenu } from "./TopBarVerdictMenu"
 import { orderedReviewFiles } from "./file-order"
 import { reviewFileTarget } from "./review-navigation"
 import { resolveViewKind, viewCapabilities } from "./view-kind"
-import { isImagePath, isBinaryContent } from "./file-type"
+import { isImagePath, isBinaryContent, isPreviewable } from "./file-type"
 import { useFileStore, visibleComments } from "./store-context"
 import {
   structureEntry,
@@ -24,8 +24,10 @@ export const FileHeader = observer(function FileHeader(props: {
   content: string
   verdict: Verdict | null
   onVerdictChange: (verdict: Verdict) => void
+  stale?: boolean
+  onRefresh?: () => void
 }) {
-  const { sourceView, content, verdict, onVerdictChange } = props
+  const { sourceView, content, verdict, onVerdictChange, stale, onRefresh } = props
   const fileStore = useFileStore()
   const fileSnapshot = useMusubiSnapshot(fileStore)
   const structure = useReviewStructure()
@@ -42,7 +44,9 @@ export const FileHeader = observer(function FileHeader(props: {
   const image = isImagePath(title)
   const binary = isBinaryContent(content)
   const changeStatus: ChangeStatus = structureEntry(structure, path)?.change_status ?? null
-  const previewable = viewKind === "file" && !image && !binary
+  // Only markdown has a rendered preview to toggle to; plain source files
+  // (.c, .ex, …) render as highlighted source only, so no rendered/source toggle.
+  const previewable = isPreviewable(title) && viewKind === "file" && !image && !binary
   const capabilities = viewCapabilities({
     kind: viewKind,
     previewable,
@@ -83,6 +87,8 @@ export const FileHeader = observer(function FileHeader(props: {
       capabilities={capabilities}
       sourceView={sourceView}
       onSourceViewChange={setSourceView}
+      stale={stale}
+      onRefresh={onRefresh}
       files={files}
       onSelectFile={(file) => void selectFile(file)}
       commentCountFor={commentCountFor}

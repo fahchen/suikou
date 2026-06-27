@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { renderHook, waitFor } from "@testing-library/react"
+import { renderHook, waitFor, act } from "@testing-library/react"
 
 import {
   contentErrorFrom,
@@ -9,21 +9,28 @@ import {
 } from "./use-content"
 
 function state(overrides: Partial<ContentState>): ContentState {
-  return { text: "", loading: false, error: null, missing: false, etag: "", ...overrides }
+  return {
+    text: "",
+    loading: false,
+    error: null,
+    missing: false,
+    etag: "",
+    refetch: () => {},
+    ...overrides
+  }
 }
 
-function mockFetch(etag: string | null): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() =>
-      Promise.resolve({
-        status: 200,
-        ok: true,
-        text: () => Promise.resolve("source bytes"),
-        headers: { get: (k: string) => (k.toLowerCase() === "etag" ? etag : null) }
-      } as unknown as Response)
-    )
+function mockFetch(etag: string | null) {
+  const fn = vi.fn(() =>
+    Promise.resolve({
+      status: 200,
+      ok: true,
+      text: () => Promise.resolve("source bytes"),
+      headers: { get: (k: string) => (k.toLowerCase() === "etag" ? etag : null) }
+    } as unknown as Response)
   )
+  vi.stubGlobal("fetch", fn)
+  return fn
 }
 
 describe("contentErrorFrom", () => {
@@ -68,5 +75,15 @@ describe("useReviewFileContent etag", () => {
     await waitFor(() => expect(result.current.text).toBe("source bytes"))
     // Not "" — an empty key would collide every file onto one cache entry.
     expect(result.current.etag).toBe("hash-a")
+  })
+
+  it("refetch() forces a new fetch of the same url", async () => {
+    const fn = mockFetch('"e"')
+    const { result } = renderHook(() => useReviewFileContent("review-1", "lib/a.ex", "hash-a", true))
+    await waitFor(() => expect(result.current.text).toBe("source bytes"))
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    act(() => result.current.refetch())
+    await waitFor(() => expect(fn).toHaveBeenCalledTimes(2))
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { contentUrl, reviewFileContentUrl } from "./urls"
 
@@ -12,7 +12,12 @@ export interface ContentState {
    * when the backend sends one, else the caller's revision key as a per-file
    * fallback. Never "" for present content, so files can't collide on one key. */
   etag: string
+  /** Re-runs the fetch against the same url. The content route is served live,
+   * so this pulls the latest bytes on demand (e.g. after a disk change). */
+  refetch: () => void
 }
+
+type ContentData = Omit<ContentState, "refetch">
 
 /**
  * Body shown when an artifact's source can't be found (the backend answered
@@ -59,7 +64,7 @@ export function useReviewFileContent(
 }
 
 function useTextContent(url: string | null, cacheKey: string): ContentState {
-  const [state, setState] = useState<ContentState>({
+  const [state, setState] = useState<ContentData>({
     text: "",
     loading: url !== null,
     error: null,
@@ -67,6 +72,9 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
     etag: ""
   })
   const lastUrl = useRef(url)
+  // Bumped by refetch() to force the effect to re-run against the same url.
+  const [nonce, setNonce] = useState(0)
+  const refetch = useCallback(() => setNonce((n) => n + 1), [])
 
   useEffect(() => {
     if (url === null) {
@@ -111,7 +119,7 @@ function useTextContent(url: string | null, cacheKey: string): ContentState {
     return () => {
       cancelled = true
     }
-  }, [url, cacheKey])
+  }, [url, cacheKey, nonce])
 
-  return state
+  return { ...state, refetch }
 }

@@ -8,6 +8,7 @@ import { uiStore } from "../stores/ui-store";
 import { useMarkdown } from "../markdown/use-markdown";
 import { contentErrorFrom, useContent, useReviewFileContent } from "./use-content";
 import { useRawHighlight } from "./use-raw-highlight";
+import { useDiskStale } from "./use-disk-stale";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import {
   isFiltering,
@@ -261,6 +262,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
     etag,
   );
   const rawLines = useRawHighlight(content, title, etag);
+  const { stale, refresh } = useDiskStale(snapshot.disk_version, etag, contentState.refetch);
   const loading = blocks.loading || contentLoading;
 
   const seenIds = useRef<Set<string> | null>(null);
@@ -330,6 +332,8 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
                   content={content}
                   verdict={verdict}
                   onVerdictChange={changeVerdict}
+                  stale={stale}
+                  onRefresh={refresh}
                 />
                 {missing ? (
                   <MissingFilePanel

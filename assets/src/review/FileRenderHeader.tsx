@@ -6,6 +6,7 @@ import { useHeaderControls } from "./header-slot"
 import { uiStore } from "../stores/ui-store"
 import { FileIcon } from "./FileIcon"
 import { FileSwitcher } from "./FileSwitcher"
+import { StaleRefresh } from "./StaleRefresh"
 import { TopBarTocMenu } from "./TopBarTocMenu"
 import type { ReviewFileEntry } from "./types"
 import type { ViewCapabilities, ViewKind } from "./view-kind"
@@ -34,6 +35,9 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   sourceView: boolean
   onSourceViewChange: (source: boolean) => void
   verdictChip: React.ReactNode
+  // Disk-change affordance: when stale, a "changed on disk" badge + refresh.
+  stale?: boolean
+  onRefresh?: () => void
   // File switcher: present together when the path should open a file picker.
   files?: ReviewFileEntry[]
   onSelectFile?: (file: ReviewFileEntry) => void
@@ -53,6 +57,8 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
     sourceView,
     onSourceViewChange,
     verdictChip,
+    stale,
+    onRefresh,
     files,
     onSelectFile,
     commentCountFor,
@@ -115,6 +121,7 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
       {tocSupported && (
         <TopBarTocMenu content={outlineContent} path={filePath} />
       )}
+      {stale && onRefresh && <StaleRefresh onRefresh={onRefresh} />}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
         {headerControls}
