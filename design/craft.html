@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suikou · Craft-style exploration</title>
+<style>
+/* ============================================================
+   SUIKOU reimagined in the visual language of Craft (craft.do).
+   A warm, premium document experience. Soft warm paper canvas,
+   a document tree sidebar, a centered document canvas, code and
+   markdown rendered as beautiful blocks, soft floating comment
+   cards in the right margin. Light + dark theme.
+   Self-contained: no network, no web fonts, inline SVG, OKLCH.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Warm paper neutrals ---- */
+  --canvas:      oklch(98.5% 0.006 85);   /* main document paper */
+  --sidebar:     oklch(96.5% 0.006 80);   /* slightly warmer/greyer rail */
+  --surface:     oklch(99.4% 0.004 85);   /* lifted card fill (whiter paper) */
+  --surface-2:   oklch(97.2% 0.006 82);   /* sunken / inset surface */
+  --code-bg:     oklch(97.4% 0.007 82);   /* code block paper */
+
+  /* ---- Warm near-black ink ---- */
+  --ink-0: oklch(28% 0.012 70);   /* primary text */
+  --ink-1: oklch(43% 0.012 72);   /* secondary */
+  --ink-2: oklch(58% 0.012 75);   /* tertiary / captions */
+  --ink-3: oklch(72% 0.010 78);   /* faint / gutter */
+
+  /* ---- Craft vivid friendly blue accent ---- */
+  --accent:       oklch(55% 0.20 258);   /* ~ #2665F0 */
+  --accent-press: oklch(50% 0.20 258);
+  --accent-soft:  oklch(55% 0.20 258 / 0.12);
+  --accent-tint:  oklch(55% 0.20 258 / 0.08);
+  --on-accent:    oklch(99% 0.01 258);
+  --selection:    oklch(55% 0.20 258 / 0.18);
+
+  /* ---- Verdict semantics (gentle) ---- */
+  --approve:      oklch(56% 0.13 155);
+  --approve-bg:   oklch(92% 0.06 155 / 0.7);
+  --request:      oklch(56% 0.16 25);
+  --request-bg:   oklch(93% 0.05 28 / 0.8);
+  --comment-v:    oklch(54% 0.13 250);
+  --comment-bg:   oklch(93% 0.05 255 / 0.8);
+
+  /* ---- Soft comment-type highlight tints (Craft text-highlight feel) ---- */
+  --hi-fix:    oklch(92% 0.055 28);    /* soft coral */
+  --hi-fix-in: oklch(46% 0.14 28);
+  --hi-ask:    oklch(93% 0.06 80);     /* soft amber */
+  --hi-ask-in: oklch(46% 0.10 72);
+  --hi-note:   oklch(94% 0.008 80);    /* soft warm grey */
+  --hi-note-in:oklch(48% 0.012 75);
+
+  /* ---- Diff ---- */
+  --diff-add-bg: oklch(93% 0.05 155 / 0.65);
+  --diff-add-mk: oklch(50% 0.12 155);
+  --diff-del-bg: oklch(94% 0.04 28 / 0.7);
+  --diff-del-mk: oklch(52% 0.14 28);
+
+  /* ---- Syntax (warm, calm) ---- */
+  --syn-key:  oklch(50% 0.16 300);   /* def / do / end - violet */
+  --syn-fn:   oklch(48% 0.14 250);   /* function names - blue */
+  --syn-atom: oklch(52% 0.13 50);    /* :atoms - warm orange */
+  --syn-str:  oklch(48% 0.12 150);   /* strings - green */
+  --syn-com:  oklch(64% 0.02 75);    /* comments - warm grey */
+  --syn-mod:  oklch(46% 0.11 210);   /* Modules - teal */
+
+  /* ---- Hairlines + soft layered shadows (Craft floating cards) ---- */
+  --hair:        oklch(72% 0.01 75 / 0.22);
+  --hair-soft:   oklch(72% 0.01 75 / 0.12);
+  --shadow-card:
+    0 1px 2px oklch(40% 0.02 70 / 0.04),
+    0 4px 10px oklch(40% 0.02 70 / 0.05),
+    0 12px 28px oklch(40% 0.02 70 / 0.06);
+  --shadow-lift:
+    0 2px 6px oklch(40% 0.02 70 / 0.07),
+    0 10px 24px oklch(40% 0.02 70 / 0.08),
+    0 28px 60px oklch(40% 0.02 70 / 0.10);
+  --shadow-win:
+    0 2px 8px oklch(35% 0.02 70 / 0.06),
+    0 18px 44px oklch(35% 0.02 70 / 0.10),
+    0 50px 110px oklch(35% 0.02 70 / 0.12);
+
+  /* ---- Radii (rounded everything) ---- */
+  --r-win: 20px;
+  --r-card: 16px;
+  --r-block: 14px;
+  --r-pill: 999px;
+  --r-chip: 9px;
+
+  --font: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* ---- Dark theme: deep warm-neutral, not cold charcoal ---- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas:      oklch(22% 0.008 70);
+  --sidebar:     oklch(19.5% 0.008 68);
+  --surface:     oklch(26% 0.009 72);
+  --surface-2:   oklch(24% 0.008 70);
+  --code-bg:     oklch(25% 0.009 70);
+
+  --ink-0: oklch(94% 0.006 80);
+  --ink-1: oklch(80% 0.008 78);
+  --ink-2: oklch(66% 0.010 76);
+  --ink-3: oklch(52% 0.010 74);
+
+  --accent:       oklch(68% 0.16 258);
+  --accent-press: oklch(72% 0.16 258);
+  --accent-soft:  oklch(68% 0.16 258 / 0.18);
+  --accent-tint:  oklch(68% 0.16 258 / 0.12);
+  --on-accent:    oklch(99% 0.01 258);
+  --selection:    oklch(68% 0.16 258 / 0.26);
+
+  --approve:      oklch(78% 0.14 158);
+  --approve-bg:   oklch(45% 0.09 158 / 0.32);
+  --request:      oklch(76% 0.14 28);
+  --request-bg:   oklch(45% 0.10 28 / 0.32);
+  --comment-v:    oklch(76% 0.12 252);
+  --comment-bg:   oklch(45% 0.09 252 / 0.32);
+
+  --hi-fix:    oklch(42% 0.09 28 / 0.5);
+  --hi-fix-in: oklch(82% 0.11 28);
+  --hi-ask:    oklch(44% 0.08 72 / 0.5);
+  --hi-ask-in: oklch(84% 0.11 80);
+  --hi-note:   oklch(40% 0.008 75 / 0.6);
+  --hi-note-in:oklch(76% 0.010 78);
+
+  --diff-add-bg: oklch(45% 0.09 158 / 0.26);
+  --diff-add-mk: oklch(80% 0.13 158);
+  --diff-del-bg: oklch(45% 0.10 28 / 0.26);
+  --diff-del-mk: oklch(80% 0.13 28);
+
+  --syn-key:  oklch(78% 0.13 305);
+  --syn-fn:   oklch(78% 0.11 250);
+  --syn-atom: oklch(80% 0.12 60);
+  --syn-str:  oklch(80% 0.12 150);
+  --syn-com:  oklch(58% 0.015 75);
+  --syn-mod:  oklch(80% 0.10 205);
+
+  --hair:      oklch(80% 0.01 75 / 0.14);
+  --hair-soft: oklch(80% 0.01 75 / 0.08);
+  --shadow-card:
+    0 1px 2px oklch(10% 0.01 70 / 0.3),
+    0 4px 12px oklch(10% 0.01 70 / 0.34),
+    0 14px 32px oklch(8% 0.01 70 / 0.4);
+  --shadow-lift:
+    0 2px 8px oklch(8% 0.01 70 / 0.4),
+    0 12px 28px oklch(8% 0.01 70 / 0.46),
+    0 30px 64px oklch(6% 0.01 70 / 0.5);
+  --shadow-win:
+    0 2px 10px oklch(6% 0.01 70 / 0.4),
+    0 20px 50px oklch(6% 0.01 70 / 0.5),
+    0 56px 120px oklch(4% 0.01 70 / 0.55);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+::selection { background: var(--selection); }
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+body {
+  font-family: var(--font);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-0);
+  background:
+    radial-gradient(120% 80% at 12% -4%, oklch(96% 0.018 60) 0%, transparent 56%),
+    radial-gradient(120% 90% at 100% 0%, oklch(96% 0.016 280) 0%, transparent 52%),
+    oklch(95% 0.010 75);
+  min-height: 100vh;
+  padding: 40px 28px 90px;
+}
+[data-theme="dark"] body {
+  background:
+    radial-gradient(120% 80% at 12% -4%, oklch(26% 0.02 60) 0%, transparent 56%),
+    radial-gradient(120% 90% at 100% 0%, oklch(25% 0.018 280) 0%, transparent 52%),
+    oklch(17% 0.008 70);
+}
+
+.page { max-width: 1180px; margin: 0 auto; }
+
+/* ---------- Page header ---------- */
+.page-head {
+  display: flex; align-items: flex-start; gap: 16px;
+  margin-bottom: 8px;
+}
+.brandmark {
+  width: 46px; height: 46px; border-radius: 13px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  background: linear-gradient(155deg, oklch(60% 0.20 258), oklch(50% 0.20 262));
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px oklch(55% 0.20 258 / 0.34), 0 0 0 1px oklch(100% 0 0 / 0.12) inset;
+}
+.brandmark svg { width: 26px; height: 26px; }
+.page-head .ph-text { flex: 1; min-width: 0; }
+.page-head h1 {
+  font-size: 29px; font-weight: 700; letter-spacing: -0.025em; color: var(--ink-0);
+}
+.page-head p {
+  margin-top: 8px; color: var(--ink-2); max-width: 660px; font-size: 14.5px; line-height: 1.55;
+}
+.theme-toggle {
+  flex: 0 0 auto; display: inline-flex; gap: 3px;
+  background: var(--surface-2); border: 1px solid var(--hair);
+  border-radius: var(--r-pill); padding: 4px; box-shadow: var(--shadow-card);
+}
+.theme-toggle button {
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--ink-2);
+  background: transparent; border: 0; padding: 7px 15px; border-radius: var(--r-pill);
+  cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+}
+.theme-toggle button svg { width: 15px; height: 15px; }
+.theme-toggle button.on {
+  background: var(--surface); color: var(--ink-0); font-weight: 650;
+  box-shadow: var(--shadow-card);
+}
+
+/* ---------- Screen caption ---------- */
+.caption { margin: 52px 0 16px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.caption .num {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: var(--r-pill); padding: 3px 11px;
+}
+.caption h2 { font-size: 18px; font-weight: 680; color: var(--ink-0); letter-spacing: -0.015em; }
+.caption span.desc { font-size: 14px; color: var(--ink-2); }
+
+/* ============================================================
+   APP WINDOW FRAME
+   ============================================================ */
+.win {
+  position: relative;
+  border-radius: var(--r-win);
+  background: var(--canvas);
+  box-shadow: var(--shadow-win);
+  border: 1px solid var(--hair-soft);
+  overflow: hidden;
+}
+.titlebar {
+  display: flex; align-items: center; gap: 9px;
+  height: 44px; padding: 0 16px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--hair-soft);
+}
+.traffic { display: flex; gap: 8px; }
+.traffic i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.traffic i:nth-child(1) { background: oklch(70% 0.17 25); }
+.traffic i:nth-child(2) { background: oklch(82% 0.13 85); }
+.traffic i:nth-child(3) { background: oklch(76% 0.15 145); }
+.titlebar .tb-title {
+  flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.tb-spacer { width: 52px; }
+.tb-live {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--approve);
+}
+.tb-live .pulse {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--approve);
+  box-shadow: 0 0 0 0 oklch(56% 0.13 155 / 0.5); animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 oklch(56% 0.13 155 / 0.45); } 70%,100% { box-shadow: 0 0 0 7px oklch(56% 0.13 155 / 0); } }
+
+/* ============================================================
+   APP SHELL: sidebar + canvas
+   ============================================================ */
+.shell { display: grid; grid-template-columns: 264px 1fr; min-height: 0; }
+
+/* ---- Sidebar document tree ---- */
+.sidebar {
+  background: var(--sidebar);
+  border-right: 1px solid var(--hair-soft);
+  padding: 18px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.side-space {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 10px; border-radius: var(--r-chip); margin-bottom: 6px;
+}
+.side-space .sp-ic {
+  width: 30px; height: 30px; border-radius: 9px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 16px;
+  background: linear-gradient(155deg, oklch(60% 0.20 258), oklch(50% 0.20 262));
+  box-shadow: 0 3px 8px oklch(55% 0.20 258 / 0.3);
+}
+.side-space .sp-meta { flex: 1; min-width: 0; }
+.side-space .sp-name { font-size: 14px; font-weight: 680; color: var(--ink-0); letter-spacing: -0.01em; }
+.side-space .sp-sub { font-size: 12px; color: var(--ink-2); }
+.side-space .chev { color: var(--ink-3); }
+.side-space .chev svg { width: 16px; height: 16px; }
+
+.side-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-3); padding: 14px 10px 6px;
+}
+.tree-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: var(--r-chip); cursor: default;
+  color: var(--ink-1); position: relative;
+}
+.tree-item:hover { background: var(--surface-2); }
+.tree-item.active { background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink-0); }
+.tree-item .emo { font-size: 15px; width: 20px; text-align: center; flex: 0 0 auto; }
+.tree-item .ti-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item .ti-name.mono { font-family: var(--mono); font-size: 12.5px; font-weight: 500; letter-spacing: -0.01em; }
+.tree-item.active .ti-name { font-weight: 650; }
+.tree-item .ti-badge {
+  font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 6px;
+  border-radius: var(--r-pill); display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--on-accent); flex: 0 0 auto;
+}
+.tree-item .ti-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.tree-item .ti-dot.approve { background: var(--approve); }
+.tree-item .ti-dot.request { background: var(--request); }
+.tree-item .ti-dot.comment { background: var(--comment-v); }
+.tree-item.nested { margin-left: 14px; }
+.tree-item.nested::before {
+  content: ""; position: absolute; left: -2px; top: 6px; bottom: 6px; width: 1.5px;
+  background: var(--hair); border-radius: 2px;
+}
+.stat-glyph {
+  width: 17px; height: 17px; border-radius: 5px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--mono);
+}
+.stat-glyph.a { color: var(--approve); background: var(--approve-bg); }
+.stat-glyph.m { color: var(--comment-v); background: var(--comment-bg); }
+.stat-glyph.d { color: var(--request); background: var(--request-bg); }
+
+.side-foot { margin-top: auto; padding-top: 14px; }
+.side-user {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-chip);
+}
+.side-user .av {
+  width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; color: var(--on-accent);
+  background: linear-gradient(155deg, oklch(64% 0.17 320), oklch(56% 0.18 290));
+}
+.side-user .su-name { font-size: 13px; font-weight: 600; color: var(--ink-0); }
+.side-user .su-sub { font-size: 11.5px; color: var(--ink-2); }
+
+/* ============================================================
+   DOCUMENT CANVAS
+   ============================================================ */
+.canvas { background: var(--canvas); padding: 36px 40px 44px; overflow: hidden; }
+.canvas.narrow { max-width: 760px; margin: 0 auto; }
+.doc { max-width: 720px; margin: 0 auto; }
+
+/* breadcrumb */
+.breadcrumb { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-2); margin-bottom: 22px; }
+.breadcrumb .sep { color: var(--ink-3); }
+.breadcrumb .here { color: var(--ink-1); font-weight: 600; }
+.breadcrumb .emo { font-size: 14px; }
+
+/* document title block */
+.doc-cover {
+  height: 96px; border-radius: var(--r-card); margin-bottom: 22px;
+  background:
+    radial-gradient(120% 160% at 14% 0%, oklch(64% 0.18 258 / 0.9), transparent 60%),
+    radial-gradient(120% 160% at 92% 100%, oklch(60% 0.17 300 / 0.85), transparent 58%),
+    linear-gradient(120deg, oklch(58% 0.19 256), oklch(54% 0.18 280));
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.1);
+  position: relative; overflow: hidden;
+}
+.doc-cover::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(115deg, oklch(100% 0 0 / 0.05) 0 2px, transparent 2px 22px);
+  mix-blend-mode: soft-light;
+}
+.doc h1.doc-title {
+  font-size: 34px; font-weight: 760; letter-spacing: -0.03em; color: var(--ink-0);
+  display: flex; align-items: center; gap: 14px; line-height: 1.1;
+}
+.doc h1.doc-title .doc-emo { font-size: 32px; }
+.doc-meta-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+/* pills */
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600; border-radius: var(--r-pill);
+  padding: 5px 12px; white-space: nowrap;
+}
+.pill svg { width: 14px; height: 14px; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+.pill.approve { color: var(--approve); background: var(--approve-bg); }
+.pill.approve .dot { background: var(--approve); }
+.pill.request { color: var(--request); background: var(--request-bg); }
+.pill.request .dot { background: var(--request); }
+.pill.comment { color: var(--comment-v); background: var(--comment-bg); }
+.pill.comment .dot { background: var(--comment-v); }
+.pill.ghost { color: var(--ink-1); background: var(--surface-2); border: 1px solid var(--hair); }
+.pill.round { color: var(--ink-1); background: var(--surface-2); font-family: var(--mono); font-size: 12px; }
+
+.doc-summary {
+  font-size: 15.5px; color: var(--ink-1); line-height: 1.65; margin-top: 22px;
+}
+.doc-summary b { color: var(--ink-0); font-weight: 650; }
+
+/* section heading inside a doc */
+.doc-section-h {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-2); margin: 34px 0 14px;
+  display: flex; align-items: center; gap: 9px;
+}
+.doc-section-h .cnt {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0; text-transform: none;
+  color: var(--ink-2); background: var(--surface-2); border-radius: var(--r-pill); padding: 1px 9px;
+}
+
+/* file page cards (overview) */
+.file-cards { display: flex; flex-direction: column; gap: 12px; }
+.file-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-card); padding: 15px 18px; box-shadow: var(--shadow-card);
+  cursor: default; transition: box-shadow .18s ease, transform .18s ease;
+}
+.file-card:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+.file-card .fc-emo {
+  width: 40px; height: 40px; border-radius: 11px; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 19px;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hair-soft);
+}
+.file-card .fc-body { flex: 1; min-width: 0; }
+.file-card .fc-name { font-size: 15.5px; font-weight: 650; color: var(--ink-0); letter-spacing: -0.01em; display: flex; align-items: center; gap: 9px; }
+.file-card .fc-name .nm { font-family: var(--mono); font-size: 14px; }
+.file-card .fc-path { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+.file-card .fc-right { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.fc-comments {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2);
+}
+.fc-comments svg { width: 15px; height: 15px; }
+
+/* ============================================================
+   FILE-REVIEW DOCUMENT (code block + margin comments)
+   ============================================================ */
+.doc-wide { max-width: 1000px; margin: 0 auto; }
+.doc-grid { display: grid; grid-template-columns: 1fr 300px; gap: 26px; align-items: start; }
+.doc-grid .doc-main { min-width: 0; }
+.doc-grid .doc-margin { display: flex; flex-direction: column; gap: 14px; position: relative; padding-top: 4px; }
+
+/* code block as a soft document block */
+.code-block {
+  background: var(--code-bg); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-block); box-shadow: var(--shadow-card); overflow: hidden;
+}
+.code-block .cb-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 15px; border-bottom: 1px solid var(--hair-soft);
+  background: var(--surface-2);
+}
+.code-block .cb-head .lang {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--hair-soft); border-radius: 6px; padding: 2px 8px;
+}
+.code-block .cb-head .cb-path { font-family: var(--mono); font-size: 12.5px; color: var(--ink-1); }
+.code-block .cb-head .cb-path b { color: var(--ink-0); font-weight: 650; }
+.code-block .cb-head .copy { margin-left: auto; color: var(--ink-3); display: grid; place-items: center; }
+.code-block .cb-head .copy svg { width: 16px; height: 16px; }
+
+.code { font-family: var(--mono); font-size: 13px; line-height: 1.75; padding: 10px 0; }
+.cl { display: flex; padding: 0 16px 0 0; position: relative; }
+.cl .gut {
+  width: 46px; flex: 0 0 auto; text-align: right; padding-right: 16px;
+  color: var(--ink-3); user-select: none; position: relative;
+}
+.cl .ct { white-space: pre; color: var(--ink-1); flex: 1; min-width: 0; }
+.cl:hover { background: var(--accent-tint); }
+.cl.anchored { background: var(--accent-tint); }
+.cl.anchored .gut { color: var(--accent); font-weight: 700; }
+/* add-comment affordance */
+.cl .add-c {
+  position: absolute; left: 50px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; border-radius: 6px; display: none;
+  place-items: center; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 2px 6px oklch(55% 0.20 258 / 0.4); cursor: pointer; z-index: 2;
+}
+.cl .add-c svg { width: 12px; height: 12px; }
+.cl:hover .add-c { display: grid; }
+.cl.anchored .add-c { display: grid; left: 50px; background: var(--surface); color: var(--accent); box-shadow: var(--shadow-card); }
+
+.k1 { color: var(--syn-key); }
+.f1 { color: var(--syn-fn); }
+.a1 { color: var(--syn-atom); }
+.s1 { color: var(--syn-str); }
+.c1 { color: var(--syn-com); }
+.m1 { color: var(--syn-mod); }
+
+/* diff lines */
+.dl { display: flex; padding: 0 16px 0 0; }
+.dl .gut { width: 46px; flex: 0 0 auto; text-align: right; padding-right: 12px; color: var(--ink-3); user-select: none; }
+.dl .mk { width: 16px; flex: 0 0 auto; text-align: center; user-select: none; color: var(--ink-3); }
+.dl .ct { white-space: pre; color: var(--ink-1); flex: 1; }
+.dl.add { background: var(--diff-add-bg); }
+.dl.add .mk, .dl.add .ct { color: var(--diff-add-mk); }
+.dl.del { background: var(--diff-del-bg); }
+.dl.del .mk, .dl.del .ct { color: var(--diff-del-mk); }
+
+/* rendered markdown block (Craft page feel) */
+.md-block {
+  background: var(--surface); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-block); box-shadow: var(--shadow-card);
+  padding: 26px 30px;
+}
+.md-block h2 { font-size: 22px; font-weight: 720; letter-spacing: -0.02em; margin-bottom: 10px; }
+.md-block h3 { font-size: 16px; font-weight: 680; margin: 20px 0 8px; }
+.md-block p { font-size: 14.5px; color: var(--ink-1); line-height: 1.7; margin-bottom: 12px; }
+.md-block ul { margin: 0 0 12px; padding-left: 4px; list-style: none; }
+.md-block li { font-size: 14.5px; color: var(--ink-1); line-height: 1.7; padding-left: 26px; position: relative; margin-bottom: 6px; }
+.md-block li::before { content: ""; position: absolute; left: 6px; top: 11px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.md-block code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--hair-soft); padding: 1px 6px; border-radius: 6px; color: var(--ink-0); }
+.md-block .callout {
+  display: flex; gap: 12px; background: var(--accent-tint); border-radius: var(--r-block);
+  padding: 14px 16px; margin: 14px 0; border: 1px solid var(--accent-soft);
+}
+.md-block .callout .ci { color: var(--accent); flex: 0 0 auto; }
+.md-block .callout .ci svg { width: 18px; height: 18px; }
+.md-block .callout p { margin: 0; color: var(--ink-1); font-size: 13.5px; }
+
+/* ---- Soft margin comment cards (Craft annotations) ---- */
+.margin-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 2px; padding-left: 2px;
+}
+.cmt-card {
+  background: var(--surface); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-card); box-shadow: var(--shadow-card);
+  padding: 14px 15px; transition: box-shadow .18s ease, transform .18s ease;
+}
+.cmt-card:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+.cmt-card .cc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; flex-wrap: wrap; }
+.type-tag {
+  font-size: 11px; font-weight: 700; border-radius: var(--r-pill);
+  padding: 3px 10px; letter-spacing: 0.01em;
+}
+.type-tag.fix  { color: var(--hi-fix-in); background: var(--hi-fix); }
+.type-tag.ask  { color: var(--hi-ask-in); background: var(--hi-ask); }
+.type-tag.note { color: var(--hi-note-in); background: var(--hi-note); }
+.cmt-card .anchor {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 6px; padding: 2px 7px;
+}
+.cmt-card .cc-author { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.cmt-card .cc-author .av {
+  width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; color: var(--on-accent);
+  background: linear-gradient(155deg, oklch(64% 0.17 320), oklch(56% 0.18 290));
+}
+.cmt-card .cc-author .who { font-size: 13px; font-weight: 650; color: var(--ink-0); }
+.cmt-card .cc-author .when { font-size: 12px; color: var(--ink-2); margin-left: auto; }
+.cmt-card .cc-body { font-size: 13.5px; color: var(--ink-0); line-height: 1.6; }
+.cmt-card .cc-body code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--hair-soft); padding: 1px 5px; border-radius: 5px; }
+
+/* reply inside a card */
+.reply {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hair-soft);
+  display: flex; gap: 10px;
+}
+.reply .av {
+  width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; color: var(--on-accent);
+}
+.reply .av.human { background: linear-gradient(155deg, oklch(64% 0.16 200), oklch(56% 0.16 230)); }
+.reply .av.agent {
+  border-radius: 8px;
+  background: linear-gradient(155deg, oklch(60% 0.20 258), oklch(52% 0.20 280));
+}
+.reply .rb { flex: 1; min-width: 0; }
+.reply .rwho { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.reply .rwho .nm { font-size: 12.5px; font-weight: 650; color: var(--ink-0); }
+.reply .rwho .agtag {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em;
+  color: var(--accent); background: var(--accent-soft); border-radius: var(--r-pill); padding: 2px 7px;
+}
+.reply .rwho .when { font-size: 11.5px; color: var(--ink-2); margin-left: auto; }
+.reply .rtext { font-size: 13px; color: var(--ink-1); line-height: 1.55; }
+.reply .rtext code { font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--hair-soft); padding: 1px 5px; border-radius: 5px; color: var(--ink-0); }
+
+/* ============================================================
+   COMMENT COMPOSER
+   ============================================================ */
+.composer {
+  background: var(--surface); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-card); box-shadow: var(--shadow-lift);
+  padding: 18px;
+}
+.composer .cmp-anchor {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  font-family: var(--mono); font-size: 12.5px; color: var(--ink-2);
+  background: var(--surface-2); border-radius: var(--r-chip); padding: 9px 12px;
+}
+.composer .cmp-anchor .stat-glyph { width: 18px; height: 18px; }
+.composer .cmp-anchor b { color: var(--ink-0); }
+.composer .cmp-anchor .ln { color: var(--accent); font-weight: 700; }
+.cmp-types { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.cmp-type {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600; border-radius: var(--r-pill);
+  padding: 7px 14px; border: 1px solid var(--hair); background: var(--surface-2); color: var(--ink-1);
+}
+.cmp-type .swatch { width: 11px; height: 11px; border-radius: 50%; }
+.cmp-type .swatch.fix  { background: var(--hi-fix-in); }
+.cmp-type .swatch.ask  { background: var(--hi-ask-in); }
+.cmp-type .swatch.note { background: var(--hi-note-in); }
+.cmp-type.sel { color: var(--hi-fix-in); background: var(--hi-fix); border-color: transparent; box-shadow: 0 0 0 2px var(--hi-fix-in) inset; }
+.cmp-ta {
+  width: 100%; min-height: 96px; resize: none;
+  background: var(--surface-2); border: 1px solid var(--hair);
+  border-radius: var(--r-block); padding: 13px 14px;
+  font: inherit; font-size: 14px; color: var(--ink-0); line-height: 1.6; outline: 0;
+}
+.cmp-ta::placeholder { color: var(--ink-3); }
+.cmp-ta:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.cmp-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.cmp-hint { font-size: 12.5px; color: var(--ink-2); }
+.cmp-hint kbd {
+  font-family: var(--font); font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--hair);
+  border-radius: 5px; padding: 1px 6px; color: var(--ink-1); box-shadow: 0 1px 0 var(--hair);
+}
+.cmp-foot .spacer { flex: 1; }
+.btn {
+  font: inherit; font-size: 13.5px; font-weight: 650; border-radius: var(--r-pill);
+  padding: 9px 18px; border: 1px solid var(--hair); background: var(--surface-2); color: var(--ink-1);
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn svg { width: 15px; height: 15px; }
+.btn.primary {
+  background: var(--accent); color: var(--on-accent); border-color: transparent;
+  box-shadow: 0 4px 12px oklch(55% 0.20 258 / 0.32);
+}
+
+/* page footer */
+.foot { text-align: center; color: var(--ink-3); font-size: 12.5px; margin-top: 52px; }
+
+/* focused close-up frame */
+.closeup {
+  background: var(--canvas); border: 1px solid var(--hair-soft);
+  border-radius: var(--r-win); box-shadow: var(--shadow-win);
+  padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;
+}
+.closeup .cu-label { font-size: 12.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-head">
+    <span class="brandmark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M14 4v5h5"/><path d="M8.5 13.5l2 2 4-4.5"/></svg>
+    </span>
+    <div class="ph-text">
+      <h1>Suikou, as Craft</h1>
+      <p>A style exploration that reframes the Suikou code-review tool in the warm, premium document language of Craft. Reviews become living pages: a soft document tree in the sidebar, a centered canvas, code and notes as beautiful blocks, and feedback as soft floating cards in the page margin.</p>
+    </div>
+    <div class="theme-toggle">
+      <button class="on" id="btn-light" onclick="setTheme('light', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+        Light
+      </button>
+      <button id="btn-dark" onclick="setTheme('dark', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"/></svg>
+        Dark
+      </button>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       SCREEN 1 - REVIEW OVERVIEW (a Craft page)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">01</span>
+    <h2>Review overview</h2>
+    <span class="desc">A document tree sidebar and a review page: friendly header, verdict and round pills, a soft cover, and the files as document cards.</span>
+  </div>
+
+  <div class="win">
+    <div class="titlebar">
+      <span class="traffic"><i></i><i></i><i></i></span>
+      <span class="tb-title">Re-anchoring comment positions</span>
+      <span class="tb-spacer"></span>
+    </div>
+
+    <div class="shell">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="side-space">
+          <span class="sp-ic">📘</span>
+          <span class="sp-meta"><div class="sp-name">Suikou</div><div class="sp-sub">Critique workspace</div></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+
+        <div class="side-label">Projects</div>
+        <div class="tree-item"><span class="emo">🗂️</span><span class="ti-name">Critique runtime</span></div>
+        <div class="tree-item active"><span class="emo">🔭</span><span class="ti-name">Re-anchoring</span><span class="ti-badge">5</span></div>
+        <div class="tree-item nested"><span class="emo">📄</span><span class="ti-name">Round 2 (draft)</span><span class="ti-dot request"></span></div>
+        <div class="tree-item nested"><span class="emo">📄</span><span class="ti-name">Round 1</span><span class="ti-dot approve"></span></div>
+
+        <div class="side-label">Files in review</div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">anchoring.ex</span><span class="ti-badge">3</span></div>
+        <div class="tree-item"><span class="stat-glyph a">A</span><span class="ti-name mono">visibility.ex</span><span class="ti-badge">1</span></div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">comments.ex</span><span class="ti-dot approve"></span></div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">submission.ex</span><span class="ti-dot approve"></span></div>
+        <div class="tree-item"><span class="stat-glyph d">D</span><span class="ti-name mono">legacy_finder.ex</span></div>
+
+        <div class="side-foot">
+          <div class="side-user">
+            <span class="av">MK</span>
+            <span><div class="su-name">Mika Tanaka</div><div class="su-sub">Reviewer</div></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CANVAS -->
+      <section class="canvas">
+        <div class="doc">
+          <div class="breadcrumb">
+            <span class="emo">📘</span><span>Suikou</span>
+            <span class="sep">/</span><span class="emo">🔭</span><span>Re-anchoring</span>
+            <span class="sep">/</span><span class="here">Round 2</span>
+          </div>
+
+          <div class="doc-cover"></div>
+
+          <h1 class="doc-title"><span class="doc-emo">🔭</span>Re-anchoring comment positions</h1>
+
+          <div class="doc-meta-row">
+            <span class="pill request"><span class="dot"></span>Request changes</span>
+            <span class="pill round">Round 2 · draft</span>
+            <span class="pill ghost">5 files</span>
+            <span class="pill ghost">5 open comments</span>
+          </div>
+
+          <p class="doc-summary">This review covers the comment anchoring rework so feedback survives re-edits between rounds. Two files still need changes before this round can be submitted to the agent. The agent has replied to <b>3 of 5</b> threads.</p>
+
+          <div class="doc-section-h">Files <span class="cnt">5</span></div>
+
+          <div class="file-cards">
+            <div class="file-card">
+              <span class="fc-emo">⚙️</span>
+              <div class="fc-body">
+                <div class="fc-name"><span class="stat-glyph m">M</span><span class="nm">anchoring.ex</span></div>
+                <div class="fc-path">lib/suikou/critique/comment/anchoring.ex</div>
+              </div>
+              <div class="fc-right">
+                <span class="fc-comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>3</span>
+                <span class="pill request"><span class="dot"></span>Changes</span>
+              </div>
+            </div>
+
+            <div class="file-card">
+              <span class="fc-emo">👁️</span>
+              <div class="fc-body">
+                <div class="fc-name"><span class="stat-glyph a">A</span><span class="nm">visibility.ex</span></div>
+                <div class="fc-path">lib/suikou/critique/comment/visibility.ex</div>
+              </div>
+              <div class="fc-right">
+                <span class="fc-comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12 7.7L3 21l1.8-6A8.5 8.5 0 1 1 21 11.5z"/></svg>1</span>
+                <span class="pill comment"><span class="dot"></span>Comment</span>
+              </div>
+            </div>
+
+            <div class="file-card">
+              <span class="fc-emo">🔍</span>
+              <div class="fc-body">
+                <div class="fc-name"><span class="stat-glyph m">M</span><span class="nm">comments.ex</span></div>
+                <div class="fc-path">lib/suikou/critique/queries/comments.ex</div>
+              </div>
+              <div class="fc-right">
+                <span class="pill approve"><span class="dot"></span>Approve</span>
+              </div>
+            </div>
+
+            <div class="file-card">
+              <span class="fc-emo">📤</span>
+              <div class="fc-body">
+                <div class="fc-name"><span class="stat-glyph m">M</span><span class="nm">submission.ex</span></div>
+                <div class="fc-path">lib/suikou/reviews/submission.ex</div>
+              </div>
+              <div class="fc-right">
+                <span class="pill approve"><span class="dot"></span>Approve</span>
+              </div>
+            </div>
+
+            <div class="file-card">
+              <span class="fc-emo">🗑️</span>
+              <div class="fc-body">
+                <div class="fc-name"><span class="stat-glyph d">D</span><span class="nm">legacy_finder.ex</span></div>
+                <div class="fc-path">lib/suikou/reviews/legacy_finder.ex</div>
+              </div>
+              <div class="fc-right">
+                <span class="pill ghost">No verdict yet</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 - FILE REVIEW AS A DOCUMENT
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">02</span>
+    <h2>File review as a document</h2>
+    <span class="desc">Source rendered as a soft code block with a line gutter and an add-comment affordance; soft comment cards live in the right margin; a verdict pill and inline composer sit in the page.</span>
+  </div>
+
+  <div class="win">
+    <div class="titlebar">
+      <span class="traffic"><i></i><i></i><i></i></span>
+      <span class="tb-title">anchoring.ex · Re-anchoring</span>
+      <span class="tb-live"><span class="pulse"></span>Live</span>
+    </div>
+
+    <div class="shell">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="side-space">
+          <span class="sp-ic">📘</span>
+          <span class="sp-meta"><div class="sp-name">Suikou</div><div class="sp-sub">Critique workspace</div></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+        <div class="side-label">Re-anchoring · Round 2</div>
+        <div class="tree-item active"><span class="stat-glyph m">M</span><span class="ti-name mono">anchoring.ex</span><span class="ti-badge">3</span></div>
+        <div class="tree-item"><span class="stat-glyph a">A</span><span class="ti-name mono">visibility.ex</span><span class="ti-badge">1</span></div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">comments.ex</span><span class="ti-dot approve"></span></div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">submission.ex</span><span class="ti-dot approve"></span></div>
+        <div class="tree-item"><span class="stat-glyph d">D</span><span class="ti-name mono">legacy_finder.ex</span></div>
+
+        <div class="side-label">Pages</div>
+        <div class="tree-item"><span class="emo">📝</span><span class="ti-name">Anchoring design note</span></div>
+        <div class="tree-item"><span class="emo">✅</span><span class="ti-name">Round 1 summary</span></div>
+
+        <div class="side-foot">
+          <div class="side-user">
+            <span class="av">MK</span>
+            <span><div class="su-name">Mika Tanaka</div><div class="su-sub">Reviewer</div></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CANVAS -->
+      <section class="canvas">
+        <div class="doc-wide">
+          <div class="breadcrumb">
+            <span class="emo">🔭</span><span>Re-anchoring</span>
+            <span class="sep">/</span><span class="here mono">anchoring.ex</span>
+          </div>
+
+          <h1 class="doc-title" style="font-size:27px"><span class="stat-glyph m" style="width:26px;height:26px;font-size:13px">M</span>anchoring.ex</h1>
+          <div class="doc-meta-row">
+            <span class="pill request"><span class="dot"></span>Request changes</span>
+            <span class="pill ghost">Modified</span>
+            <span class="pill round">Round 2 · draft</span>
+            <span class="pill ghost">3 open comments</span>
+          </div>
+
+          <div class="doc-grid" style="margin-top:24px">
+            <!-- MAIN: code block -->
+            <div class="doc-main">
+              <div class="code-block">
+                <div class="cb-head">
+                  <span class="lang">elixir</span>
+                  <span class="cb-path">lib/suikou/critique/comment/<b>anchoring.ex</b></span>
+                  <span class="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span>
+                </div>
+                <div class="code">
+                  <div class="cl"><span class="gut">38</span><span class="ct"><span class="k1">defmodule</span> <span class="m1">Suikou.Critique.Comment.Anchoring</span> <span class="k1">do</span></span></div>
+                  <div class="cl"><span class="gut">39</span><span class="ct">  <span class="a1">@moduledoc</span> <span class="s1">"Resolves a comment anchor against a file revision."</span></span></div>
+                  <div class="cl"><span class="gut">40</span><span class="ct"></span></div>
+                  <div class="cl anchored"><span class="gut">41</span><span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span></div>
+                  <div class="cl"><span class="gut">42</span><span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ct">    file</span></div>
+                  <div class="cl"><span class="gut">43</span><span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
+                  <div class="cl anchored"><span class="gut">44</span><span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
+                  <div class="cl"><span class="gut">45</span><span class="ct">  <span class="k1">end</span></span></div>
+                  <div class="cl"><span class="gut">46</span><span class="ct"></span></div>
+                  <div class="cl anchored"><span class="gut">47</span><span class="add-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ct">  <span class="k1">defp</span> <span class="f1">revisions</span>(file), <span class="a1">do:</span> file.<span class="f1">revisions</span> || []</span></div>
+                  <div class="cl"><span class="gut">48</span><span class="ct"><span class="k1">end</span></span></div>
+                </div>
+              </div>
+
+              <!-- inline composer card -->
+              <div class="composer" style="margin-top:18px">
+                <div class="cmp-anchor">
+                  <span class="stat-glyph m">M</span>
+                  <span>anchoring.ex · <b>get_anchor/2</b> · <span class="ln">L41</span></span>
+                </div>
+                <div class="cmp-types">
+                  <span class="cmp-type sel"><span class="swatch fix"></span>Fix required</span>
+                  <span class="cmp-type"><span class="swatch ask"></span>Needs answer</span>
+                  <span class="cmp-type"><span class="swatch note"></span>Note</span>
+                </div>
+                <textarea class="cmp-ta" placeholder="Leave a comment anchored to this line...">This get_ should return nil on a miss, not raise. Rename to fetch_anchor/2 if you want the {:ok, _} | :error shape.</textarea>
+                <div class="cmp-foot">
+                  <span class="cmp-hint">Press <kbd>⌘</kbd> <kbd>Enter</kbd> to add to this round</span>
+                  <span class="spacer"></span>
+                  <button class="btn">Cancel</button>
+                  <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-11"/></svg>Add comment</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- MARGIN: comment cards -->
+            <aside class="doc-margin">
+              <div class="margin-label">Comments in margin</div>
+
+              <div class="cmt-card">
+                <div class="cc-top">
+                  <span class="type-tag fix">Fix required</span>
+                  <span class="anchor">L41</span>
+                </div>
+                <div class="cc-author">
+                  <span class="av">MK</span><span class="who">Mika Tanaka</span><span class="when">2h ago</span>
+                </div>
+                <div class="cc-body">This <code>get_</code> should return nil on a miss, not raise. Follow the lookup-naming rule, or rename to <code>fetch_anchor/2</code> for the <code>{:ok, _} | :error</code> shape.</div>
+                <div class="reply">
+                  <span class="av agent">AI</span>
+                  <div class="rb">
+                    <div class="rwho"><span class="nm">opus-4.7</span><span class="agtag">AGENT</span><span class="when">1h ago</span></div>
+                    <div class="rtext">Renamed to <code>fetch_anchor/2</code> returning <code>{:ok, range} | :error</code>; updated both call sites in <code>visibility.ex</code>.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="cmt-card">
+                <div class="cc-top">
+                  <span class="type-tag ask">Needs answer</span>
+                  <span class="anchor">L44</span>
+                </div>
+                <div class="cc-author">
+                  <span class="av">MK</span><span class="who">Mika Tanaka</span><span class="when">2h ago</span>
+                </div>
+                <div class="cc-body">Is line equality enough across re-edits, or do we need the byte offset from the diff hunk to survive a shift?</div>
+                <div class="reply">
+                  <span class="av agent">AI</span>
+                  <div class="rb">
+                    <div class="rwho"><span class="nm">opus-4.7</span><span class="agtag">AGENT</span><span class="when">54m ago</span></div>
+                    <div class="rtext">Line equality breaks on insertions above. I will add a hunk offset fallback next.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="cmt-card">
+                <div class="cc-top">
+                  <span class="type-tag note">Note</span>
+                  <span class="anchor">L47</span>
+                </div>
+                <div class="cc-author">
+                  <span class="av">MK</span><span class="who">Mika Tanaka</span><span class="when">2h ago</span>
+                </div>
+                <div class="cc-body">Nice that the <code>|| []</code> fallback keeps this total. No change needed here.</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 - FOCUSED THREAD + COMPOSER CLOSE-UP
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">03</span>
+    <h2>Comment thread and composer, up close</h2>
+    <span class="desc">A single soft annotation card with a human comment and an AI-agent reply, beside the composer with its type selector and submit affordance.</span>
+  </div>
+
+  <div class="closeup">
+    <div>
+      <div class="cu-label">Thread card</div>
+      <div class="cmt-card">
+        <div class="cc-top">
+          <span class="type-tag fix">Fix required</span>
+          <span class="anchor">anchoring.ex · L41 · get_anchor/2</span>
+        </div>
+        <div class="cc-author">
+          <span class="av">MK</span><span class="who">Mika Tanaka</span><span class="when">2h ago</span>
+        </div>
+        <div class="cc-body">This <code>get_</code> should return <code>nil</code> on a miss, not raise. The lookup-naming convention reserves <code>get_</code> for the <code>Schema.t() | nil</code> shape. If you want the result-tuple shape instead, rename this to <code>fetch_anchor/2</code>.</div>
+        <div class="reply">
+          <span class="av human">DV</span>
+          <div class="rb">
+            <div class="rwho"><span class="nm">Dana Vogel</span><span class="when">1h ago</span></div>
+            <div class="rtext">Agree. The two callers only branch on presence, so the tuple shape buys us nothing here.</div>
+          </div>
+        </div>
+        <div class="reply">
+          <span class="av agent">AI</span>
+          <div class="rb">
+            <div class="rwho"><span class="nm">opus-4.7</span><span class="agtag">AGENT</span><span class="when">1h ago</span></div>
+            <div class="rtext">Renamed to <code>fetch_anchor/2</code> returning <code>{:ok, range} | :error</code> and updated both call sites in <code>visibility.ex</code>. Ready for re-review.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="cu-label">Composer</div>
+      <div class="composer">
+        <div class="cmp-anchor">
+          <span class="stat-glyph a">A</span>
+          <span>visibility.ex · <b>visible?/2</b> · <span class="ln">L22</span></span>
+        </div>
+        <div class="cmp-types">
+          <span class="cmp-type"><span class="swatch fix"></span>Fix required</span>
+          <span class="cmp-type sel" style="color:var(--hi-ask-in);background:var(--hi-ask);box-shadow:0 0 0 2px var(--hi-ask-in) inset"><span class="swatch ask"></span>Needs answer</span>
+          <span class="cmp-type"><span class="swatch note"></span>Note</span>
+        </div>
+        <textarea class="cmp-ta" placeholder="Leave a comment anchored to this line...">Should a soft-deleted comment still gate visibility for the agent, or only for human reviewers in the same round?</textarea>
+        <div class="cmp-foot">
+          <span class="cmp-hint">Anchored to <kbd>L22</kbd></span>
+          <span class="spacer"></span>
+          <button class="btn">Cancel</button>
+          <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-11"/></svg>Add comment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 - DARK THEME SNAPSHOT (markdown + diff + margin)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">04</span>
+    <h2>Dark theme snapshot</h2>
+    <span class="desc">The same document language in the deep warm-neutral dark theme: a rendered-markdown page and a diff block, with margin comments. This frame stays dark regardless of the page toggle.</span>
+  </div>
+
+  <div class="win" data-theme="dark" style="color-scheme:dark">
+    <div class="titlebar">
+      <span class="traffic"><i></i><i></i><i></i></span>
+      <span class="tb-title">README.md · Re-anchoring</span>
+      <span class="tb-live"><span class="pulse"></span>Live</span>
+    </div>
+
+    <div class="shell">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="side-space">
+          <span class="sp-ic">📘</span>
+          <span class="sp-meta"><div class="sp-name">Suikou</div><div class="sp-sub">Critique workspace</div></span>
+          <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+        <div class="side-label">Re-anchoring · Round 2</div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">anchoring.ex</span><span class="ti-badge">3</span></div>
+        <div class="tree-item"><span class="stat-glyph a">A</span><span class="ti-name mono">visibility.ex</span><span class="ti-badge">1</span></div>
+        <div class="tree-item active"><span class="emo">📝</span><span class="ti-name">README.md</span><span class="ti-badge">1</span></div>
+        <div class="tree-item"><span class="stat-glyph m">M</span><span class="ti-name mono">comments.ex</span><span class="ti-dot approve"></span></div>
+        <div class="tree-item"><span class="stat-glyph d">D</span><span class="ti-name mono">legacy_finder.ex</span></div>
+
+        <div class="side-foot">
+          <div class="side-user">
+            <span class="av">MK</span>
+            <span><div class="su-name">Mika Tanaka</div><div class="su-sub">Reviewer</div></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CANVAS -->
+      <section class="canvas">
+        <div class="doc-wide">
+          <div class="breadcrumb">
+            <span class="emo">🔭</span><span>Re-anchoring</span>
+            <span class="sep">/</span><span class="here">README.md</span>
+          </div>
+
+          <h1 class="doc-title" style="font-size:27px"><span class="doc-emo">📝</span>README.md</h1>
+          <div class="doc-meta-row">
+            <span class="pill comment"><span class="dot"></span>Comment</span>
+            <span class="pill ghost">Modified</span>
+            <span class="pill round">Round 2 · draft</span>
+            <span class="pill ghost">1 open comment</span>
+          </div>
+
+          <div class="doc-grid" style="margin-top:24px">
+            <div class="doc-main">
+              <!-- rendered markdown -->
+              <div class="md-block">
+                <h2>Comment anchoring</h2>
+                <p>Anchors bind a comment to a position in a file revision so feedback follows the code across rounds. An anchor stores the file id, a line, and the function arity it was attached to.</p>
+                <h3>Resolution order</h3>
+                <ul>
+                  <li>Match the exact line in the current revision.</li>
+                  <li>Fall back to the diff hunk offset when lines shift.</li>
+                  <li>Drop to file-level when the function is removed.</li>
+                </ul>
+                <div class="callout">
+                  <span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+                  <p>Use <code>fetch_anchor/2</code> for the result-tuple shape; reserve <code>get_anchor/2</code> for the nil-on-miss shape.</p>
+                </div>
+              </div>
+
+              <!-- diff block -->
+              <div class="code-block" style="margin-top:18px">
+                <div class="cb-head">
+                  <span class="lang">diff</span>
+                  <span class="cb-path"><b>README.md</b></span>
+                  <span class="copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span>
+                </div>
+                <div class="code">
+                  <div class="dl"><span class="gut">12</span><span class="mk"> </span><span class="ct">Anchors bind a comment to a position</span></div>
+                  <div class="dl del"><span class="gut">13</span><span class="mk">-</span><span class="ct">in a file. Matching is by line only.</span></div>
+                  <div class="dl add"><span class="gut">13</span><span class="mk">+</span><span class="ct">in a file revision. Matching falls back</span></div>
+                  <div class="dl add"><span class="gut">14</span><span class="mk">+</span><span class="ct">to the diff hunk offset on a shift.</span></div>
+                  <div class="dl"><span class="gut">15</span><span class="mk"> </span><span class="ct"></span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- margin -->
+            <aside class="doc-margin">
+              <div class="margin-label">Comments in margin</div>
+              <div class="cmt-card">
+                <div class="cc-top">
+                  <span class="type-tag note">Note</span>
+                  <span class="anchor">L14</span>
+                </div>
+                <div class="cc-author">
+                  <span class="av">MK</span><span class="who">Mika Tanaka</span><span class="when">38m ago</span>
+                </div>
+                <div class="cc-body">Good clarification. Could you also link the <code>Anchoring</code> module from here so readers can jump to the resolution code?</div>
+                <div class="reply">
+                  <span class="av agent">AI</span>
+                  <div class="rb">
+                    <div class="rwho"><span class="nm">opus-4.7</span><span class="agtag">AGENT</span><span class="when">12m ago</span></div>
+                    <div class="rtext">Added a relative link to <code>lib/suikou/critique/comment/anchoring.ex</code> under the heading.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="composer" style="padding:15px">
+                <div class="cmp-types">
+                  <span class="cmp-type"><span class="swatch fix"></span>Fix</span>
+                  <span class="cmp-type"><span class="swatch ask"></span>Ask</span>
+                  <span class="cmp-type sel" style="color:var(--hi-note-in);background:var(--hi-note);box-shadow:0 0 0 2px var(--hi-note-in) inset"><span class="swatch note"></span>Note</span>
+                </div>
+                <textarea class="cmp-ta" style="min-height:64px" placeholder="Reply in this thread..."></textarea>
+                <div class="cmp-foot" style="margin-top:11px">
+                  <span class="spacer"></span>
+                  <button class="btn primary" style="padding:7px 14px">Reply</button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">Suikou design exploration · Craft document language · self-contained mockup</p>
+
+</div>
+
+<script>
+  function setTheme(theme, el) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('btn-light').classList.toggle('on', theme === 'light');
+    document.getElementById('btn-dark').classList.toggle('on', theme === 'dark');
+  }
+</script>
+</body>
+</html>

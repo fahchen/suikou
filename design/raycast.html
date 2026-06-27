@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suikou · Raycast-style exploration</title>
+<style>
+/* ============================================================
+   SUIKOU reimagined as a Raycast-style command app.
+   One floating command window. Dark, translucent chrome over a
+   blurred wallpaper. Colorful per-item icon tiles. Bottom action
+   bar with shortcut hints. ⌘K action panel. Form view.
+   Self-contained: no network, no web fonts, inline SVG, CSS tiles.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Neutrals: very slightly cool-tinted dark (hue ~265) ---- */
+  --bg-window:    oklch(20% 0.012 265 / 0.82);  /* the floating window fill */
+  --bg-window-2:  oklch(23% 0.012 265 / 0.78);  /* search bar / footer band */
+  --bg-detail:    oklch(17.5% 0.012 265 / 0.55);/* detail pane sunk surface */
+  --bg-row-sel:   oklch(100% 0 0 / 0.07);        /* selected row light fill */
+  --bg-row-hover: oklch(100% 0 0 / 0.035);
+  --bg-tile:      oklch(28% 0.012 265);          /* default icon tile base */
+  --bg-pop:       oklch(22% 0.013 265 / 0.92);   /* action panel / dropdown */
+  --bg-chip:      oklch(100% 0 0 / 0.07);         /* kbd chip + tag fill */
+  --bg-code:      oklch(15.5% 0.012 265 / 0.6);
+
+  /* ---- Ink (text) ---- */
+  --ink-0: oklch(96% 0.004 265);   /* primary label */
+  --ink-1: oklch(78% 0.006 265);   /* subtitle */
+  --ink-2: oklch(63% 0.008 265);   /* tertiary / section caps */
+  --ink-3: oklch(52% 0.008 265);   /* faint / shortcut glyphs */
+
+  /* ---- Raycast accent: brand red/coral ---- */
+  --accent:      oklch(67% 0.19 25);   /* ~ #FF6363 */
+  --accent-deep: oklch(62% 0.20 25);
+  --accent-soft: oklch(67% 0.19 25 / 0.16);
+  --on-accent:   oklch(99% 0.01 25);
+
+  /* ---- Verdict semantics ---- */
+  --approve:      oklch(74% 0.15 155);
+  --approve-soft: oklch(74% 0.15 155 / 0.16);
+  --request:      oklch(67% 0.19 25);
+  --request-soft: oklch(67% 0.19 25 / 0.16);
+  --comment-v:    oklch(72% 0.12 250);
+  --comment-soft: oklch(72% 0.12 250 / 0.16);
+
+  /* ---- Comment-type semantics ---- */
+  --type-fix:  oklch(67% 0.19 25);    /* fix_required - red */
+  --type-ask:  oklch(74% 0.13 80);    /* needs_answer - amber */
+  --type-note: oklch(68% 0.10 250);   /* note - cool blue/gray */
+
+  /* ---- Colorful icon-tile hues (soft, distinct) ---- */
+  --tile-red:    oklch(66% 0.18 25);
+  --tile-orange: oklch(72% 0.15 55);
+  --tile-amber:  oklch(76% 0.13 85);
+  --tile-green:  oklch(72% 0.15 155);
+  --tile-teal:   oklch(70% 0.12 190);
+  --tile-blue:   oklch(66% 0.15 250);
+  --tile-indigo: oklch(60% 0.16 280);
+  --tile-purple: oklch(64% 0.16 305);
+  --tile-pink:   oklch(70% 0.16 350);
+  --tile-gray:   oklch(58% 0.012 265);
+
+  /* ---- Diff ---- */
+  --diff-add-bg: oklch(72% 0.15 155 / 0.12);
+  --diff-add-mk: oklch(76% 0.15 155);
+  --diff-del-bg: oklch(67% 0.19 25 / 0.12);
+  --diff-del-mk: oklch(74% 0.18 25);
+
+  /* ---- Syntax (cool dark, low glare) ---- */
+  --syn-key:  oklch(74% 0.13 305);   /* def / do / end - purple */
+  --syn-fn:   oklch(76% 0.12 230);   /* function names - blue */
+  --syn-atom: oklch(78% 0.13 70);    /* :atoms - amber */
+  --syn-str:  oklch(76% 0.13 150);   /* strings - green */
+  --syn-com:  oklch(56% 0.02 265);   /* comments - gray */
+  --syn-mod:  oklch(80% 0.10 200);   /* Modules - teal */
+
+  /* ---- Lines / shadows ---- */
+  --hair:        oklch(100% 0 0 / 0.08);
+  --hair-strong: oklch(100% 0 0 / 0.14);
+  --shadow-win:  0 0 0 0.5px oklch(100% 0 0 / 0.10) inset,
+                 0 1px 0 oklch(100% 0 0 / 0.10) inset,
+                 0 24px 70px oklch(8% 0.02 265 / 0.62),
+                 0 6px 22px oklch(8% 0.02 265 / 0.45);
+  --shadow-pop:  0 0 0 0.5px oklch(100% 0 0 / 0.12) inset,
+                 0 18px 50px oklch(8% 0.02 265 / 0.62);
+  --blur: blur(28px) saturate(165%);
+
+  --r-win: 12px;
+  --r-tile: 7px;
+  --r-row: 8px;
+  --r-pop: 11px;
+  --r-chip: 5px;
+
+  --font: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* Optional light variant (Raycast supports light) */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-window:    oklch(98% 0.004 265 / 0.78);
+  --bg-window-2:  oklch(96% 0.004 265 / 0.8);
+  --bg-detail:    oklch(99% 0.003 265 / 0.55);
+  --bg-row-sel:   oklch(20% 0.02 265 / 0.07);
+  --bg-row-hover: oklch(20% 0.02 265 / 0.035);
+  --bg-pop:       oklch(99% 0.003 265 / 0.94);
+  --bg-chip:      oklch(20% 0.02 265 / 0.07);
+  --bg-code:      oklch(97% 0.003 265 / 0.7);
+  --ink-0: oklch(28% 0.01 265);
+  --ink-1: oklch(42% 0.01 265);
+  --ink-2: oklch(54% 0.012 265);
+  --ink-3: oklch(64% 0.012 265);
+  --hair: oklch(20% 0.02 265 / 0.1);
+  --hair-strong: oklch(20% 0.02 265 / 0.18);
+  --syn-com: oklch(58% 0.02 265);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-0);
+  /* Blurred wallpaper backdrop: warm/cool color field, no images */
+  background:
+    radial-gradient(60% 55% at 18% 12%, oklch(56% 0.16 28) 0%, transparent 60%),
+    radial-gradient(55% 60% at 86% 8%, oklch(52% 0.15 320) 0%, transparent 58%),
+    radial-gradient(70% 70% at 72% 100%, oklch(48% 0.14 265) 0%, transparent 60%),
+    radial-gradient(50% 50% at 30% 90%, oklch(54% 0.14 200) 0%, transparent 55%),
+    linear-gradient(155deg, oklch(40% 0.09 280) 0%, oklch(34% 0.08 255) 60%, oklch(30% 0.07 235) 100%);
+  min-height: 100vh;
+  padding: 40px 28px 96px;
+}
+
+/* Frosted softening over the wallpaper so window contrast reads */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(1px);
+  background: oklch(18% 0.02 265 / 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page { position: relative; z-index: 1; max-width: 1140px; margin: 0 auto; }
+
+/* ---------- Page header ---------- */
+.page-head { margin-bottom: 30px; }
+.page-head h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: oklch(99% 0.01 25);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brandmark {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(120% 120% at 30% 20%, oklch(74% 0.19 30), oklch(58% 0.20 18));
+  box-shadow: 0 0 0 0.5px oklch(100% 0 0 / 0.25) inset, 0 4px 14px oklch(58% 0.2 25 / 0.5);
+  color: oklch(99% 0.01 25);
+}
+.brandmark svg { width: 20px; height: 20px; }
+.page-head p {
+  margin-top: 10px;
+  color: oklch(92% 0.02 280 / 0.85);
+  max-width: 640px;
+  font-size: 13.5px;
+}
+.theme-toggle {
+  margin-top: 16px; display: inline-flex; gap: 6px;
+  background: oklch(100% 0 0 / 0.12);
+  border: 0.5px solid oklch(100% 0 0 / 0.18);
+  border-radius: 8px; padding: 3px;
+}
+.theme-toggle button {
+  font: inherit; font-size: 12px; color: oklch(98% 0.01 280 / 0.8);
+  background: transparent; border: 0; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+}
+.theme-toggle button.on { background: oklch(100% 0 0 / 0.2); color: oklch(99% 0.01 25); font-weight: 600; }
+
+/* ---------- Screen caption ---------- */
+.caption {
+  margin: 38px 0 14px;
+  display: flex; align-items: baseline; gap: 10px;
+}
+.caption .num {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  color: oklch(99% 0.01 25);
+  background: oklch(67% 0.19 25 / 0.28);
+  border: 0.5px solid oklch(67% 0.19 25 / 0.5);
+  border-radius: 999px; padding: 2px 9px;
+}
+.caption h2 { font-size: 15px; font-weight: 650; color: oklch(98% 0.01 280); letter-spacing: -0.01em; }
+.caption span { font-size: 12.5px; color: oklch(90% 0.02 280 / 0.7); }
+
+/* ============================================================
+   THE FLOATING COMMAND WINDOW
+   ============================================================ */
+.win {
+  position: relative;
+  border-radius: var(--r-win);
+  background: var(--bg-window);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-win);
+  border: 0.5px solid oklch(100% 0 0 / 0.06);
+  overflow: hidden;
+}
+.win.wide { width: 760px; }
+.win.split { width: 1040px; }
+
+/* ---- Search bar ---- */
+.searchbar {
+  display: flex; align-items: center; gap: 11px;
+  height: 56px; padding: 0 16px;
+  background: var(--bg-window-2);
+  border-bottom: 0.5px solid var(--hair);
+}
+.searchbar .lead { width: 20px; height: 20px; color: var(--ink-2); flex: 0 0 auto; }
+.searchbar input {
+  flex: 1; background: transparent; border: 0; outline: 0;
+  font: inherit; font-size: 16px; color: var(--ink-0);
+  letter-spacing: -0.01em;
+}
+.searchbar input::placeholder { color: var(--ink-3); }
+.scope-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--bg-chip);
+  border: 0.5px solid var(--hair-strong);
+  border-radius: 7px; padding: 5px 9px 5px 7px;
+  font-size: 12px; color: var(--ink-1); white-space: nowrap;
+}
+.scope-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px oklch(67% 0.19 25 / 0.7); }
+.scope-pill b { color: var(--ink-0); font-weight: 600; }
+.scope-pill .rnd { color: var(--ink-2); }
+
+/* ---- Body / list ---- */
+.body { max-height: 540px; overflow: hidden; }
+.list { padding: 8px; }
+.sec-head {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--ink-2); padding: 10px 10px 5px;
+}
+
+/* ---- A command/list row ---- */
+.row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 7px 10px; border-radius: var(--r-row); cursor: default;
+  position: relative;
+}
+.row:hover { background: var(--bg-row-hover); }
+.row.sel { background: var(--bg-row-sel); }
+.row.sel::after {
+  content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 2.5px;
+  border-radius: 2px; background: var(--accent);
+}
+.tile {
+  width: 26px; height: 26px; border-radius: var(--r-tile);
+  display: grid; place-items: center; flex: 0 0 auto;
+  background: var(--bg-tile);
+  box-shadow: 0 0 0 0.5px oklch(100% 0 0 / 0.08) inset;
+  color: oklch(98% 0.02 280);
+}
+.tile svg { width: 15px; height: 15px; }
+/* tile color variants */
+.t-red    { background: linear-gradient(150deg, oklch(70% 0.18 30), oklch(60% 0.19 18)); }
+.t-orange { background: linear-gradient(150deg, oklch(75% 0.15 60), oklch(66% 0.16 45)); }
+.t-amber  { background: linear-gradient(150deg, oklch(79% 0.13 90), oklch(72% 0.14 75)); }
+.t-green  { background: linear-gradient(150deg, oklch(76% 0.15 158), oklch(66% 0.16 150)); }
+.t-teal   { background: linear-gradient(150deg, oklch(74% 0.12 195), oklch(64% 0.13 190)); }
+.t-blue   { background: linear-gradient(150deg, oklch(70% 0.15 252), oklch(60% 0.16 250)); }
+.t-indigo { background: linear-gradient(150deg, oklch(64% 0.16 282), oklch(56% 0.17 278)); }
+.t-purple { background: linear-gradient(150deg, oklch(68% 0.16 308), oklch(60% 0.17 302)); }
+.t-pink   { background: linear-gradient(150deg, oklch(73% 0.16 352), oklch(64% 0.17 348)); }
+.t-gray   { background: linear-gradient(150deg, oklch(60% 0.015 265), oklch(50% 0.015 265)); }
+
+.row .meta { flex: 1; min-width: 0; }
+.row .title { display: flex; align-items: center; gap: 8px; }
+.row .title .name { font-size: 13.5px; color: var(--ink-0); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .title .name.mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: -0.01em; }
+.row .sub {
+  font-size: 12px; color: var(--ink-2); margin-top: 1px;
+  font-family: var(--mono); letter-spacing: -0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row .accessory { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+.tag {
+  font-size: 11px; color: var(--ink-1); background: var(--bg-chip);
+  border: 0.5px solid var(--hair); border-radius: var(--r-chip);
+  padding: 2px 7px; white-space: nowrap;
+}
+
+/* file change status badge */
+.stat {
+  width: 17px; height: 17px; border-radius: 4px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  font-size: 10.5px; font-weight: 700; font-family: var(--mono);
+}
+.stat.a { color: var(--approve);  background: var(--approve-soft); }
+.stat.m { color: var(--comment-v); background: var(--comment-soft); }
+.stat.d { color: var(--request);  background: var(--request-soft); }
+
+/* verdict chip */
+.vchip {
+  font-size: 11px; font-weight: 600; border-radius: var(--r-chip);
+  padding: 2px 8px; white-space: nowrap;
+}
+.vchip.approve { color: var(--approve); background: var(--approve-soft); }
+.vchip.request { color: var(--request); background: var(--request-soft); }
+.vchip.comment { color: var(--comment-v); background: var(--comment-soft); }
+
+/* comment count pill */
+.ccount {
+  font-size: 11px; font-weight: 700; min-width: 18px; height: 18px;
+  border-radius: 999px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-accent); background: var(--accent);
+}
+
+/* kbd chip */
+.kbd {
+  font-family: var(--font); font-size: 12px; min-width: 18px; height: 19px;
+  padding: 0 5px; border-radius: var(--r-chip);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-chip); border: 0.5px solid var(--hair-strong);
+  color: var(--ink-1); box-shadow: 0 1px 0 oklch(0% 0 0 / 0.18);
+}
+.kbd.solo { padding: 0 6px; }
+
+/* ---- Bottom action bar (Raycast signature) ---- */
+.actionbar {
+  display: flex; align-items: center; gap: 10px;
+  height: 42px; padding: 0 10px 0 12px;
+  background: var(--bg-window-2);
+  border-top: 0.5px solid var(--hair);
+}
+.actionbar .appicon {
+  width: 19px; height: 19px; border-radius: 5px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  background: linear-gradient(150deg, oklch(72% 0.19 30), oklch(58% 0.2 18));
+  color: oklch(99% 0.01 25);
+}
+.actionbar .appicon svg { width: 12px; height: 12px; }
+.actionbar .ctx { font-size: 12.5px; color: var(--ink-1); }
+.actionbar .ctx b { color: var(--ink-0); font-weight: 600; }
+.actionbar .spacer { flex: 1; }
+.ab-action {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--ink-0); font-weight: 500;
+  padding: 4px 7px; border-radius: 7px;
+}
+.ab-action.primary { color: var(--ink-0); }
+.ab-action.primary .kbd { background: var(--accent-soft); border-color: oklch(67% 0.19 25 / 0.4); color: oklch(82% 0.12 25); }
+.ab-sep { width: 0.5px; height: 18px; background: var(--hair-strong); }
+
+/* ============================================================
+   SPLIT DETAIL VIEW
+   ============================================================ */
+.split-body { display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+.split-body .left {
+  border-right: 0.5px solid var(--hair);
+  padding: 8px; overflow: hidden;
+  max-height: 560px;
+}
+.split-body .detail {
+  background: var(--bg-detail);
+  display: flex; flex-direction: column;
+  max-height: 560px; overflow: hidden;
+}
+
+/* detail header */
+.detail-head {
+  padding: 14px 16px 12px; border-bottom: 0.5px solid var(--hair);
+  flex: 0 0 auto;
+}
+.detail-head .dh-path {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  display: flex; align-items: center; gap: 8px;
+}
+.detail-head .dh-path .stat { width: 16px; height: 16px; }
+.detail-head .dh-path b { color: var(--ink-0); }
+.detail-head h3 { font-size: 16px; font-weight: 650; margin-top: 8px; letter-spacing: -0.01em; }
+
+/* metadata panel */
+.meta-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  margin-top: 12px;
+  background: var(--hair); border: 0.5px solid var(--hair);
+  border-radius: 8px; overflow: hidden;
+}
+.meta-cell { background: var(--bg-window); padding: 8px 10px; }
+.meta-cell .k { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2); }
+.meta-cell .v { font-size: 13px; font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.meta-cell .v.approve { color: var(--approve); }
+.meta-cell .v.request { color: var(--request); }
+.dot-s { width: 7px; height: 7px; border-radius: 50%; }
+.dot-s.request { background: var(--request); }
+.dot-s.modified { background: var(--comment-v); }
+
+/* detail scroll body */
+.detail-scroll { flex: 1; overflow: hidden; padding: 4px 0; }
+
+/* code reader */
+.code { font-family: var(--mono); font-size: 12.5px; line-height: 1.65; padding: 6px 0; }
+.cl { display: flex; padding: 0 16px; }
+.cl .ln { width: 30px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 16px; user-select: none; }
+.cl .ct { white-space: pre; color: var(--ink-1); }
+.cl.flag { background: var(--accent-soft); }
+.cl.flag .ln { color: oklch(80% 0.12 25); }
+.k1 { color: var(--syn-key); }
+.f1 { color: var(--syn-fn); }
+.a1 { color: var(--syn-atom); }
+.s1 { color: var(--syn-str); }
+.c1 { color: var(--syn-com); }
+.m1 { color: var(--syn-mod); }
+
+/* diff lines */
+.dl { display: flex; padding: 0 16px; }
+.dl .dg { width: 30px; flex: 0 0 auto; text-align: right; color: var(--ink-3); margin-right: 12px; user-select: none; }
+.dl .dm { width: 14px; flex: 0 0 auto; text-align: center; user-select: none; }
+.dl .dc { white-space: pre; color: var(--ink-1); }
+.dl.add { background: var(--diff-add-bg); }
+.dl.add .dm, .dl.add .dc { color: var(--diff-add-mk); }
+.dl.del { background: var(--diff-del-bg); }
+.dl.del .dm, .dl.del .dc { color: var(--diff-del-mk); }
+
+/* inline comment thread inside detail */
+.comments { border-top: 0.5px solid var(--hair); padding: 12px 16px 16px; }
+.comments .ch {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-2); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.comments .ch .cn { color: var(--ink-1); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.cmt { padding: 10px 12px; border-radius: 9px; background: var(--bg-window); border: 0.5px solid var(--hair); margin-bottom: 9px; }
+.cmt .top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cmt .ttype {
+  font-size: 10.5px; font-weight: 700; border-radius: var(--r-chip); padding: 2px 7px;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.ttype.fix  { color: var(--type-fix);  background: oklch(67% 0.19 25 / 0.15); }
+.ttype.ask  { color: var(--type-ask);  background: oklch(74% 0.13 80 / 0.16); }
+.ttype.note { color: var(--type-note); background: oklch(68% 0.10 250 / 0.16); }
+.cmt .anchor { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+.cmt .who { font-size: 12px; color: var(--ink-1); margin-left: auto; }
+.cmt .ctext { font-size: 12.5px; color: var(--ink-0); line-height: 1.5; }
+.cmt .ctext code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: oklch(82% 0.1 80); }
+.cmt .reply { margin-top: 9px; padding-top: 9px; border-top: 0.5px solid var(--hair); display: flex; gap: 9px; }
+.cmt .reply .av {
+  width: 22px; height: 22px; border-radius: 6px; flex: 0 0 auto; display: grid; place-items: center;
+  font-size: 10px; font-weight: 700;
+  background: linear-gradient(150deg, oklch(66% 0.15 252), oklch(58% 0.16 280));
+  color: oklch(98% 0.02 280);
+}
+.cmt .reply .rb { flex: 1; }
+.cmt .reply .rwho { font-size: 11.5px; font-weight: 600; color: var(--ink-1); display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.cmt .reply .rwho .agtag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em;
+  background: oklch(72% 0.12 250 / 0.2); color: var(--comment-v);
+  border-radius: 3px; padding: 1px 5px;
+}
+.cmt .reply .rtext { font-size: 12.5px; color: var(--ink-0); line-height: 1.5; }
+.cmt .reply .rtext code { font-family: var(--mono); font-size: 11.5px; background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: oklch(80% 0.1 305); }
+
+/* ============================================================
+   OVERLAY + ACTION PANEL (⌘K)
+   ============================================================ */
+.overlay-host { position: relative; }
+.dim {
+  position: absolute; inset: 0;
+  background: oklch(10% 0.02 265 / 0.5);
+  backdrop-filter: blur(1.5px);
+}
+.action-panel {
+  position: absolute; right: 8px; bottom: 50px;
+  width: 320px;
+  background: var(--bg-pop);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow-pop);
+  border: 0.5px solid oklch(100% 0 0 / 0.08);
+  overflow: hidden;
+}
+.ap-head {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-2); padding: 11px 13px 6px;
+}
+.ap-list { padding: 4px; }
+.ap-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 9px; border-radius: 7px; cursor: default;
+}
+.ap-item:hover { background: var(--bg-row-hover); }
+.ap-item.sel { background: var(--bg-row-sel); }
+.ap-ic { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; color: var(--ink-1); }
+.ap-ic svg { width: 16px; height: 16px; }
+.ap-ic.approve { color: var(--approve); }
+.ap-ic.request { color: var(--request); }
+.ap-ic.comment { color: var(--comment-v); }
+.ap-ic.fix  { color: var(--type-fix); }
+.ap-ic.ask  { color: var(--type-ask); }
+.ap-ic.note { color: var(--type-note); }
+.ap-item .lbl { flex: 1; font-size: 13px; color: var(--ink-0); }
+.ap-item .ks { display: flex; gap: 3px; }
+.ap-sep { height: 0.5px; background: var(--hair); margin: 4px 6px; }
+.ap-search {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-top: 0.5px solid var(--hair);
+}
+.ap-search svg { width: 15px; height: 15px; color: var(--ink-3); }
+.ap-search input { flex: 1; background: transparent; border: 0; outline: 0; font: inherit; font-size: 13px; color: var(--ink-0); }
+.ap-search input::placeholder { color: var(--ink-3); }
+
+/* ============================================================
+   FORM VIEW (compose comment)
+   ============================================================ */
+.form-body { padding: 18px 18px 6px; }
+.form-row { margin-bottom: 16px; }
+.form-row .flabel {
+  font-size: 12px; font-weight: 600; color: var(--ink-1); margin-bottom: 7px;
+  display: flex; align-items: center; gap: 7px;
+}
+.form-row .flabel .req { color: var(--accent); }
+.anchor-box {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-code); border: 0.5px solid var(--hair);
+  border-radius: 8px; padding: 8px 11px;
+  font-family: var(--mono); font-size: 12px; color: var(--ink-1);
+}
+.anchor-box .stat { flex: 0 0 auto; }
+.anchor-box b { color: var(--ink-0); }
+.anchor-box .ln { color: var(--accent); }
+
+.dropdown {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg-window); border: 0.5px solid var(--hair-strong);
+  border-radius: 8px; padding: 9px 11px; cursor: default;
+}
+.dropdown .dd-val { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.dropdown .dd-val .tdot { width: 9px; height: 9px; border-radius: 50%; }
+.dropdown .dd-val .tdot.fix { background: var(--type-fix); }
+.dropdown svg { width: 15px; height: 15px; color: var(--ink-2); }
+
+.dd-menu {
+  margin-top: 6px;
+  background: var(--bg-pop);
+  border: 0.5px solid var(--hair-strong); border-radius: 9px;
+  box-shadow: var(--shadow-pop); overflow: hidden; padding: 4px;
+}
+.dd-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; }
+.dd-opt:hover { background: var(--bg-row-hover); }
+.dd-opt.sel { background: var(--bg-row-sel); }
+.dd-opt .tdot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.dd-opt .tdot.fix { background: var(--type-fix); }
+.dd-opt .tdot.ask { background: var(--type-ask); }
+.dd-opt .tdot.note { background: var(--type-note); }
+.dd-opt .on { display: flex; flex-direction: column; }
+.dd-opt .on .nm { font-size: 13px; color: var(--ink-0); font-weight: 500; }
+.dd-opt .on .ds { font-size: 11.5px; color: var(--ink-2); }
+.dd-opt .check { margin-left: auto; color: var(--accent); display: grid; place-items: center; }
+.dd-opt .check svg { width: 15px; height: 15px; }
+
+.ta {
+  width: 100%; min-height: 116px; resize: none;
+  background: var(--bg-code); border: 0.5px solid var(--hair-strong);
+  border-radius: 8px; padding: 11px 12px;
+  font: inherit; font-size: 13.5px; color: var(--ink-0); line-height: 1.55;
+  outline: 0;
+}
+.ta:focus { border-color: oklch(67% 0.19 25 / 0.55); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ta::placeholder { color: var(--ink-3); }
+.form-hint { font-size: 11.5px; color: var(--ink-2); margin-top: 6px; }
+.form-hint code { font-family: var(--mono); background: var(--bg-chip); padding: 1px 5px; border-radius: 4px; color: var(--ink-1); }
+
+/* utility */
+.mono { font-family: var(--mono); }
+.dir { color: var(--ink-3); }
+.realtime {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--approve);
+}
+.realtime .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--approve); box-shadow: 0 0 8px oklch(74% 0.15 155 / 0.8); }
+
+.foot {
+  text-align: center; color: oklch(88% 0.02 280 / 0.55);
+  font-size: 11.5px; margin-top: 44px;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-head">
+    <h1>
+      <span class="brandmark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M16 14l3 3 4-5"/></svg>
+      </span>
+      Suikou, as Raycast
+    </h1>
+    <p>A style exploration that reframes the Suikou code-review tool as a Raycast-style command app. One floating, translucent window over a blurred wallpaper. Search, files, verdicts, comments, and rounds all driven by a command list, a split detail view, an action panel, and keyboard shortcuts.</p>
+    <div class="theme-toggle">
+      <button class="on" onclick="setTheme('dark', this)">Dark</button>
+      <button onclick="setTheme('light', this)">Light</button>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       SCREEN 1 - ROOT COMMAND VIEW
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">01</span>
+    <h2>Root command view</h2>
+    <span>Search bar with a review scope pill; files mixed with quick actions; the signature bottom action bar.</span>
+  </div>
+
+  <div class="win wide" style="margin: 0 auto;">
+    <div class="searchbar">
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input value="" placeholder="Search files, comments, actions..." readonly>
+      <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
+    </div>
+
+    <div class="body">
+      <div class="list">
+        <div class="sec-head">Files · 5 in review</div>
+
+        <div class="row sel">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div>
+            <div class="sub"><span class="dir">lib/suikou/critique/comment/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip request">Request changes</span><span class="ccount">3</span><span class="tag">File</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div>
+            <div class="sub"><span class="dir">lib/suikou/critique/comment/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span><span class="tag">File</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div>
+            <div class="sub"><span class="dir">lib/suikou/critique/queries/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip approve">Approve</span><span class="tag">File</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat m">M</span><span class="name mono">submission.ex</span></div>
+            <div class="sub"><span class="dir">lib/suikou/reviews/</span></div>
+          </div>
+          <div class="accessory"><span class="vchip approve">Approve</span><span class="tag">File</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+          <div class="meta">
+            <div class="title"><span class="stat d">D</span><span class="name mono">finders.ex</span></div>
+            <div class="sub"><span class="dir">lib/suikou/reviews/</span></div>
+          </div>
+          <div class="accessory"><span class="tag">File</span></div>
+        </div>
+
+        <div class="sec-head">Actions</div>
+
+        <div class="row">
+          <span class="tile t-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <div class="meta"><div class="title"><span class="name">Add comment to current file</span></div><div class="sub" style="font-family:var(--font)">Anchor a fix, question, or note to a line</div></div>
+          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">N</span><span class="tag">Command</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <div class="meta"><div class="title"><span class="name">Set verdict for current file</span></div><div class="sub" style="font-family:var(--font)">Approve · Request changes · Comment</div></div>
+          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">V</span><span class="tag">Command</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+          <div class="meta"><div class="title"><span class="name">Switch round</span></div><div class="sub" style="font-family:var(--font)">Round 2 (draft) · Round 1 · Round 0</div></div>
+          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">R</span><span class="tag">Command</span></div>
+        </div>
+
+        <div class="row">
+          <span class="tile t-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/><path d="M3 17l4 4"/></svg></span>
+          <div class="meta"><div class="title"><span class="name">Submit round for review</span></div><div class="sub" style="font-family:var(--font)">Publishes 4 verdicts and 5 comments to the agent</div></div>
+          <div class="accessory"><span class="kbd">⌘</span><span class="kbd solo">↵</span><span class="tag">Command</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actionbar">
+      <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+      <span class="ctx"><b>Suikou</b> · feat/reanchor</span>
+      <span class="spacer"></span>
+      <span class="ab-action primary">Open File <span class="kbd solo">↵</span></span>
+      <span class="ab-sep"></span>
+      <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 - LIST + DETAIL (FILE REVIEW)
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">02</span>
+    <h2>List and detail, file review</h2>
+    <span>File list on the left; syntax-highlighted source, metadata panel, and the comment thread on the right.</span>
+  </div>
+
+  <div class="win split" style="margin: 0 auto;">
+    <div class="searchbar">
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input value="anchoring" placeholder="Search files, comments, actions..." readonly>
+      <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
+    </div>
+
+    <div class="split-body">
+      <!-- LEFT: file list -->
+      <div class="left">
+        <div class="list" style="padding:0">
+          <div class="sec-head">Files</div>
+
+          <div class="row sel">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div></div>
+            <div class="accessory"><span class="vchip request">Changes</span><span class="ccount">3</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div></div>
+            <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div></div>
+            <div class="accessory"><span class="vchip approve">Approve</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">submission.ex</span></div></div>
+            <div class="accessory"><span class="vchip approve">Approve</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat d">D</span><span class="name mono">finders.ex</span></div></div>
+            <div class="accessory"></div>
+          </div>
+
+          <div class="sec-head">Reviews</div>
+          <div class="row">
+            <span class="tile t-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+            <div class="meta"><div class="title"><span class="name">Re-anchoring</span></div><div class="sub" style="font-family:var(--font)">Round 2 draft · 4 files awaiting submit</div></div>
+            <div class="accessory"><span class="realtime"><span class="pulse"></span>live</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: detail -->
+      <div class="detail">
+        <div class="detail-head">
+          <div class="dh-path"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></div>
+          <h3>Re-anchoring</h3>
+          <div class="meta-grid">
+            <div class="meta-cell"><div class="k">Verdict</div><div class="v request"><span class="dot-s request"></span>Changes</div></div>
+            <div class="meta-cell"><div class="k">Status</div><div class="v"><span class="dot-s modified"></span>Modified</div></div>
+            <div class="meta-cell"><div class="k">Comments</div><div class="v">3 open</div></div>
+            <div class="meta-cell"><div class="k">Round</div><div class="v">2 · draft</div></div>
+          </div>
+        </div>
+
+        <div class="detail-scroll">
+          <div class="code">
+            <div class="cl"><span class="ln">38</span><span class="ct"><span class="k1">defmodule</span> <span class="m1">Suikou.Critique.Comment.Anchoring</span> <span class="k1">do</span></span></div>
+            <div class="cl"><span class="ln">39</span><span class="ct">  <span class="a1">@moduledoc</span> <span class="s1">"Resolves a comment anchor against a file revision."</span></span></div>
+            <div class="cl"><span class="ln">40</span><span class="ct"></span></div>
+            <div class="cl flag"><span class="ln">41</span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span></div>
+            <div class="cl flag"><span class="ln">42</span><span class="ct">    file</span></div>
+            <div class="cl flag"><span class="ln">43</span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
+            <div class="cl flag"><span class="ln">44</span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
+            <div class="cl"><span class="ln">45</span><span class="ct">  <span class="k1">end</span></span></div>
+            <div class="cl"><span class="ln">46</span><span class="ct"></span></div>
+            <div class="cl"><span class="ln">47</span><span class="ct">  <span class="k1">defp</span> <span class="f1">revisions</span>(file), <span class="a1">do:</span> file.<span class="f1">revisions</span> || []</span></div>
+            <div class="cl"><span class="ln">48</span><span class="ct"><span class="k1">end</span></span></div>
+          </div>
+
+          <div class="comments">
+            <div class="ch">Comments <span class="cn">3 open</span> <span class="realtime" style="margin-left:auto"><span class="pulse"></span>live</span></div>
+
+            <div class="cmt">
+              <div class="top">
+                <span class="ttype fix">Fix required</span>
+                <span class="anchor">L41 · get_anchor/2</span>
+                <span class="who">you · 2h ago</span>
+              </div>
+              <div class="ctext">This <code>get_</code> should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to <code>fetch_anchor/2</code> if you want the <code>{:ok, _} | :error</code> shape instead.</div>
+              <div class="reply">
+                <span class="av">OP</span>
+                <div class="rb">
+                  <div class="rwho">opus-4.7 <span class="agtag">AGENT</span> · 1h ago</div>
+                  <div class="rtext">Renamed to <code>fetch_anchor/2</code> returning <code>{:ok, range} | :error</code>; updated the two call sites in <code>visibility.ex</code>.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cmt">
+              <div class="top">
+                <span class="ttype ask">Needs answer</span>
+                <span class="anchor">L44 · Enum.find/2</span>
+                <span class="who">you · 2h ago</span>
+              </div>
+              <div class="ctext">Is line equality enough across re-edits, or do we need the byte offset from the diff hunk to survive a shift?</div>
+            </div>
+
+            <div class="cmt">
+              <div class="top">
+                <span class="ttype note">Note</span>
+                <span class="anchor">L47 · revisions/1</span>
+                <span class="who">you · 2h ago</span>
+              </div>
+              <div class="ctext">Nice that the fallback keeps this total. No change needed.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actionbar">
+          <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+          <span class="ctx"><b>anchoring.ex</b></span>
+          <span class="spacer"></span>
+          <span class="ab-action primary">Add Comment <span class="kbd">⌘</span><span class="kbd solo">N</span></span>
+          <span class="ab-sep"></span>
+          <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 - ACTION PANEL (⌘K) OVER DETAIL
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">03</span>
+    <h2>Action panel, ⌘K</h2>
+    <span>Contextual actions anchored bottom-right: verdicts, comment types, reply, jump, switch round, copy.</span>
+  </div>
+
+  <div class="win split overlay-host" style="margin: 0 auto;">
+    <div class="searchbar">
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input value="anchoring" placeholder="Search files, comments, actions..." readonly>
+      <span class="scope-pill"><span class="dot"></span><b>feat/reanchor</b><span class="rnd">· Round 2</span></span>
+    </div>
+
+    <div class="split-body">
+      <div class="left">
+        <div class="list" style="padding:0">
+          <div class="sec-head">Files</div>
+          <div class="row sel">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">anchoring.ex</span></div></div>
+            <div class="accessory"><span class="vchip request">Changes</span><span class="ccount">3</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat a">A</span><span class="name mono">visibility.ex</span></div></div>
+            <div class="accessory"><span class="vchip comment">Comment</span><span class="ccount">1</span></div>
+          </div>
+          <div class="row">
+            <span class="tile t-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="meta"><div class="title"><span class="stat m">M</span><span class="name mono">comments.ex</span></div></div>
+            <div class="accessory"><span class="vchip approve">Approve</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="detail-head">
+          <div class="dh-path"><span class="stat m">M</span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></div>
+          <h3>Re-anchoring</h3>
+          <div class="meta-grid">
+            <div class="meta-cell"><div class="k">Verdict</div><div class="v request"><span class="dot-s request"></span>Changes</div></div>
+            <div class="meta-cell"><div class="k">Status</div><div class="v"><span class="dot-s modified"></span>Modified</div></div>
+            <div class="meta-cell"><div class="k">Comments</div><div class="v">3 open</div></div>
+            <div class="meta-cell"><div class="k">Round</div><div class="v">2 · draft</div></div>
+          </div>
+        </div>
+        <div class="detail-scroll">
+          <div class="code">
+            <div class="cl"><span class="ln">41</span><span class="ct">  <span class="k1">def</span> <span class="f1">get_anchor</span>(file, line) <span class="k1">do</span></span></div>
+            <div class="cl"><span class="ln">42</span><span class="ct">    file</span></div>
+            <div class="cl"><span class="ln">43</span><span class="ct">    |> <span class="f1">revisions</span>()</span></div>
+            <div class="cl"><span class="ln">44</span><span class="ct">    |> <span class="m1">Enum</span>.<span class="f1">find</span>(<span class="k1">fn</span> r -> r.line == line <span class="k1">end</span>)</span></div>
+            <div class="cl"><span class="ln">45</span><span class="ct">  <span class="k1">end</span></span></div>
+          </div>
+        </div>
+        <div class="actionbar">
+          <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+          <span class="ctx"><b>anchoring.ex</b></span>
+          <span class="spacer"></span>
+          <span class="ab-action primary">Add Comment <span class="kbd">⌘</span><span class="kbd solo">N</span></span>
+          <span class="ab-sep"></span>
+          <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- dim + action panel popover -->
+    <div class="dim"></div>
+    <div class="action-panel">
+      <div class="ap-head">Verdict</div>
+      <div class="ap-list">
+        <div class="ap-item">
+          <span class="ap-ic approve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <span class="lbl">Approve</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">A</span></span>
+        </div>
+        <div class="ap-item sel">
+          <span class="ap-ic request"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
+          <span class="lbl">Request changes</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">X</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic comment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.3 7.3L3 21l1.7-6.7A8 8 0 1 1 21 12z"/></svg></span>
+          <span class="lbl">Comment only</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">C</span></span>
+        </div>
+      </div>
+
+      <div class="ap-sep"></div>
+      <div class="ap-head">Add comment</div>
+      <div class="ap-list">
+        <div class="ap-item">
+          <span class="ap-ic fix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/></svg></span>
+          <span class="lbl">Fix required</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">1</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></span>
+          <span class="lbl">Needs answer</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">2</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 10h16M4 15h10"/></svg></span>
+          <span class="lbl">Note</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">3</span></span>
+        </div>
+      </div>
+
+      <div class="ap-sep"></div>
+      <div class="ap-list">
+        <div class="ap-item">
+          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-5-5 5-5"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></svg></span>
+          <span class="lbl">Reply to selected comment</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">R</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          <span class="lbl">Jump to file</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">P</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+          <span class="lbl">Switch round</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">R</span></span>
+        </div>
+        <div class="ap-item">
+          <span class="ap-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+          <span class="lbl">Copy file path</span>
+          <span class="ks"><span class="kbd">⌘</span><span class="kbd solo">⇧</span><span class="kbd solo">C</span></span>
+        </div>
+      </div>
+
+      <div class="ap-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input value="" placeholder="Search for actions..." readonly>
+        <span class="kbd">⌘</span><span class="kbd solo">K</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 - COMPOSE-COMMENT FORM
+       ============================================================ -->
+  <div class="caption">
+    <span class="num">04</span>
+    <h2>Compose comment, form view</h2>
+    <span>A Raycast-style form: anchor field, comment-type dropdown, textarea, footer submit with its shortcut.</span>
+  </div>
+
+  <div class="win wide" style="margin: 0 auto;">
+    <div class="searchbar">
+      <span class="lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4h2a2 2 0 0 1 2 2v1"/><path d="M16 3l5 5-9 9-5 1 1-5z"/></svg></span>
+      <input value="" placeholder="Add Comment" readonly style="font-weight:600">
+      <span class="scope-pill"><span class="dot"></span><b>anchoring.ex</b><span class="rnd">· L41</span></span>
+    </div>
+
+    <div class="form-body">
+      <div class="form-row">
+        <div class="flabel">Anchor</div>
+        <div class="anchor-box">
+          <span class="stat m">M</span>
+          <span><span class="dir">lib/suikou/critique/comment/</span><b>anchoring.ex</b></span>
+          <span style="flex:1"></span>
+          <span class="ln">line 41 · get_anchor/2</span>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="flabel">Type <span class="req">*</span></div>
+        <div class="dropdown">
+          <span class="dd-val"><span class="tdot fix"></span>Fix required</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div class="dd-menu">
+          <div class="dd-opt sel">
+            <span class="tdot fix"></span>
+            <span class="on"><span class="nm">Fix required</span><span class="ds">Must change before this round can be approved</span></span>
+            <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          </div>
+          <div class="dd-opt">
+            <span class="tdot ask"></span>
+            <span class="on"><span class="nm">Needs answer</span><span class="ds">A question for the agent, blocks until replied</span></span>
+          </div>
+          <div class="dd-opt">
+            <span class="tdot note"></span>
+            <span class="on"><span class="nm">Note</span><span class="ds">Non-blocking observation, no reply required</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="flabel">Comment <span class="req">*</span></div>
+        <textarea class="ta" readonly>This get_ should return nil on a miss, not raise. Follows the lookup-naming convention. Rename to fetch_anchor/2 if you want the {:ok, _} | :error shape instead.</textarea>
+        <div class="form-hint">Markdown supported. Reference symbols with <code>`fetch_anchor/2`</code>. The agent is notified the moment you submit.</div>
+      </div>
+    </div>
+
+    <div class="actionbar">
+      <span class="appicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg></span>
+      <span class="ctx">Posting to <b>Round 2</b> draft</span>
+      <span class="spacer"></span>
+      <span class="ab-action primary">Submit Comment <span class="kbd">⌘</span><span class="kbd solo">↵</span></span>
+      <span class="ab-sep"></span>
+      <span class="ab-action">Actions <span class="kbd">⌘</span><span class="kbd solo">K</span></span>
+    </div>
+  </div>
+
+  <p class="foot">Suikou, reimagined in the Raycast visual language. Self-contained mockup, one of several style explorations.</p>
+
+</div>
+
+<script>
+function setTheme(t, btn) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.theme-toggle button').forEach(function (b) { b.classList.remove('on'); });
+  btn.classList.add('on');
+}
+</script>
+</body>
+</html>
