@@ -38,6 +38,7 @@ function highlightStyle(): string {
   const tint = (color: string, pct: number) =>
     `color-mix(in oklch, ${color} ${pct}%, transparent)`
   return `
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
 ::selection{background:${tint(blue, 28)};}
 .${COMMENT_HIGHLIGHT_CLASS}{outline:1.5px dashed ${blue};outline-offset:2px;background:${tint(blue, 6)};cursor:pointer;}
 .${HOVER_HIGHLIGHT_CLASS}{outline:1.5px solid ${blue};outline-offset:2px;background:${tint(blue, 7)};cursor:pointer;transition:outline-color 140ms cubic-bezier(0.22,1,0.36,1),outline-width 140ms cubic-bezier(0.22,1,0.36,1),background 140ms cubic-bezier(0.22,1,0.36,1);}
@@ -129,18 +130,26 @@ const HtmlInteractiveView = observer(function HtmlInteractiveView(props: {
     if (doc) applyHighlightStyle(doc)
   }, [docVersion, uiStore.theme])
 
-  // Scale the rendered document with `transform: scale` on the iframe's root.
-  // We deliberately avoid CSS `zoom`: `zoom` is subject to the browser's minimum
-  // font size, so at low levels the text stops shrinking and no longer scales
-  // proportionally with the layout. `transform` is purely geometric, so text and
-  // layout scale together at any level (down to 10%). Top-left origin + widening
-  // the root to `100%/z` keeps the scaled layout filling and scrollable instead
-  // of clipping to the unscaled box; transforms scale child bounding rects too,
-  // so the anchor-popover math holds. Reapply on doc (re)load so a fresh srcdoc
-  // keeps the level.
+  // Scale the rendered document with CSS `zoom` where supported (Chromium/Safari):
+  // it reflows, so the scroll area tracks the scaled content with no phantom
+  // empty space, and it keeps element rects in sync with the iframe rect for the
+  // anchor-popover math. Text scales proportionally because the injected style
+  // pins `text-size-adjust: 100%` (otherwise the iframe auto-inflates small text).
+  // Firefox lacks `zoom`, so fall back to `transform: scale` with a top-left
+  // origin, widening the root to `100%/z` so the scaled layout stays scrollable.
+  // Reapply on doc (re)load so a fresh srcdoc keeps the level.
   useEffect(() => {
     const root = iframeRef.current?.contentDocument?.documentElement
     if (!root) return
+    const supportsZoom =
+      typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("zoom", "2")
+    if (supportsZoom) {
+      root.style.removeProperty("transform")
+      root.style.removeProperty("transform-origin")
+      root.style.removeProperty("width")
+      root.style.setProperty("zoom", String(zoom))
+      return
+    }
     root.style.removeProperty("zoom")
     root.style.transformOrigin = "top left"
     root.style.transform = `scale(${zoom})`
