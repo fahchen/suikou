@@ -247,6 +247,11 @@ export class ErrorBoundary extends Component<Props, State> {
   // prior render error — otherwise the overlay shows an unrelated component
   // stack alongside the new error.
   private handleWindowError = (event: ErrorEvent): void => {
+    // Benign browser quirk, not an app error: a ResizeObserver callback resized
+    // an element in the same frame, so the browser deferred the rest to the next
+    // frame and reports it as an uncaught "error". It self-recovers; surfacing it
+    // would spam the overlay (notably the HTML preview on iOS Safari).
+    if (event.message && /ResizeObserver loop/.test(event.message)) return
     const error =
       event.error instanceof Error
         ? event.error
