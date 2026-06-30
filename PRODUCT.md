@@ -31,6 +31,12 @@ code and the comments.
 
 ## Brand Personality
 
+The name is 推敲 (Suikou): the act of deliberating over the exact word to use,
+from the Tang story of a poet weighing "push" against "knock" for a single line.
+That is the product in one phrase, careful refinement of what is written, and it
+anchors the brand: review is not a gate to pass, it is the deliberate weighing of
+a change until it is right.
+
 Precise, restrained, expert. The voice is a senior engineer's: exact, calm, and
 economical. Trust is earned through information density and quiet correctness,
 not through persuasion, decoration, or celebration. Three words: precise,
