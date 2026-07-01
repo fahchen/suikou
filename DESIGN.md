@@ -45,10 +45,16 @@ only; never `#000`/`#fff`; chroma drops as lightness approaches the extremes.
 
 - `--cyan: oklch(82% 0.11 195)`, `--teal: oklch(74% 0.12 215)`, `--blue: oklch(70% 0.12 230)`
 - `--accent: var(--teal)`; `--accent-bright: oklch(86% 0.10 198)` for on-dark glyphs
-- `--accent-grad: linear-gradient(110deg, cyan 0%, teal 50%, blue 100%)` for the
-  primary button and selection rails only
+- The accent is a **solid** fill. The primary button (Submit, New, Done, send)
+  and selection rails use a flat `var(--accent)`, no gradient. `--accent-grad`
+  and `--accent-grad-v` are kept as aliases resolving to `var(--accent)` so old
+  references stay solid; do not reintroduce a multi-stop gradient there.
 - soft fills `--accent-soft: teal / 0.14`, `--accent-softer: / 0.08`, edge `/ 0.34`
-- Gradient is a fill, never text. No `background-clip: text`.
+- **No gradient fills on buttons or controls.** Buttons, toolbars, segmented
+  controls, and the primary action are flat solids. The only gradients left in
+  the system are the ambient `--desk` background wash and the 1px hairline
+  divider fades, both structural, neither an element fill. No `background-clip:
+  text` either.
 
 ### Semantic
 
@@ -104,7 +110,7 @@ wrong.
 - **Toolbar**: a single 50px bar. Left: collapse-navigator, then a breadcrumb
   button (`project > review`, or for git_diff a Diff badge + `base..head` refs).
   Right cluster, kept minimal: round selector, display options (a sliders glyph,
-  not a gear), the primary Submit (the only gradient surface), and Review. Round
+  not a gear), the primary Submit (a solid accent fill), and Review. Round
   compare and resnapshot live inside the round menu, not as standalone buttons.
 - **Navigator rows**: change-status glyph (A/M/D), an optional unread/blocker
   dot, a monochrome file-type glyph (Elixir drop, test beaker, code brackets,
@@ -146,3 +152,147 @@ prefers-reduced-motion.
   popovers; the right column exists only as the side comment rail.
 - No status fact shown in more than one place at once.
 - No em dashes and no pure `#000`/`#fff` in any committed file.
+
+## Suikou Light (light theme)
+
+The same system, lit. Suikou Light keeps every structural choice (restrained
+strategy, accent reserved for action/selection/focus, semantics paired with
+glyphs, hairline rings instead of stripes, monochrome icons) and only swaps the
+surfaces and ink: a cool off-white desk, near-white panels, dark cool-tinted
+ink, and accent/semantic colors pushed darker and slightly more saturated so
+they hold contrast on white. The reading surface is near-white; code and diffs
+carry a light syntax theme. The desk glow is a faint cool wash, not a dark one;
+elevation is soft gray shadow with a white top rim, never a dark inner edge.
+
+Use this `:root` token block for light-theme files (it mirrors every Suikou Dark
+variable name, so the same component CSS works unchanged). All AA: muted ink-3
+holds >= 4.5:1 on the near-white panels; accent glyph/text colors are dark
+enough to read on white and on their soft fills.
+
+```css
+:root {
+  color-scheme: light;
+  --bg-0: oklch(96.5% 0.006 240);   /* desk / page */
+  --bg-1: oklch(98% 0.005 240);     /* window */
+  --bg-2: oklch(99.4% 0.003 240);   /* panels, cards, threads */
+  --bg-3: oklch(93.5% 0.008 240);   /* hover */
+  --bg-4: oklch(90.5% 0.010 240);   /* raised control */
+  --editor-bg: oklch(99.2% 0.003 240); /* reading surface */
+
+  --ink-0: oklch(26% 0.020 252);    /* primary text */
+  --ink-1: oklch(40% 0.018 250);    /* secondary */
+  --ink-2: oklch(50% 0.016 248);    /* tertiary / labels */
+  --ink-3: oklch(52% 0.015 248);    /* muted, AA-safe on bg-2 */
+
+  --cyan: oklch(60% 0.13 205);
+  --teal: oklch(54% 0.13 222);
+  --blue: oklch(50% 0.16 248);
+  --accent: oklch(53% 0.14 226);
+  --accent-strong: oklch(47% 0.15 232);
+  --accent-bright: oklch(46% 0.16 232); /* glyphs/text: dark enough for AA on white */
+  --accent-grad:   var(--accent);
+  --accent-grad-v: var(--accent);
+  --accent-soft:   oklch(54% 0.13 222 / 0.12);
+  --accent-softer: oklch(54% 0.13 222 / 0.07);
+  --accent-edge:   oklch(54% 0.13 222 / 0.30);
+  --on-accent:     oklch(99% 0.005 230); /* text on the solid accent button */
+
+  --amber:      oklch(56% 0.14 64);
+  --amber-deep: oklch(50% 0.14 58);
+  --amber-soft: oklch(72% 0.13 70 / 0.18);
+  --amber-edge: oklch(60% 0.14 64 / 0.32);
+
+  --approve:      oklch(52% 0.15 150);
+  --approve-soft: oklch(62% 0.15 150 / 0.15);
+  --approve-edge: oklch(54% 0.15 150 / 0.32);
+  --request:      oklch(53% 0.20 25);
+  --request-soft: oklch(62% 0.20 25 / 0.13);
+  --request-edge: oklch(55% 0.20 25 / 0.32);
+  --neutral-v:    var(--ink-2);
+  --neutral-soft: oklch(50% 0.01 246 / 0.10);
+
+  --type-fix:       oklch(53% 0.20 25);
+  --type-fix-soft:  oklch(62% 0.20 25 / 0.13);
+  --type-fix-edge:  oklch(55% 0.20 25 / 0.34);
+  --type-ask:       oklch(50% 0.16 248);
+  --type-ask-soft:  oklch(58% 0.15 248 / 0.13);
+  --type-ask-edge:  oklch(52% 0.16 248 / 0.34);
+  --type-note:      oklch(50% 0.015 248);
+  --type-note-soft: oklch(50% 0.01 246 / 0.12);
+  --type-note-edge: oklch(50% 0.01 246 / 0.26);
+
+  --diff-add:     oklch(72% 0.13 150 / 0.20);
+  --diff-add-gut: oklch(66% 0.14 150 / 0.32);
+  --diff-add-ink: oklch(45% 0.15 150);
+  --diff-del:     oklch(74% 0.14 25 / 0.18);
+  --diff-del-gut: oklch(68% 0.16 25 / 0.30);
+  --diff-del-ink: oklch(50% 0.19 25);
+
+  --syn-key:  oklch(46% 0.19 300);
+  --syn-fn:   oklch(45% 0.15 250);
+  --syn-str:  oklch(44% 0.13 150);
+  --syn-num:  oklch(50% 0.13 55);
+  --syn-atom: oklch(46% 0.13 200);
+  --syn-com:  oklch(60% 0.020 240);
+  --syn-mod:  oklch(48% 0.13 30);
+  --syn-punc: oklch(45% 0.015 248);
+
+  --hair:        oklch(30% 0.02 250 / 0.10);
+  --hair-strong: oklch(30% 0.03 248 / 0.16);
+  --edge-top:    oklch(100% 0 0 / 0.85);
+  --edge-top-2:  oklch(100% 0 0 / 0.55);
+
+  --panel-spec: inset 0 1px 0 var(--edge-top), inset 0 0 0 0.5px var(--edge-top-2);
+  --shadow-win:  0 1px 0 var(--edge-top) inset, 0 2px 6px oklch(50% 0.02 250 / 0.10),
+                 0 16px 40px oklch(50% 0.02 250 / 0.12), 0 40px 80px oklch(48% 0.02 250 / 0.10);
+  --shadow-pop:  var(--panel-spec), 0 4px 14px oklch(50% 0.02 250 / 0.14), 0 22px 50px oklch(48% 0.02 250 / 0.16);
+  --shadow-float: 0 2px 8px oklch(50% 0.02 250 / 0.12), 0 12px 30px oklch(48% 0.02 250 / 0.14);
+  --shadow-card: 0 1px 2px oklch(50% 0.02 250 / 0.10), inset 0 0.5px 0 var(--edge-top-2);
+
+  --desk:
+    radial-gradient(70% 55% at 14% 8%, oklch(80% 0.05 200 / 0.45) 0%, transparent 60%),
+    radial-gradient(64% 60% at 92% 12%, oklch(80% 0.05 245 / 0.40) 0%, transparent 58%),
+    radial-gradient(90% 80% at 70% 108%, oklch(82% 0.04 270 / 0.35) 0%, transparent 60%),
+    linear-gradient(160deg, oklch(97% 0.006 240), oklch(95% 0.008 238));
+
+  --r-win: 16px; --r-panel: 13px; --r-ctrl: 9px; --r-pill: 999px;
+}
+```
+
+Buttons and controls are flat solids in both skins (no gradient). Dark buttons
+sit one step up from the panel; light buttons sit one step down from white (a
+solid near-white, e.g. `oklch(99% 0.003 240)`), each with hover one step darker
+and a hairline ring, so a control reads as raised without a gradient.
+
+## Built-in themes
+
+Suikou Dark and Suikou Light above are the two reference token sets this doc
+specifies, and what the mockups render in. The shipping app does not hardcode
+one palette: it resolves colors from whichever `[data-theme]` is active, chosen
+in Settings. The list of themes is owned by `assets/src/themes.ts` (that file is
+the source of truth; keep this section in sync with it). Each theme is inherently
+light or dark, so there is no separate light/dark switch, the chosen theme
+carries it. Syntax colors come from a Shiki source theme extracted into
+`--shiki-*` (see `assets/src/shiki-themes.css`); tokenization stays
+theme-independent via the css-variables theme, so switching `[data-theme]`
+recolors in pure CSS with no re-tokenize.
+
+The 13 built-in themes, grouped by light and dark (label, `[data-theme]` value):
+
+- Light: GitHub Light (`github`), Solarized Light (`solarized`), Catppuccin Latte
+  (`catppuccin`), Gruvbox Light (`gruvbox`), Tokyo Night Day (`tokyo-day`).
+- Dark: Tokyo Night (`tokyo`), Tokyo Night Storm (`tokyo-storm`), Tokyo Night Moon
+  (`tokyo-moon`), Dracula (`dracula`), Nord (`nord`), One Dark Pro (`onedark`),
+  Catppuccin Mocha (`catppuccin-mocha`), Rosé Pine (`rose-pine`).
+
+The Settings **Theme** control is a picker over this list, grouped Light then
+Dark, with the current theme checked (not a Dark/Light/System toggle). Add a
+theme by extending `themes.ts` and its palette in `shiki-themes.css`; the picker
+should render the new entry with no other change.
+
+Everything else in this doc, the structural grammar, components, spacing,
+motion, and the bans, is **theme-independent** and holds across all themes. A
+theme changes surface and ink and syntax colors; it never changes the layout,
+the component vocabulary, or the rules. When designing, treat Suikou Dark and
+Suikou Light as the two ends to check against; if a component reads well in both,
+it will read well in every built-in theme.
