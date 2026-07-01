@@ -409,12 +409,16 @@ defmodule Suikou.Reviews do
   for a diff review (`:added | :modified | :deleted | :renamed | :copied |
   :type_changed`) or `nil` for a selection review. `content_hash` is `nil`
   when the file cannot be read at the source (deleted-at-head, unreadable,
-  etc.). Walked on demand, never on the board render.
+  etc.). Diff reviews also carry `added`/`deleted` line counts from
+  `git diff --numstat` (both `nil` for binary files or file-selection reviews)
+  so the navigator can render per-file `+N / −M` chips. Walked on demand,
+  never on the board render.
 
   ## Examples
 
       Suikou.Reviews.list_files(review)
-      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false, content_hash: "AB12...", change_status: nil}]
+      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false, content_hash: "AB12...",
+      #     change_status: nil, added: nil, deleted: nil}]
 
   """
   @spec list_files(Review.t()) :: [file_entry()]
@@ -424,7 +428,9 @@ defmodule Suikou.Reviews do
 
     review.project
     |> expand(paths)
-    |> Enum.map(&file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil))
+    |> Enum.map(
+      &file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil, nil)
+    )
   end
 
   def list_files(%Review{source: %GitDiff{} = git_diff} = review) do
@@ -436,9 +442,16 @@ defmodule Suikou.Reviews do
         sorted = Enum.sort_by(entries, & &1.path)
         paths = Enum.map(sorted, & &1.path)
         blobs = head_blob_ids(review.project, git_diff, paths)
+        stats = diff_stats(review.project, git_diff)
 
         Enum.map(sorted, fn %{path: path, status: status} ->
-          file_entry(path, Map.get(active, path), Map.get(blobs, path), status)
+          file_entry(
+            path,
+            Map.get(active, path),
+            Map.get(blobs, path),
+            status,
+            Map.get(stats, path)
+          )
         end)
 
       {:error, _reason} ->
@@ -452,30 +465,43 @@ defmodule Suikou.Reviews do
            approved: boolean(),
            verdict: :approve | :request_changes | :comment | nil,
            content_hash: String.t() | nil,
-           change_status: Git.change_status() | nil
+           change_status: Git.change_status() | nil,
+           added: non_neg_integer() | nil,
+           deleted: non_neg_integer() | nil
          }
 
-  defp file_entry(path, nil, content_hash, change_status) do
+  defp file_entry(path, nil, content_hash, change_status, stats) do
+    {added, deleted} = split_stats(stats)
+
     %{
       path: path,
       artifact_id: nil,
       approved: false,
       verdict: nil,
       content_hash: content_hash,
-      change_status: change_status
+      change_status: change_status,
+      added: added,
+      deleted: deleted
     }
   end
 
-  defp file_entry(path, %Artifact{} = artifact, content_hash, change_status) do
+  defp file_entry(path, %Artifact{} = artifact, content_hash, change_status, stats) do
+    {added, deleted} = split_stats(stats)
+
     %{
       path: path,
       artifact_id: artifact.id,
       approved: not is_nil(artifact.approved_round),
       verdict: file_verdict(artifact),
       content_hash: content_hash,
-      change_status: change_status
+      change_status: change_status,
+      added: added,
+      deleted: deleted
     }
   end
+
+  defp split_stats(nil), do: {nil, nil}
+  defp split_stats(%{added: added, deleted: deleted}), do: {added, deleted}
 
   # Per-file verdict: the reviewer's explicit choice on this file. Prefer the
   # latest submitted verdict (a closed round's recorded outcome); fall back to
@@ -766,6 +792,13 @@ defmodule Suikou.Reviews do
       {:ok, entries} -> {:ok, entries}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp diff_stats(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+    case Git.diff_stats(path, base, head) do
+      {:ok, stats} -> stats
+      {:error, _reason} -> %{}
     end
   end
 end

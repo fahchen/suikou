@@ -58,22 +58,24 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done + green + committed.
   screen. Further per-state polish (E6 resolved / E3 pending visual split,
   H2 review overview) is tracked in `states.md`'s "优先补的状态" list.
 
-- [~] **4. Review — git_diff view** — the diff surface for `kind: "git_diff"`:
+- [x] **4. Review — git_diff view** — the diff surface for `kind: "git_diff"`:
   `DiffRefsLine` (`base@sha..head@sha`), Files/Diff badges, `refs moved` amber /
   `branch deleted` red pills, split + unified diff, in-diff comment threads.
   Mockups: the J-group states in `states-codex.html` / `states-light.html` /
   mobile variants. Spec: `states.md` (review-kind axis).
-  Landed: J1/J4/J7 chrome — `load_review_structure` now serves a typed `refs`
-  snapshot (backed by shared `Suikou.Reviews.refs_snapshot/1`), the workspace
+  Landed: J1/J4/J7 chrome — `load_review_structure` serves a typed `refs`
+  snapshot (backed by `Suikou.Reviews.refs_snapshot/1`), the workspace
   breadcrumb renders the compared refs plus amber "refs moved" / red "branch
   deleted" pills, and the file card gets a `RefsBanner` warning above the diff
   in both states. Unified/split diff layout, diff_hunk comments, and the
-  hunk-range composer are already live in `views/DiffView.tsx`.
-  Remaining: per-file `+N/−M` stats in the navigator (needs a new backend git
-  diff-stat walk); the "Re-diff refs" banner button is currently decorative
-  (marked with a `ponytail:` note) — a real re-diff needs a server-side flow
-  and round semantics. J5 cross-round real diff, J6 submit polish, and J8
-  agent-reply lifecycle ride on generic surfaces already covered elsewhere.
+  hunk-range composer are live in `views/DiffView.tsx`. Per-file `+N/−M` stats
+  now ride the shared `ReviewFileTree` row via a new `Suikou.Git.diff_stats/3`
+  numstat walk plumbed onto `Reviews.list_files/1`; a zero-count side is
+  skipped and both-null (binary files, non-diff reviews) collapses silently.
+  Deferred: the "Re-diff refs" banner button stays decorative (marked with a
+  `ponytail:` note) — a real re-diff needs a server-side flow and round
+  semantics. J5 cross-round real diff, J6 submit polish, and J8 agent-reply
+  lifecycle ride on generic surfaces already covered elsewhere.
 
 ## Done when
 

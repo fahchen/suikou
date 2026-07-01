@@ -14,6 +14,10 @@ export interface ReviewFileRow {
   artifact_id: string | null
   verdict: Verdict | null
   change_status?: ChangeStatus | null
+  /** Diff review only: added/deleted line counts from `git diff --numstat`;
+   * both `null` for a file-selection review or a binary diff. */
+  added?: number | null
+  deleted?: number | null
 }
 
 /** `menu` renders dropdown items inside a switcher popup; `list` renders plain
@@ -202,6 +206,7 @@ function Trailing<F extends ReviewFileRow>({ file, props }: { file: F; props: Ro
   const pending = props.pendingPath != null && file.path === props.pendingPath
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1.5">
+      <DiffDeltas added={file.added ?? null} deleted={file.deleted ?? null} />
       {count > 0 && (
         <span
           aria-label={`${count} ${count === 1 ? "comment" : "comments"}`}
@@ -218,6 +223,34 @@ function Trailing<F extends ReviewFileRow>({ file, props }: { file: F; props: Ro
       {props.variant === "list" && pending && (
         <Loader2 size={12} className="shrink-0 animate-spin text-blue" aria-label="Opening" />
       )}
+    </span>
+  )
+}
+
+/**
+ * Per-file `+N / −M` chip for a git_diff review row. Both counts null (binary
+ * file, or a non-diff review) renders nothing; a zero count is skipped so a
+ * pure-addition/pure-deletion file only shows the meaningful side. Colors ride
+ * the shared `--color-green` / `--color-red` tokens so all 13 themes agree.
+ */
+function DiffDeltas({ added, deleted }: { added: number | null; deleted: number | null }) {
+  if (added == null && deleted == null) return null
+  const showAdded = added != null && added > 0
+  const showDeleted = deleted != null && deleted > 0
+  if (!showAdded && !showDeleted) return null
+  const label = [
+    showAdded ? `${added} added` : null,
+    showDeleted ? `${deleted} deleted` : null
+  ]
+    .filter(Boolean)
+    .join(", ")
+  return (
+    <span
+      aria-label={label}
+      className="inline-flex shrink-0 items-center gap-1 font-mono text-[10.5px] tabular-nums"
+    >
+      {showAdded && <span className="text-green">+{added}</span>}
+      {showDeleted && <span className="text-red">−{deleted}</span>}
     </span>
   )
 }

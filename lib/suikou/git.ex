@@ -23,7 +23,9 @@ defmodule Suikou.Git do
   @type show_blob_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type changed_files_with_status_error() ::
           :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type diff_stats_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
+  @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
 
   @doc """
   Returns `true` when `dir` is the working tree of a git repository.
@@ -300,6 +302,76 @@ defmodule Suikou.Git do
 
   defp walk_name_status([status, path | rest], acc) do
     walk_name_status(rest, [%{path: path, status: status_atom(status)} | acc])
+  end
+
+  @doc """
+  Per-file added/deleted line counts between `base` and `head` (three-dot
+  semantics), keyed by the file's current-side path. Binary files surface as
+  `%{added: nil, deleted: nil}` since git reports `-` line counts for them.
+  Powers the diff review navigator's `+N / −M` chips alongside
+  `changed_files_with_status/3`.
+
+  ## Examples
+
+      Suikou.Git.diff_stats("/projects/app", "main", "topic")
+      #=> {:ok, %{"a.txt" => %{added: 24, deleted: 6}, "logo.png" => %{added: nil, deleted: nil}}}
+
+  """
+  @spec diff_stats(repo_dir(), ref(), ref()) ::
+          {:ok, %{rel_path() => diff_stat()}} | {:error, diff_stats_error()}
+  def diff_stats(dir, base, head) do
+    with {:ok, base} <- tag_invalid_ref(safe_ref(base)),
+         {:ok, head} <- tag_invalid_ref(safe_ref(head)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, base),
+         :ok <- ensure_ref(dir, head),
+         {:ok, out} <-
+           run(dir, ["diff", "--numstat", "-z", base <> "..." <> head, "--"]) do
+      {:ok, parse_numstat(out)}
+    end
+  end
+
+  # `git diff --numstat -z` emits `added\tdeleted\tpath\0` for non-renames and
+  # `added\tdeleted\t\0oldpath\0newpath\0` for renames/copies. Splitting on NUL
+  # first, an entry whose third tab-separated field is empty marks a rename and
+  # the next two NUL-separated tokens carry old/new paths.
+  defp parse_numstat(out) do
+    out
+    |> String.split(<<0>>, trim: true)
+    |> walk_numstat(%{})
+  end
+
+  defp walk_numstat([], acc), do: acc
+
+  defp walk_numstat([head | rest], acc) do
+    case String.split(head, "\t", parts: 3) do
+      [added, deleted, ""] ->
+        case rest do
+          [_old, new | tail] ->
+            walk_numstat(tail, Map.put(acc, new, numstat_entry(added, deleted)))
+
+          _short ->
+            acc
+        end
+
+      [added, deleted, path] ->
+        walk_numstat(rest, Map.put(acc, path, numstat_entry(added, deleted)))
+
+      _other ->
+        walk_numstat(rest, acc)
+    end
+  end
+
+  defp numstat_entry(added, deleted),
+    do: %{added: parse_stat_count(added), deleted: parse_stat_count(deleted)}
+
+  defp parse_stat_count("-"), do: nil
+
+  defp parse_stat_count(count) do
+    case Integer.parse(count) do
+      {value, ""} -> value
+      _other -> nil
+    end
   end
 
   defp status_atom("A"), do: :added

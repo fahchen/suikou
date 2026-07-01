@@ -106,7 +106,9 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
         approved: boolean(),
         verdict: :approve | :request_changes | :comment | nil,
         content_hash: String.t() | nil,
-        change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil
+        change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil,
+        added: integer() | nil,
+        deleted: integer() | nil
       }
     end
   end

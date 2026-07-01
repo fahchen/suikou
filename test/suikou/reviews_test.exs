@@ -494,6 +494,26 @@ defmodule Suikou.ReviewsTest do
       assert statuses["modify_me.txt"] == :modified
       assert statuses["delete_me.txt"] == :deleted
     end
+
+    @tag :tmp_dir
+    test "carries per-file added/deleted line counts from numstat", %{tmp_dir: dir} do
+      init_repo!(dir)
+      File.write!(Path.join(dir, "modify_me.txt"), "one\ntwo\nthree\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "seed"])
+
+      branch!(dir, "topic", fn ->
+        File.write!(Path.join(dir, "modify_me.txt"), "one\nTWO\nthree\nfour\n")
+        File.write!(Path.join(dir, "brand_new.txt"), "hello\nworld\n")
+      end)
+
+      review = diff_review_with(dir, "main", "topic")
+      files = Reviews.list_files(Reviews.get_review(review.id))
+      stats = Map.new(files, &{&1.path, {&1.added, &1.deleted}})
+
+      assert stats["modify_me.txt"] == {2, 1}
+      assert stats["brand_new.txt"] == {2, 0}
+    end
   end
 
   describe "fetch_content_by_path/2" do

@@ -327,6 +327,75 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "diff_stats/3" do
+    @tag :tmp_dir
+    test "counts added and deleted lines per file", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "one\ntwo\nthree\n")
+      File.write!(Path.join(dir, "b.txt"), "keep\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a/b")
+
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      File.write!(Path.join(dir, "a.txt"), "one\nTWO\nTHREE\nfour\n")
+      File.write!(Path.join(dir, "c.txt"), "brand\nnew\n")
+      git!(["add", "-A"], cd: dir)
+      commit!(dir, "modify a, add c")
+
+      assert {:ok, stats} = Git.diff_stats(dir, "main", "topic")
+
+      assert stats == %{
+               "a.txt" => %{added: 3, deleted: 2},
+               "c.txt" => %{added: 2, deleted: 0}
+             }
+    end
+
+    @tag :tmp_dir
+    test "reports nil counts for binary files", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      # A 4-byte binary blob with a NUL forces git to detect it as binary.
+      File.write!(Path.join(dir, "logo.bin"), <<0, 1, 2, 3>>)
+      git!(["add", "logo.bin"], cd: dir)
+      commit!(dir, "add binary")
+
+      assert {:ok, stats} = Git.diff_stats(dir, "main", "topic")
+      assert stats["logo.bin"] == %{added: nil, deleted: nil}
+    end
+
+    @tag :tmp_dir
+    test "keys renames by the new-side path", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "old.txt"), "alpha\nbeta\ngamma\ndelta\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "seed old")
+
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      git!(["mv", "old.txt", "new.txt"], cd: dir)
+      # Touch a line so numstat has non-zero counts for the rename.
+      File.write!(Path.join(dir, "new.txt"), "alpha\nBETA\ngamma\ndelta\n")
+      git!(["add", "-A"], cd: dir)
+      commit!(dir, "rename + edit")
+
+      assert {:ok, stats} = Git.diff_stats(dir, "main", "topic")
+      assert Map.has_key?(stats, "new.txt")
+      refute Map.has_key?(stats, "old.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.diff_stats(dir, "main", "nope")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.diff_stats(dir, "--evil", "main")
+    end
+  end
+
   describe "rev_parse/2" do
     @tag :tmp_dir
     test "resolves a branch to its 40-character commit SHA", %{tmp_dir: dir} do
