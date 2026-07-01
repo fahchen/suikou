@@ -552,13 +552,13 @@ function ThemePicker({
         }
       />
       <DropdownMenuContent align="end" className="max-h-[326px] w-[234px] overflow-auto">
-        <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.08em] text-faint uppercase">
-          Light
-        </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(v) => onChange(v as ThemeName)}
         >
+          <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.08em] text-faint uppercase">
+            Light
+          </DropdownMenuLabel>
           {light.map((t) => (
             <DropdownMenuRadioItem key={t} value={t}>
               {THEME_LABELS[t]}
