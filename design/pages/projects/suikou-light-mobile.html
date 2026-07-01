@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suikou &#183; Projects &#183; State storyboard &#183; Suikou Light (mobile)</title>
+<style>
+/* ============================================================
+   SUIKOU - Projects page (app home / launcher), MOBILE (phone).
+   Visual direction: SUIKOU LIGHT - the lit twin of Suikou Dark:
+   a cool off-white desk, near-white panels, dark cool-tinted ink,
+   accent reserved for action/selection/focus. This is the phone
+   face of the same launcher whose dark desktop screen lives in
+   ./suikou-dark.html; it borrows that page's component look (project
+   rows, review rows, monochrome kind glyphs, new-review sheet,
+   branch picker, empty states) and its sample data, re-themed to
+   light, and borrows ONLY the responsive phone shell (device frame,
+   single column, bottom sheets) from ./macos-mobile.html.
+
+   On a phone the desktop's two-column split collapses to one column:
+   the project sidebar becomes a horizontal scrollable CHIP strip, and
+   the review list runs full width below it. Creation flows are iOS
+   bottom sheets.
+
+   The :root token block below is COPIED VERBATIM from DESIGN.md's
+   "Suikou Light (light theme)" section so every component CSS name
+   matches the dark skin and the two pages share one system.
+
+   Self-contained: system fonts, inline SVG, OKLCH only, never pure
+   black/white, no network, no JS. Zero em dashes in visible copy.
+   ============================================================ */
+:root {
+  color-scheme: light;
+  --bg-0: oklch(96.5% 0.006 240);   /* desk / page */
+  --bg-1: oklch(98% 0.005 240);     /* window */
+  --bg-2: oklch(99.4% 0.003 240);   /* panels, cards, threads */
+  --bg-3: oklch(93.5% 0.008 240);   /* hover */
+  --bg-4: oklch(90.5% 0.010 240);   /* raised control */
+  --editor-bg: oklch(99.2% 0.003 240); /* reading surface */
+
+  --ink-0: oklch(26% 0.020 252);    /* primary text */
+  --ink-1: oklch(40% 0.018 250);    /* secondary */
+  --ink-2: oklch(50% 0.016 248);    /* tertiary / labels */
+  --ink-3: oklch(52% 0.015 248);    /* muted, AA-safe on bg-2 */
+
+  --cyan: oklch(60% 0.13 205);
+  --teal: oklch(54% 0.13 222);
+  --blue: oklch(50% 0.16 248);
+  --accent: oklch(53% 0.14 226);
+  --accent-strong: oklch(47% 0.15 232);
+  --accent-bright: oklch(46% 0.16 232); /* glyphs/text: dark enough for AA on white */
+  --accent-grad: var(--accent);
+  --accent-grad-v: var(--accent);
+  --accent-soft:   oklch(54% 0.13 222 / 0.12);
+  --accent-softer: oklch(54% 0.13 222 / 0.07);
+  --accent-edge:   oklch(54% 0.13 222 / 0.30);
+  --on-accent:     oklch(99% 0.005 230); /* text on the gradient button */
+
+  --amber:      oklch(56% 0.14 64);
+  --amber-deep: oklch(50% 0.14 58);
+  --amber-soft: oklch(72% 0.13 70 / 0.18);
+  --amber-edge: oklch(60% 0.14 64 / 0.32);
+
+  --approve:      oklch(52% 0.15 150);
+  --approve-soft: oklch(62% 0.15 150 / 0.15);
+  --approve-edge: oklch(54% 0.15 150 / 0.32);
+  --request:      oklch(53% 0.20 25);
+  --request-soft: oklch(62% 0.20 25 / 0.13);
+  --request-edge: oklch(55% 0.20 25 / 0.32);
+  --neutral-v:    var(--ink-2);
+  --neutral-soft: oklch(50% 0.01 246 / 0.10);
+
+  --type-fix:       oklch(53% 0.20 25);
+  --type-fix-soft:  oklch(62% 0.20 25 / 0.13);
+  --type-fix-edge:  oklch(55% 0.20 25 / 0.34);
+  --type-ask:       oklch(50% 0.16 248);
+  --type-ask-soft:  oklch(58% 0.15 248 / 0.13);
+  --type-ask-edge:  oklch(52% 0.16 248 / 0.34);
+  --type-note:      oklch(50% 0.015 248);
+  --type-note-soft: oklch(50% 0.01 246 / 0.12);
+  --type-note-edge: oklch(50% 0.01 246 / 0.26);
+
+  --diff-add:     oklch(72% 0.13 150 / 0.20);
+  --diff-add-gut: oklch(66% 0.14 150 / 0.32);
+  --diff-add-ink: oklch(45% 0.15 150);
+  --diff-del:     oklch(74% 0.14 25 / 0.18);
+  --diff-del-gut: oklch(68% 0.16 25 / 0.30);
+  --diff-del-ink: oklch(50% 0.19 25);
+
+  --syn-key:  oklch(46% 0.19 300);
+  --syn-fn:   oklch(45% 0.15 250);
+  --syn-str:  oklch(44% 0.13 150);
+  --syn-num:  oklch(50% 0.13 55);
+  --syn-atom: oklch(46% 0.13 200);
+  --syn-com:  oklch(60% 0.020 240);
+  --syn-mod:  oklch(48% 0.13 30);
+  --syn-punc: oklch(45% 0.015 248);
+
+  --hair:        oklch(30% 0.02 250 / 0.10);
+  --hair-strong: oklch(30% 0.03 248 / 0.16);
+  --edge-top:    oklch(100% 0 0 / 0.85);
+  --edge-top-2:  oklch(100% 0 0 / 0.55);
+
+  --panel-spec: inset 0 1px 0 var(--edge-top), inset 0 0 0 0.5px var(--edge-top-2);
+  --shadow-win:  0 1px 0 var(--edge-top) inset, 0 2px 6px oklch(50% 0.02 250 / 0.10),
+                 0 16px 40px oklch(50% 0.02 250 / 0.12), 0 40px 80px oklch(48% 0.02 250 / 0.10);
+  --shadow-pop:  var(--panel-spec), 0 4px 14px oklch(50% 0.02 250 / 0.14), 0 22px 50px oklch(48% 0.02 250 / 0.16);
+  --shadow-float: 0 2px 8px oklch(50% 0.02 250 / 0.12), 0 12px 30px oklch(48% 0.02 250 / 0.14);
+  --shadow-card: 0 1px 2px oklch(50% 0.02 250 / 0.10), inset 0 0.5px 0 var(--edge-top-2);
+
+  --desk:
+    radial-gradient(70% 55% at 14% 8%, oklch(80% 0.05 200 / 0.45) 0%, transparent 60%),
+    radial-gradient(64% 60% at 92% 12%, oklch(80% 0.05 245 / 0.40) 0%, transparent 58%),
+    radial-gradient(90% 80% at 70% 108%, oklch(82% 0.04 270 / 0.35) 0%, transparent 60%),
+    linear-gradient(160deg, oklch(97% 0.006 240), oklch(95% 0.008 238));
+
+  --r-win: 16px; --r-panel: 13px; --r-ctrl: 9px; --r-pill: 999px;
+
+  --font: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", "Inter", sans-serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
+
+  /* phone-only metrics */
+  --r-screen: 13px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px;
+  --press-neutral: var(--bg-3);
+  --press-accent:  var(--accent-soft);
+}
+
+/* ---------- reset ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  font-family: var(--font); color: var(--ink-0); background: var(--bg-0);
+  line-height: 1.42; letter-spacing: -0.004em; user-select: none; -webkit-user-select: none; cursor: default;
+}
+svg { display: block; }
+button { font-family: inherit; color: inherit; cursor: default; border: 0; background: none; }
+:focus { outline: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent-bright); outline-offset: 2px; border-radius: var(--r-ctrl);
+}
+.page-nav a:focus-visible { outline-offset: 1px; }
+.mono { font-family: var(--mono); font-variant-ligatures: none; }
+input { user-select: text; -webkit-user-select: text; cursor: text; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   PRESENTATION SHELL (page chrome around the device frames)
+   ============================================================ */
+.page-bar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 16px; padding: 11px 24px;
+  background: oklch(98% 0.005 240 / 0.82);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--hair); box-shadow: inset 0 1px 0 var(--edge-top-2);
+}
+.page-bar .mark { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: -0.02em; font-size: 15px; color: var(--ink-0); }
+.seal-chip { width: 27px; height: 27px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-grad-v); color: var(--on-accent); font-weight: 850; font-size: 14px; box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.4), 0 1px 3px oklch(50% 0.02 250 / 0.18); }
+.page-bar .sub { color: var(--ink-2); font-size: 12.5px; font-weight: 500; }
+.page-nav { display: flex; gap: 3px; margin-left: auto; flex-wrap: wrap; }
+.page-nav a { text-decoration: none; color: var(--ink-2); font-size: 12px; font-weight: 540; padding: 5px 10px; border-radius: var(--r-pill); transition: background .18s ease, color .18s ease; }
+.page-nav a:hover { background: var(--accent-soft); color: var(--accent-bright); }
+
+main { padding: 0 24px 120px; max-width: 1280px; margin: 0 auto; }
+.sb-intro { margin: 30px 0 8px; }
+.sb-intro h1 { font-size: 22px; font-weight: 740; letter-spacing: -0.02em; color: var(--ink-0); display: flex; align-items: center; gap: 11px; }
+.sb-intro h1 .seal-chip { width: 30px; height: 30px; border-radius: 8px; font-size: 16px; }
+.sb-intro p { margin-top: 9px; font-size: 13.5px; color: var(--ink-1); line-height: 1.55; max-width: 92ch; }
+.sb-intro p b { color: var(--ink-0); font-weight: 640; }
+.sb-intro p code { font-family: var(--mono); font-size: 12px; color: var(--accent-bright); background: var(--accent-softer); padding: 1px 5px; border-radius: 4px; }
+
+/* labeled divider before each phone screen */
+.sb-div { margin: 46px 0 18px; display: flex; align-items: center; gap: 13px; }
+.sb-div .seq { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 13px; font-weight: 850; color: var(--amber); font-variant-numeric: tabular-nums; background: var(--amber-soft); box-shadow: inset 0 0 0 0.5px var(--amber-edge); }
+.sb-div .dtxt { min-width: 0; }
+.sb-div .dtitle { font-size: 15px; font-weight: 700; letter-spacing: -0.012em; color: var(--ink-0); display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.sb-div .cat { font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 6px; background: var(--accent-softer); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+.sb-div .dsub { margin-top: 3px; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; max-width: 98ch; }
+.sb-div .dsub code { font-family: var(--mono); font-size: 11px; background: var(--accent-softer); padding: 1px 5px; border-radius: 4px; color: var(--accent-bright); }
+.sb-div .dsub b { color: var(--ink-1); font-weight: 640; }
+.sb-div .hairline { flex: 1; height: 1px; background: linear-gradient(90deg, var(--hair-strong), transparent); min-width: 24px; align-self: center; }
+
+/* the wallpaper "desk" each phone sits on */
+.stage { position: relative; background: var(--desk); border-radius: 24px; padding: 40px 38px; border: 1px solid var(--hair-strong); box-shadow: inset 0 1px 0 var(--edge-top-2); overflow: hidden; }
+.stage::before, .stage::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; filter: blur(60px); opacity: 0.5; mix-blend-mode: screen; }
+.stage::before { width: 340px; height: 340px; left: -50px; top: -80px; background: oklch(80% 0.10 200); }
+.stage::after  { width: 400px; height: 400px; right: -70px; bottom: -140px; background: oklch(80% 0.11 270); }
+.stage > * { position: relative; z-index: 1; }
+
+.phones { display: flex; gap: 34px; flex-wrap: wrap; align-items: flex-start; }
+
+/* ============================================================
+   DEVICE FRAME - a subtle iPhone bezel (~390pt content)
+   ============================================================ */
+.device {
+  width: 392px; flex: none; border-radius: 46px; padding: 10px;
+  background: linear-gradient(160deg, oklch(36% 0.01 265), oklch(20% 0.012 268));
+  box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.16), inset 0 0 0 1.5px oklch(40% 0.01 265),
+    0 1px 2px oklch(20% 0.02 265 / 0.5), 0 30px 70px oklch(22% 0.05 265 / 0.40);
+  position: relative;
+}
+.device::before { content: ""; position: absolute; left: -2px; top: 132px; width: 3px; height: 58px; border-radius: 3px 0 0 3px; background: oklch(30% 0.01 265); }
+.device::after { content: ""; position: absolute; right: -2px; top: 150px; width: 3px; height: 78px; border-radius: 0 3px 3px 0; background: oklch(30% 0.01 265); }
+.screen {
+  position: relative; height: 844px; border-radius: 37px; overflow: hidden;
+  background: linear-gradient(180deg, var(--accent-softer), transparent 26%), var(--bg-1);
+  box-shadow: inset 0 0 0 1px oklch(30% 0.02 250 / 0.35);
+  display: flex; flex-direction: column;
+}
+.screen > * { position: relative; }
+.island { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 84px; height: 23px; border-radius: var(--r-pill); background: oklch(14% 0.01 265); z-index: 40; box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.06); }
+
+/* iOS status bar */
+.statusbar { height: 44px; flex: none; z-index: 30; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 22px 5px; font-size: 14px; font-weight: 640; letter-spacing: -0.01em; color: var(--ink-0); }
+.statusbar .ind { display: flex; align-items: center; gap: 5px; }
+.statusbar .ind svg { stroke: var(--ink-0); }
+.sb-batt { width: 23px; height: 12px; border: 1.2px solid var(--ink-0); border-radius: 3px; position: relative; padding: 1.4px; }
+.sb-batt::after { content: ""; position: absolute; right: -3px; top: 50%; transform: translateY(-50%); width: 1.5px; height: 4px; border-radius: 0 1px 1px 0; background: var(--ink-0); }
+.sb-batt i { display: block; height: 100%; width: 72%; border-radius: 1px; background: var(--ink-0); }
+
+/* home indicator + safe-area cushion */
+.home-ind { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 128px; height: 5px; border-radius: 3px; background: oklch(30% 0.01 265 / 0.4); z-index: 70; }
+.safe-bottom { height: 26px; flex: none; }
+
+/* ============================================================
+   APP - slim top app bar (seal/wordmark, search, settings)
+   ============================================================ */
+.appbar {
+  z-index: 20; flex: none;
+  background: oklch(98% 0.005 240 / 0.86);
+  -webkit-backdrop-filter: blur(20px) saturate(150%); backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 0.5px solid var(--hair-strong); box-shadow: var(--panel-spec);
+}
+.appbar-top { height: 48px; display: flex; align-items: center; gap: var(--s-2); padding: 0 12px; }
+.ab-brand { display: inline-flex; align-items: center; gap: 9px; height: 38px; padding: 0 8px 0 4px; border-radius: var(--r-ctrl); }
+.ab-brand:active { background: var(--bg-3); }
+.ab-brand .seal-sm { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--accent-grad-v); color: var(--on-accent); font-weight: 850; font-size: 14px; box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.4), 0 1px 3px oklch(50% 0.02 250 / 0.18); }
+.ab-brand .wordmark { font-size: 16px; font-weight: 720; letter-spacing: -0.02em; color: var(--ink-0); }
+.ab-spacer { flex: 1; }
+.ab-act { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: var(--ink-1); }
+.ab-act:active { background: var(--bg-3); }
+.ab-act svg { width: 21px; height: 21px; stroke: var(--ink-1); }
+
+/* horizontal scrollable PROJECT CHIP strip */
+.chip-strip { display: flex; align-items: center; gap: 8px; padding: 2px 12px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.chip-strip::-webkit-scrollbar { display: none; }
+.pchip { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: var(--r-pill); flex: none;
+  font-size: 13.5px; font-weight: 560; letter-spacing: -0.008em; color: var(--ink-1);
+  background: var(--bg-2); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); }
+.pchip:active { background: var(--bg-3); }
+.pchip svg { width: 15px; height: 15px; stroke: var(--ink-2); flex: none; }
+/* selected chip: FULL accent fill + hairline ring, never a side stripe */
+.pchip.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-edge); color: var(--accent-bright); font-weight: 620; }
+.pchip.sel svg { stroke: var(--accent-bright); }
+.pchip .cdot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--accent-bright); box-shadow: 0 0 0 2.5px var(--accent-soft); }
+.pchip.add { color: var(--ink-2); background: transparent; border: 1px dashed var(--hair-strong); box-shadow: none; width: 34px; padding: 0; justify-content: center; }
+.pchip.add:active { background: var(--accent-softer); border-color: var(--accent-edge); color: var(--accent-bright); }
+.pchip.add svg { width: 17px; height: 17px; stroke: currentColor; }
+
+/* ============================================================
+   SCROLL BODY
+   ============================================================ */
+.body { flex: 1; min-height: 0; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+.scroll { flex: 1; overflow: hidden; padding: var(--s-3) var(--s-4) 0; }
+
+/* selected-project header: name + truncated path + ... */
+.proj-head { display: flex; align-items: center; gap: var(--s-3); padding: 4px 2px 14px; }
+.proj-head .ph-txt { flex: 1; min-width: 0; }
+.proj-head .ph-name { font-size: 22px; font-weight: 760; letter-spacing: -0.025em; color: var(--ink-0); line-height: 1.1; }
+.proj-head .ph-path { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-top: 3px; display: flex; align-items: center; gap: 5px; overflow: hidden; }
+.proj-head .ph-path svg { width: 13px; height: 13px; stroke: var(--ink-3); flex: none; }
+.proj-head .ph-path .ptxt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-actions { width: 38px; height: 38px; border-radius: 11px; flex: none; display: grid; place-items: center; color: var(--ink-2); }
+.ph-actions:active { background: var(--bg-3); color: var(--ink-0); }
+.ph-actions svg { width: 20px; height: 20px; }
+.ph-actions svg circle { fill: currentColor; }
+
+/* prominent + New review button (full-width primary gradient) */
+.newrev-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; border-radius: var(--r-panel); margin-bottom: var(--s-5);
+  font-size: 16px; font-weight: 660; letter-spacing: -0.01em; color: var(--on-accent);
+  background: var(--accent-grad); border: 0.5px solid var(--accent-edge);
+  box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.4), 0 1px 4px oklch(50% 0.06 250 / 0.30), 0 0 18px var(--accent-softer); }
+.newrev-btn:active { filter: brightness(0.96); transform: scale(0.992); }
+.newrev-btn svg { width: 20px; height: 20px; stroke: var(--on-accent); stroke-width: 2; flex: none; }
+
+.grp-head { font-size: 11px; font-weight: 760; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-3); padding: 0 2px 10px; display: flex; align-items: center; gap: 8px; }
+.grp-head .gcount { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.grp-head .gline { flex: 1; height: 1px; background: var(--hair); }
+
+/* grouped inset list of review rows */
+.rev-list { border-radius: var(--r-panel); background: var(--bg-2); overflow: hidden; box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); }
+
+/* ---------- REVIEW ROW (56 to 64px, comfortably tappable) ---------- */
+.rrow { display: flex; align-items: center; gap: var(--s-3); padding: 12px var(--s-4); position: relative; min-height: 60px; }
+.rrow + .rrow::before { content: ""; position: absolute; left: 62px; right: 0; top: 0; height: 0.5px; background: var(--hair-strong); }
+.rrow:active { background: var(--bg-3); }
+.rrow.unread { background: var(--accent-softer); }
+.rrow.unread:active { background: var(--bg-3); }
+/* monochrome kind glyph */
+.r-kind { width: 34px; height: 34px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--bg-3); color: var(--ink-1); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); }
+.r-kind svg { width: 18px; height: 18px; stroke: currentColor; }
+.rrow.unread .r-kind { background: var(--bg-4); color: var(--ink-0); }
+.r-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.r-title { font-size: 15.5px; font-weight: 600; color: var(--ink-0); letter-spacing: -0.012em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow.unread .r-title { font-weight: 700; }
+.rrow.approved .r-title { color: var(--ink-1); }
+/* meta line: file count, kind, badges, refs, relative time */
+.r-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); min-width: 0; flex-wrap: nowrap; }
+.r-meta .m-files { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); flex: none; }
+.r-meta .m-kind { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-3); }
+.r-meta .m-kind svg { width: 12px; height: 12px; stroke: currentColor; }
+.r-meta .m-refs { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-meta .m-refs .rdots { color: var(--ink-3); margin: 0 1px; }
+.r-meta .m-time { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-3); flex: none; }
+.r-meta .m-dot { width: 2.5px; height: 2.5px; border-radius: 50%; background: var(--ink-3); opacity: 0.7; flex: none; }
+/* HTML badge */
+.badge { display: inline-flex; align-items: center; height: 17px; padding: 0 7px; border-radius: var(--r-pill); font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--accent-softer); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+/* trailing markers - reserved fixed-width slot, no reflow */
+.r-mark { width: 22px; height: 22px; flex: none; display: grid; place-items: center; }
+.r-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-bright); box-shadow: 0 0 0 3px var(--accent-soft); }
+.r-check { width: 22px; height: 22px; border-radius: 50%; background: var(--approve-soft); display: grid; place-items: center; box-shadow: inset 0 0 0 0.5px var(--approve-edge); }
+.r-check svg { width: 14px; height: 14px; stroke: var(--approve); stroke-width: 2.4; }
+.r-chev { width: 18px; height: 18px; flex: none; stroke: var(--ink-3); stroke-width: 2; margin-left: 2px; }
+
+.grp-foot { font-size: 12.5px; color: var(--ink-3); padding: var(--s-4) 2px 6px; line-height: 1.45; }
+
+/* ============================================================
+   BOTTOM SHEET (iOS modal) + scrim
+   ============================================================ */
+.scrim { position: absolute; inset: 0; z-index: 50; background: oklch(35% 0.02 250 / 0.30); -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 60; border-radius: 22px 22px 0 0;
+  background: oklch(99% 0.004 240 / 0.94); -webkit-backdrop-filter: blur(28px) saturate(150%); backdrop-filter: blur(28px) saturate(150%);
+  border-top: 0.5px solid var(--hair-strong); box-shadow: var(--shadow-pop);
+  padding: var(--s-2) var(--s-4) calc(var(--s-4) + 18px); }
+.sheet .grabber { width: 40px; height: 5px; border-radius: 3px; margin: 0 auto var(--s-3); background: var(--bg-4); }
+.sheet-title { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; text-align: center; color: var(--ink-0); margin-bottom: var(--s-2); }
+.sheet-sub { font-size: 13px; font-weight: 480; color: var(--ink-2); text-align: center; margin: 0 0 var(--s-4); }
+
+/* project-switcher list row */
+.sheet-row { display: flex; align-items: center; gap: var(--s-3); padding: 14px var(--s-4); border-radius: var(--r-ctrl); position: relative; }
+.sheet-row:active { background: var(--bg-3); }
+.sheet-row .sr-glyph { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center; background: var(--bg-3); color: var(--ink-1); box-shadow: inset 0 0 0 0.5px var(--hair-strong); }
+.sheet-row.sel .sr-glyph { background: var(--accent-soft); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+.sheet-row .sr-glyph svg { width: 18px; height: 18px; stroke: currentColor; }
+.sheet-row .sr-txt { flex: 1; min-width: 0; }
+.sheet-row .sr-name { font-size: 16px; font-weight: 560; letter-spacing: -0.01em; color: var(--ink-0); }
+.sheet-row.sel .sr-name { color: var(--accent-bright); font-weight: 640; }
+.sheet-row .sr-path { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-row .sr-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent-bright); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sheet-row .sr-check { flex: none; }
+.sheet-row .sr-check svg { width: 20px; height: 20px; stroke: var(--accent-bright); stroke-width: 2.4; }
+.sheet-list { border-radius: var(--r-card); background: var(--bg-2); overflow: hidden; box-shadow: inset 0 0 0 0.5px var(--hair-strong); margin-bottom: var(--s-2); }
+.sheet-list .sheet-row { border-radius: 0; }
+.sheet-list .sheet-row + .sheet-row::before { content: ""; position: absolute; left: 62px; right: 0; top: 0; height: 0.5px; background: var(--hair-strong); }
+.sheet-row.add { color: var(--accent-bright); }
+.sheet-row.add .sr-glyph { background: var(--accent-softer); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+.sheet-row.add .sr-name { color: var(--accent-bright); font-weight: 560; }
+
+/* large option rows in the "New review" sheet */
+.opt { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4); border-radius: var(--r-card); background: var(--bg-2); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); margin-bottom: var(--s-2); }
+.opt:active { background: var(--bg-3); }
+.opt .oico { width: 44px; height: 44px; border-radius: 12px; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+.opt .oico svg { width: 22px; height: 22px; stroke: currentColor; }
+.opt .otext { flex: 1; min-width: 0; }
+.opt .otext b { font-size: 16px; font-weight: 620; display: block; letter-spacing: -0.01em; color: var(--ink-0); }
+.opt .otext span { font-size: 13px; color: var(--ink-2); }
+.opt .ochev { width: 18px; height: 18px; stroke: var(--ink-3); stroke-width: 2; flex: none; }
+
+.sheet-cancel { width: 100%; height: 50px; border-radius: var(--r-card); margin-top: var(--s-2); font-size: 17px; font-weight: 600; color: var(--accent-bright); background: var(--bg-2); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); }
+.sheet-cancel:active { background: var(--bg-3); }
+
+/* branch-picker sheet form */
+.field { margin-bottom: var(--s-4); }
+.field > label { font-size: 11px; font-weight: 740; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 7px; padding-left: 2px; }
+.bdrop { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 13px; border: 0.5px solid var(--hair-strong); border-radius: 10px; background: var(--editor-bg); box-shadow: inset 0 1px 2px oklch(50% 0.02 250 / 0.08); font-family: var(--mono); font-size: 14.5px; color: var(--ink-0); }
+.bdrop:active { background: var(--bg-3); }
+.bdrop.focus { border-color: var(--accent-edge); box-shadow: 0 0 0 3px var(--accent-soft), inset 0 1px 2px oklch(50% 0.02 250 / 0.08); }
+.bdrop svg.lead { width: 17px; height: 17px; stroke: var(--ink-2); flex: none; }
+.bdrop .grow { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bdrop .tag { font-family: var(--font); font-size: 10px; font-weight: 700; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 5px; background: var(--neutral-soft); color: var(--ink-1); flex: none; }
+.bdrop .tag.def { background: var(--accent-soft); color: var(--accent-bright); box-shadow: inset 0 0 0 0.5px var(--accent-edge); }
+.bdrop svg.chev { width: 15px; height: 15px; stroke: var(--ink-3); flex: none; }
+
+.mb-note { display: flex; align-items: flex-start; gap: 10px; margin: var(--s-1) 0 var(--s-4); padding: var(--s-3) 13px; border-radius: 10px; background: var(--accent-softer); border: 0.5px solid var(--accent-edge); font-size: 12.5px; color: var(--ink-1); line-height: 1.45; }
+.mb-note svg { width: 16px; height: 16px; stroke: var(--accent-bright); flex: none; margin-top: 1px; }
+.mb-note b { color: var(--ink-0); font-weight: 620; }
+
+.changed-count { display: flex; align-items: center; gap: 9px; font-size: 15px; color: var(--ink-1); margin-bottom: var(--s-4); }
+.changed-count .n { font-family: var(--mono); font-weight: 700; color: var(--amber); font-variant-numeric: tabular-nums; }
+.changed-count svg { width: 17px; height: 17px; stroke: var(--ink-2); flex: none; }
+
+.sheet-actions { display: flex; gap: var(--s-3); }
+.btn { flex: 1; height: 50px; border-radius: var(--r-card); font-size: 17px; font-weight: 600; color: var(--ink-0); background: var(--bg-2); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card); }
+.btn:active { background: var(--bg-3); }
+.btn.primary { color: var(--on-accent); background: var(--accent-grad); border: 0.5px solid var(--accent-edge); box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.4), 0 1px 4px oklch(50% 0.06 250 / 0.30); }
+.btn.primary:active { filter: brightness(0.96); background: var(--accent-grad); }
+
+/* ============================================================
+   EMPTY STATE (inside a screen body)
+   ============================================================ */
+.empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px var(--s-6); }
+.empty .ill { width: 72px; height: 72px; border-radius: 20px; background: var(--bg-2); border: 0.5px solid var(--hair-strong); display: grid; place-items: center; margin-bottom: var(--s-5); color: var(--ink-3); box-shadow: var(--shadow-card); }
+.empty .ill svg { width: 34px; height: 34px; stroke: currentColor; }
+.empty h3 { font-size: 20px; font-weight: 680; margin-bottom: var(--s-2); letter-spacing: -0.015em; color: var(--ink-0); }
+.empty p { font-size: 15px; color: var(--ink-2); max-width: 30ch; margin-bottom: var(--s-6); line-height: 1.46; }
+.empty .btn-lg { display: inline-flex; align-items: center; gap: var(--s-2); height: 46px; padding: 0 22px; border-radius: var(--r-pill); font-size: 16px; font-weight: 620; background: var(--accent-grad); color: var(--on-accent); border: 0.5px solid var(--accent-edge); box-shadow: inset 0 0.5px 0 oklch(100% 0 0 / 0.4), 0 1px 4px oklch(50% 0.06 250 / 0.30); }
+.empty .btn-lg:active { filter: brightness(0.96); }
+.empty .btn-lg svg { width: 19px; height: 19px; stroke: var(--on-accent); stroke-width: 2; }
+
+@media (max-width: 520px) {
+  main { padding: 0 12px 80px; }
+  .stage { padding: 26px 14px; }
+  .device { transform: scale(0.86); transform-origin: top left; margin-bottom: -100px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     PRESENTATION TOP BAR (not part of the app)
+     ============================================================ -->
+<div class="page-bar">
+  <div class="mark"><span class="seal-chip">S</span>Suikou<span class="sub">Projects &#183; State storyboard &#183; Suikou Light (mobile)</span></div>
+  <nav class="page-nav">
+    <a href="#s01">Board</a><a href="#s02">Switcher</a><a href="#s03">New review</a><a href="#s04">Branch picker</a><a href="#s05">No projects</a>
+  </nav>
+</div>
+
+<main>
+  <div class="sb-intro">
+    <h1><span class="seal-chip">S</span>Projects: phone storyboard</h1>
+    <p>The Suikou Projects page (app home and <b>launcher</b>) rendered as a phone <b>state storyboard</b> in <b>Suikou Light</b>, the lit twin of the dark desktop launcher in <b>./suikou-dark.html</b>. On a phone the desktop two-column split collapses to one column: the project sidebar becomes a horizontal scrollable <b>chip strip</b> (selected project is a full accent fill with a hairline ring, never a side stripe), and the selected project's <b>review list</b> runs full width below it. Reviews come in two kinds shown with <b>monochrome line glyphs</b>, never color emoji: <b>file_selection</b> (a document glyph, <code>N files</code>) and <b>git_diff</b> (a compare glyph, a mono <code>base..head</code> refs hint). Unread reviews carry an <b>accent dot</b>; approved reviews carry an <b>approve-green check</b>; each row ends in a chevron. Creation flows are iOS <b>bottom sheets</b>. OKLCH only, amber for numbers, zero em dashes.</p>
+  </div>
+
+  <!-- ============================================================
+       01 - BOARD (main state)
+       ============================================================ -->
+  <div class="sb-div" id="s01">
+    <span class="seq">01</span>
+    <div class="dtxt">
+      <div class="dtitle">Board <span class="cat">P1</span></div>
+      <div class="dsub">The main state. The chip strip has <code>suikou</code> selected (full fill + hairline ring, unread dot), then <code>yoiyo</code>, <code>nanoclaw</code>, and a <code>+</code> add chip. Below: the project header (name, path, <code>&#8943;</code>), a prominent <b>+ New review</b>, and four review rows mixing both kinds, an unread with an HTML badge, and an approved.</div>
+    </div>
+    <span class="hairline"></span>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div>
+        <div class="device">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <span class="ind">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 4.2A10 10 0 0 1 15 4.2"/><path d="M3.4 6.7A6.4 6.4 0 0 1 12.6 6.7"/><path d="M5.9 9.2A2.8 2.8 0 0 1 10.1 9.2"/><circle cx="8" cy="11" r="0.6" fill="currentColor"/></svg>
+                <span class="sb-batt"><i></i></span>
+              </span>
+            </div>
+
+            <!-- slim top app bar: seal/wordmark, search, settings -->
+            <div class="appbar">
+              <div class="appbar-top">
+                <button class="ab-brand" title="Suikou home"><span class="seal-sm">S</span><span class="wordmark">Suikou</span></button>
+                <span class="ab-spacer"></span>
+                <button class="ab-act" title="Search projects and reviews"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+                <button class="ab-act" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></button>
+              </div>
+              <!-- horizontal scrollable project chip strip -->
+              <div class="chip-strip">
+                <button class="pchip sel" title="suikou (selected)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>suikou<span class="cdot" title="Unread changes"></span></button>
+                <button class="pchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>yoiyo</button>
+                <button class="pchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>nanoclaw</button>
+                <button class="pchip add" title="Add project"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+              </div>
+            </div>
+
+            <div class="body">
+              <div class="scroll">
+                <!-- selected-project header -->
+                <div class="proj-head">
+                  <div class="ph-txt">
+                    <div class="ph-name">suikou</div>
+                    <div class="ph-path"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="ptxt">/Users/fahchen/PersonalProjects/suikou</span></div>
+                  </div>
+                  <button class="ph-actions" title="Project actions"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+                </div>
+
+                <!-- prominent + New review -->
+                <button class="newrev-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New review</button>
+
+                <div class="grp-head">Reviews<span class="gcount">4</span><span class="gline"></span></div>
+                <div class="rev-list">
+
+                  <!-- unread file_selection with HTML badge -->
+                  <button class="rrow unread">
+                    <span class="r-kind" title="File selection review"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M10 13h6M10 16.5h6"/></svg></span>
+                    <span class="r-main">
+                      <span class="r-title">Redesign spec</span>
+                      <span class="r-meta">
+                        <span class="m-files">8 files</span><span class="m-dot"></span>
+                        <span class="badge">HTML</span><span class="m-dot"></span>
+                        <span class="m-time">2h</span>
+                      </span>
+                    </span>
+                    <span class="r-mark"><span class="r-dot" title="Unread changes"></span></span>
+                    <svg class="r-chev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                  </button>
+
+                  <!-- git_diff with base..head refs -->
+                  <button class="rrow">
+                    <span class="r-kind" title="Git diff review"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7H3l3-3M16 17h5l-3 3M3 7h13M21 17H8"/></svg></span>
+                    <span class="r-main">
+                      <span class="r-title">Runtime store rewrite</span>
+                      <span class="r-meta">
+                        <span class="m-refs">main<span class="rdots">..</span>feature/runtime-store</span><span class="m-dot"></span>
+                        <span class="m-files">5 files</span><span class="m-dot"></span>
+                        <span class="m-time">1d</span>
+                      </span>
+                    </span>
+                    <span class="r-mark"></span>
+                    <svg class="r-chev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                  </button>
+
+                  <!-- plain file_selection -->
+                  <button class="rrow">
+                    <span class="r-kind" title="File selection review"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M10 13h6M10 16.5h6"/></svg></span>
+                    <span class="r-main">
+                      <span class="r-title">Highlight parse test</span>
+                      <span class="r-meta">
+                        <span class="m-files">3 files</span><span class="m-dot"></span>
+                        <span class="m-time">4d</span>
+                      </span>
+                    </span>
+                    <span class="r-mark"></span>
+                    <svg class="r-chev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                  </button>
+
+                  <!-- approved git_diff -->
+                  <button class="rrow approved">
+                    <span class="r-kind" title="Git diff review"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7H3l3-3M16 17h5l-3 3M3 7h13M21 17H8"/></svg></span>
+                    <span class="r-main">
+                      <span class="r-title">API cleanup</span>
+                      <span class="r-meta">
+                        <span class="m-refs">main<span class="rdots">..</span>chore/api-cleanup</span><span class="m-dot"></span>
+                        <span class="m-files">6 files</span><span class="m-dot"></span>
+                        <span class="m-time">1w</span>
+                      </span>
+                    </span>
+                    <span class="r-mark"><span class="r-check" title="Approved"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-11"/></svg></span></span>
+                    <svg class="r-chev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                  </button>
+
+                </div>
+                <div class="grp-foot">Tap a review to open it. The accent dot marks reviews changed since your last visit.</div>
+              </div>
+              <div class="safe-bottom"></div>
+            </div>
+
+            <div class="home-ind"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       02 - PROJECT SWITCHER (bottom sheet)
+       ============================================================ -->
+  <div class="sb-div" id="s02">
+    <span class="seq">02</span>
+    <div class="dtxt">
+      <div class="dtitle">Project switcher <span class="cat">P2</span></div>
+      <div class="dsub">Tapping the selected chip (or the brand) opens a bottom sheet listing all projects over a dimmed board. <code>suikou</code> is checked (full accent fill + ring), then <code>yoiyo</code> and <code>nanoclaw</code>, then an <b>Add project</b> row. Each row carries a name, path, and (for suikou) an unread dot.</div>
+    </div>
+    <span class="hairline"></span>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div>
+        <div class="device">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <span class="ind">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 4.2A10 10 0 0 1 15 4.2"/><path d="M3.4 6.7A6.4 6.4 0 0 1 12.6 6.7"/><path d="M5.9 9.2A2.8 2.8 0 0 1 10.1 9.2"/><circle cx="8" cy="11" r="0.6" fill="currentColor"/></svg>
+                <span class="sb-batt"><i></i></span>
+              </span>
+            </div>
+
+            <!-- board behind (dimmed by scrim) -->
+            <div class="appbar">
+              <div class="appbar-top">
+                <button class="ab-brand"><span class="seal-sm">S</span><span class="wordmark">Suikou</span></button>
+                <span class="ab-spacer"></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></span>
+              </div>
+              <div class="chip-strip">
+                <span class="pchip sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>suikou<span class="cdot"></span></span>
+                <span class="pchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>yoiyo</span>
+                <span class="pchip add"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              </div>
+            </div>
+            <div class="body">
+              <div class="scroll">
+                <div class="proj-head">
+                  <div class="ph-txt"><div class="ph-name">suikou</div><div class="ph-path"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="ptxt">/Users/fahchen/PersonalProjects/suikou</span></div></div>
+                  <span class="ph-actions"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></span>
+                </div>
+                <span class="newrev-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New review</span>
+                <div class="grp-head">Reviews<span class="gcount">4</span><span class="gline"></span></div>
+              </div>
+            </div>
+
+            <!-- scrim + project switcher sheet -->
+            <div class="scrim"></div>
+            <div class="sheet">
+              <div class="grabber"></div>
+              <div class="sheet-title">Switch project</div>
+              <div class="sheet-list">
+                <button class="sheet-row sel">
+                  <span class="sr-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+                  <span class="sr-txt"><span class="sr-name">suikou</span><span class="sr-path">/Users/fahchen/PersonalProjects/suikou</span></span>
+                  <span class="sr-dot" title="Unread changes"></span>
+                  <span class="sr-check" title="Current project"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-11"/></svg></span>
+                </button>
+                <button class="sheet-row">
+                  <span class="sr-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+                  <span class="sr-txt"><span class="sr-name">yoiyo</span><span class="sr-path">/Users/fahchen/PersonalProjects/yoiyo</span></span>
+                </button>
+                <button class="sheet-row">
+                  <span class="sr-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+                  <span class="sr-txt"><span class="sr-name">nanoclaw</span><span class="sr-path">/Users/fahchen/PersonalProjects/nanoclaw</span></span>
+                </button>
+              </div>
+              <button class="sheet-row add" style="border-radius: var(--r-ctrl); background: var(--bg-2); box-shadow: inset 0 0 0 0.5px var(--hair-strong), var(--shadow-card);">
+                <span class="sr-glyph"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="sr-txt"><span class="sr-name">Add project</span></span>
+              </button>
+            </div>
+
+            <div class="home-ind"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       03 - NEW REVIEW SHEET
+       ============================================================ -->
+  <div class="sb-div" id="s03">
+    <span class="seq">03</span>
+    <div class="dtxt">
+      <div class="dtitle">New review sheet <span class="cat">P3</span></div>
+      <div class="dsub">The <b>+ New review</b> button opens a bottom sheet over the dimmed board with two big tappable options, each a monochrome glyph and a sub-label: <b>Select files</b> (FileText) and <b>From git diff</b> (GitCompare). A Cancel button sits at the foot.</div>
+    </div>
+    <span class="hairline"></span>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div>
+        <div class="device">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <span class="ind">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 4.2A10 10 0 0 1 15 4.2"/><path d="M3.4 6.7A6.4 6.4 0 0 1 12.6 6.7"/><path d="M5.9 9.2A2.8 2.8 0 0 1 10.1 9.2"/><circle cx="8" cy="11" r="0.6" fill="currentColor"/></svg>
+                <span class="sb-batt"><i></i></span>
+              </span>
+            </div>
+
+            <div class="appbar">
+              <div class="appbar-top">
+                <span class="ab-brand"><span class="seal-sm">S</span><span class="wordmark">Suikou</span></span>
+                <span class="ab-spacer"></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></span>
+              </div>
+              <div class="chip-strip">
+                <span class="pchip sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>suikou<span class="cdot"></span></span>
+                <span class="pchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>yoiyo</span>
+                <span class="pchip add"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              </div>
+            </div>
+            <div class="body">
+              <div class="scroll">
+                <div class="proj-head">
+                  <div class="ph-txt"><div class="ph-name">suikou</div><div class="ph-path"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="ptxt">/Users/fahchen/PersonalProjects/suikou</span></div></div>
+                  <span class="ph-actions"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></span>
+                </div>
+                <span class="newrev-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New review</span>
+                <div class="grp-head">Reviews<span class="gcount">4</span><span class="gline"></span></div>
+              </div>
+            </div>
+
+            <!-- scrim + new-review sheet -->
+            <div class="scrim"></div>
+            <div class="sheet">
+              <div class="grabber"></div>
+              <div class="sheet-title">New review</div>
+              <div class="sheet-sub">in suikou</div>
+
+              <button class="opt">
+                <span class="oico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M10 13h6M10 16.5h6"/></svg></span>
+                <span class="otext"><b>Select files</b><span>Pick files and folders to review as they are now</span></span>
+                <svg class="ochev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+
+              <button class="opt">
+                <span class="oico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7H3l3-3M16 17h5l-3 3M3 7h13M21 17H8"/></svg></span>
+                <span class="otext"><b>From git diff</b><span>Compare two refs with merge-base semantics</span></span>
+                <svg class="ochev" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+
+              <button class="sheet-cancel">Cancel</button>
+            </div>
+
+            <div class="home-ind"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       04 - DIFF BRANCH PICKER SHEET
+       ============================================================ -->
+  <div class="sb-div" id="s04">
+    <span class="seq">04</span>
+    <div class="dtxt">
+      <div class="dtitle">Diff branch picker sheet <span class="cat">P4</span></div>
+      <div class="dsub">Choosing <b>From git diff</b> pushes the branch picker sheet: a <b>Base ref</b> (<code>main</code>, marked default), a <b>Head ref</b> (<code>feature/runtime-store</code>), a merge-base note, an amber <b>6 changed files</b> count, and <b>Cancel</b> / <b>Create</b> actions where Create is the only gradient surface.</div>
+    </div>
+    <span class="hairline"></span>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div>
+        <div class="device">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <span class="ind">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 4.2A10 10 0 0 1 15 4.2"/><path d="M3.4 6.7A6.4 6.4 0 0 1 12.6 6.7"/><path d="M5.9 9.2A2.8 2.8 0 0 1 10.1 9.2"/><circle cx="8" cy="11" r="0.6" fill="currentColor"/></svg>
+                <span class="sb-batt"><i></i></span>
+              </span>
+            </div>
+
+            <div class="appbar">
+              <div class="appbar-top">
+                <span class="ab-brand"><span class="seal-sm">S</span><span class="wordmark">Suikou</span></span>
+                <span class="ab-spacer"></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+                <span class="ab-act"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></span>
+              </div>
+              <div class="chip-strip">
+                <span class="pchip sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>suikou<span class="cdot"></span></span>
+                <span class="pchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>yoiyo</span>
+                <span class="pchip add"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              </div>
+            </div>
+            <div class="body">
+              <div class="scroll">
+                <div class="proj-head">
+                  <div class="ph-txt"><div class="ph-name">suikou</div><div class="ph-path"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="ptxt">/Users/fahchen/PersonalProjects/suikou</span></div></div>
+                  <span class="ph-actions"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></span>
+                </div>
+                <span class="newrev-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New review</span>
+              </div>
+            </div>
+
+            <!-- scrim + branch-picker sheet -->
+            <div class="scrim"></div>
+            <div class="sheet">
+              <div class="grabber"></div>
+              <div class="sheet-title">New diff review</div>
+
+              <div class="field">
+                <label>Base ref</label>
+                <div class="bdrop">
+                  <svg class="lead" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><path d="M6 8.5V18M18 8v3a3 3 0 0 1-3 3H6"/><circle cx="18" cy="6" r="2.6"/></svg>
+                  <span class="grow">main</span>
+                  <span class="tag def">default</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Head ref</label>
+                <div class="bdrop focus">
+                  <svg class="lead" viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><path d="M6 8.5V18M18 8v3a3 3 0 0 1-3 3H6"/><circle cx="18" cy="6" r="2.6"/></svg>
+                  <span class="grow">feature/runtime-store</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+
+              <div class="mb-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+                <span><b>merge-base</b> semantics; refs pinned at creation.</span>
+              </div>
+
+              <div class="changed-count">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M10 13h6M10 16.5h6"/></svg>
+                <span><span class="n">6</span> changed files</span>
+              </div>
+
+              <div class="sheet-actions">
+                <button class="btn">Cancel</button>
+                <button class="btn primary">Create</button>
+              </div>
+            </div>
+
+            <div class="home-ind"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       05 - EMPTY: NO PROJECTS
+       ============================================================ -->
+  <div class="sb-div" id="s05">
+    <span class="seq">05</span>
+    <div class="dtxt">
+      <div class="dtitle">Empty: no projects <span class="cat">E1</span></div>
+      <div class="dsub">First run. The chip strip holds only the <code>+</code> add chip; the body is a quiet centered empty state: a glyph, <b>No projects yet</b>, and a single primary <b>Add project</b> action.</div>
+    </div>
+    <span class="hairline"></span>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div>
+        <div class="device">
+          <div class="screen">
+            <div class="island"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <span class="ind">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1 4.2A10 10 0 0 1 15 4.2"/><path d="M3.4 6.7A6.4 6.4 0 0 1 12.6 6.7"/><path d="M5.9 9.2A2.8 2.8 0 0 1 10.1 9.2"/><circle cx="8" cy="11" r="0.6" fill="currentColor"/></svg>
+                <span class="sb-batt"><i></i></span>
+              </span>
+            </div>
+
+            <div class="appbar">
+              <div class="appbar-top">
+                <button class="ab-brand"><span class="seal-sm">S</span><span class="wordmark">Suikou</span></button>
+                <span class="ab-spacer"></span>
+                <button class="ab-act" title="Search"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+                <button class="ab-act" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></button>
+              </div>
+              <div class="chip-strip">
+                <button class="pchip add" title="Add project"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+              </div>
+            </div>
+
+            <div class="body">
+              <div class="empty">
+                <div class="ill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                <h3>No projects yet</h3>
+                <p>Add a project to register its repository and open your first review.</p>
+                <button class="btn-lg"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add project</button>
+              </div>
+            </div>
+
+            <div class="home-ind"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sb-foot" style="text-align:center; color: var(--ink-3); font-size: 11.5px; margin-top: 54px; line-height: 1.6;">Suikou &#183; Projects &#183; phone state storyboard &#183; Suikou Light (launcher) &#183; self-contained, system fonts, OKLCH, inline SVG, no network.</div>
+</main>
+
+</body>
+</html>
