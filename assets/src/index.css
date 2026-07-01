@@ -73,6 +73,10 @@
   --color-kind-html-fg: var(--kind-html-fg);
   --color-kind-html-ring: var(--kind-html-ring);
   --color-accent-seam: var(--accent-seam);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-softer: var(--accent-softer);
+  --color-accent-edge: var(--accent-edge);
+  --color-accent-bright: var(--accent-bright);
   --font-sans: var(--sans);
   --font-mono: var(--mono);
   --font-heading: var(--sans);
@@ -808,6 +812,16 @@
    so the column has one width and one set of colors across views. Aliases are
    late-bound through var(), so the per-theme `--faint`/`--blue`/`--editor-bg`
    still resolve at the element using `.gutter-cell`. */
+/* Accent halo tokens derived from each theme's `--blue`. Used by the projects
+   launcher for the selected-project fill, ring, and unread dot glow. Relative
+   OKLCH keeps a single source of truth so all 13 themes track automatically. */
+:root {
+  --accent-soft: oklch(from var(--blue) l c h / 0.14);
+  --accent-softer: oklch(from var(--blue) l c h / 0.08);
+  --accent-edge: oklch(from var(--blue) l c h / 0.34);
+  --accent-bright: var(--blue-strong);
+}
+
 :root {
   --gutter-w: 3rem;
   --gutter-fg: var(--faint);

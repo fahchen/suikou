@@ -111,7 +111,9 @@ describe("ProjectBoard", () => {
   it("lists each project with its path and reviews", async () => {
     await renderBoard()
 
-    expect(await screen.findByText("Data Platform")).toBeInTheDocument()
+    // The launcher renders the project name in both the sidebar row and the
+    // project-header on the right, so the name is expected in >=1 element.
+    expect((await screen.findAllByText("Data Platform")).length).toBeGreaterThan(0)
     expect(screen.getByText("/tmp/dp")).toBeInTheDocument()
     expect(screen.getByText("Launch")).toBeInTheDocument()
   })
@@ -156,8 +158,15 @@ describe("ProjectBoard", () => {
     }
     await renderBoard()
 
-    const filesBadge = await screen.findByText("Files")
-    const diffBadge = screen.getByText("Diff")
+    // "Files" also appears on the "+ New review" trigger chip; the row badge is
+    // the one whose class carries the kind-token, so scope to review rows.
+    const rowBadges = (await screen.findAllByText("Files")).filter((el) =>
+      el.className.includes("bg-kind-files-bg")
+    )
+    const filesBadge = rowBadges[0]
+    const diffBadge = screen
+      .getAllByText("Diff")
+      .filter((el) => el.className.includes("bg-kind-diff-bg"))[0]
     // Both badges read off the per-theme `--kind-{files,diff}-*` tokens so the
     // file-selection vs. diff distinction stays clear across light and dark
     // themes (the diff chip stays a fixed-hue blue independent of `--primary`).
@@ -203,7 +212,10 @@ describe("ProjectBoard", () => {
     // Only the all-HTML selection earns the badge; a generic file selection stays plain.
     const htmlBadge = await screen.findByText("HTML")
     expect(htmlBadge.className).toContain("bg-kind-html-bg")
-    expect(screen.getAllByText("Files")).toHaveLength(2)
+    const filesBadges = screen
+      .getAllByText("Files")
+      .filter((el) => el.className.includes("bg-kind-files-bg"))
+    expect(filesBadges).toHaveLength(2)
   })
 
   it("shows em-dashes on the diff card subline when refs are missing", async () => {

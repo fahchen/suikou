@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Code2,
+  Folder,
   FileDiff,
   FilePlus2,
   FileStack,
@@ -190,10 +191,24 @@ function Board({
   );
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Which project is showing in the right pane. Seeded lazily from the first
+  // project once the board arrives; cleared if that project vanishes.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Latest board, read inside callbacks without re-arming the reconnect effect.
   const boardRef = useRef<LoadBoardReply | null>(null);
   boardRef.current = board;
+
+  useEffect(() => {
+    if (board === null) return;
+    if (board.projects.length === 0) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    if (selectedId === null || !board.projects.some((p) => p.id === selectedId)) {
+      setSelectedId(board.projects[0].id);
+    }
+  }, [board, selectedId]);
 
   // Manual refetch after a mutation (the socket is up here). Keep the last-good
   // list on a transient failure rather than blanking the board.
@@ -249,31 +264,26 @@ function Board({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);
 
+  const selected =
+    board?.projects.find((p) => p.id === selectedId) ?? board?.projects[0] ?? null;
+
   return (
     <BoardRefetchContext.Provider value={refetch}>
-      <div className="mx-auto max-w-3xl px-5 py-10 sm:px-7 sm:py-16">
-        <header className="mb-9 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-[22px] font-semibold tracking-[-0.018em] text-heading">Reviews</h1>
-            <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-              Register a working directory, then group its files into reviews.
-            </p>
+      <div className="min-h-screen bg-canvas">
+        <LauncherToolbar onNewProject={() => setCreating(true)} />
+        <div className="mx-auto max-w-[1240px] px-3 pb-16 pt-3 sm:px-5 sm:pt-5">
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-1)]">
+            <BoardBody
+              store={store}
+              board={board}
+              error={error}
+              selected={selected}
+              onSelect={setSelectedId}
+              onOpen={onOpen}
+              onNewProject={() => setCreating(true)}
+            />
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Button
-              variant="pill"
-              size="icon"
-              onClick={() => setCreating(true)}
-              title="New project"
-              aria-label="New project"
-            >
-              <FolderPlus className="size-4 text-muted-foreground" />
-            </Button>
-            <ThemeMenu />
-          </div>
-        </header>
-
-        <BoardBody store={store} board={board} error={error} onOpen={onOpen} />
+        </div>
 
         <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
       </div>
@@ -281,41 +291,182 @@ function Board({
   );
 }
 
+function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
+  return (
+    <div className="sticky top-0 z-30 border-b border-line bg-surface2 backdrop-blur-md">
+      <div className="mx-auto flex h-12 max-w-[1240px] items-center gap-2 px-3 sm:px-5">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="grid size-6 place-items-center rounded-md bg-blue text-[12px] font-bold text-on-accent shadow-[var(--elev-1)]"
+          >
+            S
+          </span>
+          <span className="text-[14px] font-semibold tracking-[-0.02em] text-heading">Suikou</span>
+        </div>
+        <div
+          aria-hidden
+          className="ml-2 hidden h-8 min-w-[220px] max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-line bg-control px-2.5 text-[12px] text-faint shadow-inner sm:flex"
+        >
+          <Search size={13} aria-hidden />
+          <span className="flex-1 truncate">Search projects and reviews…</span>
+          <kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground ring-1 ring-inset ring-line">
+            ⌘K
+          </kbd>
+        </div>
+        <span className="flex-1 sm:flex-none" />
+        <ThemeMenu />
+        <Button
+          size="sm"
+          onClick={onNewProject}
+          title="New project"
+          aria-label="New project"
+          className="h-8"
+        >
+          <Plus size={14} />
+          New project
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function BoardBody({
   store,
   board,
   error,
+  selected,
+  onSelect,
   onOpen,
+  onNewProject,
 }: {
   store: BoardStore;
   board: LoadBoardReply | null;
   error: string | null;
+  selected: BoardProject | null;
+  onSelect: (id: string) => void;
   onOpen: (reviewId: string, path: string) => void;
+  onNewProject: () => void;
 }) {
   if (error !== null) {
-    return <p className="mt-6 text-[12px] text-red">Could not load projects. {error}</p>;
-  }
-  if (board === null) {
-    return <p className="mt-6 text-[12px] text-faint">Loading projects…</p>;
-  }
-  if (board.projects.length === 0) {
     return (
-      <p className="mt-6 text-[12px] text-faint">
-        No projects yet. Create one to start reviewing its files.
-      </p>
+      <p className="p-8 text-[13px] text-red">Could not load projects. {error}</p>
     );
   }
+  if (board === null) {
+    return <p className="p-8 text-[13px] text-faint">Loading projects…</p>;
+  }
+  if (board.projects.length === 0) {
+    return <EmptyProjectsState onNewProject={onNewProject} />;
+  }
   return (
-    <div className="space-y-10">
-      {board.projects.map((project) => (
+    <div className="grid min-h-[560px] grid-cols-1 sm:grid-cols-[248px_1fr]">
+      <ProjectSidebar
+        projects={board.projects}
+        selectedId={selected?.id ?? null}
+        onSelect={onSelect}
+        onAddProject={onNewProject}
+      />
+      {selected !== null && (
         <ProjectSection
-          key={project.id}
           store={store}
-          project={project}
+          project={selected}
           reviewFiles={board.review_files}
           onOpen={onOpen}
         />
-      ))}
+      )}
+    </div>
+  );
+}
+
+function ProjectSidebar({
+  projects,
+  selectedId,
+  onSelect,
+  onAddProject,
+}: {
+  projects: BoardProject[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onAddProject: () => void;
+}) {
+  return (
+    <aside className="flex flex-col gap-2 border-line bg-rail p-2.5 sm:border-r">
+      <div className="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[10px] font-bold tracking-[0.12em] text-faint uppercase">
+        <span>Projects</span>
+        <span className="font-mono tabular-nums">{projects.length}</span>
+        <span aria-hidden className="h-px flex-1 bg-line-soft" />
+      </div>
+      <div
+        role="tablist"
+        aria-label="Projects"
+        className="flex gap-1 overflow-x-auto sm:flex-col sm:overflow-visible"
+      >
+        {projects.map((project) => (
+          <ProjectSidebarRow
+            key={project.id}
+            project={project}
+            selected={project.id === selectedId}
+            onSelect={() => onSelect(project.id)}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onAddProject}
+        className="mt-1 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-line px-2.5 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright"
+      >
+        <Plus size={14} aria-hidden />
+        Add project
+      </button>
+    </aside>
+  );
+}
+
+function ProjectSidebarRow({
+  project,
+  selected,
+  onSelect,
+}: {
+  project: BoardProject;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onSelect}
+      title={project.path}
+      className={`flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-[12.5px] font-medium tracking-[-0.005em] transition-colors duration-150 ${
+        selected
+          ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
+          : "text-text hover:bg-hover"
+      }`}
+    >
+      <Folder size={14} aria-hidden className={selected ? "text-accent-bright" : "text-muted-foreground"} />
+      <span className="min-w-0 flex-1 truncate">{project.name}</span>
+    </button>
+  );
+}
+
+function EmptyProjectsState({ onNewProject }: { onNewProject: () => void }) {
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <div className="grid size-14 place-items-center rounded-2xl border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]">
+        <FolderPlus size={26} aria-hidden />
+      </div>
+      <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-heading">
+        No projects yet
+      </h2>
+      <p className="max-w-[34ch] text-[12.5px] leading-relaxed text-muted-foreground">
+        Register a working directory to start reviewing its files.
+      </p>
+      <Button size="sm" onClick={onNewProject} className="mt-1.5">
+        <Plus size={14} />
+        Add project
+      </Button>
     </div>
   );
 }
@@ -340,112 +491,94 @@ function ProjectSection({
   const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
 
   return (
-    <section>
-      <div className="mb-3.5 flex items-baseline justify-between gap-3 px-0.5">
+    <section className="flex min-w-0 flex-col bg-editor">
+      <div className="flex items-center gap-3 border-b border-line-soft px-5 py-4">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-heading">
+          <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-heading">
             {project.name}
           </h2>
-          <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-faint">
+          <p className="mt-0.5 truncate font-mono text-[11.5px] leading-snug text-faint">
             {project.path}
           </p>
         </div>
-        {composing === null && (
-          <div className="flex shrink-0 items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="default"
-                    className="shrink-0 text-muted-foreground hover:text-heading"
-                    title="New review"
-                    aria-label="New review"
-                  />
-                }
-              >
-                <Plus />
-                New review
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuItem onClick={() => setComposing("files")}>
-                  <FilePlus2 />
-                  Review files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setComposing("diff")}>
-                  <FileDiff />
-                  Review diff
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+        <span className="flex-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground"
+                title="Project actions"
+                aria-label="Project actions"
+              />
+            }
+          >
+            <MoreHorizontal size={15} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={() => setEditingSettings(true)}>
+              <Settings size={14} />
+              Edit settings
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={14} />
+              Delete project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="-mr-1 shrink-0 text-muted-foreground"
-                    title="Project actions"
-                    aria-label="Project actions"
-                  />
-                }
-              >
-                <MoreHorizontal size={15} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => setEditingSettings(true)}>
-                  <Settings size={14} />
-                  Edit settings
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
-                  <Trash2 size={14} />
-                  Delete project
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        {composing === null && <NewReviewCard onPick={setComposing} />}
+
+        {composing === "files" && (
+          <ReviewComposer
+            store={store}
+            project={project}
+            command="create_review"
+            initial={new Set()}
+            title="New review"
+            onClose={() => setComposing(null)}
+          />
+        )}
+
+        {composing === "diff" && (
+          <DiffReviewComposer store={store} project={project} onClose={() => setComposing(null)} />
+        )}
+
+        {project.reviews.length === 0 ? (
+          composing === null && (
+            <div className="mt-8 flex flex-col items-center gap-2 px-6 py-10 text-center">
+              <div className="grid size-12 place-items-center rounded-xl border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]">
+                <FileStack size={22} aria-hidden />
+              </div>
+              <h3 className="text-[14px] font-semibold tracking-[-0.015em] text-heading">
+                No reviews yet
+              </h3>
+              <p className="max-w-[32ch] text-[12.5px] leading-relaxed text-muted-foreground">
+                Pick a set of files or a diff of two refs to start a review.
+              </p>
+            </div>
+          )
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <AnimatePresence initial={false}>
+              {project.reviews.map((review, index) => (
+                <ReviewCard
+                  key={review.id}
+                  index={index}
+                  store={store}
+                  project={project}
+                  review={review}
+                  files={filesForReview(reviewFiles, review.id)}
+                  onOpen={onOpen}
+                />
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
-
-      {composing === "files" && (
-        <ReviewComposer
-          store={store}
-          project={project}
-          command="create_review"
-          initial={new Set()}
-          title="New review"
-          onClose={() => setComposing(null)}
-        />
-      )}
-
-      {composing === "diff" && (
-        <DiffReviewComposer store={store} project={project} onClose={() => setComposing(null)} />
-      )}
-
-      {project.reviews.length === 0 ? (
-        composing === null && (
-          <p className="rounded-lg border border-dashed border-line px-3.5 py-3 text-[12px] text-faint">
-            No reviews yet. Start one to pick the files you want to review together.
-          </p>
-        )
-      ) : (
-        <div className="space-y-2">
-          <AnimatePresence initial={false}>
-            {project.reviews.map((review, index) => (
-              <ReviewCard
-                key={review.id}
-                index={index}
-                store={store}
-                project={project}
-                review={review}
-                files={filesForReview(reviewFiles, review.id)}
-                onOpen={onOpen}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-sm">
@@ -492,6 +625,56 @@ function ProjectSection({
         onOpenChange={setEditingSettings}
       />
     </section>
+  );
+}
+
+/** "+ New review" affordance at the top of the review list. Clicking anywhere
+ * opens a two-item menu: file selection or diff. The Files/Diff chips read as
+ * two labeled affordances but share one trigger so the tap target stays big. */
+function NewReviewCard({ onPick }: { onPick: (kind: "files" | "diff") => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            title="New review"
+            aria-label="New review"
+            className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-dashed border-line bg-panel px-3.5 py-2.5 text-left transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/25 aria-expanded:border-solid aria-expanded:border-accent-edge aria-expanded:bg-accent-softer"
+          />
+        }
+      >
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+          <Plus size={16} aria-hidden />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[13px] font-semibold tracking-[-0.01em] text-heading">
+            New review
+          </span>
+          <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
+        </span>
+        <span className="ml-auto hidden shrink-0 items-center gap-1.5 sm:inline-flex">
+          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-line">
+            <FileText size={11} aria-hidden />
+            Files
+          </span>
+          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-line">
+            <GitCompare size={11} aria-hidden />
+            Diff
+          </span>
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-64">
+        <DropdownMenuItem onClick={() => onPick("files")}>
+          <FilePlus2 />
+          Review files
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onPick("diff")}>
+          <FileDiff />
+          Review diff
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -591,9 +774,9 @@ function ReviewCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: index * 0.04 }}
-      className="group/card relative overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)] transition-[box-shadow,border-color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-px hover:border-line-strong hover:shadow-[var(--elev-2)] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+      className="group/card relative overflow-hidden rounded-xl border border-transparent bg-transparent transition-[background-color,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-line hover:bg-surface hover:shadow-[var(--elev-1)] motion-reduce:transition-none"
     >
-      <div className="flex items-center gap-1.5 px-3 py-2.5">
+      <div className="flex items-center gap-3 px-3 py-2.5">
         <button
           type="button"
           onClick={() => {
@@ -608,6 +791,18 @@ function ReviewCard({
             className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
           />
         </button>
+
+        <span
+          aria-hidden
+          title={KIND_META[review.kind].title}
+          className="grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]"
+        >
+          {review.kind === "file_selection" ? (
+            <FileText size={17} strokeWidth={1.6} />
+          ) : (
+            <GitCompare size={17} strokeWidth={1.7} />
+          )}
+        </span>
 
         {renaming ? (
           <input
@@ -636,29 +831,39 @@ function ReviewCard({
             onClick={openReview}
             onMouseEnter={prefetchFirstFile}
             onFocus={prefetchFirstFile}
-            className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
+            className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.005em] text-heading">
-              {review.name}
-            </h3>
-            <BadgeChip kind={review.kind} />
-            {isHtmlReview && <HtmlBadge />}
-            {pendingPath !== null && (
-              <Loader2
-                size={12}
-                className="shrink-0 animate-spin text-blue"
-                aria-label="Opening file"
-              />
-            )}
+            <span className="flex min-w-0 items-center gap-2">
+              <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.008em] text-heading">
+                {review.name}
+              </h3>
+              <BadgeChip kind={review.kind} />
+              {isHtmlReview && <HtmlBadge />}
+              {pendingPath !== null && (
+                <Loader2
+                  size={12}
+                  className="shrink-0 animate-spin text-blue"
+                  aria-label="Opening file"
+                />
+              )}
+            </span>
             <span
-              className="ml-auto hidden shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-faint sm:inline-flex"
+              className="flex min-w-0 items-center gap-2 text-[11.5px] text-muted-foreground"
               title={fullTimestamp(review.inserted_at)}
             >
-              <span aria-label={fileCountLabel(files)}>{fileCountLabel(files)}</span>
-              <span aria-hidden className="text-line-strong">
-                ·
+              <span className="font-mono tabular-nums" aria-label={fileCountLabel(files)}>
+                {fileCountLabel(files)}
               </span>
-              <span>{elapsed(review.inserted_at)}</span>
+              {review.kind === "git_diff" && (
+                <>
+                  <MetaDot />
+                  <DiffRefsInline review={review} />
+                </>
+              )}
+              <MetaDot />
+              <span className="font-mono tabular-nums text-faint">
+                {elapsed(review.inserted_at)}
+              </span>
             </span>
           </button>
         )}
@@ -701,7 +906,9 @@ function ReviewCard({
         </DropdownMenu>
       </div>
 
-      {review.kind === "git_diff" && <DiffRefsLine review={review} />}
+      {review.kind === "git_diff" && (review.refs_moved || refsVanished(review)) && (
+        <DiffRefsBadgeRow review={review} />
+      )}
 
       {editing ? (
         <div ref={pickerRef} className="border-t border-line p-3.5">
@@ -807,7 +1014,31 @@ function HtmlBadge() {
   );
 }
 
-function DiffRefsLine({ review }: { review: BoardReview }) {
+/** Tiny middot separator used between meta-line fields. */
+function MetaDot() {
+  return (
+    <span aria-hidden className="inline-block size-[3px] shrink-0 rounded-full bg-line-strong" />
+  );
+}
+
+/** Inline `base..head` refs hint that sits on the meta line of a diff review. */
+function DiffRefsInline({ review }: { review: BoardReview }) {
+  const baseLabel = formatRefLabel(review.base_ref, review.base_sha, review.creation_base_sha);
+  const headLabel = formatRefLabel(review.head_ref, review.head_sha, review.creation_head_sha);
+  return (
+    <span
+      className="min-w-0 truncate font-mono text-[11px] text-text2"
+      title="Comparing refs"
+    >
+      {`${baseLabel}..${headLabel}`}
+    </span>
+  );
+}
+
+/** Trailing warning row shown under the meta line when refs have moved or a
+ * branch was deleted. Reserved for the exceptional states so a healthy diff
+ * stays visually quiet. */
+function DiffRefsBadgeRow({ review }: { review: BoardReview }) {
   const baseChanged =
     review.creation_base_sha !== null &&
     review.base_sha !== null &&
@@ -820,14 +1051,8 @@ function DiffRefsLine({ review }: { review: BoardReview }) {
   const headVanished = review.creation_head_sha !== null && review.head_sha === null;
   const vanished = baseVanished || headVanished;
 
-  const baseLabel = formatRefLabel(review.base_ref, review.base_sha, review.creation_base_sha);
-  const headLabel = formatRefLabel(review.head_ref, review.head_sha, review.creation_head_sha);
-
   return (
-    <div className="-mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pb-2.5 pl-8 text-[11px] text-muted-foreground">
-      <span className="truncate font-mono text-text2" title="Comparing refs">
-        {baseLabel}..{headLabel}
-      </span>
+    <div className="-mt-1 flex flex-wrap items-center gap-2 px-3 pb-2.5 pl-[76px]">
       {review.refs_moved && !vanished && (
         <span
           className="inline-flex items-center gap-1 rounded-md bg-amber-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber"
@@ -848,6 +1073,12 @@ function DiffRefsLine({ review }: { review: BoardReview }) {
       )}
     </div>
   );
+}
+
+function refsVanished(review: BoardReview): boolean {
+  const baseVanished = review.creation_base_sha !== null && review.base_sha === null;
+  const headVanished = review.creation_head_sha !== null && review.head_sha === null;
+  return baseVanished || headVanished;
 }
 
 function shortSha(sha: string | null): string | null {
