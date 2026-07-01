@@ -1,12 +1,46 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { observer } from "mobx-react-lite";
 
 import { useMusubiConnectionStatus } from "../musubi";
 import { ErrorPage } from "../components/error-page";
+import { SettingsModal } from "../settings/SettingsModal";
+import { uiStore } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
 
 export const Route = createRootRoute({
   component: RootLayout,
+});
+
+/**
+ * ⌘,` / Ctrl+, opens Settings from anywhere. Ignore when the user is typing in
+ * an input/textarea/contentEditable so the shortcut never eats a keystroke.
+ */
+function useSettingsShortcut() {
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== ",") return;
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
+      }
+      event.preventDefault();
+      uiStore.setSettingsOpen(true);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
+
+const SettingsHost = observer(function SettingsHost() {
+  return (
+    <SettingsModal
+      open={uiStore.settingsOpen}
+      onOpenChange={(open) => uiStore.setSettingsOpen(open)}
+    />
+  );
 });
 
 /**
@@ -22,6 +56,8 @@ function RootLayout() {
   const connection = useMusubiConnectionStatus();
   const everReady = useRef(false);
   if (connection.state === "ready") everReady.current = true;
+
+  useSettingsShortcut();
 
   if (!everReady.current) {
     if (connection.state === "error") {
@@ -49,5 +85,10 @@ function RootLayout() {
     );
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <SettingsHost />
+    </>
+  );
 }

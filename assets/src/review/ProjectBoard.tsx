@@ -46,7 +46,7 @@ import { readCommandCache, writeCommandCache } from "./command-cache";
 import { FileTree } from "./FileTree";
 import { ReviewFileTree } from "./ReviewFileTree";
 import { orderedReviewFiles } from "./file-order";
-import { ThemeMenu } from "./ThemeMenu";
+import { uiStore } from "../stores/ui-store";
 import { isHtmlPath } from "./view-kind";
 import { elapsed, fullTimestamp } from "./time";
 import { Centered } from "@/components/centered";
@@ -315,7 +315,15 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
           </kbd>
         </div>
         <span className="flex-1 sm:flex-none" />
-        <ThemeMenu />
+        <Button
+          variant="pill"
+          size="icon"
+          title="Settings (⌘,)"
+          aria-label="Open settings"
+          onClick={() => uiStore.setSettingsOpen(true)}
+        >
+          <Settings className="text-muted-foreground" />
+        </Button>
         <Button
           size="sm"
           onClick={onNewProject}

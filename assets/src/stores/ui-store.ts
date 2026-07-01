@@ -116,6 +116,10 @@ export class UiStore {
   // live (scripted) document handles its own pointer events. Session-only.
   htmlInteractive = false
 
+  // Settings modal open state. Session-only; the modal is a preferences surface,
+  // not a route, so it does not touch the URL and does not persist across reloads.
+  settingsOpen = false
+
   constructor() {
     makeAutoObservable(this)
 
@@ -347,6 +351,10 @@ export class UiStore {
 
   setHtmlInteractive(interactive: boolean): void {
     this.htmlInteractive = interactive
+  }
+
+  setSettingsOpen(open: boolean): void {
+    this.settingsOpen = open
   }
 
   private putDraft(filePath: string | null, draft: ComposerDraft): void {

@@ -38,7 +38,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done + green + committed.
   Monochrome kind glyphs (FileText / GitCompare), review-kind badges, empty
   state, mobile stack.
 
-- [ ] **2. Settings modal** — net-new component (none exists yet). Desktop =
+- [x] **2. Settings modal** — net-new component (none exists yet). Desktop =
   centered modal, mobile = bottom sheet. Mockups:
   `design/pages/settings/suikou-{dark,light}.html`. Spec:
   `design/pages/settings.md`. Panes: Appearance (theme picker over the 13 real
