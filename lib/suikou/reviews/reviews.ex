@@ -297,6 +297,74 @@ defmodule Suikou.Reviews do
   @spec delete_review(Review.t()) :: {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
   def delete_review(%Review{} = review), do: Repo.delete(review)
 
+  @typedoc """
+  Diff review's ref/SHA identity: the labels the reviewer picked at creation
+  (`base_ref`/`head_ref`), each side's SHA when the review was pinned
+  (`creation_base_sha`/`creation_head_sha`), each side's current SHA if the ref
+  still resolves (`base_sha`/`head_sha`, nil if the branch was deleted), and
+  `refs_moved` — true iff at least one side's current SHA differs from its
+  creation SHA. A vanished current SHA never flags a move, so a deleted branch
+  and an advanced branch are distinguishable.
+  """
+  @type refs_snapshot() :: %{
+          base_ref: String.t() | nil,
+          head_ref: String.t() | nil,
+          base_sha: String.t() | nil,
+          head_sha: String.t() | nil,
+          creation_base_sha: String.t() | nil,
+          creation_head_sha: String.t() | nil,
+          refs_moved: boolean()
+        }
+
+  @doc """
+  Point-in-time ref snapshot for a review. `nil` for a `FileSelection` review;
+  for a `GitDiff` review, returns the creation-pinned SHAs alongside each
+  side's current SHA (or nil when the branch no longer resolves) and a
+  `refs_moved` flag. Powers both the project board card and the review
+  workspace chrome so the "refs moved" and "branch deleted" states render off
+  the same authoritative source.
+
+  ## Examples
+
+      Suikou.Reviews.refs_snapshot(diff_review)
+      #=> %{base_ref: "main", head_ref: "feature/x", base_sha: "abc...", head_sha: "def...",
+      #     creation_base_sha: "abc...", creation_head_sha: "def...", refs_moved: false}
+
+      Suikou.Reviews.refs_snapshot(file_review)
+      #=> nil
+  """
+  @spec refs_snapshot(Review.t()) :: refs_snapshot() | nil
+  def refs_snapshot(%Review{source: %FileSelection{}}), do: nil
+
+  def refs_snapshot(%Review{source: %GitDiff{} = git_diff, project: %Project{} = project}) do
+    current_base = resolve_current_sha(project, git_diff.base_ref)
+    current_head = resolve_current_sha(project, git_diff.head_ref)
+
+    %{
+      base_ref: git_diff.base_ref,
+      head_ref: git_diff.head_ref,
+      base_sha: current_base,
+      head_sha: current_head,
+      creation_base_sha: git_diff.base_sha,
+      creation_head_sha: git_diff.head_sha,
+      refs_moved:
+        side_moved?(git_diff.base_sha, current_base) or
+          side_moved?(git_diff.head_sha, current_head)
+    }
+  end
+
+  defp resolve_current_sha(%Project{path: path}, ref) do
+    case Git.rev_parse(path, ref) do
+      {:ok, sha} -> sha
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp side_moved?(creation, current) when is_binary(creation) and is_binary(current),
+    do: creation != current
+
+  defp side_moved?(_creation, _current), do: false
+
   @doc """
   Fetches a review by id with its project and active (not soft-removed) files
   preloaded, or `nil` when none exists.

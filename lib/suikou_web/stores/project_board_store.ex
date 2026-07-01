@@ -14,7 +14,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   alias Musubi.AsyncResult
   alias Musubi.Socket
-  alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
@@ -530,9 +529,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # SHA. A vanished current SHA does not flag a move (`refs_moved: false` on
   # the unknown side), so the reviewer is not warned about a phantom move
   # just because a branch was deleted.
-  defp render_review(%Review{source: %GitDiff{} = git_diff, project: project} = review) do
-    current_base = resolve_sha(project, git_diff.base_ref)
-    current_head = resolve_sha(project, git_diff.head_ref)
+  defp render_review(%Review{source: %GitDiff{}} = review) do
+    refs = Reviews.refs_snapshot(review)
 
     %{
       id: review.id,
@@ -540,30 +538,15 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       inserted_at: Iso8601.utc(review.inserted_at),
       kind: :git_diff,
       selections: [],
-      base_ref: git_diff.base_ref,
-      head_ref: git_diff.head_ref,
-      base_sha: current_base,
-      head_sha: current_head,
-      creation_base_sha: git_diff.base_sha,
-      creation_head_sha: git_diff.head_sha,
-      refs_moved:
-        side_moved?(git_diff.base_sha, current_base) or
-          side_moved?(git_diff.head_sha, current_head)
+      base_ref: refs.base_ref,
+      head_ref: refs.head_ref,
+      base_sha: refs.base_sha,
+      head_sha: refs.head_sha,
+      creation_base_sha: refs.creation_base_sha,
+      creation_head_sha: refs.creation_head_sha,
+      refs_moved: refs.refs_moved
     }
   end
-
-  defp resolve_sha(%Project{path: path}, ref) do
-    case Git.rev_parse(path, ref) do
-      {:ok, sha} -> sha
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp side_moved?(creation_sha, current_sha)
-       when is_binary(creation_sha) and is_binary(current_sha),
-       do: creation_sha != current_sha
-
-  defp side_moved?(_creation_sha, _current_sha), do: false
 
   # Walks every project's reviews on first mount, populating the async
   # `review_files` field off-render so the board's first snapshot does not

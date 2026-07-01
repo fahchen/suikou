@@ -65,6 +65,27 @@ defmodule SuikouWeb.Stores.ReviewStore do
           current_round: %{content_hash: String.t()} | nil
         })
       )
+
+      # Ref/SHA identity for a git_diff review — the labels picked at creation,
+      # each side's pinned and current SHA, and whether at least one side moved
+      # since pinning. `nil` for a file_selection review. Powers the workspace
+      # breadcrumb's refs line, the refs-moved / branch-deleted pills, and the
+      # "Re-diff refs" banner without the client having to hit the board store.
+      # Shape mirrors `Reviews.refs_snapshot/0` — kept inline so `musubi_ts` can
+      # emit a concrete TypeScript object rather than `unknown`.
+      field(
+        :refs,
+        %{
+          base_ref: String.t() | nil,
+          head_ref: String.t() | nil,
+          base_sha: String.t() | nil,
+          head_sha: String.t() | nil,
+          creation_base_sha: String.t() | nil,
+          creation_head_sha: String.t() | nil,
+          refs_moved: boolean()
+        }
+        | nil
+      )
     end
   end
 
@@ -154,7 +175,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
             kind: review_kind(review),
             latest_round: latest_round(review_id),
             file_entries: entries,
-            files: Enum.map(entries, &file_identity/1)
+            files: Enum.map(entries, &file_identity/1),
+            refs: Reviews.refs_snapshot(review)
           }
 
         nil ->
@@ -165,7 +187,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
             kind: :file,
             latest_round: 0,
             file_entries: [],
-            files: []
+            files: [],
+            refs: nil
           }
       end
 

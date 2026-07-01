@@ -360,6 +360,7 @@ declare namespace Musubi {
             latest_round: number
             file_entries: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null }>
             files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; artifact: { id: string; title: string } | null; current_round: { content_hash: string } | null }>
+            refs: { base_ref: string | null; head_ref: string | null; base_sha: string | null; head_sha: string | null; creation_base_sha: string | null; creation_head_sha: string | null; refs_moved: boolean } | null
           }
         }
         submit_review: {

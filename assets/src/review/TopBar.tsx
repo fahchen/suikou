@@ -104,7 +104,9 @@ export const TopBar = observer(function TopBar(props: {
   );
 
   const crumbKind = structure.kind === "diff" ? "git_diff" : "file_selection";
-  const crumb = <ReviewBreadcrumb kind={crumbKind} name={structure.name} />;
+  const crumb = (
+    <ReviewBreadcrumb kind={crumbKind} name={structure.name} refs={structure.refs} />
+  );
 
   return (
     <TopBarShell

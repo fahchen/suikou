@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
-import { ArrowRight, FileX, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, FileX, GitBranch, RotateCw, Trash2 } from "lucide-react";
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
@@ -39,6 +39,14 @@ import { orderedReviewFiles } from "./file-order";
 import { reviewFileParams } from "./review-navigation";
 import { isHtmlPath } from "./view-kind";
 import { HomeButton, ReviewBreadcrumb } from "./TopBarShell";
+import {
+  formatMovedTitle,
+  refsBranchDeleted,
+  refsMoved,
+  shortSha,
+  vanishedSide,
+  type DiffRefs,
+} from "./diff-refs";
 import { assetBase } from "./urls";
 import { ErrorPage, errorCopy } from "@/components/error-page";
 import { Button } from "@/components/ui/button";
@@ -324,6 +332,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             }}
           >
             <HeaderSlotProvider>
+              {structure.refs && <RefsBanner refs={structure.refs} />}
               <article className="overflow-hidden rounded-xl border border-line bg-editor">
                 <FileHeader
                   sourceView={sourceView}
@@ -434,7 +443,11 @@ const MissingFilePrompt = observer(function MissingFilePrompt(props: {
     <main className="h-screen overflow-auto bg-canvas text-ink">
       <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-10">
         <HomeButton />
-        <ReviewBreadcrumb kind={crumbKind} name={props.structure.name} />
+        <ReviewBreadcrumb
+          kind={crumbKind}
+          name={props.structure.name}
+          refs={props.structure.refs}
+        />
       </header>
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">
         <FileX className="size-7 text-faint" aria-hidden />
@@ -511,4 +524,74 @@ export function ReviewShellSkeleton(props: { label: string }) {
       <span className="sr-only">{props.label}</span>
     </main>
   );
+}
+
+/** Above-file warning banner for a git_diff review whose refs shifted or
+ * vanished after creation. The "refs moved" variant offers a Re-diff refs
+ * action (not yet wired — deferred until the server-side re-diff flow lands);
+ * the "branch deleted" variant is read-only, warning the diff is frozen. */
+function RefsBanner({ refs }: { refs: DiffRefs }) {
+  const moved = refsMoved(refs);
+  const vanished = refsBranchDeleted(refs);
+  if (!moved && !vanished) return null;
+
+  if (vanished) {
+    const side = vanishedSide(refs);
+    const which = side === "both" ? "base and head" : side;
+    return (
+      <div
+        role="status"
+        className="mb-3 flex items-start gap-2.5 rounded-lg border border-red/25 bg-red-soft px-3 py-2 text-[12.5px] text-heading"
+      >
+        <AlertTriangle size={15} className="mt-px shrink-0 text-red" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <span className="font-medium">The {which} ref no longer exists.</span>{" "}
+          <span className="text-muted-foreground">
+            This diff is frozen at its last known state and can't be re-diffed.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="status"
+      className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-amber/30 bg-amber-soft px-3 py-2 text-[12.5px] text-heading"
+    >
+      <GitBranch size={15} className="shrink-0 text-amber" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <span className="font-medium">Refs moved</span>{" "}
+        <span className="text-muted-foreground">
+          since this review was created. The diff below is stale.
+        </span>
+        <span
+          className="ml-2 font-mono text-[11.5px] text-muted-foreground"
+          title={formatMovedTitle(refs)}
+        >
+          {describeMove(refs)}
+        </span>
+      </div>
+      {/* ponytail: banner action is decorative — a real "Re-diff refs" flow
+          needs a server-side command and round semantics; add when that lands. */}
+      <span
+        className="inline-flex items-center gap-1 rounded-md bg-amber/15 px-2 py-1 text-[11.5px] font-medium text-amber ring-1 ring-inset ring-amber/30"
+        aria-hidden
+      >
+        <RotateCw size={12} aria-hidden />
+        Re-diff refs
+      </span>
+    </div>
+  );
+}
+
+function describeMove(refs: DiffRefs): string {
+  const parts: string[] = [];
+  if (refs.base_sha && refs.creation_base_sha && refs.base_sha !== refs.creation_base_sha) {
+    parts.push(`base ${shortSha(refs.creation_base_sha)}→${shortSha(refs.base_sha)}`);
+  }
+  if (refs.head_sha && refs.creation_head_sha && refs.head_sha !== refs.creation_head_sha) {
+    parts.push(`head ${shortSha(refs.creation_head_sha)}→${shortSha(refs.head_sha)}`);
+  }
+  return parts.join(" · ");
 }
