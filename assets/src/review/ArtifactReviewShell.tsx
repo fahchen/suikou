@@ -38,7 +38,7 @@ import { isPreviewable, isImagePath } from "./file-type";
 import { orderedReviewFiles } from "./file-order";
 import { reviewFileParams } from "./review-navigation";
 import { isHtmlPath } from "./view-kind";
-import { HomeButton } from "./TopBarShell";
+import { HomeButton, ReviewBreadcrumb } from "./TopBarShell";
 import { assetBase } from "./urls";
 import { ErrorPage, errorCopy } from "@/components/error-page";
 import { Button } from "@/components/ui/button";
@@ -428,12 +428,13 @@ const MissingFilePrompt = observer(function MissingFilePrompt(props: {
   const navigate = useNavigate();
   const reviewId = props.structure.review_id;
   const firstFile = orderedReviewFiles(props.structure.file_entries)[0];
+  const crumbKind = props.structure.kind === "diff" ? "git_diff" : "file_selection";
 
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
-      <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:px-4">
+      <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-10">
         <HomeButton />
-        <span className="truncate text-sm font-medium text-heading">{props.structure.name}</span>
+        <ReviewBreadcrumb kind={crumbKind} name={props.structure.name} />
       </header>
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">
         <FileX className="size-7 text-faint" aria-hidden />

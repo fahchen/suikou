@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Home } from "lucide-react";
 
 import { ConnectionPill } from "./ConnectionPill";
+import { KindBadge, type ReviewKind } from "./KindBadge";
 import { Button } from "@/components/ui/button";
 
 export function HomeButton() {
@@ -17,6 +18,26 @@ export function HomeButton() {
     >
       <Home className="text-muted-foreground" />
     </Button>
+  );
+}
+
+/** Shared breadcrumb chip: `/` separator + KindBadge + review name. Used in the
+ * live workspace top bar and any file-level fallback screen so the review's
+ * identity reads the same wherever the chrome renders. */
+export function ReviewBreadcrumb(props: { kind: ReviewKind; name: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="text-faint" aria-hidden>
+        /
+      </span>
+      <KindBadge kind={props.kind} />
+      <span
+        className="min-w-0 truncate text-[13px] font-medium text-heading"
+        title={props.name}
+      >
+        {props.name}
+      </span>
+    </div>
   );
 }
 
