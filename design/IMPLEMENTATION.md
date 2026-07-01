@@ -46,13 +46,19 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` done + green + committed.
   cheatsheet, About 推敲. Wire a trigger from the top bar. Theme control drives
   `[data-theme]`.
 
-- [ ] **3. Review — file_selection view** — the review reading surface for
+- [~] **3. Review — file_selection view** — the review reading surface for
   `kind: "file_selection"`: `TopBar*`, `FileTree`/`ReviewFileTree`,
   `ArtifactReviewShell`, `CommentRail`/`CommentCard`, composer. Mockups:
   `design/pages/review/states-codex.html` (dark),
   `states-light.html`, `states-mobile.html`, `states-light-mobile.html`. Specs:
   `design/pages/review/spec.md`, `states.md`. Match spacing, comment thread
   states, empty/loading/error, mobile bottom-sheet comments.
+  Progress: audit shows chrome mostly already matches design tokens. Landed:
+  breadcrumb (KindBadge + review name) in TopBar, shared `KindBadge` extracted
+  from ProjectBoard, ChangeStatusIcon violet/teal → tokens. Remaining: verify
+  in-browser against mockup page-by-page for spacing/state polish, port
+  `MissingFilePrompt` header to use the same breadcrumb, sanity-check side
+  vs inline comment layouts in each of the 13 themes.
 
 - [ ] **4. Review — git_diff view** — the diff surface for `kind: "git_diff"`:
   `DiffRefsLine` (`base@sha..head@sha`), Files/Diff badges, `refs moved` amber /

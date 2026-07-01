@@ -25,7 +25,7 @@ interface Spec {
 
 // GitHub's conventional diff colors: green added, amber modified, red removed,
 // blue renamed. `copied`/`type_changed` have no octicon, so they reuse the
-// closest glyph with a distinct color (violet copy, teal type change).
+// closest glyph in a neutral tone — icon shape carries the distinction.
 const SPECS: Record<Exclude<ChangeStatus, null>, Spec> = {
   added: { path: ADDED, className: "text-green", label: "Added" },
   modified: { path: MODIFIED, className: "text-amber", label: "Modified" },
@@ -33,12 +33,12 @@ const SPECS: Record<Exclude<ChangeStatus, null>, Spec> = {
   renamed: { path: RENAMED, className: "text-blue", label: "Renamed" },
   copied: {
     path: RENAMED,
-    className: "text-violet-500 dark:text-violet-300",
+    className: "text-muted-foreground",
     label: "Copied"
   },
   type_changed: {
     path: MODIFIED,
-    className: "text-teal-600 dark:text-teal-300",
+    className: "text-muted-foreground",
     label: "Type changed"
   }
 }

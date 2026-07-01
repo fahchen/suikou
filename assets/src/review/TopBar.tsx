@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucid
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { TopBarShell } from "./TopBarShell";
+import { KindBadge } from "./KindBadge";
 import { SubmitControls } from "./SubmitControls";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
@@ -103,8 +104,25 @@ export const TopBar = observer(function TopBar(props: {
     </ButtonGroup>
   );
 
+  const crumbKind = structure.kind === "diff" ? "git_diff" : "file_selection";
+  const crumb = (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="text-faint" aria-hidden>
+        /
+      </span>
+      <KindBadge kind={crumbKind} />
+      <span
+        className="min-w-0 truncate text-[13px] font-medium text-heading"
+        title={structure.name}
+      >
+        {structure.name}
+      </span>
+    </div>
+  );
+
   return (
     <TopBarShell
+      crumb={crumb}
       left={fileNav}
       right={
         <>

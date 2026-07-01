@@ -44,6 +44,7 @@ import {
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { readCommandCache, writeCommandCache } from "./command-cache";
 import { FileTree } from "./FileTree";
+import { KindBadge } from "./KindBadge";
 import { ReviewFileTree } from "./ReviewFileTree";
 import { orderedReviewFiles } from "./file-order";
 import { uiStore } from "../stores/ui-store";
@@ -89,30 +90,9 @@ function useBoardRefetch(): () => void {
   return useContext(BoardRefetchContext);
 }
 
-const KIND_META: Record<
-  BoardReview["kind"],
-  {
-    icon: typeof FileText;
-    badgeIcon: typeof FileText;
-    badge: string;
-    title: string;
-    badgeClass: string;
-  }
-> = {
-  file_selection: {
-    icon: FileText,
-    badgeIcon: FileText,
-    badge: "Files",
-    title: "File selection review",
-    badgeClass: "bg-kind-files-bg text-kind-files-fg ring-1 ring-inset ring-kind-files-ring",
-  },
-  git_diff: {
-    icon: GitCompare,
-    badgeIcon: GitCompare,
-    badge: "Diff",
-    title: "Git diff review",
-    badgeClass: "bg-kind-diff-bg text-kind-diff-fg ring-1 ring-inset ring-kind-diff-ring",
-  },
+const KIND_TITLE: Record<BoardReview["kind"], string> = {
+  file_selection: "File selection review",
+  git_diff: "Git diff review",
 };
 
 /**
@@ -802,7 +782,7 @@ function ReviewCard({
 
         <span
           aria-hidden
-          title={KIND_META[review.kind].title}
+          title={KIND_TITLE[review.kind]}
           className="grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]"
         >
           {review.kind === "file_selection" ? (
@@ -845,7 +825,7 @@ function ReviewCard({
               <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.008em] text-heading">
                 {review.name}
               </h3>
-              <BadgeChip kind={review.kind} />
+              <KindBadge kind={review.kind} />
               {isHtmlReview && <HtmlBadge />}
               {pendingPath !== null && (
                 <Loader2
@@ -992,20 +972,6 @@ function ReviewCard({
         </DialogContent>
       </Dialog>
     </motion.div>
-  );
-}
-
-function BadgeChip({ kind }: { kind: BoardReview["kind"] }) {
-  const meta = KIND_META[kind];
-  const Icon = meta.badgeIcon;
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-px text-[10px] font-medium uppercase tracking-[0.06em] ${meta.badgeClass}`}
-      title={meta.title}
-    >
-      <Icon size={10} aria-hidden />
-      {meta.badge}
-    </span>
   );
 }
 
