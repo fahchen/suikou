@@ -30,17 +30,21 @@ export const StatusBar = observer(function StatusBar(props: {
       <Dot />
       <span className="shrink-0">Round {round}</span>
       <span className="flex-1" />
-      <span className="inline-flex shrink-0 items-center gap-[5px]">
+      <span
+        className={`inline-flex shrink-0 items-center gap-[5px] ${
+          connected ? "" : "text-amber"
+        }`}
+      >
         <span
           className={`h-[7px] w-[7px] rounded-full ${
             connected
               ? "bg-green shadow-[0_0_6px_var(--color-green)] ring-2 ring-green/30"
-              : "bg-muted"
+              : "bg-amber shadow-[0_0_6px_var(--color-amber)] ring-2 ring-amber/30 animate-pulse"
           }`}
           aria-hidden
         />
         <span className="hidden sm:inline">
-          {connected ? "connected" : "reconnecting…"}
+          {connected ? "connected" : "reconnecting"}
         </span>
       </span>
     </footer>

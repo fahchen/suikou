@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
-import { FileX2, Plus } from "lucide-react";
+import { FileX2, Loader2, Plus } from "lucide-react";
 import type { ThemedToken } from "shiki";
 
 import { uiStore } from "../stores/ui-store";
@@ -75,6 +75,33 @@ export const Editor = observer(function Editor(props: EditorProps) {
   return <RenderView {...props} />;
 });
 
+// Skeleton widths mirror the mockup's `.skel-doc` rows: irregular so the
+// placeholder reads as prose lines, not a progress bar.
+const SKEL_ROWS = [90, 70, 80, 55, 90, 40, 70];
+
+function LoadingSkeleton(props: { hint: string }) {
+  return (
+    <div className="px-4 py-6 sm:px-6" aria-live="polite" aria-busy="true">
+      <div className="mb-4 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
+        <Loader2 size={13} className="animate-spin text-faint" aria-hidden />
+        {props.hint}
+      </div>
+      <div className="flex flex-col gap-3">
+        {SKEL_ROWS.map((w, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="h-3 w-6 shrink-0 animate-pulse rounded bg-line-soft" aria-hidden />
+            <div
+              className="h-3 animate-pulse rounded bg-line-soft"
+              style={{ width: `${w}%` }}
+              aria-hidden
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const FileNotice = function FileNotice(props: { title: string; message: string; nested?: boolean }) {
   const chrome = props.nested
     ? "flex flex-col items-center gap-3 px-6 py-16 text-center"
@@ -142,7 +169,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
           </div>
         ))}
 
-      {props.loading && <p className="px-6 py-8 text-sm text-muted-foreground">Rendering…</p>}
+      {props.loading && <LoadingSkeleton hint="Rendering markdown and highlight…" />}
 
       {segmentBlocks(props.blocks).map((seg) =>
         seg.type === "code" ? (

@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   Crosshair,
   HelpCircle,
+  Info,
   Link2,
   Waves,
   MessageSquare,
@@ -189,20 +190,29 @@ export function CommentCardHeader(props: {
         </span>
 
         {comment.status === "pending" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-soft px-2 py-0.5 text-[10.5px] font-[700] uppercase tracking-[0.06em] text-amber ring-1 ring-inset ring-amber/35">
-            <span className="size-1.5 rounded-full bg-current pending-pulse" aria-hidden />
+          <span
+            title="Not yet published — batches with the review until you Submit."
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-soft px-2 py-0.5 font-mono text-[10px] font-[700] uppercase tracking-[0.04em] text-amber ring-1 ring-inset ring-amber/35"
+          >
+            <Info size={11} aria-hidden />
             Pending
           </span>
         )}
 
         {comment.resolved && (
           <motion.span
-            aria-label="Resolved"
+            aria-label={comment.resolved_round ? `Resolved in round ${comment.resolved_round}` : "Resolved"}
             {...badgePop(reduced)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green/15 px-2 py-0.5 text-[10.5px] font-[700] uppercase tracking-[0.06em] text-green-text ring-1 ring-inset ring-green/35"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green/15 px-2 py-0.5 font-mono text-[10px] font-[700] uppercase tracking-[0.04em] text-green-text ring-1 ring-inset ring-green/35"
           >
             <CircleCheck size={11} aria-hidden />
             Resolved
+            {comment.resolved_round != null && (
+              <>
+                <span className="mx-0.5 text-green-text/60" aria-hidden>·</span>
+                R{comment.resolved_round}
+              </>
+            )}
           </motion.span>
         )}
       </div>
