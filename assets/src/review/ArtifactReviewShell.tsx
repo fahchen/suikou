@@ -33,6 +33,8 @@ import { FileHeader } from "./FileHeader";
 import { HeaderSlotProvider } from "./header-slot";
 import { useReviewCommands } from "./commands";
 import { CommentRail } from "./CommentRail";
+import { Navigator } from "./Navigator";
+import { StatusBar } from "./StatusBar";
 import { useScrollRestore } from "./use-scroll-restore";
 import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer";
 import { isPreviewable, isImagePath } from "./file-type";
@@ -327,79 +329,92 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   const missing = !minted && snapshot.content_hash === null;
 
   return (
-    <main ref={setMainEl} className="h-screen overflow-auto bg-canvas text-ink">
+    <div className="flex h-screen flex-col bg-canvas text-ink">
       <TopBar reviewSnapshot={reviewSnapshot} previewable={previewable} content={content} />
-
-      <div
-        className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 pt-3 sm:gap-6 sm:px-5 lg:px-6 ${
-          sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
-        }`}
-      >
-        <div className="min-w-0">
-          <ReviewViewProvider
-            value={{
-              snapshot,
-              reviewKind,
-              reviewSnapshot,
-              content,
-              contentError,
-              etag,
-              blocks: blocks.blocks,
-              loading,
-              comments,
-              previewable,
-              rawLines,
-              verdict,
-              onVerdictChange: changeVerdict,
-            }}
+      <div className="flex min-h-0 flex-1">
+        <Navigator
+          reviewSnapshot={reviewSnapshot}
+          currentPath={snapshot.path}
+          sourceView={sourceView}
+        />
+        <main ref={setMainEl} className="min-w-0 flex-1 overflow-auto">
+          <div
+            className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 pt-3 sm:gap-6 sm:px-5 lg:px-6 ${
+              sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
+            }`}
           >
-            <HeaderSlotProvider>
-              {structure.refs && <RefsBanner refs={structure.refs} />}
-              <article className="overflow-hidden rounded-xl border border-line bg-editor">
-                <FileHeader
-                  sourceView={sourceView}
-                  content={content}
-                  verdict={verdict}
-                  onVerdictChange={changeVerdict}
-                  stale={stale}
-                  onRefresh={refresh}
-                />
-                {missing ? (
-                  <MissingFilePanel
-                    reviewId={structure.review_id}
-                    path={snapshot.path}
-                    kind={structure.kind}
-                  />
-                ) : (
-                  <Outlet />
-                )}
-              </article>
-            </HeaderSlotProvider>
-          </ReviewViewProvider>
-        </div>
-        {sideMode && (
-          <CommentRail
-            comments={comments}
-            filtered={isFiltering(ui.statusFilter, ui.typeFilters) || ui.hideComments}
-            emptyHint={
-              isHtmlPath(title)
-                ? "Click any element in the document to start a comment. Threads land here."
-                : undefined
-            }
-            header={
-              ui.htmlAnchorTarget &&
-              ui.htmlAnchorTarget.artifactId === snapshot.artifact.id ? (
-                <HtmlAnchorComposer
-                  target={ui.htmlAnchorTarget}
-                  onClose={() => ui.setHtmlAnchorTarget(null)}
-                  variant="rail"
-                />
-              ) : null
-            }
-          />
-        )}
+            <div className="min-w-0">
+              <ReviewViewProvider
+                value={{
+                  snapshot,
+                  reviewKind,
+                  reviewSnapshot,
+                  content,
+                  contentError,
+                  etag,
+                  blocks: blocks.blocks,
+                  loading,
+                  comments,
+                  previewable,
+                  rawLines,
+                  verdict,
+                  onVerdictChange: changeVerdict,
+                }}
+              >
+                <HeaderSlotProvider>
+                  {structure.refs && <RefsBanner refs={structure.refs} />}
+                  <article className="overflow-hidden rounded-xl border border-line bg-editor">
+                    <FileHeader
+                      sourceView={sourceView}
+                      content={content}
+                      verdict={verdict}
+                      onVerdictChange={changeVerdict}
+                      stale={stale}
+                      onRefresh={refresh}
+                    />
+                    {missing ? (
+                      <MissingFilePanel
+                        reviewId={structure.review_id}
+                        path={snapshot.path}
+                        kind={structure.kind}
+                      />
+                    ) : (
+                      <Outlet />
+                    )}
+                  </article>
+                </HeaderSlotProvider>
+              </ReviewViewProvider>
+            </div>
+            {sideMode && (
+              <CommentRail
+                comments={comments}
+                filtered={isFiltering(ui.statusFilter, ui.typeFilters) || ui.hideComments}
+                emptyHint={
+                  isHtmlPath(title)
+                    ? "Click any element in the document to start a comment. Threads land here."
+                    : undefined
+                }
+                header={
+                  ui.htmlAnchorTarget &&
+                  ui.htmlAnchorTarget.artifactId === snapshot.artifact.id ? (
+                    <HtmlAnchorComposer
+                      target={ui.htmlAnchorTarget}
+                      onClose={() => ui.setHtmlAnchorTarget(null)}
+                      variant="rail"
+                    />
+                  ) : null
+                }
+              />
+            )}
+          </div>
+        </main>
       </div>
-    </main>
+      <StatusBar
+        path={snapshot.path}
+        viewLabel={sourceView ? "Source" : "Preview"}
+        round={reviewSnapshot.body.latest_round ?? 0}
+      />
+    </div>
   );
 });
 
