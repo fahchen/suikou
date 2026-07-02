@@ -116,6 +116,12 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
   const stranded = comments.filter(
     (c) => c.anchor?.type !== "diff_hunk" || !diffLines.has(`${c.anchor.side}:${c.anchor.start_line}`),
   )
+  const commentedLines = new Set<string>()
+  for (const c of comments) {
+    if (c.anchor?.type === "diff_hunk") {
+      commentedLines.add(`${c.anchor.side}:${c.anchor.start_line}`)
+    }
+  }
 
   function onGutterClick(side: DiffSide, lineNo: number, shift: boolean): void {
     if (selection && selection.side === side && shift) {
@@ -152,6 +158,7 @@ export const DiffView = observer(function DiffView(props: ViewProps) {
           hunk={hunk}
           parsed={parsed}
           comments={comments}
+          commentedLines={commentedLines}
           inline={inline}
           layout={layout}
           selection={selection}
@@ -170,6 +177,7 @@ const HunkBlock = observer(function HunkBlock(props: {
   hunk: DiffHunk
   parsed: ParsedDiff
   comments: Comment[]
+  commentedLines: Set<string>
   inline: boolean
   layout: Layout
   selection: Selection | null
@@ -177,15 +185,24 @@ const HunkBlock = observer(function HunkBlock(props: {
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { hunk, parsed, comments, inline, layout, selection, diffTokens, onGutterClick, closeComposer } = props
+  const { hunk, parsed, comments, commentedLines, inline, layout, selection, diffTokens, onGutterClick, closeComposer } = props
   const unifiedRows = useMemo(
     () => (layout === "unified" ? toUnifiedRows(hunk.rows) : []),
     [hunk.rows, layout]
   )
   return (
     <section className="mt-3 first:mt-0">
-      <header className="bg-soft px-3 py-1 font-mono text-[12px] text-muted-foreground">
-        {hunk.header}
+      <header
+        className={`items-stretch border-y border-line bg-blue-soft/60 font-mono text-[11px] font-semibold text-blue ${
+          layout === "unified"
+            ? "grid grid-cols-[var(--gutter-w)_1fr]"
+            : "block"
+        }`}
+      >
+        {layout === "unified" && (
+          <span className="border-r border-line py-[3px] text-center text-faint">@@</span>
+        )}
+        <span className="px-3 py-[3px]">{hunk.header}</span>
       </header>
       <div className="font-mono">
         {layout === "side"
@@ -195,6 +212,7 @@ const HunkBlock = observer(function HunkBlock(props: {
                 row={row}
                 parsed={parsed}
                 comments={comments}
+                commentedLines={commentedLines}
                 inline={inline}
                 selection={selection}
                 diffTokens={diffTokens}
@@ -208,6 +226,7 @@ const HunkBlock = observer(function HunkBlock(props: {
                 row={row}
                 parsed={parsed}
                 comments={comments}
+                commentedLines={commentedLines}
                 inline={inline}
                 selection={selection}
                 diffTokens={diffTokens}
@@ -264,13 +283,14 @@ const DiffRowView = observer(function DiffRowView(props: {
   row: DiffRow
   parsed: ParsedDiff
   comments: Comment[]
+  commentedLines: Set<string>
   inline: boolean
   selection: Selection | null
   diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { row, parsed, comments, inline, selection, diffTokens, onGutterClick, closeComposer } = props
+  const { row, parsed, comments, commentedLines, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const tone = ROW_KIND_CLASS[row.kind]
   const composerOpen =
     selection != null &&
@@ -285,6 +305,7 @@ const DiffRowView = observer(function DiffRowView(props: {
           side="old"
           tone={tone.old}
           selection={selection}
+          commented={row.old != null && commentedLines.has(`old:${row.old.lineNo}`)}
           diffTokens={diffTokens}
           onGutterClick={onGutterClick}
         />
@@ -293,6 +314,7 @@ const DiffRowView = observer(function DiffRowView(props: {
           side="new"
           tone={tone.new}
           selection={selection}
+          commented={row.new != null && commentedLines.has(`new:${row.new.lineNo}`)}
           diffTokens={diffTokens}
           onGutterClick={onGutterClick}
         />
@@ -329,13 +351,14 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
   row: UnifiedRow
   parsed: ParsedDiff
   comments: Comment[]
+  commentedLines: Set<string>
   inline: boolean
   selection: Selection | null
   diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
   closeComposer: () => void
 }) {
-  const { row, parsed, comments, inline, selection, diffTokens, onGutterClick, closeComposer } = props
+  const { row, parsed, comments, commentedLines, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const lineNo = row.side === "old" ? row.oldNo : row.newNo
   const tone = UNIFIED_KIND_CLASS[row.kind]
   const selected =
@@ -343,6 +366,8 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
     lineNo >= selection.start && lineNo <= selection.end
   const composerOpen =
     selection != null && selection.side === row.side && lineNo === selection.end
+  const commentedOld = row.oldNo != null && commentedLines.has(`old:${row.oldNo}`)
+  const commentedNew = row.newNo != null && commentedLines.has(`new:${row.newNo}`)
   const cellTone = selected ? "bg-active-line" : tone
   const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
   const matches = inline
@@ -360,7 +385,7 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
           lineNo={row.oldNo}
           active={row.side === "old"}
           tone={gutterTone}
-          fallbackTone={tone}
+          fallbackTone={commentedOld ? "bg-blue-soft text-blue" : `${tone} text-faint`}
           onGutterClick={onGutterClick}
         />
         <GutterButton
@@ -368,7 +393,7 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
           lineNo={row.newNo}
           active={row.side === "new"}
           tone={gutterTone}
-          fallbackTone={tone}
+          fallbackTone={commentedNew ? "bg-blue-soft text-blue" : `${tone} text-faint`}
           onGutterClick={onGutterClick}
         />
         <div className={`flex select-none items-start justify-center font-mono text-[12px] leading-5 ${cellTone} text-faint`}>
@@ -422,7 +447,7 @@ function GutterButton(props: {
       <div className={fallbackTone} aria-hidden />
     )
   }
-  const className = `group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : `${fallbackTone} text-faint`}`
+  const className = `group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : fallbackTone}`
   return (
     <button
       type="button"
@@ -444,17 +469,22 @@ function SideCell(props: {
   side: DiffSide
   tone: string
   selection: Selection | null
+  commented: boolean
   diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
 }) {
-  const { cell, side, tone, selection, diffTokens, onGutterClick } = props
+  const { cell, side, tone, selection, commented, diffTokens, onGutterClick } = props
   const selected =
     cell != null &&
     selection != null &&
     selection.side === side &&
     cell.lineNo >= selection.start &&
     cell.lineNo <= selection.end
-  const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
+  const gutterTone = selected
+    ? "bg-active-line text-blue"
+    : commented
+      ? "bg-blue-soft text-blue"
+      : `${tone} text-faint`
   const cellTone = selected ? "bg-active-line" : tone
 
   if (!cell) {
