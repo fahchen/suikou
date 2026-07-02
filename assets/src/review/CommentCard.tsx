@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
+import type { CritiqueType } from "../stores/ui-store";
 import { Button } from "@/components/ui/button";
 import { CommentBody } from "./CommentBody";
 import { CommentCardHeader } from "./CommentCardHeader";
@@ -15,6 +16,14 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
+
+// Card body wash + inset ring by type, matching mockup `.thread.fix/.ask/.note`.
+// Tokens only — no side-stripe borders.
+const CARD_TONE: Record<CritiqueType, string> = {
+  fix_required: "bg-red-soft ring-1 ring-inset ring-red/25",
+  needs_answer: "bg-amber-soft ring-1 ring-inset ring-amber/25",
+  note: "bg-surface ring-1 ring-inset ring-line-soft",
+};
 
 /**
  * `context` tailors the affordances to where the card lives. An "inline" card
@@ -72,11 +81,13 @@ export const CommentCard = observer(function CommentCard(props: {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
       onClick={onSelect}
-      className={`rounded-xl border bg-surface text-[13px] shadow-[var(--surface-shadow)] transition-opacity ${
+      className={`rounded-[13px] text-[13px] shadow-[var(--surface-shadow)] transition-opacity ${
         onSelect && !selected ? "cursor-pointer" : ""
-      } ${selected ? "border-blue ring-1 ring-blue" : "border-line"} ${
-        comment.resolved ? "opacity-70" : ""
-      }`}
+      } ${
+        selected
+          ? "bg-surface ring-1 ring-inset ring-blue shadow-[0_0_0_2px_var(--color-accent-soft)]"
+          : CARD_TONE[comment.critique_type]
+      } ${comment.resolved ? "opacity-70" : ""}`}
     >
       <Collapsible open={open} onOpenChange={setOpen}>
         <CommentCardHeader

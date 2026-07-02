@@ -1,16 +1,21 @@
 import {
+  AlertTriangle,
   Crosshair,
+  HelpCircle,
   Link2,
   Waves,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   Trash2,
   ChevronDown,
   CircleCheck,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { CRITIQUE_META, type Comment } from "./types";
+import type { CritiqueType } from "../stores/ui-store";
 import { badgePop } from "./motion";
 import { useReviewCommands } from "./commands";
 import { relativeTime, fullTimestamp } from "./time";
@@ -23,10 +28,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const TONE_CLASS: Record<string, string> = {
-  red: "bg-red-soft text-red",
-  amber: "bg-amber-soft text-amber",
-  muted: "bg-soft text-muted-foreground",
+// Type pill uppercase + icon, matching the mockup's `.tpill` chip:
+// red triangle for fix_required, blue question for needs_answer, neutral lines
+// for note. Ring uses the same token family as the card background so the
+// chip reads as a tinted slab, not a stroked border.
+const TYPE_PILL: Record<CritiqueType, { icon: LucideIcon; label: string; className: string }> = {
+  fix_required: {
+    icon: AlertTriangle,
+    label: "FIX_REQUIRED",
+    className: "bg-red-soft text-red ring-1 ring-inset ring-red/35",
+  },
+  needs_answer: {
+    icon: HelpCircle,
+    label: "NEEDS_ANSWER",
+    className: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/35",
+  },
+  note: {
+    icon: MessageSquare,
+    label: "NOTE",
+    className: "bg-soft text-heading ring-1 ring-inset ring-line",
+  },
 };
 
 // Rendered rows can group several source lines under one block whose id is its
@@ -54,13 +75,21 @@ export function CommentCardHeader(props: {
   const { comment, inline, open, drifted = false, onEdit } = props;
   const commands = useReviewCommands();
   const reduced = useReducedMotion() ?? false;
-  const meta = CRITIQUE_META[comment.critique_type];
+  // Meta drives the accessible label on the pill; visual glyph + copy come from
+  // TYPE_PILL so the chip matches the mockup exactly.
+  void CRITIQUE_META;
+  const pill = TYPE_PILL[comment.critique_type];
+  const PillIcon = pill.icon;
   const lineRange = comment.anchor?.type === "line_range" ? comment.anchor : null;
-  const anchorLabel = lineRange
+  // "on line 13 · Round 2" phrasing from the mockup thread head; range collapses
+  // to "on lines N-M" when the anchor spans more than one line.
+  const anchorPhrase = lineRange
     ? lineRange.start_line === lineRange.end_line
-      ? `L${lineRange.start_line}`
-      : `L${lineRange.start_line}–${lineRange.end_line}`
+      ? `on line ${lineRange.start_line}`
+      : `on lines ${lineRange.start_line}–${lineRange.end_line}`
     : "";
+  const roundLabel =
+    comment.authored_round > 0 ? `Round ${comment.authored_round}` : null;
 
   function locateLine() {
     if (!lineRange) return;
@@ -93,26 +122,58 @@ export function CommentCardHeader(props: {
         />
       </CollapsibleTrigger>
 
+      <span
+        className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-2 font-mono text-[10px] font-[800] tracking-[0.03em] ${pill.className}`}
+        aria-label={comment.critique_type}
+      >
+        <PillIcon size={11} aria-hidden />
+        {pill.label}
+      </span>
+
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        {comment.anchor
-          ? lineRange
-            ? !inline && (
-                <button
-                  type="button"
-                  onClick={locateLine}
-                  title="Jump to these lines"
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded text-muted-foreground transition-colors hover:text-heading hover:underline"
-                >
-                  <Crosshair size={13} />
-                  {anchorLabel}
-                </button>
-              )
-            : !inline && (
-                <span className="text-faint" title="Anchored">
-                  <Link2 size={13} aria-label="Anchored" />
-                </span>
-              )
-          : null}
+        {comment.anchor && lineRange ? (
+          inline ? (
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {anchorPhrase}
+              {roundLabel && (
+                <>
+                  <span className="mx-1 text-faint" aria-hidden>
+                    ·
+                  </span>
+                  {roundLabel}
+                </>
+              )}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={locateLine}
+              title="Jump to these lines"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded font-mono text-[11px] text-muted-foreground transition-colors hover:text-heading hover:underline"
+            >
+              <Crosshair size={12} aria-hidden />
+              {anchorPhrase}
+              {roundLabel && (
+                <>
+                  <span className="mx-0.5 text-faint" aria-hidden>
+                    ·
+                  </span>
+                  {roundLabel}
+                </>
+              )}
+            </button>
+          )
+        ) : comment.anchor ? (
+          !inline && (
+            <span className="text-faint" title="Anchored">
+              <Link2 size={13} aria-label="Anchored" />
+            </span>
+          )
+        ) : (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            File-level comment{roundLabel && <> · {roundLabel}</>}
+          </span>
+        )}
 
         {drifted && (
           <span
@@ -127,14 +188,8 @@ export function CommentCardHeader(props: {
           {relativeTime(comment.inserted_at)}
         </span>
 
-        <span
-          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[meta.tone]}`}
-        >
-          {comment.critique_type}
-        </span>
-
         {comment.status === "pending" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-active-line-border bg-blue-soft px-2 py-0.5 text-[11px] text-blue">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-soft px-2 py-0.5 text-[10.5px] font-[700] uppercase tracking-[0.06em] text-amber ring-1 ring-inset ring-amber/35">
             <span className="size-1.5 rounded-full bg-current pending-pulse" aria-hidden />
             Pending
           </span>
@@ -144,7 +199,7 @@ export function CommentCardHeader(props: {
           <motion.span
             aria-label="Resolved"
             {...badgePop(reduced)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green/35 bg-green/15 px-2 py-0.5 text-[11px] text-green-text"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green/15 px-2 py-0.5 text-[10.5px] font-[700] uppercase tracking-[0.06em] text-green-text ring-1 ring-inset ring-green/35"
           >
             <CircleCheck size={11} aria-hidden />
             Resolved
