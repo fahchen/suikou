@@ -71,7 +71,7 @@ export const SettingsModal = observer(function SettingsModal({
               ? // Bottom sheet
                 "inset-x-0 bottom-0 top-0 flex flex-col bg-canvas data-open:slide-in-from-bottom-4 data-open:fade-in-0 data-closed:slide-out-to-bottom-4 data-closed:fade-out-0"
               : // Centered modal
-                "left-1/2 top-1/2 flex w-full max-w-[720px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[13px] border border-line bg-surface shadow-[var(--elev-overlay)] max-h-[calc(100vh-4rem)] h-[520px] data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95"
+                "left-1/2 top-1/2 flex w-full max-w-[720px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[13px] border border-line bg-surface shadow-[var(--elev-overlay)] max-h-[calc(100vh-4rem)] h-[488px] data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95"
           )}
         >
           {isMobile ? <MobileSheet /> : <DesktopModal />}
@@ -86,30 +86,25 @@ function DesktopModal() {
   return (
     <>
       <header className="flex h-12 items-center gap-2 border-b border-line bg-panel px-4">
-        <DialogPrimitive.Title className="text-[14px] font-semibold tracking-[-0.015em] text-heading">
+        <DialogPrimitive.Title className="text-[14.5px] font-bold tracking-[-0.015em] text-heading">
           Settings
         </DialogPrimitive.Title>
         <span className="flex-1" />
         <DialogPrimitive.Close
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Close settings"
-              title="Close"
-            />
-          }
+          aria-label="Close settings"
+          title="Close"
+          className="grid size-7 place-items-center rounded-[9px] bg-soft text-muted-foreground shadow-[inset_0_0_0_0.5px_var(--line-strong)] transition-colors hover:bg-hover hover:text-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
         >
-          <XIcon />
+          <XIcon aria-hidden size={15} />
         </DialogPrimitive.Close>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-[178px_1fr]">
         <SectionRail active={section} onSelect={setSection} />
-        <div className="min-h-0 overflow-auto px-6 py-5">
+        <div className="min-h-0 overflow-auto pt-[18px] pr-[22px] pb-[22px] pl-[22px]">
           <ActivePane section={section} />
         </div>
       </div>
-      <footer className="flex h-11 items-center gap-2 border-t border-line bg-canvas/60 px-4">
+      <footer className="flex h-11 items-center gap-2.5 border-t border-line bg-canvas/60 px-4">
         <span className="inline-flex items-center gap-1.5 text-[11.5px] text-faint">
           <Check size={13} aria-hidden />
           Changes apply instantly
@@ -136,9 +131,9 @@ function SectionRail({
     <nav
       role="tablist"
       aria-label="Settings sections"
-      className="flex flex-col gap-0.5 border-r border-line bg-rail p-2.5"
+      className="flex flex-col gap-0.5 border-r border-line bg-rail py-[11px] px-[9px]"
     >
-      <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-bold tracking-[0.12em] text-faint uppercase">
+      <p className="px-[9px] pt-1 pb-1.5 text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase">
         Settings
       </p>
       {SECTIONS.map((section) => {
@@ -152,14 +147,14 @@ function SectionRail({
             aria-selected={selected}
             onClick={() => onSelect(section.id)}
             className={cn(
-              "flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-[12.5px] font-medium tracking-[-0.005em] transition-colors duration-150",
+              "flex h-[33px] shrink-0 cursor-pointer items-center gap-[9px] rounded-[9px] px-[10px] text-left text-[12.5px] font-medium tracking-[-0.008em] transition-colors duration-150",
               selected
                 ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
                 : "text-text hover:bg-hover"
             )}
           >
             <Icon
-              size={14}
+              size={16}
               aria-hidden
               className={selected ? "text-accent-bright" : "text-muted-foreground"}
             />
@@ -187,11 +182,11 @@ function ActivePane({ section }: { section: SectionId }) {
 function PaneHeader({ title, lede }: { title: string; lede?: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-heading">
+      <h3 className="text-[15px] font-bold tracking-[-0.015em] text-heading">
         {title}
       </h3>
       {lede && (
-        <p className="mt-1 max-w-[60ch] text-[12px] leading-relaxed text-muted-foreground">
+        <p className="mt-0.5 max-w-[60ch] text-[12px] leading-[1.45] text-faint">
           {lede}
         </p>
       )}
@@ -213,16 +208,16 @@ function ControlRow({
   return (
     <div
       className={cn(
-        "flex min-h-11 items-center gap-4 border-t border-line first:border-t-0 py-2.5",
+        "flex min-h-11 items-center gap-4 border-t border-line first:border-t-0 py-[11px]",
         stackedOnMobile && "sm:flex-row sm:items-center flex-col items-stretch gap-3"
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[13px] font-medium tracking-[-0.008em] text-heading">
+        <span className="text-[13px] font-[580] tracking-[-0.008em] text-heading">
           {label}
         </span>
         {sub && (
-          <span className="max-w-[46ch] text-[11.5px] leading-snug text-faint">
+          <span className="max-w-[46ch] text-[11.5px] leading-[1.4] text-faint">
             {sub}
           </span>
         )}
@@ -394,15 +389,15 @@ function AboutPane() {
       <div className="flex items-center gap-3">
         <span
           aria-hidden
-          className="grid size-9 place-items-center rounded-[11px] bg-blue text-[16px] font-bold text-on-accent shadow-[var(--elev-1)]"
+          className="grid size-[38px] place-items-center rounded-[11px] bg-blue text-[19px] font-black text-on-accent shadow-[inset_0_0.5px_0_oklch(100%_0_0/0.4),0_0_14px_var(--accent-soft)]"
         >
           S
         </span>
-        <span className="text-[20px] font-semibold tracking-[-0.02em] text-heading">
+        <span className="text-[22px] font-bold tracking-[-0.02em] text-heading">
           Suikou
         </span>
       </div>
-      <p className="max-w-[56ch] text-[13px] leading-relaxed text-text">
+      <p className="max-w-[56ch] text-[14px] leading-[1.55] text-text">
         <span className="font-semibold tracking-[0.02em] text-heading">推敲 (Suikou)</span>{" "}
         <span className="text-faint">
           the deliberation over the exact word to use, from the push versus knock story.
@@ -410,10 +405,10 @@ function AboutPane() {
       </p>
       <div className="h-px bg-line" />
       <dl className="flex flex-col gap-px">
-        <AboutRow k="Version" v="0.1.0" mono />
+        <AboutRow k="Version" v="Suikou 0.1.0" mono />
         <AboutRow k="Runtime" v="Local, server-authoritative review runtime" />
       </dl>
-      <p className="max-w-[56ch] text-[11.5px] leading-relaxed text-faint">
+      <p className="max-w-[56ch] text-[11.5px] leading-[1.5] text-faint">
         A quiet desk for reading an agent's diff, round after round, until the word is
         exactly right.
       </p>
@@ -471,10 +466,10 @@ function Segmented<T extends string>({
             aria-selected={selected}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "flex-1 cursor-pointer rounded-md px-2.5 text-[11.5px] font-medium tracking-[-0.005em] transition-colors duration-150",
-              "h-6 sm:h-6",
+              "flex-1 cursor-pointer rounded-md px-[11px] text-[11.5px] font-medium tracking-[-0.005em] transition-colors duration-150",
+              "h-[22px]",
               selected
-                ? "bg-surface text-heading shadow-[inset_0_0.5px_0_var(--edge-top),0_1px_2px_rgba(0,0,0,0.12)]"
+                ? "bg-surface text-heading shadow-[inset_0_0.5px_0_var(--edge-top),0_1px_2px_rgba(0,0,0,0.35)]"
                 : "text-muted-foreground hover:text-text"
             )}
           >
@@ -508,8 +503,10 @@ function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative cursor-pointer rounded-full transition-colors duration-150",
-        "border border-line shadow-inner",
-        checked ? "bg-blue" : "bg-canvas/70",
+        "border border-line-strong shadow-inner",
+        checked
+          ? "bg-blue shadow-[inset_0_0_0_0.5px_var(--accent-edge),0_0_12px_var(--accent-soft)]"
+          : "bg-canvas/80",
         touch ? "h-[31px] w-[51px]" : "h-6 w-[42px]"
       )}
     >
@@ -517,8 +514,8 @@ function Switch({
         aria-hidden
         className={cn(
           "absolute top-[3px] block rounded-full transition-[left,background-color] duration-150",
-          "shadow-[0_1px_3px_rgba(0,0,0,0.35),inset_0_0.5px_0_rgba(255,255,255,0.4)]",
-          checked ? "bg-on-accent" : "bg-faint",
+          "shadow-[0_1px_3px_rgba(0,0,0,0.5),inset_0_0.5px_0_rgba(255,255,255,0.4)]",
+          checked ? "bg-on-accent" : "bg-muted",
           touch
             ? checked
               ? "left-[23px] size-[25px]"
@@ -545,9 +542,15 @@ function ThemePicker({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="pill" size="sm" className="h-8 gap-2 pl-3 pr-2">
-            <span className="text-[12.5px] font-medium">{THEME_LABELS[value]}</span>
-            <ChevronDown size={12} className="text-muted-foreground" aria-hidden />
+          <Button
+            variant="pill"
+            size="sm"
+            className="h-[30px] gap-2 rounded-[9px] pl-3 pr-2.5"
+          >
+            <span className="text-[13px] font-medium tracking-[-0.005em]">
+              {THEME_LABELS[value]}
+            </span>
+            <ChevronDown size={12} className="text-muted-foreground opacity-70" aria-hidden />
           </Button>
         }
       />

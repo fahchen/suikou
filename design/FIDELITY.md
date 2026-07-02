@@ -12,9 +12,13 @@ using the real `--color-*` token system so all 13 themes keep working.
 2. **Compare visually.** The dev app is already running (do NOT restart it):
    - Real app: `http://localhost:4710` (prod build; rebuild with `cd assets && bun run build` after edits, then hard-reload).
    - Mockup: open the `file://` mockup HTML for that surface.
-   Open BOTH in the browser (chrome-devtools-mcp), screenshot each at the same
-   width, and diff them element by element. Note every gap (spacing off by Npx,
-   wrong weight, wrong radius, missing hover/active, wrong gap, off color).
+   Open BOTH in the browser and screenshot each at the same width, then diff
+   them element by element. Note every gap (spacing off by Npx, wrong weight,
+   wrong radius, missing hover/active, wrong gap, off color).
+   **Screenshot with chrome-devtools-mcp only** (`mcp__plugin_chrome-devtools-mcp_chrome-devtools__new_page` / `navigate_page` / `take_screenshot`).
+   **Do NOT use `agent-browser` — its screenshot command is broken (hangs, never
+   writes the file). If you catch yourself retrying `agent-browser screenshot`,
+   stop and switch to chrome-devtools-mcp `take_screenshot`.**
 3. **Close the gaps** in the real components. Translate mockup CSS into the real
    `--color-*` tokens + Tailwind classes. Never hardcode hex, never `#000`/`#fff`.
    No gradients on buttons/controls, no side-stripe accent borders, monochrome
@@ -39,7 +43,8 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` matches the mockup + green + commit
   Mockup: `design/pages/projects/suikou-dark.html` (+ `suikou-light.html`, `suikou-dark-mobile.html`).
   Route: `http://localhost:4710/` · Component: `assets/src/review/ProjectBoard.tsx`.
 
-- [ ] **2. Settings modal**
+- [x] **2. Settings modal**
+  Progress: modal h520→h488; header title 14→14.5 weight 600→700; close = filled square (bg-soft, hairline ring, XIcon 15) instead of ghost. Rail padding p2.5→py11 px9; row h32→h33 gap9; icon 14→16; group label 10→9.5. Content pane px6 py5 → pt18 px22 pb22; pane title 600→700; lede text-muted-foreground→text-faint leading 1.45; header-lede gap mt1→mt0.5. Control row py2.5→py11; label font-medium→font-[580] tracking-[-0.008em]; sub leading-snug→leading-1.4. Segmented h6→h22 px2.5→px11 with stronger inset shadow. Switch: bg-blue on with accent-edge/soft glow ring; off track uses bg-canvas/80 and knob bg-muted (was bg-faint). ThemePicker: h8→h30 rounded-lg→rounded-9 text12.5→text13 pl3 pr2.5; chevron muted-fg opacity70. About: seal 36→38 rounded11 with inset highlight + accent-soft glow (was elev-1); wordmark 20→22 font-bold; body text 13→14 leading 1.55; version `Suikou 0.1.0`.
   Mockup: `design/pages/settings/suikou-dark.html` (+ `suikou-light.html`).
   Route: `http://localhost:4710/` then press `⌘,` (or click "Open settings").
   Component: `assets/src/settings/SettingsModal.tsx`.
