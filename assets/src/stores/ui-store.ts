@@ -41,7 +41,9 @@ const DRAFTS_KEY = "suikou-drafts"
  */
 export class UiStore {
   theme: ThemeName = "github"
-  commentMode: CommentMode = "side"
+  // Mockup E13: comments default to inline (in the editor body) so a fresh open
+  // matches the storyboard. The rail (E14) is opt-in via the Display menu.
+  commentMode: CommentMode = "inline"
   density: Density = "normal"
   markdownFlavor: MarkdownFlavor = "gfm"
   diffLayout: DiffLayout = "side"

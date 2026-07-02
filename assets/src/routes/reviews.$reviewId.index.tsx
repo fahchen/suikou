@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 
@@ -25,6 +25,8 @@ import { TopBarRoundMenu } from "../review/TopBarRoundMenu";
 import { ReviewBreadcrumb, TopBarSep, TopBarShell } from "../review/TopBarShell";
 import { SubmitControls } from "../review/SubmitControls";
 import { viewCapabilities } from "../review/view-kind";
+import { orderedReviewFiles } from "../review/file-order";
+import { reviewFileParams } from "../review/review-navigation";
 import { Centered } from "../components/centered";
 import { ErrorPage, errorCopy } from "../components/error-page";
 import { Button } from "@/components/ui/button";
@@ -93,6 +95,26 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   const submitReview = useMusubiCommand(reviewStore, "submit_review");
   const connected = useSocketConnected();
   const wide = useMediaQuery(WIDE_QUERY);
+  const navigate = useNavigate();
+
+  // Mockup A1b: default `single` mode lands on the first file, not the stacked
+  // all-files view. Users who prefer `all` (Settings) still hit this shell.
+  const singleLanding = uiStore.fileDisplayMode === "single";
+  const firstEntry = structure.file_entries.length > 0
+    ? orderedReviewFiles(structure.file_entries)[0]
+    : null;
+  useEffect(() => {
+    if (singleLanding && firstEntry) {
+      void navigate({
+        to: "/reviews/$reviewId/files/$",
+        params: reviewFileParams(reviewId, firstEntry.path),
+        replace: true,
+      });
+    }
+  }, [singleLanding, firstEntry?.path, reviewId]);
+  if (singleLanding && firstEntry) {
+    return <ReviewShellSkeleton label="Opening first file…" />;
+  }
 
   // Absent for a frame mid-reconnect (root store node not re-hydrated yet).
   if (!reviewSnapshot) return null;
