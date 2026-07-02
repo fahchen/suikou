@@ -4,6 +4,7 @@ import { ChevronRight, Code2, Eye, MessageSquare, MousePointerClick } from "luci
 import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
 import { useHeaderControls } from "./header-slot"
 import { uiStore } from "../stores/ui-store"
+import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
 import { FileIcon } from "./FileIcon"
 import { FileSwitcher } from "./FileSwitcher"
 import { StaleRefresh } from "./StaleRefresh"
@@ -125,6 +126,7 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
         {headerControls}
+        {capabilities.diffLayout && <DiffLayoutSegmented />}
         {(capabilities.sourceToggle ||
           (capabilities.htmlInteraction && !sourceView)) && (
           <div className="flex items-center gap-1">
@@ -156,6 +158,64 @@ function CommentCountChip(props: { count: number }) {
     >
       {props.count}
     </span>
+  )
+}
+
+/**
+ * Inline Unified / Split segmented control shown in the diff card's file-head,
+ * matching the mockup. Falls back to Unified on narrow viewports (matching the
+ * DiffView's auto-fallback) so the pressed segment can't lie.
+ */
+const DiffLayoutSegmented = observer(function DiffLayoutSegmented() {
+  const wide = useMediaQuery(WIDE_QUERY)
+  const effective = uiStore.diffLayout === "side" && wide ? "side" : "unified"
+  return (
+    <div
+      className="inline-flex h-[22px] items-center rounded-md bg-canvas/60 p-[2px] shadow-[inset_0_0_0_1px_var(--line)]"
+      role="group"
+      aria-label="Diff layout"
+    >
+      <SegBtn
+        label="Unified"
+        pressed={effective === "unified"}
+        onClick={() => uiStore.setDiffLayout("unified")}
+      />
+      <SegBtn
+        label="Split"
+        pressed={effective === "side"}
+        disabled={!wide}
+        title={wide ? "Split view" : "Split needs a wider window"}
+        onClick={() => uiStore.setDiffLayout("side")}
+      />
+    </div>
+  )
+})
+
+function SegBtn(props: {
+  label: string
+  pressed: boolean
+  disabled?: boolean
+  title?: string
+  onClick: () => void
+}) {
+  const base =
+    "inline-flex h-[18px] items-center rounded-[5px] px-[10px] text-[11.5px] font-[580] tracking-[-0.005em] transition-colors"
+  const tone = props.pressed
+    ? "bg-panel text-heading shadow-[inset_0_0_0_1px_var(--line-strong)]"
+    : props.disabled
+      ? "text-faint"
+      : "text-muted-foreground hover:text-heading"
+  return (
+    <button
+      type="button"
+      aria-pressed={props.pressed}
+      disabled={props.disabled}
+      title={props.title}
+      onClick={props.onClick}
+      className={`${base} ${tone}`}
+    >
+      {props.label}
+    </button>
   )
 }
 

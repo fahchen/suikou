@@ -411,7 +411,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
       </div>
       <StatusBar
         path={snapshot.path}
-        viewLabel={sourceView ? "Source" : "Preview"}
+        viewLabel={statusBarViewLabel(reviewKind, sourceView, ui.diffLayout, wide)}
         round={reviewSnapshot.body.latest_round ?? 0}
       />
     </div>
@@ -563,6 +563,21 @@ export function ReviewShellSkeleton(props: { label: string }) {
       <span className="sr-only">{props.label}</span>
     </main>
   );
+}
+
+/** Status bar's middle label: for a git_diff review, spell out Unified/Split diff
+ * (matching the mockup); otherwise fall back to the source/preview axis. */
+function statusBarViewLabel(
+  reviewKind: "file" | "diff",
+  sourceView: boolean,
+  diffLayout: "unified" | "side",
+  wide: boolean,
+): string {
+  if (reviewKind === "diff") {
+    const layout = diffLayout === "side" && wide ? "Split" : "Unified"
+    return `${layout} diff`
+  }
+  return sourceView ? "Source" : "Preview"
 }
 
 /** Above-file warning banner for a git_diff review whose refs shifted or

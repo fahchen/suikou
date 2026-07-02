@@ -62,11 +62,13 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` matches the mockup + green + commit
   Route: `http://localhost:4710/reviews/019f2000-4439-7af9-a123-bfab4e3af3ca`.
   Components: `review/ArtifactReviewShell.tsx`, `review/Navigator.tsx`, `review/StatusBar.tsx`, `TopBar*.tsx`, `CommentRail.tsx`, `CommentCard*.tsx`, `FileTree.tsx`/`ReviewFileTree.tsx`, composer.
 
-- [ ] **4. Review — git_diff view**
+- [~] **4. Review — git_diff view**
+  Progress: pulled the Unified / Split segmented out of the buried Display-options menu and rendered it inline in the diff card's file-head (right cluster), matching the mockup `.file-head .seg`. Reuses `uiStore.diffLayout` so the top-bar menu and status bar stay in sync; on narrow viewports Split is disabled with a tooltip and the label reads `Unified` (matches DiffView's auto-fallback). StatusBar's middle segment now spells out `Unified diff` / `Split diff` for git_diff reviews (was still `Preview`/`Source`, which is a file-selection axis and read wrong on a diff review). Both changes render correctly in light + dark themes. Verified on route `.../019f22a4-a8e7-7c92-8fb9-f74ba7f76044/files/assets/src/review/ArtifactReviewShell.tsx`.
+  Remaining gaps (deferred, need server-side data or larger structural work): per-file `+N / −M` add/delete counts in the Navigator rows and the nav footer total (`change_status` is on the structure entry but line counts are not — plumbing this needs a new server-side field on the diff-file rows); `Filter files…` box with `/` kbd in the Navigator header (skipped in surface 3 too — layer on later); nav footer settings gear; sticky `.file-head` letter-badge `M/A/D` swap (real ships GitHub-octicon change-status glyphs, kept consistent with surface 3 which is `[x]`); mockup's fixed hunk-header pill (`.hg` + `.ht` style) vs the plain grey header the current DiffView renders.
   Mockup: the J-group states in `design/pages/review/states-codex.html`.
   Route: `http://localhost:4710/reviews/019f22a4-a8e7-7c92-8fb9-f74ba7f76044`
   (a real git_diff review; `bun.lock` is noise, inspect a source file's diff).
-  Components: `diff-refs.ts`, the diff views, `ReviewFileTree.tsx`, `TopBarShell.tsx`.
+  Components: `diff-refs.ts`, the diff views, `ReviewFileTree.tsx`, `TopBarShell.tsx`, `FileRenderHeader.tsx`, `StatusBar.tsx`, `ArtifactReviewShell.tsx`.
 
 ## Done when
 
