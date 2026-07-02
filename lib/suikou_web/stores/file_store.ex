@@ -40,6 +40,11 @@ defmodule SuikouWeb.Stores.FileStore do
     field(:comments, CommentsStore.state())
     field(:latest_verdict, :approve | :request_changes | :comment | nil)
     field(:draft_verdict, :approve | :request_changes | :comment | nil)
+
+    # Monotonic counter bumped each time this file changes on disk (see
+    # Suikou.FileWatcher). The client compares it to the version it last loaded
+    # content at; a higher value means the open content is stale.
+    field(:disk_version, integer())
   end
 
   command :set_draft_verdict do
@@ -64,6 +69,12 @@ defmodule SuikouWeb.Stores.FileStore do
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
+  # A disk change bumps the version only — no DB read, the content is served
+  # live over HTTP and the client refetches it on demand.
+  def update(%{disk_changed: true}, socket) do
+    {:ok, Socket.assign(socket, :disk_version, (socket.assigns[:disk_version] || 0) + 1)}
+  end
+
   def update(assigns, socket) do
     {:ok, socket |> Socket.assign(assigns) |> reload()}
   end
@@ -76,7 +87,8 @@ defmodule SuikouWeb.Stores.FileStore do
       current_round: socket.assigns[:current_round] || current_round(0, "", true),
       comments: comments_child(socket),
       latest_verdict: socket.assigns[:latest_verdict],
-      draft_verdict: socket.assigns[:draft_verdict]
+      draft_verdict: socket.assigns[:draft_verdict],
+      disk_version: socket.assigns[:disk_version] || 0
     }
   end
 

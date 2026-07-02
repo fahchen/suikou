@@ -29,7 +29,6 @@ import { Centered } from "../components/centered";
 import { ErrorPage, errorCopy } from "../components/error-page";
 import { Button } from "@/components/ui/button";
 import type { ReviewSnapshot, ReviewStore } from "../review/types";
-import type { FileSnapshot } from "../review/types";
 
 export const Route = createFileRoute("/reviews/$reviewId/")({
   component: ReviewLandingRoute,
@@ -98,10 +97,11 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   // Absent for a frame mid-reconnect (root store node not re-hydrated yet).
   if (!reviewSnapshot) return null;
 
-  // `files` can read undefined for a frame while the socket is dropping and the
-  // store snapshot tears down; default to empty so the header can still render.
-  const files = (reviewSnapshot.body.files ?? []) as unknown as FileSnapshot[];
-  const hasAnyDraftVerdict = files.some((f) => f.draft_verdict !== null);
+  // Submit publishes any unpublished work — a draft verdict OR a pending comment
+  // or reply (see `Submissions.unpublished?`). Gate on the review-level
+  // `has_unpublished` aggregate, not just draft verdicts, so a review carrying
+  // only pending comments can still be submitted (matches the single-file TopBar).
+  const hasUnpublishedWork = reviewSnapshot.body.has_unpublished;
 
   // First file in path order for "One" display mode navigation — from the static
   // structure so it is stable across reconnects.
@@ -126,7 +126,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
       firstFilePath={firstFilePath}
       allFilesCapabilities={allFilesCapabilities}
       wide={wide}
-      submitDisabled={!hasAnyDraftVerdict || submitReview.isPending || !connected}
+      submitDisabled={!hasUnpublishedWork || submitReview.isPending || !connected}
       onSubmit={() => void submitReview.dispatch({})}
     />
   );

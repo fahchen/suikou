@@ -2,7 +2,9 @@ defmodule Suikou.Schemas.Anchor.Element do
   @moduledoc """
   Element anchor for an HTML artifact review (see BDR-0021): a CSS `selector`
   identifying the rendered element and the captured text `quote` the reviewer
-  pointed at. Both fields are required. Element anchors are not line ranges, so
+  pointed at. The `selector` is required; the `quote` may be empty, since an
+  element can carry no text (the reviewer anchors to the element itself).
+  Element anchors are not line ranges, so
   this variant does not share the line-order helper used by `LineRange` and
   `DiffHunk`. Re-anchoring is client-only: the iframe DOM resolves the selector
   on every render and decides outdated; the server never relocates an element
@@ -26,14 +28,17 @@ defmodule Suikou.Schemas.Anchor.Element do
   end
 
   @doc """
-  Builds a changeset for an element anchor, requiring both the CSS `selector`
-  and the captured `quote`. Both fields are capped (#{@selector_max} chars for
-  `selector`, #{@quote_max} for `quote`) so a client cannot store unbounded
-  blobs.
+  Builds a changeset for an element anchor, requiring the CSS `selector`. The
+  captured `quote` is optional — an element the reviewer points at may have no
+  text. Both fields are capped (#{@selector_max} chars for `selector`,
+  #{@quote_max} for `quote`) so a client cannot store unbounded blobs.
 
   ## Examples
 
       iex> Suikou.Schemas.Anchor.Element.changeset(%Suikou.Schemas.Anchor.Element{}, %{selector: "main > p:nth-of-type(2)", quote: "Hello"}).valid?
+      true
+
+      iex> Suikou.Schemas.Anchor.Element.changeset(%Suikou.Schemas.Anchor.Element{}, %{selector: "main > hr", quote: ""}).valid?
       true
 
       iex> Suikou.Schemas.Anchor.Element.changeset(%Suikou.Schemas.Anchor.Element{}, %{selector: "", quote: ""}).valid?
@@ -47,7 +52,7 @@ defmodule Suikou.Schemas.Anchor.Element do
   def changeset(element, params) do
     element
     |> cast(params, [:selector, :quote])
-    |> validate_required([:selector, :quote])
+    |> validate_required([:selector])
     |> validate_length(:selector, max: @selector_max)
     |> validate_length(:quote, max: @quote_max)
   end

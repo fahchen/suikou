@@ -14,8 +14,10 @@ defmodule Suikou.Application do
        repos: Application.fetch_env!(:suikou, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:suikou, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Suikou.PubSub},
-      # Start a worker by calling: Suikou.Worker.start_link(arg)
-      # {Suikou.Worker, arg},
+      # Per-review file watchers: one process per review_id, found by id and
+      # ref-counted by the connected review stores (see Suikou.FileWatcher).
+      {Registry, keys: :unique, name: Suikou.FileWatcher.Registry},
+      {DynamicSupervisor, name: Suikou.FileWatcher.Supervisor},
       # Start to serve requests, typically the last entry
       SuikouWeb.Endpoint
     ]

@@ -150,6 +150,7 @@ export interface MergedFileView {
   comments: FileSnapshot["comments"]
   latest_verdict: FileSnapshot["latest_verdict"]
   draft_verdict: FileSnapshot["draft_verdict"]
+  disk_version: number
 }
 
 /**
@@ -184,5 +185,6 @@ export function mergeFileView(
     comments: live.comments,
     latest_verdict: live.latest_verdict,
     draft_verdict: live.draft_verdict,
+    disk_version: live.disk_version ?? 0,
   }
 }

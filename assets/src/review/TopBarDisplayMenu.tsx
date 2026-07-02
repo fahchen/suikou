@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
@@ -8,7 +8,6 @@ import type {
   CritiqueType,
   Density,
   DiffLayout,
-  FileDisplayMode,
   StatusFilter,
 } from "../stores/ui-store";
 import { CRITIQUE_META } from "./types";
@@ -60,6 +59,11 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
     props;
   const renderedLabel = viewKind === "html" ? "HTML" : "Markdown";
   const ui = uiStore;
+  // The all-vs-single view is the route, not a stored preference: the single-file
+  // route is `…/files/…`, the index route is the all-files board. Deriving it here
+  // keeps the toggle in sync with what's actually on screen.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const fileMode = pathname.includes("/files/") ? "single" : "all";
   const navigate = useNavigate();
 
   return (
@@ -82,10 +86,9 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
               size="xs"
               variant="outline"
               spacing={0}
-              value={[ui.fileDisplayMode]}
+              value={[fileMode]}
               onValueChange={(v) => {
-                if (!v[0]) return;
-                ui.setFileDisplayMode(v[0] as FileDisplayMode);
+                if (!v[0] || v[0] === fileMode) return;
                 if (v[0] === "all") {
                   void navigate({ to: "/reviews/$reviewId", params: { reviewId } });
                 } else {
@@ -98,7 +101,7 @@ export const TopBarDisplayMenu = observer(function TopBarDisplayMenu(props: {
             </ToggleGroup>
           </Row>
 
-          {ui.fileDisplayMode === "all" && (
+          {fileMode === "all" && (
             <Row label="Reviewed">
               <ToggleGroup
                 size="sm"

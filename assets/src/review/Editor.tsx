@@ -570,10 +570,6 @@ function CodeRun(props: {
   );
 }
 
-/** colSpan large enough to span every column; browsers clamp it to the table's
- * real column count, so an aside row stretches the full table width. */
-const FULL_ROW_SPAN = 1000;
-
 /** lucide "plus" glyph, inlined so the table gutter can live in raw cell HTML. */
 const PLUS_SVG =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
@@ -601,6 +597,12 @@ const TableBlock = observer(function TableBlock(props: {
   const draft = ui.draftFor(fileScope);
   const selStart = draft?.selStart ?? null;
   const selEnd = draft?.selEnd ?? null;
+
+  // Aside rows (composer / inline comments) span the whole grid. Under
+  // `table-layout: fixed` (.md-table) a colSpan past the real column count
+  // mints phantom columns and collapses the real ones to zero width, so span
+  // exactly the gutter cell plus the header row's data cells.
+  const columnCount = ((props.rows[0]?.html.match(/<t[dh][\s>]/gi) ?? []).length) + 1;
 
   const onGutterClick = (e: React.MouseEvent<HTMLTableElement>) => {
     const cell = (e.target as HTMLElement).closest<HTMLElement>("[data-line-start]");
@@ -638,7 +640,7 @@ const TableBlock = observer(function TableBlock(props: {
 
                 {composerOpen && selStart != null && selEnd != null && (
                   <tr>
-                    <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
+                    <td colSpan={columnCount} className="md-table-aside">
                       <div className={COMMENT_CLAMP}>
                         <Composer
                           startLine={selStart}
@@ -653,7 +655,7 @@ const TableBlock = observer(function TableBlock(props: {
 
                 {inlineComments.map((comment) => (
                   <tr key={comment.id}>
-                    <td colSpan={FULL_ROW_SPAN} className="md-table-aside">
+                    <td colSpan={columnCount} className="md-table-aside">
                       <div className={`${COMMENT_CLAMP} px-2 pb-2 pt-2 pl-10 sm:px-4 sm:pl-14`}>
                         <CommentCard comment={comment} context="inline" />
                       </div>

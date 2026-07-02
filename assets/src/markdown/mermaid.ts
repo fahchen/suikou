@@ -1,8 +1,5 @@
 import { renderMermaidSVG } from "beautiful-mermaid"
 
-const MONO_STACK =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
-
 /**
  * Renders a Mermaid diagram source to an SVG string, themed from the active
  * palette via live CSS variables. Returns an error marker (never throws) so one
@@ -18,7 +15,6 @@ export function renderMermaid(source: string): string {
       muted: "var(--muted-foreground)",
       surface: "var(--tint)",
       border: "var(--line-strong)",
-      font: MONO_STACK,
       transparent: true,
     })
   } catch (error) {

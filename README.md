@@ -26,10 +26,17 @@ daemon so the new binary and any `config.toml` changes take effect:
 
 ```sh
 mix suikou.package
-suikou stop                      # if a daemon from an older build is running
+suikou stop                                    # if a daemon from an older build is running
 cp dist/suikou ~/.local/bin/suikou
-suikou start                     # boots the new binary, opens the browser
+xattr -c ~/.local/bin/suikou                   # drop provenance/quarantine xattrs
+codesign --force --sign - ~/.local/bin/suikou  # re-sign ad-hoc
+suikou start                                   # boots the new binary, opens the browser
 ```
+
+The `xattr`/`codesign` steps matter: `cp` invalidates the bun binary's ad-hoc
+signature, and macOS then **SIGKILLs the copy on exec** — a silent `Killed: 9`
+with no output, before the server can even start. Re-signing the installed copy
+ad-hoc makes it runnable.
 
 Lifecycle state lives in `~/Library/Application Support/Suikou` (independent of
 the binary), so `stop`/`start` reach the daemon across versions. Targets the

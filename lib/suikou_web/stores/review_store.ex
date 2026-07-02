@@ -16,6 +16,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   alias Musubi.Child
   alias Musubi.Socket
   alias Suikou.Events
+  alias Suikou.FileWatcher
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Rounds
@@ -112,8 +113,27 @@ defmodule SuikouWeb.Stores.ReviewStore do
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
     Events.subscribe(review_id)
+    watch_files(review_id)
     {:ok, Socket.assign(socket, :review_id, review_id)}
   end
+
+  # Start (or join) the review's file watcher, ref-counted by this store process.
+  # Watches the review's raw selections (files/dirs) so creates under a selected
+  # dir are noticed. Skipped when the review is gone, its project dir is missing,
+  # or it has no on-disk selections (a git-diff review), so a stale link still
+  # loads the page (just without the live-refresh signal).
+  defp watch_files(review_id) do
+    with %Review{project: project} = review <- Reviews.get_review(review_id),
+         true <- File.dir?(project.path),
+         [_first | _rest] = selections <- selections(review) do
+      FileWatcher.subscribe(review_id, project.path, selections)
+    else
+      _absent -> :ok
+    end
+  end
+
+  defp selections(%Review{source: %FileSelection{selection_paths: paths}}), do: paths
+  defp selections(%Review{source: %GitDiff{}}), do: []
 
   @impl Musubi.Store
   @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
@@ -141,6 +161,16 @@ defmodule SuikouWeb.Stores.ReviewStore do
       Musubi.send_update(body, %{reload: :structure})
     end
 
+    {:noreply, socket}
+  end
+
+  # A watched file changed on disk: forward the path and whether it still exists
+  # to the body, which either marks the file stale or re-derives the file list
+  # (a create or delete).
+  def handle_info({:files_changed, _review_id, rel_path, exists?}, socket) do
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+    body = Socket.store_id(socket) ++ ["body"]
+    Musubi.send_update(body, %{disk_changed: rel_path, exists: exists?})
     {:noreply, socket}
   end
 

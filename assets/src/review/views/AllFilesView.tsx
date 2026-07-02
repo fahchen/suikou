@@ -12,6 +12,7 @@ import { useMediaQuery, WIDE_QUERY } from "../../hooks/use-media-query"
 import { contentErrorFrom, useContent, useReviewFileContent } from "../use-content"
 import { useMarkdown } from "../../markdown/use-markdown"
 import { useRawHighlight } from "../use-raw-highlight"
+import { useDiskStale } from "../use-disk-stale"
 import { isImagePath, isPreviewable, isBinaryContent, imageAssetSrc } from "../file-type"
 import { isHtmlPath, viewCapabilities } from "../view-kind"
 import { assetBase, reviewFileRawUrl } from "../urls"
@@ -181,6 +182,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   const contentState = minted ? minStat : unminStat
   const etag = contentState.etag
   const rawLines = useRawHighlight(live && !image ? contentState.text : "", path, etag)
+  const { stale, refresh } = useDiskStale(fileSnapshot.disk_version, etag, contentState.refetch)
 
   const previewable = isPreviewable(path) && viewKind === "file"
   const slash = path.lastIndexOf("/")
@@ -243,6 +245,8 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
         capabilities={capabilities}
         sourceView={sourceView}
         onSourceViewChange={setSourceView}
+        stale={stale}
+        onRefresh={refresh}
         expanded={expanded}
         onToggleExpand={() => uiStore.setFileCollapsed(props.reviewId, path, expanded)}
         verdictChip={

@@ -14,25 +14,46 @@ const socketUrl = import.meta.env.DEV
 export const socket = new Socket(socketUrl)
 
 // Free the socket while the page is frozen so Safari can keep the page in
-// bfcache — an open WebSocket makes a page bfcache-ineligible, which on iOS
-// forces a full reload on resume instead of an instant in-memory restore. On
-// `pageshow` (including a bfcache restore, when no React effect re-runs)
-// reconnect; musubi re-mounts its roots on socket reopen, and the SWR caches
-// keep the last-good view painted meanwhile. Uses `pagehide`/`pageshow`, never
-// `beforeunload`/`unload` — those listeners would themselves disable bfcache.
+// bfcache — an open WebSocket makes a page bfcache-ineligible. The server stops
+// a review's page store the moment its channel drops, so on resume the server
+// store is gone. We don't reload to recover it: the file content is served from
+// the HTTP/SWR cache and is already on screen — only the live Musubi store lost
+// its channel. Reconnecting the socket is enough. `socket.connect()` fires the
+// socket's `onOpen`, which drives musubi's `handleSocketReopen`: it re-joins the
+// connection channel and remounts each live root on the fresh transport. The
+// remount's mount push makes the server `start_fresh_root` (rebuilding the page
+// store under the same deterministic root_id), and its initial patch is swapped
+// atomically into the still-rendering last-good snapshot. No React remount, so
+// scroll position is untouched. The catch phoenix gives us: a *clean* disconnect
+// is not auto-reconnected, so nothing reopens the transport on its own — we must
+// call `connect()` ourselves on resume.
+// `pagehide`/`pageshow` (never `beforeunload`/`unload`, which disable bfcache).
 if (typeof window !== "undefined") {
+  let released = false
   window.addEventListener("pagehide", () => {
+    released = true
     socket.disconnect()
   })
-  const reconnect = () => {
-    if (!socket.isConnected()) socket.connect()
-  }
-  window.addEventListener("pageshow", reconnect)
-  // iOS Safari does not always fire `pageshow` on resume; `visibilitychange` to
-  // visible is the reliable signal to reconnect a socket we released on hide.
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") reconnect()
+  // Clear the flag only once the transport is actually back, so a resume signal
+  // that fires before the network is ready (e.g. `visibilitychange` while still
+  // offline) keeps us armed and a later `online`/`pageshow` retries the connect.
+  socket.onOpen(() => {
+    released = false
   })
+  const resume = () => {
+    // Only after a real hide-release, and only if the socket is actually down
+    // (a quick tab switch never released it). `connect()` is idempotent, but the
+    // guard keeps us from fighting phoenix's own auto-reconnect on an abnormal
+    // mid-session drop, which we never released.
+    if (released && !socket.isConnected()) socket.connect()
+  }
+  window.addEventListener("pageshow", resume)
+  // iOS Safari does not always fire `pageshow` on resume; `visibilitychange` to
+  // visible is the reliable signal.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") resume()
+  })
+  window.addEventListener("online", resume)
 }
 
 /**

@@ -62,7 +62,6 @@ export const TopBar = observer(function TopBar(props: {
 
   const fileEntries = structure.file_entries;
   const { prev: prevFile, next: nextFile } = adjacentReviewFiles(fileEntries, fileSnapshot.path);
-  const showFileNav = uiStore.fileDisplayMode === "single";
 
   async function navigateToFile(file: StructureFileEntry, dir: "prev" | "next") {
     setNavPending(dir);
@@ -73,7 +72,8 @@ export const TopBar = observer(function TopBar(props: {
     }
   }
 
-  const fileNav = showFileNav && (
+  // TopBar is the single-file header, so the prev/next file nav always applies.
+  const fileNav = (
     <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
       <Button
         variant="pill"

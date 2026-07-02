@@ -60,11 +60,16 @@ function useDefaultReviewCommands() {
   };
 }
 
-// Retry a command that rejects with "Store is not connected". After an iOS
-// Safari resume reload the phoenix socket reopens a beat before the musubi
-// channel re-joins, so a command fired in that window rejects before it ever
-// reaches the server — safe to retry. Never retries timeouts (the push may have
-// landed), so a genuine server rejection still surfaces.
+// Retry a command that rejects with "Store is not connected". After an iOS Safari
+// resume the socket reopens a beat before musubi re-joins the store's channel, so
+// a command fired in that window rejects before reaching the server — wait for
+// musubi's own onOpen recovery to re-mount the root, then retry. We deliberately
+// do NOT poke the socket here: calling socket.connect()/disconnect() sets a
+// connectPromise that makes musubi's `handleSocketReopen` bail out of its root
+// remount, which is exactly the recovery we're waiting on. Never retries timeouts
+// (the push may have landed), so a genuine server rejection still surfaces.
+const RECONNECT_ATTEMPTS = 20;
+
 function resilient<
   T extends { dispatch: (...args: never[]) => Promise<unknown> },
 >(command: T): T {
@@ -74,7 +79,7 @@ function resilient<
         return await command.dispatch(...args);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (message.includes("not connected") && attempt < 9) {
+        if (message.includes("not connected") && attempt < RECONNECT_ATTEMPTS) {
           await new Promise((resolve) => setTimeout(resolve, 300));
           continue;
         }
