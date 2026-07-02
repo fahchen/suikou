@@ -54,7 +54,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` 1:1 with the mockup (all its states
 
 - [x] **0. Suikou Dark/Light palette** (see section 0). themes.ts, shiki-themes.css, index.css, ui-store default.
 
-- [ ] **1. Projects launcher** — every state in `design/pages/projects/suikou-dark.html`
+- [~] **1. Projects launcher** — every state in `design/pages/projects/suikou-dark.html`
   (default, populated, empty "No projects yet", "Open a review to start") + `suikou-light.html`
   + mobile (`suikou-dark-mobile.html` / `suikou-light-mobile.html`).
   Route: `http://localhost:4710/` · `assets/src/review/ProjectBoard.tsx`.
