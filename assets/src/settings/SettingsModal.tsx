@@ -435,24 +435,27 @@ function AboutRow({ k, v, mono = false }: { k: string; v: string; mono?: boolean
 }
 
 // A small segmented control that reuses the flat-solid button aesthetic. Fits
-// on one row on desktop; falls back to full-width on the mobile sheet through
-// the parent's stacked layout.
+// on one row on desktop; on the mobile sheet, `touch` grows it to a 44px hit
+// area with a larger label so it reads as a real iOS control.
 function Segmented<T extends string>({
   value,
   options,
   onChange,
-  className
+  className,
+  touch = false
 }: {
   value: T
   options: { value: T; label: string }[]
   onChange: (v: T) => void
   className?: string
+  touch?: boolean
 }) {
   return (
     <div
       role="tablist"
       className={cn(
-        "inline-flex gap-0.5 rounded-lg border border-line bg-canvas/70 p-0.5 shadow-inner",
+        "inline-flex gap-0.5 border border-line bg-canvas/70 shadow-inner",
+        touch ? "rounded-[9px] p-[3px]" : "rounded-lg p-0.5",
         className
       )}
     >
@@ -466,8 +469,10 @@ function Segmented<T extends string>({
             aria-selected={selected}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "flex-1 cursor-pointer rounded-md px-[11px] text-[11.5px] font-medium tracking-[-0.005em] transition-colors duration-150",
-              "h-[22px]",
+              "flex-1 cursor-pointer font-medium tracking-[-0.005em] transition-colors duration-150",
+              touch
+                ? "h-[34px] rounded-[6px] px-[14px] text-[13px]"
+                : "h-[22px] rounded-md px-[11px] text-[11.5px]",
               selected
                 ? "bg-surface text-heading shadow-[inset_0_0.5px_0_var(--edge-top),0_1px_2px_rgba(0,0,0,0.35)]"
                 : "text-muted-foreground hover:text-text"
@@ -531,10 +536,12 @@ function Switch({
 
 function ThemePicker({
   value,
-  onChange
+  onChange,
+  touch = false
 }: {
   value: ThemeName
   onChange: (t: ThemeName) => void
+  touch?: boolean
 }) {
   const light = THEMES.filter((t) => !THEME_CODE[t].dark)
   const dark = THEMES.filter((t) => THEME_CODE[t].dark)
@@ -545,16 +552,21 @@ function ThemePicker({
           <Button
             variant="pill"
             size="sm"
-            className="h-[30px] gap-2 rounded-[9px] pl-3 pr-2.5"
+            className={cn(
+              "gap-2 rounded-[9px]",
+              touch
+                ? "h-[38px] w-full justify-between pl-3 pr-3"
+                : "h-[30px] pl-3 pr-2.5"
+            )}
           >
-            <span className="text-[13px] font-medium tracking-[-0.005em]">
+            <span className={cn("truncate font-medium tracking-[-0.005em]", touch ? "text-[15px]" : "text-[13px]")}>
               {THEME_LABELS[value]}
             </span>
-            <ChevronDown size={12} className="text-muted-foreground opacity-70" aria-hidden />
+            <ChevronDown size={touch ? 16 : 12} className="shrink-0 text-muted-foreground opacity-70" aria-hidden />
           </Button>
         }
       />
-      <DropdownMenuContent align="end" className="max-h-[326px] w-[234px] overflow-auto">
+      <DropdownMenuContent align="end" className={cn("max-h-[326px] overflow-auto", touch ? "w-[280px]" : "w-[234px]")}>
         <DropdownMenuRadioGroup
           value={value}
           onValueChange={(v) => onChange(v as ThemeName)}
@@ -601,10 +613,11 @@ const MobileSheet = observer(function MobileSheet() {
       <div className="flex flex-1 flex-col gap-5 overflow-auto px-4 py-4 pb-8">
         <SheetGroup title="Appearance">
           <SheetStackedRow label="Theme">
-            <ThemePicker value={ui.theme} onChange={(t) => ui.setTheme(t)} />
+            <ThemePicker touch value={ui.theme} onChange={(t) => ui.setTheme(t)} />
           </SheetStackedRow>
           <SheetStackedRow label="Density">
             <Segmented
+              touch
               className="w-full"
               value={ui.density}
               options={[
@@ -628,6 +641,7 @@ const MobileSheet = observer(function MobileSheet() {
         <SheetGroup title="Review defaults">
           <SheetStackedRow label="Comment layout">
             <Segmented
+              touch
               className="w-full"
               value={ui.commentMode}
               options={[
@@ -639,6 +653,7 @@ const MobileSheet = observer(function MobileSheet() {
           </SheetStackedRow>
           <SheetStackedRow label="Diff view">
             <Segmented
+              touch
               className="w-full"
               value={ui.diffLayout}
               options={[
@@ -650,6 +665,7 @@ const MobileSheet = observer(function MobileSheet() {
           </SheetStackedRow>
           <SheetStackedRow label="File mode">
             <Segmented
+              touch
               className="w-full"
               value={ui.fileDisplayMode}
               options={[
@@ -661,6 +677,7 @@ const MobileSheet = observer(function MobileSheet() {
           </SheetStackedRow>
           <SheetStackedRow label="Markdown flavor">
             <Segmented
+              touch
               className="w-full"
               value={ui.markdownFlavor}
               options={[

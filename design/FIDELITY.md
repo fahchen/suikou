@@ -46,7 +46,7 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` no overflow + matches desktop AND m
   Route: `http://localhost:4710/` · Component: `assets/src/review/ProjectBoard.tsx`.
   Overflow watch: long project name/path in sidebar + header, long review names.
 
-- [ ] **2. Settings modal**
+- [x] **2. Settings modal**
   Desktop mockup: `design/pages/settings/suikou-dark.html` (+ `suikou-light.html`) — centered modal.
   Mobile: same mockup's bottom-sheet state; the app renders `MobileSheet` under `MOBILE_QUERY`.
   Route: `http://localhost:4710/` then `⌘,` (or "Open settings").
