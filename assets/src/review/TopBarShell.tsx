@@ -38,49 +38,81 @@ export function HomeButton() {
 /** Shared breadcrumb chip: `suikou › [kind-icon] review-name ▾`. Used in the
  * live workspace top bar and any file-level fallback screen so the review's
  * identity reads the same wherever the chrome renders. For a git_diff review
- * the compared refs and any refs-moved / branch-deleted state append inline. */
+ * the compared refs and any refs-moved / branch-deleted state append inline.
+ * Below `sm` the layout collapses to the mobile mockup's two-line `.ab-title`
+ * (name on top, kind-badge + mono refs on the second line). */
 export function ReviewBreadcrumb(props: {
   kind: ReviewKind;
   name: string;
   refs?: DiffRefs | null;
 }) {
   const KindIcon = props.kind === "git_diff" ? GitCompare : FileText;
+  const kindLabel = props.kind === "git_diff" ? "Diff" : "Files";
   return (
     <div className="flex min-w-0 items-center gap-[9px]">
       <button
         type="button"
-        className="flex h-[30px] min-w-0 items-center gap-[6px] rounded-lg px-2 text-[13px] hover:bg-hover"
+        className="flex min-w-0 flex-col items-start gap-px rounded-lg px-2 py-1 text-[13px] hover:bg-hover sm:h-[30px] sm:flex-row sm:items-center sm:gap-[6px] sm:py-0"
         title="Switch review"
       >
-        <span className="font-medium tracking-[-0.01em] text-muted-foreground">suikou</span>
-        <span className="text-faint" aria-hidden>
+        <span className="hidden font-medium tracking-[-0.01em] text-muted-foreground sm:inline">
+          suikou
+        </span>
+        <span className="hidden text-faint sm:inline" aria-hidden>
           ›
         </span>
         <KindIcon
           size={13}
           aria-hidden
-          className="shrink-0 text-muted-foreground"
+          className="hidden shrink-0 text-muted-foreground sm:inline"
         />
         <span
-          className="min-w-0 truncate font-semibold tracking-[-0.015em] text-heading"
-          title={props.name}
+          className="flex min-w-0 max-w-full items-center gap-[6px] sm:contents"
         >
-          {props.name}
+          <span
+            className="min-w-0 truncate font-semibold tracking-[-0.015em] text-heading"
+            title={props.name}
+          >
+            {props.name}
+          </span>
+          <ChevronDown
+            size={12}
+            aria-hidden
+            className="-mr-0.5 shrink-0 text-muted-foreground opacity-70"
+          />
         </span>
-        <ChevronDown
-          size={12}
-          aria-hidden
-          className="-mr-0.5 shrink-0 text-muted-foreground opacity-70"
-        />
+        {/* Mobile-only ctx row: kind-badge + mono base..head refs, matching
+            the mockup's `.ab-title .ab-ctx` line. */}
+        <span className="flex min-w-0 max-w-full items-center gap-[5px] text-[11px] text-muted-foreground sm:hidden">
+          <KindBadgeInline icon={<KindIcon size={11} aria-hidden />} label={kindLabel} />
+          {props.refs && (
+            <span
+              className="min-w-0 truncate font-mono text-[10.5px] text-faint"
+              title={`Comparing ${formatRefsRange(props.refs)}`}
+            >
+              {formatRefsRange(props.refs)}
+            </span>
+          )}
+        </span>
       </button>
       {props.refs && <DiffRefsChip refs={props.refs} />}
     </div>
   );
 }
 
-/** Mono `base@sha..head@sha` chip + optional refs-state pill. Hidden below
- * `sm` so a narrow top bar keeps the review name legible; the state pill still
- * shows so the reviewer never misses that the diff is stale or vanished. */
+/** Small inline kind chip for the mobile app-bar ctx row (mockup `.kind-badge`). */
+function KindBadgeInline({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-[3px] rounded-md bg-hover px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+/** Mono `base@sha..head@sha` chip (desktop only — mobile ctx row above renders
+ * its own copy) + optional refs-state pill. The state pill still shows at any
+ * width so the reviewer never misses that the diff is stale or vanished. */
 function DiffRefsChip({ refs }: { refs: DiffRefs }) {
   const vanished = vanishedSide(refs) !== null;
   const moved = refsMoved(refs);
