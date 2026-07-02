@@ -273,24 +273,24 @@ function Board({
 
 function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
   return (
-    <div className="sticky top-0 z-30 border-b border-line bg-surface2 backdrop-blur-md">
-      <div className="mx-auto flex h-12 max-w-[1240px] items-center gap-2 px-3 sm:px-5">
-        <div className="flex items-center gap-2">
+    <div className="sticky top-0 z-30 border-b border-line-strong bg-surface2 backdrop-blur-md">
+      <div className="mx-auto flex h-[50px] max-w-[1240px] items-center gap-[9px] px-3 sm:px-5">
+        <div className="flex h-[30px] items-center gap-[9px] rounded-lg px-1 pr-2 hover:bg-hover">
           <span
             aria-hidden
-            className="grid size-6 place-items-center rounded-md bg-blue text-[12px] font-bold text-on-accent shadow-[var(--elev-1)]"
+            className="grid size-6 place-items-center rounded-[7px] bg-blue text-[13px] font-black text-on-accent shadow-[inset_0_0.5px_0_oklch(100%_0_0/0.4),0_0_12px_var(--accent-soft)]"
           >
             S
           </span>
-          <span className="text-[14px] font-semibold tracking-[-0.02em] text-heading">Suikou</span>
+          <span className="text-[14px] font-bold tracking-[-0.02em] text-heading">Suikou</span>
         </div>
         <div
           aria-hidden
-          className="ml-2 hidden h-8 min-w-[220px] max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-line bg-control px-2.5 text-[12px] text-faint shadow-inner sm:flex"
+          className="ml-2 hidden h-[30px] min-w-[240px] max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-line-strong bg-control px-2.5 pr-2 text-[12.5px] text-faint shadow-[inset_0_1px_2px_var(--elev-1)] sm:flex"
         >
-          <Search size={13} aria-hidden />
+          <Search size={14} aria-hidden />
           <span className="flex-1 truncate">Search projects and reviews…</span>
-          <kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground ring-1 ring-inset ring-line">
+          <kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-muted-foreground ring-1 ring-inset ring-line-strong">
             ⌘K
           </kbd>
         </div>
@@ -301,6 +301,7 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
           title="Settings (⌘,)"
           aria-label="Open settings"
           onClick={() => uiStore.setSettingsOpen(true)}
+          className="size-[30px]"
         >
           <Settings className="text-muted-foreground" />
         </Button>
@@ -309,7 +310,7 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
           onClick={onNewProject}
           title="New project"
           aria-label="New project"
-          className="h-8"
+          className="h-[30px] rounded-lg px-3 font-semibold"
         >
           <Plus size={14} />
           New project
@@ -378,17 +379,18 @@ function ProjectSidebar({
   onSelect: (id: string) => void;
   onAddProject: () => void;
 }) {
+  const projectLabel = `${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
   return (
-    <aside className="flex flex-col gap-2 border-line bg-rail p-2.5 sm:border-r">
-      <div className="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[10px] font-bold tracking-[0.12em] text-faint uppercase">
+    <aside className="flex flex-col border-line-strong bg-panel px-[9px] pt-3 pb-[9px] sm:border-r">
+      <div className="flex items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase">
         <span>Projects</span>
-        <span className="font-mono tabular-nums">{projects.length}</span>
+        <span className="font-mono tabular-nums tracking-[0.06em]">{projects.length}</span>
         <span aria-hidden className="h-px flex-1 bg-line-soft" />
       </div>
       <div
         role="tablist"
         aria-label="Projects"
-        className="flex gap-1 overflow-x-auto sm:flex-col sm:overflow-visible"
+        className="flex gap-0.5 overflow-x-auto sm:flex-col sm:overflow-visible"
       >
         {projects.map((project) => (
           <ProjectSidebarRow
@@ -402,11 +404,15 @@ function ProjectSidebar({
       <button
         type="button"
         onClick={onAddProject}
-        className="mt-1 flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-line px-2.5 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright"
+        className="mt-1 flex h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg border border-dashed border-line-strong bg-soft/40 px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright"
       >
-        <Plus size={14} aria-hidden />
+        <Plus size={15} aria-hidden />
         Add project
       </button>
+      <span className="hidden flex-1 sm:block" />
+      <div className="mt-[6px] hidden items-center border-t border-line-soft px-[9px] pt-[9px] pb-0.5 text-[11px] text-faint sm:flex">
+        <span className="font-mono tabular-nums">{projectLabel}</span>
+      </div>
     </aside>
   );
 }
@@ -427,13 +433,18 @@ function ProjectSidebarRow({
       aria-selected={selected}
       onClick={onSelect}
       title={project.path}
-      className={`flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-[12.5px] font-medium tracking-[-0.005em] transition-colors duration-150 ${
+      className={`flex h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg pr-[9px] pl-2.5 text-left text-[13px] tracking-[-0.008em] transition-colors duration-150 ${
         selected
-          ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
-          : "text-text hover:bg-hover"
+          ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
+          : "font-medium text-text hover:bg-hover"
       }`}
     >
-      <Folder size={14} aria-hidden className={selected ? "text-accent-bright" : "text-muted-foreground"} />
+      <Folder
+        size={16}
+        strokeWidth={1.7}
+        aria-hidden
+        className={selected ? "text-accent-bright" : "text-muted-foreground"}
+      />
       <span className="min-w-0 flex-1 truncate">{project.name}</span>
     </button>
   );
@@ -479,10 +490,10 @@ function ProjectSection({
   const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
 
   return (
-    <section className="flex min-w-0 flex-col bg-editor">
-      <div className="flex items-center gap-3 border-b border-line-soft px-5 py-4">
+    <section className="flex min-w-0 flex-col bg-surface2">
+      <div className="flex items-center gap-3 border-b border-line-soft px-5 pt-4 pb-3.5">
         <div className="min-w-0">
-          <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-heading">
+          <h2 className="text-[17px] font-bold tracking-[-0.02em] text-heading">
             {project.name}
           </h2>
           <p className="mt-0.5 truncate font-mono text-[11.5px] leading-snug text-faint">
@@ -517,7 +528,7 @@ function ProjectSection({
         </DropdownMenu>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-[9px] px-4 pt-3.5 pb-[18px]">
         {composing === null && <NewReviewCard onPick={setComposing} />}
 
         {composing === "files" && (
@@ -550,7 +561,7 @@ function ProjectSection({
             </div>
           )
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-0.5">
             <AnimatePresence initial={false}>
               {project.reviews.map((review, index) => (
                 <ReviewCard
@@ -628,26 +639,26 @@ function NewReviewCard({ onPick }: { onPick: (kind: "files" | "diff") => void })
             type="button"
             title="New review"
             aria-label="New review"
-            className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-dashed border-line bg-panel px-3.5 py-2.5 text-left transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/25 aria-expanded:border-solid aria-expanded:border-accent-edge aria-expanded:bg-accent-softer"
+            className="group flex w-full cursor-pointer items-center gap-[11px] rounded-[13px] border border-dashed border-line-strong bg-soft/40 px-[13px] py-[11px] text-left transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/25 aria-expanded:border-solid aria-expanded:border-accent-edge aria-expanded:bg-accent-softer aria-expanded:shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
           />
         }
       >
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
-          <Plus size={16} aria-hidden />
+        <span className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+          <Plus size={17} aria-hidden />
         </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="text-[13px] font-semibold tracking-[-0.01em] text-heading">
+        <span className="flex min-w-0 flex-col gap-px">
+          <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-heading">
             New review
           </span>
           <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
         </span>
-        <span className="ml-auto hidden shrink-0 items-center gap-1.5 sm:inline-flex">
-          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-line">
-            <FileText size={11} aria-hidden />
+        <span className="ml-auto hidden shrink-0 items-center gap-[7px] sm:inline-flex">
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted-foreground shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+            <FileText size={13} aria-hidden />
             Files
           </span>
-          <span className="inline-flex h-6 items-center gap-1 rounded-full bg-soft px-2 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-line">
-            <GitCompare size={11} aria-hidden />
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted-foreground shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+            <GitCompare size={13} aria-hidden />
             Diff
           </span>
         </span>
@@ -762,9 +773,9 @@ function ReviewCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: index * 0.04 }}
-      className="group/card relative overflow-hidden rounded-xl border border-transparent bg-transparent transition-[background-color,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-line hover:bg-surface hover:shadow-[var(--elev-1)] motion-reduce:transition-none"
+      className="group/card relative overflow-hidden rounded-[13px] border border-transparent bg-transparent transition-[background-color,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-line-strong hover:bg-panel hover:shadow-[inset_0_0_0_1px_var(--line-strong)] motion-reduce:transition-none"
     >
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className="flex items-center gap-3 pr-3 pl-[13px] py-[11px]">
         <button
           type="button"
           onClick={() => {
@@ -772,10 +783,10 @@ function ReviewCard({
           }}
           aria-expanded={open}
           aria-label={open ? "Collapse files" : "Expand files"}
-          className="-ml-1 shrink-0 cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-muted-foreground"
+          className="-ml-1 shrink-0 cursor-pointer rounded-md p-1 text-faint opacity-0 transition-[opacity,color,background-color] group-hover/card:opacity-100 hover:bg-hover hover:text-muted-foreground focus-visible:opacity-100 aria-expanded:opacity-100"
         >
           <ChevronRight
-            size={14}
+            size={13}
             className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
           />
         </button>
@@ -783,12 +794,12 @@ function ReviewCard({
         <span
           aria-hidden
           title={KIND_TITLE[review.kind]}
-          className="grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]"
+          className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-hover text-text shadow-[inset_0_0_0_0.5px_var(--line-strong),var(--elev-1)]"
         >
           {review.kind === "file_selection" ? (
-            <FileText size={17} strokeWidth={1.6} />
+            <FileText size={18} strokeWidth={1.7} />
           ) : (
-            <GitCompare size={17} strokeWidth={1.7} />
+            <GitCompare size={18} strokeWidth={1.8} />
           )}
         </span>
 
@@ -822,7 +833,7 @@ function ReviewCard({
             className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.008em] text-heading">
+              <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.012em] text-heading">
                 {review.name}
               </h3>
               <KindBadge kind={review.kind} />
@@ -836,7 +847,7 @@ function ReviewCard({
               )}
             </span>
             <span
-              className="flex min-w-0 items-center gap-2 text-[11.5px] text-muted-foreground"
+              className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-[11.5px] text-text2"
               title={fullTimestamp(review.inserted_at)}
             >
               <span className="font-mono tabular-nums" aria-label={fileCountLabel(files)}>
@@ -855,6 +866,13 @@ function ReviewCard({
             </span>
           </button>
         )}
+
+        <span
+          aria-hidden
+          className="grid size-[22px] shrink-0 place-items-center text-faint transition-colors group-hover/card:text-text"
+        >
+          <ChevronRight size={17} strokeWidth={2.1} />
+        </span>
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -991,7 +1009,10 @@ function HtmlBadge() {
 /** Tiny middot separator used between meta-line fields. */
 function MetaDot() {
   return (
-    <span aria-hidden className="inline-block size-[3px] shrink-0 rounded-full bg-line-strong" />
+    <span
+      aria-hidden
+      className="inline-block size-[2px] shrink-0 rounded-full bg-faint opacity-70"
+    />
   );
 }
 
