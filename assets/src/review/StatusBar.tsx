@@ -18,19 +18,19 @@ export const StatusBar = observer(function StatusBar(props: {
 
   return (
     <footer
-      className="relative z-10 flex h-[29px] shrink-0 items-center gap-[10px] border-t border-line-strong bg-panel px-[14px] text-[11.5px] text-muted-foreground shadow-[inset_0_1px_0_var(--line-soft)]"
+      className="relative z-10 flex h-[29px] shrink-0 items-center gap-[8px] border-t border-line-strong bg-panel px-[10px] text-[11.5px] text-muted-foreground shadow-[inset_0_1px_0_var(--line-soft)] sm:gap-[10px] sm:px-[14px]"
       role="contentinfo"
     >
-      <span className="inline-flex items-center gap-[6px] text-text">
+      <span className="inline-flex min-w-0 items-center gap-[6px] text-text">
         <FileIcon name={name} />
-        <b className="font-[680] tabular-nums text-heading">{name}</b>
+        <b className="min-w-0 truncate font-[680] tabular-nums text-heading">{name}</b>
       </span>
       <Dot />
-      <span>{viewLabel}</span>
+      <span className="shrink-0">{viewLabel}</span>
       <Dot />
-      <span>Round {round}</span>
+      <span className="shrink-0">Round {round}</span>
       <span className="flex-1" />
-      <span className="inline-flex items-center gap-[5px]">
+      <span className="inline-flex shrink-0 items-center gap-[5px]">
         <span
           className={`h-[7px] w-[7px] rounded-full ${
             connected
@@ -39,7 +39,9 @@ export const StatusBar = observer(function StatusBar(props: {
           }`}
           aria-hidden
         />
-        {connected ? "connected" : "reconnecting…"}
+        <span className="hidden sm:inline">
+          {connected ? "connected" : "reconnecting…"}
+        </span>
       </span>
     </footer>
   )

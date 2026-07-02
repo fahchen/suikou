@@ -98,29 +98,62 @@ export const Navigator = observer(function Navigator(props: {
         ))}
       </nav>
 
-      <div className="flex flex-col gap-[6px] border-t border-line-strong bg-canvas/40 px-[11px] py-[9px] text-[10.5px] text-muted-foreground">
-        <div className="flex items-baseline gap-[6px]">
-          <span className="font-[600] text-text tracking-[-0.005em]">Reviewed</span>
-          <span className="ml-auto font-[680] tabular-nums text-text">
-            {reviewedCount} of {total}
+      <div className="mt-auto flex flex-col gap-[9px] border-t border-line-strong bg-canvas/40 px-[9px] pb-[9px] pt-[11px] text-[10.5px] text-muted-foreground">
+        <Meter
+          title="Reviewed"
+          value={<><span className="text-green">{reviewedCount}</span> of {total}</>}
+          fillPct={total === 0 ? 0 : (reviewedCount / total) * 100}
+        />
+        <Meter
+          title="Unresolved"
+          value={
+            unresolvedCount > 0 ? (
+              <span className="text-red">{unresolvedCount}</span>
+            ) : (
+              <>{unresolvedCount}</>
+            )
+          }
+          fillPct={total === 0 ? 0 : Math.min(100, (unresolvedCount / total) * 100)}
+          warn={unresolvedCount > 0}
+        />
+        <div className="flex items-center gap-[8px] pt-[2px] text-[11px] text-muted-foreground">
+          <span className="ml-auto inline-flex items-center gap-[6px] tabular-nums">
+            Round {round}
           </span>
-        </div>
-        <div className="flex items-baseline gap-[6px]">
-          <span className="font-[600] text-text tracking-[-0.005em]">Unresolved</span>
-          <span
-            className={`ml-auto font-[680] tabular-nums ${unresolvedCount > 0 ? "text-red" : "text-text"}`}
-          >
-            {unresolvedCount}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-[6px] pt-[2px]">
-          <span className="text-muted-foreground">Round</span>
-          <span className="ml-auto font-[680] tabular-nums text-text">{round}</span>
         </div>
       </div>
     </aside>
   )
 })
+
+function Meter(props: {
+  title: string
+  value: React.ReactNode
+  fillPct: number
+  warn?: boolean
+}) {
+  const pct = Math.max(0, Math.min(100, props.fillPct))
+  return (
+    <div className="flex flex-col gap-[5px]">
+      <div className="flex items-baseline gap-[6px] text-[10.5px]">
+        <span className="font-[600] text-text tracking-[-0.005em]">{props.title}</span>
+        <span className="ml-auto font-[680] tabular-nums text-text">{props.value}</span>
+      </div>
+      <div
+        className="h-[4px] w-full overflow-hidden rounded-full bg-canvas shadow-[inset_0_0.5px_1px_var(--line-soft)]"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+      >
+        <div
+          className={`h-full rounded-full ${props.warn ? "bg-red" : "bg-blue"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
 
 function GroupHeader(props: { label: string; count: number; first?: boolean }) {
   return (
