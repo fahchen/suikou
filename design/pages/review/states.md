@@ -29,7 +29,7 @@
 | # | 状态 | 何时 | 关键呈现 | 状态 |
 |---|------|------|----------|------|
 | A1 | **空 review** | review 内没有文件 | "选文件开始" 空态 | ✅ |
-| A1b | **打开默认选中第一个文件** | review 有文件、刚进入 | 不留空 editor,自动选 navigator 第一个文件并渲染 | ➕ |
+| A1b | **打开默认选中第一个文件** | review 有文件、刚进入 | 不留空 editor,自动选 navigator 第一个文件并渲染 | ✅ |
 | A2 | **首轮 round 0(draft)** | 刚建、还没提交 | round 选择器显 Round 0/draft;无 published critique | ◐ |
 | A3 | **审阅中(有 pending)** | 留了未发 comment / 草稿 verdict | 状态条 "N pending";submit 可用 | ✅ |
 | A4 | **已提交一轮(under review)** | submit 后 | round 标 "under review";comment 已 published | ✅ |
@@ -84,10 +84,10 @@
 |---|------|----------|------|
 | E1 | **三 type** | fix_required(红)/ needs_answer(琥珀)/ note(中性) | ✅ |
 | E2 | **两 scope** | artifact(文件级)/ located(行/元素) | ◐ |
-| E3 | **pending(未发)** | 可编辑/删,标 pending | ➕ |
+| E3 | **pending(未发)** | 可编辑/删,标 pending | ✅ |
 | E4 | **published(已发)** | 冻结正文/type/anchor | ✅ |
 | E5 | **open(未解决)** | 默认展开 | ✅ |
-| E6 | **resolved** | 折叠 + resolved_round 标记 | ➕ |
+| E6 | **resolved** | 折叠 + resolved_round 标记 | ✅ |
 | E7 | **outdated** | 琥珀条 + 原 quote + Re-anchor | ✅ |
 | E8 | **drifted** | 重锚到相似行提示 | ➕ |
 | E9 | **带 agent 回复** | ↳ agent(自定义名) | ✅ |

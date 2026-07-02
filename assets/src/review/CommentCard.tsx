@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
 import type { Comment } from "./types";
@@ -12,6 +12,7 @@ import { CommentCardHeader } from "./CommentCardHeader";
 import { CommentEditPanel } from "./CommentEditPanel";
 import { CommentReplies } from "./CommentReplies";
 import { CommentReplyComposer } from "./CommentReplyComposer";
+import { useReviewCommands } from "./commands";
 import {
   Collapsible,
   CollapsibleContent,
@@ -39,6 +40,7 @@ export const CommentCard = observer(function CommentCard(props: {
 }) {
   const { comment, context = "rail", selected = false, onSelect } = props;
   const inline = context === "inline";
+  const commands = useReviewCommands();
   // Element anchors re-resolve client-side (Plan B): HtmlView publishes the
   // current misses into ui-store, and both inline + rail render paths read
   // that override here so a selector miss shows the outdated badge identically.
@@ -86,8 +88,10 @@ export const CommentCard = observer(function CommentCard(props: {
       } ${
         selected
           ? "bg-surface ring-1 ring-inset ring-blue shadow-[0_0_0_2px_var(--color-accent-soft)]"
-          : CARD_TONE[comment.critique_type]
-      } ${comment.resolved ? "opacity-70" : ""}`}
+          : comment.resolved
+            ? "bg-surface2 ring-1 ring-inset ring-line-strong"
+            : CARD_TONE[comment.critique_type]
+      } ${comment.resolved ? "opacity-90" : ""}`}
     >
       <Collapsible open={open} onOpenChange={setOpen}>
         <CommentCardHeader
@@ -135,11 +139,23 @@ export const CommentCard = observer(function CommentCard(props: {
               // A pending comment is the reviewer's own unpublished draft — there
               // is nothing to reply to yet, so offer Edit instead of the reply box.
               (comment.status === "pending" ? (
-                <div className="mt-1 flex">
+                <div className="mt-1 flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-request hover:bg-red-soft hover:text-request"
+                    onClick={() =>
+                      void commands.deleteComment.dispatch({ comment_id: comment.id })
+                    }
+                    title="Delete draft"
+                  >
+                    <Trash2 size={14} />
+                    Delete draft
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="ml-auto text-muted-foreground"
+                    className="text-muted-foreground"
                     onClick={() => setEditing(true)}
                   >
                     <Pencil size={14} />
