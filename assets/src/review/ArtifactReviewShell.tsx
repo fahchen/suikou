@@ -592,60 +592,76 @@ function RefsBanner({ refs }: { refs: DiffRefs }) {
   if (vanished) {
     const side = vanishedSide(refs);
     const which = side === "both" ? "base and head" : side;
+    const gone =
+      side === "head"
+        ? refs.head_ref
+        : side === "base"
+          ? refs.base_ref
+          : `${refs.base_ref} and ${refs.head_ref}`;
     return (
       <div
         role="status"
-        className="mb-3 flex items-start gap-2.5 rounded-lg border border-red/25 bg-red-soft px-3 py-2 text-[12.5px] text-heading"
+        className="mb-3 flex items-center gap-2.5 rounded-lg border border-red/25 bg-red-soft px-3 py-2 text-[12px] text-text2"
       >
-        <AlertTriangle size={15} className="mt-px shrink-0 text-red" aria-hidden />
+        <AlertTriangle size={16} className="shrink-0 text-red" aria-hidden />
         <div className="min-w-0 flex-1">
-          <span className="font-medium">The {which} ref no longer exists.</span>{" "}
-          <span className="text-muted-foreground">
-            This diff is frozen at its last known state and can't be re-diffed.
-          </span>
+          The <b className="font-[620] text-heading">{which}</b> ref{" "}
+          {gone && <code className="font-mono text-[11px] text-red">{gone}</code>}{" "}
+          no longer exists. This diff is frozen at its last known state and
+          cannot be re-diffed.
         </div>
       </div>
     );
   }
 
+  const move = movedShas(refs);
   return (
     <div
       role="status"
-      className="mb-3 flex flex-wrap items-center gap-2.5 rounded-lg border border-amber/30 bg-amber-soft px-3 py-2 text-[12.5px] text-heading"
+      className="mb-3 flex items-center gap-2.5 rounded-lg border border-amber/30 bg-amber-soft px-3.5 py-2 text-[12px] text-text2"
     >
-      <GitBranch size={15} className="shrink-0 text-amber" aria-hidden />
+      <GitBranch size={16} className="shrink-0 text-amber" aria-hidden />
       <div className="min-w-0 flex-1">
-        <span className="font-medium">Refs moved</span>{" "}
-        <span className="text-muted-foreground">
-          since this review was created. The diff below is stale.
-        </span>
-        <span
-          className="ml-2 font-mono text-[11.5px] text-muted-foreground"
-          title={formatMovedTitle(refs)}
-        >
-          {describeMove(refs)}
-        </span>
+        <b className="font-[620] text-heading">{move.label} moved</b> since this
+        review was created
+        {move.from && move.to && (
+          <>
+            :{" "}
+            <code className="font-mono text-[11px] text-amber" title={formatMovedTitle(refs)}>
+              {move.from}
+            </code>{" "}
+            to{" "}
+            <code className="font-mono text-[11px] text-amber" title={formatMovedTitle(refs)}>
+              {move.to}
+            </code>
+          </>
+        )}
+        . The diff below is stale.
       </div>
       {/* ponytail: banner action is decorative — a real "Re-diff refs" flow
           needs a server-side command and round semantics; add when that lands. */}
       <span
-        className="inline-flex items-center gap-1 rounded-md bg-amber/15 px-2 py-1 text-[11.5px] font-medium text-amber ring-1 ring-inset ring-amber/30"
+        className="inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-md bg-amber/15 px-2.5 text-[11.5px] font-[620] text-amber ring-1 ring-inset ring-amber/30"
         aria-hidden
       >
-        <RotateCw size={12} aria-hidden />
+        <RotateCw size={13} aria-hidden />
         Re-diff refs
       </span>
     </div>
   );
 }
 
-function describeMove(refs: DiffRefs): string {
-  const parts: string[] = [];
-  if (refs.base_sha && refs.creation_base_sha && refs.base_sha !== refs.creation_base_sha) {
-    parts.push(`base ${shortSha(refs.creation_base_sha)}→${shortSha(refs.base_sha)}`);
+function movedShas(refs: DiffRefs): { label: string; from: string | null; to: string | null } {
+  const baseChanged =
+    refs.base_sha && refs.creation_base_sha && refs.base_sha !== refs.creation_base_sha;
+  const headChanged =
+    refs.head_sha && refs.creation_head_sha && refs.head_sha !== refs.creation_head_sha;
+  if (headChanged && !baseChanged) {
+    return { label: "head", from: shortSha(refs.creation_head_sha), to: shortSha(refs.head_sha) };
   }
-  if (refs.head_sha && refs.creation_head_sha && refs.head_sha !== refs.creation_head_sha) {
-    parts.push(`head ${shortSha(refs.creation_head_sha)}→${shortSha(refs.head_sha)}`);
+  if (baseChanged && !headChanged) {
+    return { label: "base", from: shortSha(refs.creation_base_sha), to: shortSha(refs.base_sha) };
   }
-  return parts.join(" · ");
+  return { label: "refs", from: null, to: null };
 }
+
