@@ -10,6 +10,7 @@ export type CritiqueType = "fix_required" | "needs_answer" | "note"
 export type CommentScope = "review" | "artifact" | "located"
 export type Density = "tight" | "normal" | "loose"
 export type DiffLayout = "unified" | "side"
+export type FileDisplayMode = "single" | "all"
 
 /** A file's unsaved comment composer: its line anchor plus body/type/scope. */
 export interface ComposerDraft {
@@ -27,6 +28,7 @@ const HIDE_COMMENTS_KEY = "suikou-hide-comments"
 const WRAP_LINES_KEY = "suikou-wrap-lines"
 const MARKDOWN_FLAVOR_KEY = "suikou-markdown-flavor"
 const DIFF_LAYOUT_KEY = "suikou-diff-layout"
+const FILE_DISPLAY_MODE_KEY = "suikou-file-display-mode"
 const HIDE_REVIEWED_KEY = "suikou-hide-reviewed"
 const COLLAPSED_FILES_KEY = "suikou-collapsed-files"
 const DRAFTS_KEY = "suikou-drafts"
@@ -43,6 +45,9 @@ export class UiStore {
   density: Density = "normal"
   markdownFlavor: MarkdownFlavor = "gfm"
   diffLayout: DiffLayout = "side"
+  // Default file mode a review opens in (Settings preference). The active
+  // per-review view is route-driven; this only seeds a fresh open.
+  fileDisplayMode: FileDisplayMode = "single"
   // All-files mode: hide rows whose per-file verdict is already set. Off by
   // default so the reviewer sees every file on first open; flipping it on
   // collapses the stack to outstanding work.
@@ -144,6 +149,11 @@ export class UiStore {
       this.diffLayout = savedDiffLayout
     }
 
+    const savedFileDisplayMode = localStorage.getItem(FILE_DISPLAY_MODE_KEY)
+    if (savedFileDisplayMode === "single" || savedFileDisplayMode === "all") {
+      this.fileDisplayMode = savedFileDisplayMode
+    }
+
     if (localStorage.getItem(WRAP_LINES_KEY) === "false") {
       this.wrapLines = false
     }
@@ -201,6 +211,11 @@ export class UiStore {
   setDiffLayout(layout: DiffLayout): void {
     this.diffLayout = layout
     localStorage.setItem(DIFF_LAYOUT_KEY, layout)
+  }
+
+  setFileDisplayMode(mode: FileDisplayMode): void {
+    this.fileDisplayMode = mode
+    localStorage.setItem(FILE_DISPLAY_MODE_KEY, mode)
   }
 
   setWrapLines(wrap: boolean): void {
