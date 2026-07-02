@@ -411,7 +411,7 @@ function BoardBody({
     return <EmptyProjectsState onNewProject={onNewProject} />;
   }
   return (
-    <div className="grid min-h-[560px] grid-cols-1 sm:grid-cols-[248px_1fr]">
+    <div className="grid grid-cols-1 sm:min-h-[560px] sm:grid-cols-[248px_1fr]">
       <ProjectSidebar
         projects={board.projects}
         selectedId={selected?.id ?? null}
@@ -495,7 +495,7 @@ function ProjectSidebarRow({
       aria-selected={selected}
       onClick={onSelect}
       title={project.path}
-      className={`flex h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg pr-[9px] pl-2.5 text-left text-[13px] tracking-[-0.008em] transition-colors duration-150 ${
+      className={`flex h-[34px] max-w-[10rem] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg pr-[9px] pl-2.5 text-left text-[13px] tracking-[-0.008em] transition-colors duration-150 sm:max-w-none ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
           : "font-medium text-text hover:bg-hover"
@@ -505,7 +505,7 @@ function ProjectSidebarRow({
         size={16}
         strokeWidth={1.7}
         aria-hidden
-        className={selected ? "text-accent-bright" : "text-muted-foreground"}
+        className={`shrink-0 ${selected ? "text-accent-bright" : "text-muted-foreground"}`}
       />
       <span className="min-w-0 flex-1 truncate">{project.name}</span>
     </button>
@@ -561,15 +561,15 @@ function ProjectSection({
   return (
     <section className="flex min-w-0 flex-col bg-surface2">
       <div className="flex items-center gap-3 border-b border-line-soft px-5 pt-4 pb-3.5">
-        <div className="min-w-0">
-          <h2 className="text-[17px] font-bold tracking-[-0.02em] text-heading">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+          <h2 className="min-w-0 truncate text-[17px] font-bold tracking-[-0.02em] text-heading sm:max-w-[45%]">
             {project.name}
           </h2>
-          <p className="mt-0.5 truncate font-mono text-[11.5px] leading-snug text-faint">
-            {project.path}
+          <p className="flex min-w-0 items-center gap-1.5 font-mono text-[11.5px] leading-snug text-faint sm:flex-1">
+            <Folder size={12} strokeWidth={1.7} aria-hidden className="shrink-0 sm:hidden" />
+            <span className="min-w-0 flex-1 truncate">{project.path}</span>
           </p>
         </div>
-        <span className="flex-1" />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

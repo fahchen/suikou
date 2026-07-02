@@ -40,7 +40,7 @@ Don't restart the dev server or touch the DB; use the seeded IDs below.
 
 Legend: `[ ]` todo, `[~]` in progress, `[x]` no overflow + matches desktop AND mobile mockup + green + committed.
 
-- [ ] **1. Projects launcher**
+- [x] **1. Projects launcher**
   Desktop mockup: `design/pages/projects/suikou-dark.html` (+ `suikou-light.html`).
   Mobile mockup: `design/pages/projects/suikou-dark-mobile.html` (+ `suikou-light-mobile.html`).
   Route: `http://localhost:4710/` · Component: `assets/src/review/ProjectBoard.tsx`.
