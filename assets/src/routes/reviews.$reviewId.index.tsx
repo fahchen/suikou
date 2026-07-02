@@ -22,7 +22,7 @@ import { AllFilesView } from "../review/views/AllFilesView";
 import { ReviewShellSkeleton } from "../review/ArtifactReviewShell";
 import { TopBarDisplayMenu } from "../review/TopBarDisplayMenu";
 import { TopBarRoundMenu } from "../review/TopBarRoundMenu";
-import { TopBarShell } from "../review/TopBarShell";
+import { ReviewBreadcrumb, TopBarSep, TopBarShell } from "../review/TopBarShell";
 import { SubmitControls } from "../review/SubmitControls";
 import { viewCapabilities } from "../review/view-kind";
 import { Centered } from "../components/centered";
@@ -150,7 +150,7 @@ const AllFilesShell = observer(function AllFilesShell(props: {
   return (
     <main className="h-screen overflow-auto bg-canvas text-ink">
       {header}
-      <div className="mx-auto w-full max-w-[1760px] px-3 pb-6 pt-2 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-[1760px] px-3 pb-6 pt-3 sm:px-5 lg:px-6">
         <AllFilesView
           reviewId={reviewId}
           reviewSnapshot={reviewSnapshot}
@@ -179,11 +179,15 @@ const AllFilesShellHeader = observer(function AllFilesShellHeader(props: {
     submitDisabled,
     onSubmit,
   } = props;
+  const structure = useReviewStructure();
+  const crumbKind = structure.kind === "diff" ? "git_diff" : "file_selection";
   return (
     <TopBarShell
+      crumb={<ReviewBreadcrumb kind={crumbKind} name={structure.name} refs={structure.refs} />}
       right={
         <>
           <TopBarRoundMenu />
+          <TopBarSep />
           <Button
             variant="pill"
             size="icon"
@@ -202,6 +206,7 @@ const AllFilesShellHeader = observer(function AllFilesShellHeader(props: {
             diffLayoutAllowed={false}
             sideCommentsAllowed={wide}
           />
+          <TopBarSep />
           <SubmitControls
             reviewSnapshot={reviewSnapshot}
             disabled={submitDisabled}

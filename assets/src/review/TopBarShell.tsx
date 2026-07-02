@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, GitBranch, Home } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  FileText,
+  GitBranch,
+  GitCompare,
+  Home,
+} from "lucide-react";
 
 import { ConnectionPill } from "./ConnectionPill";
-import { KindBadge, type ReviewKind } from "./KindBadge";
+import { type ReviewKind } from "./KindBadge";
 import {
   formatMovedTitle,
   formatRefsRange,
@@ -28,7 +35,7 @@ export function HomeButton() {
   );
 }
 
-/** Shared breadcrumb chip: `/` separator + KindBadge + review name. Used in the
+/** Shared breadcrumb chip: `suikou › [kind-icon] review-name ▾`. Used in the
  * live workspace top bar and any file-level fallback screen so the review's
  * identity reads the same wherever the chrome renders. For a git_diff review
  * the compared refs and any refs-moved / branch-deleted state append inline. */
@@ -37,18 +44,35 @@ export function ReviewBreadcrumb(props: {
   name: string;
   refs?: DiffRefs | null;
 }) {
+  const KindIcon = props.kind === "git_diff" ? GitCompare : FileText;
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span className="text-faint" aria-hidden>
-        /
-      </span>
-      <KindBadge kind={props.kind} />
-      <span
-        className="min-w-0 truncate text-[13px] font-medium text-heading"
-        title={props.name}
+    <div className="flex min-w-0 items-center gap-[9px]">
+      <button
+        type="button"
+        className="flex h-[30px] min-w-0 items-center gap-[6px] rounded-lg px-2 text-[13px] hover:bg-hover"
+        title="Switch review"
       >
-        {props.name}
-      </span>
+        <span className="font-medium tracking-[-0.01em] text-muted-foreground">suikou</span>
+        <span className="text-faint" aria-hidden>
+          ›
+        </span>
+        <KindIcon
+          size={13}
+          aria-hidden
+          className="shrink-0 text-muted-foreground"
+        />
+        <span
+          className="min-w-0 truncate font-semibold tracking-[-0.015em] text-heading"
+          title={props.name}
+        >
+          {props.name}
+        </span>
+        <ChevronDown
+          size={12}
+          aria-hidden
+          className="-mr-0.5 shrink-0 text-muted-foreground opacity-70"
+        />
+      </button>
       {props.refs && <DiffRefsChip refs={props.refs} />}
     </div>
   );
@@ -111,14 +135,19 @@ function RefsPill(props: {
 }
 
 
+/** Vertical hairline separator between toolbar clusters (`.tb-sep` in mockup). */
+export function TopBarSep() {
+  return <span aria-hidden className="mx-[3px] h-[22px] w-px bg-line-strong" />;
+}
+
 export function TopBarShell(props: {
   crumb?: ReactNode;
   left?: ReactNode;
   right: ReactNode;
 }) {
   return (
-    <header className="pointer-events-none sticky top-0 z-20 mx-auto flex w-full max-w-[1760px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 lg:px-10">
-      <div className="pointer-events-auto flex min-w-0 items-center gap-2">
+    <header className="sticky top-0 z-30 flex h-[50px] items-center gap-[9px] border-b border-line-strong bg-panel px-3 shadow-[inset_0_1px_0_var(--line-soft)] sm:px-4">
+      <div className="flex min-w-0 items-center gap-[6px]">
         <HomeButton />
         {props.crumb}
         {props.left}
@@ -126,7 +155,7 @@ export function TopBarShell(props: {
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <ConnectionPill />
       </div>
-      <div className="pointer-events-auto ml-auto flex items-center gap-2">{props.right}</div>
+      <div className="ml-auto flex items-center gap-[6px]">{props.right}</div>
     </header>
   );
 }

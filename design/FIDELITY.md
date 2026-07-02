@@ -49,7 +49,13 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` matches the mockup + green + commit
   Route: `http://localhost:4710/` then press `⌘,` (or click "Open settings").
   Component: `assets/src/settings/SettingsModal.tsx`.
 
-- [ ] **3. Review — file_selection view**
+- [~] **3. Review — file_selection view**
+  Progress (this pass): toolbar chrome now reads as the mockup's `.toolbar` — opaque `bg-panel` bar h=50, hairline `border-b border-line-strong`, inset highlight, gap[9px], no more transparent floating overlay. Breadcrumb rewritten to `suikou › [kind-icon] review-name ▾` (mockup `.tb-crumb` pattern with hover-bg, project label 13/540 muted, `›` sep, kind icon 13, name 13/640 heading, chevron 12/70%); replaces the previous `/ KindBadge name` chip. Right cluster now separates into three visual groups with hairline `TopBarSep` (mockup `.tb-sep`, h=22 w=1 line-strong): Round | (sep) | Display+collapse | (sep) | Submit. AllFilesShellHeader now passes the review breadcrumb (was absent). Review body padding tightened `pt-3 sm:px-5 lg:px-6` so it sits under the toolbar instead of floating below a 40px gap. Verified light + dark themes render the new chrome.
+  Remaining scope (out of this iteration):
+    - Persistent left navigator column (mockup shows a 236px `.navigator` column with `Files N-files` header, per-file A/M/D change-status glyph, verdict ✓, comment count badge, groups `NEEDS REVIEW / REVIEWED` with counters, and the `Reviewed 4/6 · Unresolved 3 · 1 blocker · Round 2` footer) — app currently only exposes the file list via the `FileSwitcher` popover off the burger. Adding it needs new routing/layout because both AllFilesShell + ArtifactReviewShell would need a `grid-cols-[236px_1fr_(300px?)]` shell and the `FileTree` refactored into a standalone `Navigator` component.
+    - Status bar footer (`router.ex · Source · Round 2 · L13   connected`) — mockup has a persistent bottom bar per shell; app has none. Requires plumbing current path/view/round/line into a `StatusBar` component.
+    - Default comment layout: mockup shows inline comments in editor body (E13); app defaults to right-rail (E14) for wide viewports. Flipping the default requires reviewing `ui.commentMode` default + `sideMode` gate in `ArtifactReviewShell`.
+    - Landing hitting `/reviews/:id` currently renders `AllFilesView` (stacked), but the mockup A1b state redirects to the first file in single mode. Route redirect + `uiStore.fileDisplayMode="single"` default alignment.
   Mockup: `design/pages/review/states-codex.html` (dark) / `states-light.html` / `states-mobile.html`.
   Route: `http://localhost:4710/reviews/019f2000-4439-7af9-a123-bfab4e3af3ca`.
   Components: `review/ArtifactReviewShell.tsx`, `TopBar*.tsx`, `CommentRail.tsx`,

@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucid
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
-import { TopBarShell, ReviewBreadcrumb } from "./TopBarShell";
+import { TopBarShell, ReviewBreadcrumb, TopBarSep } from "./TopBarShell";
 import { SubmitControls } from "./SubmitControls";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
@@ -115,6 +115,7 @@ export const TopBar = observer(function TopBar(props: {
       right={
         <>
           <TopBarRoundMenu />
+          <TopBarSep />
           {commentsSupported && (
             <Button
               variant="pill"
@@ -137,7 +138,7 @@ export const TopBar = observer(function TopBar(props: {
             diffLayoutAllowed={wide}
             sideCommentsAllowed={wide}
           />
-
+          <TopBarSep />
           <SubmitControls
             reviewSnapshot={reviewSnapshot}
             disabled={!hasUnpublishedWork || commands.submitReview.disabled}

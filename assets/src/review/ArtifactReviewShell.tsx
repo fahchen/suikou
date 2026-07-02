@@ -331,7 +331,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
       <TopBar reviewSnapshot={reviewSnapshot} previewable={previewable} content={content} />
 
       <div
-        className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 sm:gap-6 sm:px-6 lg:px-10 ${
+        className={`mx-auto grid w-full max-w-[1760px] gap-4 px-3 pt-3 sm:gap-6 sm:px-5 lg:px-6 ${
           sideMode ? "lg:grid-cols-[minmax(0,1fr)_340px]" : ""
         }`}
       >
