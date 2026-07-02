@@ -275,7 +275,7 @@ function Board({
             }
           />
           <div className="mx-auto max-w-[1240px] px-3 pb-16 pt-3 sm:px-5 sm:pt-5">
-            <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-1)]">
+            <div className="relative overflow-hidden rounded-2xl border border-line-strong bg-[linear-gradient(180deg,var(--accent-softer),transparent_22%),var(--panel)] shadow-[0_1px_0_var(--line-soft)_inset,var(--elev-2)]">
               <BoardBody
                 store={store}
                 board={board}
@@ -305,9 +305,13 @@ function LauncherToolbar({
   canCreateReview: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-30 border-b border-line-strong bg-surface2 backdrop-blur-md">
+    <div className="sticky top-0 z-30 border-b border-line-strong bg-surface2 shadow-[inset_0_1px_0_var(--line-soft)] backdrop-blur-md">
       <div className="mx-auto flex h-[50px] max-w-[1240px] items-center gap-[9px] px-3 sm:px-5">
-        <div className="flex h-[30px] items-center gap-[9px] rounded-lg px-1 pr-2 hover:bg-hover">
+        <button
+          type="button"
+          title="Suikou home"
+          className="flex h-[30px] shrink-0 items-center gap-[9px] rounded-lg px-1 pr-2 hover:bg-hover"
+        >
           <span
             aria-hidden
             className="grid size-6 place-items-center rounded-[7px] bg-blue text-[13px] font-black text-on-accent shadow-[inset_0_0.5px_0_oklch(100%_0_0/0.4),0_0_12px_var(--accent-soft)]"
@@ -315,46 +319,43 @@ function LauncherToolbar({
             S
           </span>
           <span className="text-[14px] font-bold tracking-[-0.02em] text-heading">Suikou</span>
-        </div>
+        </button>
         <span className="flex-1" />
         <div
           aria-hidden
-          className="hidden h-[30px] min-w-[240px] max-w-[320px] flex-none items-center gap-2 rounded-lg border border-line-strong bg-control px-2.5 pr-2 text-[12.5px] text-faint shadow-[inset_0_1px_2px_var(--elev-1)] sm:flex sm:w-[300px]"
+          className="hidden h-[30px] min-w-[240px] max-w-[320px] flex-none items-center gap-2 rounded-lg border border-line-strong bg-code px-2.5 pr-2 text-[12.5px] text-faint shadow-[inset_0_1px_2px_var(--elev-1)] sm:flex sm:w-[280px]"
         >
-          <Search size={14} aria-hidden />
+          <Search size={14} strokeWidth={1.8} aria-hidden />
           <span className="flex-1 truncate">Search projects and reviews…</span>
-          <kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-muted-foreground ring-1 ring-inset ring-line-strong">
+          <kbd className="rounded bg-control px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-muted ring-1 ring-inset ring-line-strong">
             ⌘K
           </kbd>
         </div>
-        <span
-          aria-hidden
-          className="hidden h-[22px] w-px bg-line-strong sm:block"
-        />
+        <span aria-hidden className="hidden h-[22px] w-px bg-line-strong sm:block" />
         <Button
-          variant="pill"
+          variant="ghost"
           size="icon"
           title="Settings (⌘,)"
           aria-label="Open settings"
           onClick={() => uiStore.setSettingsOpen(true)}
-          className="size-[30px]"
+          className="size-[30px] rounded-lg text-muted hover:bg-hover hover:text-heading"
         >
-          <Settings className="text-muted-foreground" />
+          <Settings strokeWidth={1.8} />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button
-                size="sm"
+              <button
+                type="button"
                 title="New project or review"
                 aria-label="New project or review"
-                className="h-[30px] rounded-lg pr-2.5 pl-2.5 font-semibold"
+                className="inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-lg border border-[color:var(--accent-edge)] bg-blue px-[11px] text-[13px] font-semibold tracking-[-0.01em] text-on-accent shadow-[inset_0_0.5px_0_oklch(100%_0_0/0.35),0_1px_3px_var(--elev-1),0_0_16px_var(--accent-soft)] transition-[filter,transform] duration-100 hover:brightness-110 active:translate-y-px active:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               />
             }
           >
-            <Plus size={14} aria-hidden />
+            <Plus size={14} strokeWidth={1.9} aria-hidden />
             New
-            <ChevronDown size={12} aria-hidden className="-mr-0.5 opacity-80" />
+            <ChevronDown size={11} strokeWidth={2.2} aria-hidden className="-mr-0.5 opacity-80" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-56">
             <DropdownMenuItem onClick={onNewProject}>
@@ -443,8 +444,8 @@ function ProjectSidebar({
 }) {
   const projectLabel = `${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
   return (
-    <aside className="flex flex-col border-line-strong bg-panel px-[9px] pt-3 pb-[9px] sm:border-r">
-      <div className="flex items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase">
+    <aside className="flex flex-col border-b border-line-strong bg-surface px-[9px] pt-3 pb-[9px] shadow-[inset_0_1px_0_var(--line-soft)] sm:border-r sm:border-b-0">
+      <div className="hidden items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase sm:flex">
         <span>Projects</span>
         <span className="font-mono tabular-nums tracking-[0.06em]">{projects.length}</span>
         <span aria-hidden className="h-px flex-1 bg-line-soft" />
@@ -452,7 +453,7 @@ function ProjectSidebar({
       <div
         role="tablist"
         aria-label="Projects"
-        className="flex gap-0.5 overflow-x-auto sm:flex-col sm:overflow-visible"
+        className="flex gap-0.5 overflow-x-auto pb-1 sm:flex-col sm:overflow-visible sm:pb-0"
       >
         {projects.map((project) => (
           <ProjectSidebarRow
@@ -462,13 +463,22 @@ function ProjectSidebar({
             onSelect={() => onSelect(project.id)}
           />
         ))}
+        <button
+          type="button"
+          onClick={onAddProject}
+          title="Add project"
+          aria-label="Add project"
+          className="ml-1 grid size-[38px] shrink-0 cursor-pointer place-items-center rounded-full border border-line bg-soft text-muted transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright sm:hidden"
+        >
+          <Plus size={17} strokeWidth={2} aria-hidden />
+        </button>
       </div>
       <button
         type="button"
         onClick={onAddProject}
-        className="mt-1 flex h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg border border-dashed border-line-strong bg-soft/40 px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright"
+        className="mt-1 hidden h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg border border-dashed border-line-strong bg-soft/40 px-2.5 text-[12.5px] font-medium text-muted transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright sm:flex"
       >
-        <Plus size={15} aria-hidden />
+        <Plus size={15} strokeWidth={1.9} aria-hidden />
         Add project
       </button>
       <span className="hidden flex-1 sm:block" />
@@ -495,7 +505,7 @@ function ProjectSidebarRow({
       aria-selected={selected}
       onClick={onSelect}
       title={project.path}
-      className={`flex h-[34px] max-w-[10rem] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg pr-[9px] pl-2.5 text-left text-[13px] tracking-[-0.008em] transition-colors duration-150 sm:max-w-none ${
+      className={`flex h-[34px] shrink-0 cursor-pointer items-center gap-[9px] rounded-lg pr-[9px] pl-2.5 text-left text-[13px] tracking-[-0.008em] transition-colors duration-150 sm:w-auto ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
           : "font-medium text-text hover:bg-hover"
@@ -505,7 +515,7 @@ function ProjectSidebarRow({
         size={16}
         strokeWidth={1.7}
         aria-hidden
-        className={`shrink-0 ${selected ? "text-accent-bright" : "text-muted-foreground"}`}
+        className={`shrink-0 ${selected ? "text-accent-bright" : "text-muted"}`}
       />
       <span className="min-w-0 flex-1 truncate">{project.name}</span>
     </button>
@@ -514,20 +524,48 @@ function ProjectSidebarRow({
 
 function EmptyProjectsState({ onNewProject }: { onNewProject: () => void }) {
   return (
-    <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="grid size-14 place-items-center rounded-2xl border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]">
-        <FolderPlus size={26} aria-hidden />
+    <div className="grid min-h-[420px] grid-cols-1 sm:grid-cols-[248px_1fr]">
+      <aside className="flex flex-col border-b border-line-strong bg-surface px-[9px] pt-3 pb-[9px] sm:border-r sm:border-b-0">
+        <div className="hidden items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase sm:flex">
+          <span>Projects</span>
+          <span className="font-mono tabular-nums tracking-[0.06em]">0</span>
+          <span aria-hidden className="h-px flex-1 bg-line-soft" />
+        </div>
+        <div className="flex flex-1 flex-col items-stretch justify-center gap-[9px] px-1.5 py-4">
+          <button
+            type="button"
+            onClick={onNewProject}
+            className="flex h-[34px] shrink-0 cursor-pointer items-center justify-center gap-[9px] rounded-lg border border-dashed border-line-strong bg-soft/40 px-2.5 text-[12.5px] font-medium text-muted transition-colors duration-150 hover:border-accent-edge hover:bg-accent-softer hover:text-accent-bright"
+          >
+            <Plus size={15} strokeWidth={1.9} aria-hidden />
+            Add project
+          </button>
+          <p className="px-1.5 text-center text-[11px] leading-snug text-faint">
+            Register a project by name and filesystem path to start reviewing.
+          </p>
+        </div>
+      </aside>
+      <div className="grid place-items-center px-6 py-10 text-center">
+        <div className="flex max-w-[340px] flex-col items-center gap-2">
+          <div className="mb-1.5 grid size-14 place-items-center rounded-[14px] bg-surface text-faint shadow-[inset_0_0_0_0.5px_var(--line-strong),var(--elev-1)]">
+            <Folder size={28} strokeWidth={1.6} aria-hidden />
+          </div>
+          <h3 className="text-[14.5px] font-semibold tracking-[-0.015em] text-heading">
+            No projects yet
+          </h3>
+          <p className="text-[12.5px] leading-relaxed text-faint">
+            Add a project to register its repository and open your first review.
+          </p>
+          <button
+            type="button"
+            onClick={onNewProject}
+            className="mt-2.5 inline-flex h-[34px] cursor-pointer items-center gap-[5px] rounded-lg border border-[color:var(--accent-edge)] bg-blue px-4 text-[13px] font-semibold text-on-accent shadow-[inset_0_0.5px_0_oklch(100%_0_0/0.35),0_1px_3px_var(--elev-1),0_0_16px_var(--accent-soft)] transition-[filter,transform] duration-100 hover:brightness-110 active:translate-y-px active:brightness-95"
+          >
+            <Plus size={15} strokeWidth={1.9} aria-hidden />
+            Add project
+          </button>
+        </div>
       </div>
-      <h2 className="text-[15px] font-semibold tracking-[-0.015em] text-heading">
-        No projects yet
-      </h2>
-      <p className="max-w-[34ch] text-[12.5px] leading-relaxed text-muted-foreground">
-        Register a working directory to start reviewing its files.
-      </p>
-      <Button size="sm" onClick={onNewProject} className="mt-1.5">
-        <Plus size={14} />
-        Add project
-      </Button>
     </div>
   );
 }
@@ -559,9 +597,9 @@ function ProjectSection({
   }, [newReviewRequest]);
 
   return (
-    <section className="flex min-w-0 flex-col bg-surface2">
+    <section className="flex min-w-0 flex-col bg-panel">
       <div className="flex items-center gap-3 border-b border-line-soft px-5 pt-4 pb-3.5">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
           <h2 className="min-w-0 truncate text-[17px] font-bold tracking-[-0.02em] text-heading sm:max-w-[45%]">
             {project.name}
           </h2>
@@ -576,13 +614,13 @@ function ProjectSection({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="shrink-0 text-muted-foreground"
+                className="size-[30px] shrink-0 rounded-lg text-muted hover:bg-hover hover:text-heading"
                 title="Project actions"
                 aria-label="Project actions"
               />
             }
           >
-            <MoreHorizontal size={15} />
+            <MoreHorizontal size={18} strokeWidth={2.2} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={() => setEditingSettings(true)}>
@@ -617,20 +655,22 @@ function ProjectSection({
 
         {project.reviews.length === 0 ? (
           composing === null && (
-            <div className="mt-8 flex flex-col items-center gap-2 px-6 py-10 text-center">
-              <div className="grid size-12 place-items-center rounded-xl border border-line bg-soft text-muted-foreground shadow-[var(--elev-1)]">
-                <FileStack size={22} aria-hidden />
+            <div className="mt-2 grid flex-1 place-items-center px-6 py-10 text-center">
+              <div className="flex max-w-[340px] flex-col items-center gap-2">
+                <div className="mb-1.5 grid size-14 place-items-center rounded-[14px] bg-surface text-faint shadow-[inset_0_0_0_0.5px_var(--line-strong),var(--elev-1)]">
+                  <FileText size={28} strokeWidth={1.6} aria-hidden />
+                </div>
+                <h3 className="text-[14.5px] font-semibold tracking-[-0.015em] text-heading">
+                  Open a review to start
+                </h3>
+                <p className="text-[12.5px] leading-relaxed text-faint">
+                  Select files or a git diff to create the first review for {project.name}.
+                </p>
               </div>
-              <h3 className="text-[14px] font-semibold tracking-[-0.015em] text-heading">
-                No reviews yet
-              </h3>
-              <p className="max-w-[32ch] text-[12.5px] leading-relaxed text-muted-foreground">
-                Pick a set of files or a diff of two refs to start a review.
-              </p>
             </div>
           )
         ) : (
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-[3px]">
             <AnimatePresence initial={false}>
               {project.reviews.map((review, index) => (
                 <ReviewCard
@@ -712,8 +752,8 @@ function NewReviewCard({ onPick }: { onPick: (kind: "files" | "diff") => void })
           />
         }
       >
-        <span className="grid size-[30px] shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
-          <Plus size={17} aria-hidden />
+        <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+          <Plus size={17} strokeWidth={1.9} aria-hidden />
         </span>
         <span className="flex min-w-0 flex-col gap-px">
           <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-heading">
@@ -722,12 +762,12 @@ function NewReviewCard({ onPick }: { onPick: (kind: "files" | "diff") => void })
           <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
         </span>
         <span className="ml-auto hidden shrink-0 items-center gap-[7px] sm:inline-flex">
-          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted-foreground shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
-            <FileText size={13} aria-hidden />
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+            <FileText size={13} strokeWidth={1.7} aria-hidden />
             Files
           </span>
-          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted-foreground shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
-            <GitCompare size={13} aria-hidden />
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+            <GitCompare size={13} strokeWidth={1.8} aria-hidden />
             Diff
           </span>
         </span>
@@ -845,25 +885,10 @@ function ReviewCard({
       className="group/card relative overflow-hidden rounded-[13px] border border-transparent bg-transparent transition-[background-color,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-line-strong hover:bg-panel hover:shadow-[inset_0_0_0_1px_var(--line-strong)] motion-reduce:transition-none"
     >
       <div className="flex items-center gap-3 pr-3 pl-[13px] py-[11px]">
-        <button
-          type="button"
-          onClick={() => {
-            if (!editing) setExpanded((value) => !value);
-          }}
-          aria-expanded={open}
-          aria-label={open ? "Collapse files" : "Expand files"}
-          className="-ml-1 shrink-0 cursor-pointer rounded-md p-1 text-faint opacity-0 transition-[opacity,color,background-color] group-hover/card:opacity-100 hover:bg-hover hover:text-muted-foreground focus-visible:opacity-100 aria-expanded:opacity-100"
-        >
-          <ChevronRight
-            size={13}
-            className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
-          />
-        </button>
-
         <span
           aria-hidden
           title={KIND_TITLE[review.kind]}
-          className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-hover text-text shadow-[inset_0_0_0_0.5px_var(--line-strong),var(--elev-1)]"
+          className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--line-strong),var(--elev-1)]"
         >
           {review.kind === "file_selection" ? (
             <FileText size={18} strokeWidth={1.7} />
@@ -899,7 +924,7 @@ function ReviewCard({
             onClick={openReview}
             onMouseEnter={prefetchFirstFile}
             onFocus={prefetchFirstFile}
-            className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 text-left disabled:cursor-not-allowed disabled:opacity-60"
+            className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-[3px] text-left disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="flex min-w-0 items-center gap-2">
               <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.012em] text-heading">
@@ -919,15 +944,15 @@ function ReviewCard({
               className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-[11.5px] text-text2"
               title={fullTimestamp(review.inserted_at)}
             >
+              {review.kind === "git_diff" && (
+                <>
+                  <DiffRefsInline review={review} />
+                  <MetaDot />
+                </>
+              )}
               <span className="font-mono tabular-nums" aria-label={fileCountLabel(files)}>
                 {fileCountLabel(files)}
               </span>
-              {review.kind === "git_diff" && (
-                <>
-                  <MetaDot />
-                  <DiffRefsInline review={review} />
-                </>
-              )}
               <MetaDot />
               <span className="font-mono tabular-nums text-faint">
                 {elapsed(review.inserted_at)}
@@ -935,6 +960,22 @@ function ReviewCard({
             </span>
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (!editing) setExpanded((value) => !value);
+          }}
+          aria-expanded={open}
+          aria-label={open ? "Collapse files" : "Expand files"}
+          className="grid size-[22px] shrink-0 cursor-pointer place-items-center rounded-md text-faint opacity-0 transition-[opacity,color,background-color] group-hover/card:opacity-100 hover:bg-hover hover:text-text focus-visible:opacity-100 aria-expanded:opacity-100"
+        >
+          <ChevronRight
+            size={13}
+            strokeWidth={2.1}
+            className={`transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${open ? "rotate-90" : ""}`}
+          />
+        </button>
 
         <span
           aria-hidden
@@ -949,7 +990,7 @@ function ReviewCard({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="shrink-0 text-muted-foreground"
+                className="size-[22px] shrink-0 rounded-md text-muted opacity-0 transition-opacity group-hover/card:opacity-100 hover:bg-hover hover:text-heading aria-expanded:opacity-100"
                 title="Review actions"
                 aria-label="Review actions"
               />
