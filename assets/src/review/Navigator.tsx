@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useNavigate } from "@tanstack/react-router"
-import { Folder } from "lucide-react"
+import { Folder, Search, X } from "lucide-react"
 
 import { ChangeStatusIcon } from "./ChangeStatusIcon"
 import { FileIcon } from "./FileIcon"
@@ -22,6 +23,25 @@ export const Navigator = observer(function Navigator(props: {
   const { reviewSnapshot, currentPath, sourceView } = props
   const structure = useReviewStructure()
   const navigate = useNavigate()
+  const [filter, setFilter] = useState("")
+  const filterInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // `/` focuses the filter, matching the mockup's `.kbd` hint. Skip when the
+      // user is already typing in a form control so text entry keeps working.
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      const input = filterInputRef.current
+      if (!input) return
+      e.preventDefault()
+      input.focus()
+      input.select()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
 
   const ordered = orderedReviewFiles(structure.file_entries)
   const live = reviewSnapshot.body.files ?? []
@@ -42,11 +62,17 @@ export const Navigator = observer(function Navigator(props: {
     }
   })
 
-  const needsReview = rows.filter((r) => !r.reviewed)
-  const reviewed = rows.filter((r) => r.reviewed)
+  const query = filter.trim().toLowerCase()
+  const filtered = query
+    ? rows.filter((r) => r.entry.path.toLowerCase().includes(query))
+    : rows
+
+  const needsReview = filtered.filter((r) => !r.reviewed)
+  const reviewed = filtered.filter((r) => r.reviewed)
 
   const total = rows.length
-  const reviewedCount = reviewed.length
+  const reviewedCount = rows.filter((r) => r.reviewed).length
+  const commentsThisRound = rows.reduce((acc, r) => acc + r.commentCount, 0)
   const unresolvedCount = rows.reduce((acc, r) => acc + r.unresolved, 0)
   const round = reviewSnapshot.body.latest_round ?? 0
 
@@ -66,6 +92,13 @@ export const Navigator = observer(function Navigator(props: {
           {total} {total === 1 ? "file" : "files"}
         </span>
       </div>
+
+      <NavFilter
+        inputRef={filterInputRef}
+        value={filter}
+        onChange={setFilter}
+        onClear={() => setFilter("")}
+      />
 
       <nav className="flex-1 overflow-y-auto px-[6px] pb-[6px]">
         {needsReview.length > 0 && (
@@ -96,6 +129,11 @@ export const Navigator = observer(function Navigator(props: {
             onSelect={onSelect}
           />
         ))}
+        {query && filtered.length === 0 && (
+          <p className="px-[10px] py-[14px] text-[11.5px] text-muted-foreground">
+            No files match “{filter.trim()}”.
+          </p>
+        )}
       </nav>
 
       <div className="mt-auto flex flex-col gap-[9px] border-t border-line-strong bg-canvas/40 px-[9px] pb-[9px] pt-[11px] text-[10.5px] text-muted-foreground">
@@ -105,15 +143,21 @@ export const Navigator = observer(function Navigator(props: {
           fillPct={total === 0 ? 0 : (reviewedCount / total) * 100}
         />
         <Meter
-          title="Unresolved"
+          title="Comments"
           value={
             unresolvedCount > 0 ? (
-              <span className="text-red">{unresolvedCount}</span>
+              <><span className="text-red">{unresolvedCount}</span> unresolved</>
             ) : (
-              <>{unresolvedCount}</>
+              <>{commentsThisRound} this round</>
             )
           }
-          fillPct={total === 0 ? 0 : Math.min(100, (unresolvedCount / total) * 100)}
+          fillPct={
+            unresolvedCount > 0
+              ? Math.min(100, (unresolvedCount / Math.max(1, commentsThisRound)) * 100)
+              : commentsThisRound > 0
+                ? 100
+                : 0
+          }
           warn={unresolvedCount > 0}
         />
         <div className="flex items-center gap-[8px] pt-[2px] text-[11px] text-muted-foreground">
@@ -125,6 +169,52 @@ export const Navigator = observer(function Navigator(props: {
     </aside>
   )
 })
+
+function NavFilter(props: {
+  inputRef: React.RefObject<HTMLInputElement | null>
+  value: string
+  onChange: (v: string) => void
+  onClear: () => void
+}) {
+  const active = props.value.length > 0
+  return (
+    <div
+      className={`mx-[8px] mb-[9px] flex h-[28px] items-center gap-[7px] rounded-[9px] px-[10px] text-[12px] transition-colors ${
+        active
+          ? "bg-blue-soft text-heading shadow-[inset_0_0_0_1px_var(--color-accent-edge)]"
+          : "bg-canvas/60 text-muted-foreground shadow-[inset_0_0_0_1px_var(--line)]"
+      }`}
+    >
+      <Search size={13} className="shrink-0 text-muted-foreground" aria-hidden />
+      <input
+        ref={props.inputRef}
+        type="text"
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder="Filter files..."
+        aria-label="Filter files"
+        className="min-w-0 flex-1 bg-transparent text-[12px] text-heading placeholder:text-muted-foreground focus:outline-none"
+      />
+      {active ? (
+        <button
+          type="button"
+          onClick={props.onClear}
+          aria-label="Clear filter"
+          className="grid h-[16px] w-[16px] shrink-0 place-items-center rounded-[4px] text-muted-foreground hover:bg-hover hover:text-heading"
+        >
+          <X size={11} aria-hidden />
+        </button>
+      ) : (
+        <span
+          aria-hidden
+          className="shrink-0 rounded-[4px] bg-canvas px-[5px] py-[1px] font-mono text-[10px] text-muted-foreground shadow-[inset_0_0_0_1px_var(--line)]"
+        >
+          /
+        </span>
+      )}
+    </div>
+  )
+}
 
 function Meter(props: {
   title: string

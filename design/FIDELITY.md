@@ -53,14 +53,13 @@ Legend: `[ ]` todo, `[~]` in progress, `[x]` no overflow + matches desktop AND m
   Component: `assets/src/settings/SettingsModal.tsx`.
   Overflow watch: long theme names in the picker, control rows at narrow width, tab labels.
 
-- [~] **3. Review — file_selection view**
+- [x] **3. Review — file_selection view**
   Desktop mockup: `design/pages/review/states-codex.html` (+ `states-light.html`).
   Mobile mockup: `design/pages/review/states-mobile.html` (+ `states-light-mobile.html`).
   Route: `http://localhost:4710/reviews/019f2000-4439-7af9-a123-bfab4e3af3ca`.
   Components: `ArtifactReviewShell.tsx`, `Navigator.tsx`, `StatusBar.tsx`, `TopBar*.tsx`, `CommentRail.tsx`, `CommentCard*.tsx`.
   Overflow watch: long file paths in Navigator, long breadcrumb/review name in the toolbar, long comment bodies, code lines (wrap vs scroll).
-  Pass-2 progress: Navigator footer now renders the mockup's `Reviewed` / `Unresolved` meter tracks (blue + red tokens, no gradients). StatusBar hides the `connected` label under `sm:` and truncates the file name, closing the mobile overflow crush.
-  Remaining gaps: (a) Navigator still missing the `nav-filter` search row (mockup shows `Filter files… /`); (b) mobile TopBar is too crammed at 390px — 8 icon buttons + breadcrumb: consider collapsing round/display/copy behind a `⋯` menu on `<sm` per the mobile mockup's minimal chrome; (c) FileHeader lacks the mockup's density (Tight/Normal/Loose) + markdown-flavor (GFM/CommonMark) segments — deferred until we decide whether those become header-slot controls or move into the Display menu.
+  Pass-2 progress: Navigator now carries the `nav-filter` row (search input + `/` shortcut) with live client-side filtering and renames the second meter to `Comments` (unresolved count in red when > 0, else `N this round`), matching the desktop mockup. TopBar collapses Round selector, collapse-all, Display menu, and the prev/next file pager behind `sm:contents` so the mobile app bar keeps only Home + breadcrumb + Submit/Copy, aligned with the mobile mockup's minimal `.appbar`. FileHeader density + markdown-flavor segments stay deferred (belong in Display menu; not shown at either mockup width for A1).
 
 - [ ] **4. Review — git_diff view**
   Desktop mockup: the J-group states in `design/pages/review/states-codex.html`.

@@ -73,8 +73,10 @@ export const TopBar = observer(function TopBar(props: {
   }
 
   // TopBar is the single-file header, so the prev/next file nav always applies.
+  // Hidden below `sm:` — at 390px the mockup's app bar has no room for file
+  // pagination beside the breadcrumb; the file-head switcher covers the axis.
   const fileNav = (
-    <ButtonGroup className="rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
+    <ButtonGroup className="hidden sm:inline-flex rounded-lg shadow-[0_0_0_1px_var(--line),var(--elev-1)]">
       <Button
         variant="pill"
         size="icon"
@@ -114,31 +116,37 @@ export const TopBar = observer(function TopBar(props: {
       left={fileNav}
       right={
         <>
-          <TopBarRoundMenu />
-          <TopBarSep />
-          {commentsSupported && (
-            <Button
-              variant="pill"
-              size="icon"
-              title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
-              aria-label={
-                uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"
-              }
-              onClick={() => uiStore.toggleCollapseAll()}
-            >
-              {uiStore.commentsCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
-            </Button>
-          )}
-          <TopBarDisplayMenu
-            reviewId={structure.review_id}
-            filePath={title}
-            sourceView={sourceView}
-            capabilities={capabilities}
-            viewKind={viewKind}
-            diffLayoutAllowed={wide}
-            sideCommentsAllowed={wide}
-          />
-          <TopBarSep />
+          {/* Round selector + Collapse-all + Display live in a desktop-only cluster.
+              At <sm the mobile mockup keeps a minimal chrome (breadcrumb + Review),
+              so these controls hide and their axes stay available via the file-head
+              (view toggle) and settings. */}
+          <div className="hidden sm:contents">
+            <TopBarRoundMenu />
+            <TopBarSep />
+            {commentsSupported && (
+              <Button
+                variant="pill"
+                size="icon"
+                title={uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"}
+                aria-label={
+                  uiStore.commentsCollapsed ? "Expand all comments" : "Collapse all comments"
+                }
+                onClick={() => uiStore.toggleCollapseAll()}
+              >
+                {uiStore.commentsCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+              </Button>
+            )}
+            <TopBarDisplayMenu
+              reviewId={structure.review_id}
+              filePath={title}
+              sourceView={sourceView}
+              capabilities={capabilities}
+              viewKind={viewKind}
+              diffLayoutAllowed={wide}
+              sideCommentsAllowed={wide}
+            />
+            <TopBarSep />
+          </div>
           <SubmitControls
             reviewSnapshot={reviewSnapshot}
             disabled={!hasUnpublishedWork || commands.submitReview.disabled}
