@@ -9,10 +9,10 @@ beforeEach(() => {
 })
 
 describe("theme", () => {
-  it("defaults to github and applies it to the document", () => {
+  it("defaults to suikou-dark and applies it to the document", () => {
     const ui = new UiStore()
-    expect(ui.theme).toBe("github")
-    expect(document.documentElement.dataset.theme).toBe("github")
+    expect(ui.theme).toBe("suikou-dark")
+    expect(document.documentElement.dataset.theme).toBe("suikou-dark")
   })
 
   it("restores a persisted theme on construction", () => {
@@ -25,7 +25,7 @@ describe("theme", () => {
   it("ignores an unknown persisted theme", () => {
     localStorage.setItem("suikou-theme", "not-a-theme")
     const ui = new UiStore()
-    expect(ui.theme).toBe("github")
+    expect(ui.theme).toBe("suikou-dark")
   })
 
   it("persists and applies a theme change", () => {

@@ -12,6 +12,8 @@
    prefers-color-scheme media query. Keep this list in sync with the dark
    [data-theme] blocks below and `THEME_CODE[*].dark` in themes.ts. */
 @custom-variant dark (&:where(
+  :root, :root *,
+  [data-theme="suikou-dark"], [data-theme="suikou-dark"] *,
   [data-theme="tokyo"], [data-theme="tokyo"] *,
   [data-theme="tokyo-storm"], [data-theme="tokyo-storm"] *,
   [data-theme="tokyo-moon"], [data-theme="tokyo-moon"] *,
@@ -119,8 +121,106 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* GitHub Light — neutral gray base, blue accent (default) */
+/* Suikou Dark: cool near-black charcoal + teal accent (default). Matches
+   the suikou-dark mockups and the DESIGN.md dark token block. */
 :root,
+[data-theme="suikou-dark"] {
+  color-scheme: dark;
+  --ink: oklch(93% 0.006 230);
+  --heading: oklch(96% 0.006 230);
+  --text: oklch(80% 0.008 230);
+  --text2: oklch(84% 0.008 230);
+  --muted: oklch(66% 0.009 232);
+  --faint: oklch(61% 0.010 234);
+  --canvas: oklch(14.5% 0.012 235);
+  --editor-bg: oklch(15.5% 0.012 234);
+  --gutter: oklch(16.5% 0.013 232);
+  --surface: oklch(18.5% 0.014 230);
+  --surface2: oklch(18.5% 0.014 230 / 0.96);
+  --panel: oklch(16.5% 0.013 232);
+  --rail: oklch(18.5% 0.014 230);
+  --soft: oklch(21% 0.015 228);
+  --line: oklch(82% 0.03 220 / 0.18);
+  --line-soft: oklch(80% 0.02 230 / 0.10);
+  --line-strong: oklch(90% 0.03 220 / 0.24);
+  --control: oklch(24% 0.016 226);
+  --pop: oklch(18.5% 0.014 230);
+  --hover: oklch(21% 0.015 228 / 0.7);
+  --tint: oklch(74% 0.12 215 / 0.14);
+  --code-bg: oklch(12% 0.01 236 / 0.6);
+  --quote-bg: oklch(18.5% 0.014 230 / 0.6);
+  --reply-bg: oklch(74% 0.12 215 / 0.08);
+  --reply-agent: oklch(74% 0.12 215 / 0.14);
+  --blue: oklch(74% 0.12 215);
+  --blue-strong: oklch(68% 0.13 222);
+  --blue-soft: oklch(74% 0.12 215 / 0.16);
+  --on-accent: oklch(18% 0.03 230);
+  --focus: oklch(86% 0.10 198);
+  --active-line: oklch(74% 0.12 215 / 0.14);
+  --active-line-border: oklch(74% 0.12 215 / 0.34);
+  --yellow: oklch(80% 0.12 78 / 0.85);
+  --yellow-line: oklch(72% 0.13 70 / 0.5);
+  --green: oklch(76% 0.15 152);
+  --green-text: oklch(82% 0.14 150);
+  --red: oklch(72% 0.17 22);
+  --red-soft: oklch(66% 0.18 22 / 0.16);
+  --amber: oklch(80% 0.12 78);
+  --amber-soft: oklch(78% 0.12 75 / 0.16);
+  --surface-shadow: 0 1px 2px oklch(8% 0.01 235 / 0.5);
+  --control-shadow: 0 1px 1px oklch(8% 0.01 235 / 0.4);
+  --sans: "Hanken Grotesk", -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", "Inter", sans-serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
+}
+
+/* Suikou Light: cool off-white desk, teal accent pushed darker for contrast
+   on white. Matches the suikou-light mockups + DESIGN.md light token block. */
+[data-theme="suikou-light"] {
+  color-scheme: light;
+  --ink: oklch(26% 0.020 252);
+  --heading: oklch(22% 0.022 252);
+  --text: oklch(40% 0.018 250);
+  --text2: oklch(36% 0.020 250);
+  --muted: oklch(50% 0.016 248);
+  --faint: oklch(52% 0.015 248);
+  --canvas: oklch(96.5% 0.006 240);
+  --editor-bg: oklch(99.2% 0.003 240);
+  --gutter: oklch(98% 0.005 240);
+  --surface: oklch(99.4% 0.003 240);
+  --surface2: oklch(99.4% 0.003 240 / 0.95);
+  --panel: oklch(98% 0.005 240);
+  --rail: oklch(98% 0.005 240);
+  --soft: oklch(93.5% 0.008 240);
+  --line: oklch(30% 0.03 248 / 0.16);
+  --line-soft: oklch(30% 0.02 250 / 0.10);
+  --line-strong: oklch(30% 0.03 248 / 0.24);
+  --control: oklch(90.5% 0.010 240);
+  --pop: oklch(99.4% 0.003 240);
+  --hover: oklch(93.5% 0.008 240 / 0.8);
+  --tint: oklch(54% 0.13 222 / 0.12);
+  --code-bg: oklch(93.5% 0.008 240 / 0.72);
+  --quote-bg: oklch(98% 0.005 240 / 0.62);
+  --reply-bg: oklch(54% 0.13 222 / 0.08);
+  --reply-agent: oklch(54% 0.13 222 / 0.14);
+  --blue: oklch(53% 0.14 226);
+  --blue-strong: oklch(47% 0.15 232);
+  --blue-soft: oklch(54% 0.13 222 / 0.14);
+  --on-accent: oklch(99% 0.005 230);
+  --focus: oklch(53% 0.14 226);
+  --active-line: oklch(54% 0.13 222 / 0.10);
+  --active-line-border: oklch(54% 0.13 222 / 0.34);
+  --yellow: oklch(90% 0.09 84 / 0.82);
+  --yellow-line: oklch(70% 0.10 78 / 0.42);
+  --green: oklch(52% 0.15 150);
+  --green-text: oklch(45% 0.15 150);
+  --red: oklch(53% 0.20 25);
+  --red-soft: oklch(62% 0.20 25 / 0.13);
+  --amber: oklch(56% 0.14 64);
+  --amber-soft: oklch(72% 0.13 70 / 0.18);
+  --surface-shadow: 0 1px 2px oklch(50% 0.02 250 / 0.10);
+  --control-shadow: 0 1px 1px oklch(50% 0.02 250 / 0.06);
+}
+
+/* GitHub Light — neutral gray base, blue accent */
 [data-theme="github"] {
   color-scheme: light;
   --ink: oklch(30% 0.004 255);
@@ -723,7 +823,7 @@
    deepen the shadow so floating chrome lifts off the surface despite low
    background contrast. Components always reach for `var(--elev-*)` instead
    of inline oklch literals so they track the theme automatically. */
-:root,
+[data-theme="suikou-light"],
 [data-theme="github"],
 [data-theme="solarized"],
 [data-theme="catppuccin"],
@@ -747,6 +847,8 @@
                   0 8px 24px -6px oklch(20% 0.01 255 / 0.20);
 }
 
+:root,
+[data-theme="suikou-dark"],
 [data-theme="tokyo"],
 [data-theme="tokyo-storm"],
 [data-theme="tokyo-moon"],

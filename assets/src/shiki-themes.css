@@ -3,6 +3,40 @@
    Per-theme Shiki css-variables palettes; tokenization is theme-independent
    so switching [data-theme] re-selects a palette in pure CSS, no re-tokenize. */
 
+[data-theme="suikou-dark"] {
+  --shiki-foreground: #a9b1d6;
+  --shiki-background: #1a1b26;
+  --shiki-token-keyword: #7DCFFF;
+  --shiki-token-string: #89DDFF;
+  --shiki-token-comment: #51597D;
+  --shiki-token-function: #7AA2F7;
+  --shiki-token-constant: #BB9AF7;
+  --shiki-token-parameter: #a9b1d6;
+  --shiki-token-punctuation: #a9b1d6;
+  --shiki-token-link: #89DDFF;
+  --shiki-token-string-expression: #89DDFF;
+  --shiki-token-inserted: #89DDFF;
+  --shiki-token-deleted: #89DDFF;
+  --shiki-token-changed: #a9b1d6;
+}
+
+[data-theme="suikou-light"] {
+  --shiki-foreground: #383A42;
+  --shiki-background: #FAFAFA;
+  --shiki-token-keyword: #A626A4;
+  --shiki-token-string: #383A42;
+  --shiki-token-comment: #A0A1A7;
+  --shiki-token-function: #4078F2;
+  --shiki-token-constant: #986801;
+  --shiki-token-parameter: #383A42;
+  --shiki-token-punctuation: #383A42;
+  --shiki-token-link: #986801;
+  --shiki-token-string-expression: #50A14F;
+  --shiki-token-inserted: #383A42;
+  --shiki-token-deleted: #383A42;
+  --shiki-token-changed: #383A42;
+}
+
 [data-theme="github"] {
   --shiki-foreground: #24292e;
   --shiki-background: #fff;

@@ -40,7 +40,7 @@ const DRAFTS_KEY = "suikou-drafts"
  * filters, and the in-progress comment composer draft.
  */
 export class UiStore {
-  theme: ThemeName = "github"
+  theme: ThemeName = "suikou-dark"
   // Mockup E13: comments default to inline (in the editor body) so a fresh open
   // matches the storyboard. The rail (E14) is opt-in via the Display menu.
   commentMode: CommentMode = "inline"

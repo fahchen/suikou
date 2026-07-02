@@ -1,4 +1,6 @@
 export const THEMES = [
+  "suikou-dark",
+  "suikou-light",
   "github",
   "solarized",
   "catppuccin",
@@ -17,6 +19,8 @@ export const THEMES = [
 export type ThemeName = (typeof THEMES)[number]
 
 export const THEME_LABELS: Record<ThemeName, string> = {
+  "suikou-dark": "Suikou Dark",
+  "suikou-light": "Suikou Light",
   github: "GitHub Light",
   solarized: "Solarized Light",
   catppuccin: "Catppuccin Latte",
@@ -42,6 +46,8 @@ export const THEME_LABELS: Record<ThemeName, string> = {
  * the `@custom-variant dark` selector list in index.css.
  */
 export const THEME_CODE: Record<ThemeName, { shiki: string; dark: boolean }> = {
+  "suikou-dark": { shiki: "tokyo-night", dark: true },
+  "suikou-light": { shiki: "one-light", dark: false },
   github: { shiki: "github-light", dark: false },
   solarized: { shiki: "solarized-light", dark: false },
   catppuccin: { shiki: "catppuccin-latte", dark: false },
