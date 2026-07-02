@@ -358,7 +358,8 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ project_id: "p-new", error: null })
     await renderBoard()
 
-    fireEvent.click(screen.getByRole("button", { name: "New project" }))
+    fireEvent.click(screen.getByRole("button", { name: "New project or review" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: /New project/ }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" }
     })
@@ -518,7 +519,8 @@ describe("ProjectBoard", () => {
     dispatch.mockResolvedValue({ project_id: null, error: "not_a_directory" })
     await renderBoard()
 
-    fireEvent.click(screen.getByRole("button", { name: "New project" }))
+    fireEvent.click(screen.getByRole("button", { name: "New project or review" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: /New project/ }))
     fireEvent.change(screen.getByPlaceholderText("Project name"), {
       target: { value: "Docs" }
     })

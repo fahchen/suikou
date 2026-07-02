@@ -29,6 +29,7 @@ import {
   Plus,
   Search,
   Settings,
+  ChevronDown,
   Trash2,
 } from "lucide-react";
 
@@ -88,6 +89,17 @@ const BoardRefetchContext = createContext<() => void>(() => {});
 
 function useBoardRefetch(): () => void {
   return useContext(BoardRefetchContext);
+}
+
+// The toolbar's `+ New ▾` menu triggers the "New review" composer that lives
+// inside `ProjectSection`; the section subscribes to this monotonically
+// increasing counter so a click on the toolbar item opens the composer for the
+// currently selected project.
+type NewReviewRequest = { seq: number; kind: "files" | "diff" };
+const NewReviewRequestContext = createContext<NewReviewRequest>({ seq: 0, kind: "files" });
+
+function useNewReviewRequest(): NewReviewRequest {
+  return useContext(NewReviewRequestContext);
 }
 
 const KIND_TITLE: Record<BoardReview["kind"], string> = {
@@ -171,6 +183,10 @@ function Board({
   );
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [newReviewRequest, setNewReviewRequest] = useState<NewReviewRequest>({
+    seq: 0,
+    kind: "files",
+  });
   // Which project is showing in the right pane. Seeded lazily from the first
   // project once the board arrives; cleared if that project vanishes.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -249,29 +265,45 @@ function Board({
 
   return (
     <BoardRefetchContext.Provider value={refetch}>
-      <div className="min-h-screen bg-canvas">
-        <LauncherToolbar onNewProject={() => setCreating(true)} />
-        <div className="mx-auto max-w-[1240px] px-3 pb-16 pt-3 sm:px-5 sm:pt-5">
-          <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-1)]">
-            <BoardBody
-              store={store}
-              board={board}
-              error={error}
-              selected={selected}
-              onSelect={setSelectedId}
-              onOpen={onOpen}
-              onNewProject={() => setCreating(true)}
-            />
+      <NewReviewRequestContext.Provider value={newReviewRequest}>
+        <div className="min-h-screen bg-canvas">
+          <LauncherToolbar
+            onNewProject={() => setCreating(true)}
+            canCreateReview={selected !== null}
+            onNewReview={(kind) =>
+              setNewReviewRequest((prev) => ({ seq: prev.seq + 1, kind }))
+            }
+          />
+          <div className="mx-auto max-w-[1240px] px-3 pb-16 pt-3 sm:px-5 sm:pt-5">
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-1)]">
+              <BoardBody
+                store={store}
+                board={board}
+                error={error}
+                selected={selected}
+                onSelect={setSelectedId}
+                onOpen={onOpen}
+                onNewProject={() => setCreating(true)}
+              />
+            </div>
           </div>
-        </div>
 
-        <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
-      </div>
+          <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
+        </div>
+      </NewReviewRequestContext.Provider>
     </BoardRefetchContext.Provider>
   );
 }
 
-function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
+function LauncherToolbar({
+  onNewProject,
+  onNewReview,
+  canCreateReview,
+}: {
+  onNewProject: () => void;
+  onNewReview: (kind: "files" | "diff") => void;
+  canCreateReview: boolean;
+}) {
   return (
     <div className="sticky top-0 z-30 border-b border-line-strong bg-surface2 backdrop-blur-md">
       <div className="mx-auto flex h-[50px] max-w-[1240px] items-center gap-[9px] px-3 sm:px-5">
@@ -284,9 +316,10 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
           </span>
           <span className="text-[14px] font-bold tracking-[-0.02em] text-heading">Suikou</span>
         </div>
+        <span className="flex-1" />
         <div
           aria-hidden
-          className="ml-2 hidden h-[30px] min-w-[240px] max-w-[320px] flex-1 items-center gap-2 rounded-lg border border-line-strong bg-control px-2.5 pr-2 text-[12.5px] text-faint shadow-[inset_0_1px_2px_var(--elev-1)] sm:flex"
+          className="hidden h-[30px] min-w-[240px] max-w-[320px] flex-none items-center gap-2 rounded-lg border border-line-strong bg-control px-2.5 pr-2 text-[12.5px] text-faint shadow-[inset_0_1px_2px_var(--elev-1)] sm:flex sm:w-[300px]"
         >
           <Search size={14} aria-hidden />
           <span className="flex-1 truncate">Search projects and reviews…</span>
@@ -294,7 +327,10 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
             ⌘K
           </kbd>
         </div>
-        <span className="flex-1 sm:flex-none" />
+        <span
+          aria-hidden
+          className="hidden h-[22px] w-px bg-line-strong sm:block"
+        />
         <Button
           variant="pill"
           size="icon"
@@ -305,16 +341,42 @@ function LauncherToolbar({ onNewProject }: { onNewProject: () => void }) {
         >
           <Settings className="text-muted-foreground" />
         </Button>
-        <Button
-          size="sm"
-          onClick={onNewProject}
-          title="New project"
-          aria-label="New project"
-          className="h-[30px] rounded-lg px-3 font-semibold"
-        >
-          <Plus size={14} />
-          New project
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="sm"
+                title="New project or review"
+                aria-label="New project or review"
+                className="h-[30px] rounded-lg pr-2.5 pl-2.5 font-semibold"
+              />
+            }
+          >
+            <Plus size={14} aria-hidden />
+            New
+            <ChevronDown size={12} aria-hidden className="-mr-0.5 opacity-80" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            <DropdownMenuItem onClick={onNewProject}>
+              <FolderPlus size={14} />
+              New project…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!canCreateReview}
+              onClick={() => onNewReview("files")}
+            >
+              <FilePlus2 size={14} />
+              New review from files…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!canCreateReview}
+              onClick={() => onNewReview("diff")}
+            >
+              <FileDiff size={14} />
+              New review from diff…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -486,8 +548,15 @@ function ProjectSection({
   const [editingSettings, setEditingSettings] = useState(false);
   const removeProject = useMusubiCommand(store, "delete_project");
   const refetch = useBoardRefetch();
+  const newReviewRequest = useNewReviewRequest();
   const reviewCount = project.reviews.length;
   const reviewLabel = `${reviewCount} review${reviewCount === 1 ? "" : "s"}`;
+
+  // Toolbar-triggered "New review" opens the composer for the current project.
+  useEffect(() => {
+    if (newReviewRequest.seq === 0) return;
+    setComposing(newReviewRequest.kind);
+  }, [newReviewRequest]);
 
   return (
     <section className="flex min-w-0 flex-col bg-surface2">

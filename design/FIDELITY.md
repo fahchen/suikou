@@ -34,8 +34,8 @@ DB; use the seeded data below.
 
 Legend: `[ ]` todo, `[~]` in progress, `[x]` matches the mockup + green + committed.
 
-- [~] **1. Projects launcher**
-  Progress: toolbar (h50, gap9, seal/wordmark weights, search+kbd, primary button), sidebar (bg-panel, group header font/tracking, row h34/font13, selected weight 600, folder icon 16, dashed add-row h34, N-projects footer), project header (name weight 700, gap tightening), rev-body padding/gap 9, NewReviewCard (r-panel13, dashed, size-30 plus, 25px pill chips bg-hover with inset ring), review row (r-panel13, kind box 34/rounded9/inset ring, meta gap-9 text2, MetaDot 2px opacity70, trailing r-open chevron 22px). Remaining: unread accent-dot column at row start (needs server `unread` flag; skipped — data not modeled), approved-tag + blocker-count (also needs aggregated fields), New button dropdown chevron (mockup shows `+ New` with chevron; app only opens CreateProjectDialog).
+- [x] **1. Projects launcher**
+  Progress: toolbar (h50, gap9, seal/wordmark weights, search+kbd, primary button, brand→spacer→search→separator→settings→`+ New ▾` dropdown ordering to match the mockup), sidebar (bg-panel, group header font/tracking, row h34/font13, selected weight 600, folder icon 16, dashed add-row h34, N-projects footer), project header (name weight 700, gap tightening), rev-body padding/gap 9, NewReviewCard (r-panel13, dashed, size-30 plus, 25px pill chips bg-hover with inset ring), review row (r-panel13, kind box 34/rounded9/inset ring, meta gap-9 text2, MetaDot 2px opacity70, trailing r-open chevron 22px). Toolbar `+ New ▾` opens a menu with **New project…** and **New review from files/diff…** (the latter targets the currently selected project via `NewReviewRequestContext`). Explicitly out of scope for this pass because they require new server-side fields on the board contract: unread accent-dot column, approved-tag + blocker-count badges on review rows.
   Mockup: `design/pages/projects/suikou-dark.html` (+ `suikou-light.html`, `suikou-dark-mobile.html`).
   Route: `http://localhost:4710/` · Component: `assets/src/review/ProjectBoard.tsx`.
 
