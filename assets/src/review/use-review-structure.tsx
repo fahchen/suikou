@@ -145,6 +145,10 @@ export interface MergedFileView {
   artifact_id: string | null
   content_hash: string | null
   change_status: ChangeStatus
+  /** git_diff per-file line deltas from `git diff --numstat`; both null on a
+   * file_selection review or a binary diff. */
+  added: number | null
+  deleted: number | null
   artifact: { id: string; title: string; approved: boolean; approved_round: number | null }
   current_round: FileSnapshot["current_round"]
   comments: FileSnapshot["comments"]
@@ -172,6 +176,8 @@ export function mergeFileView(
     artifact_id: file?.artifact_id ?? null,
     content_hash: file?.content_hash ?? null,
     change_status: entry?.change_status ?? null,
+    added: entry?.added ?? null,
+    deleted: entry?.deleted ?? null,
     artifact: {
       id: file?.artifact?.id ?? "",
       title,

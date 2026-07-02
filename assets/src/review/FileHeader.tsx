@@ -39,11 +39,14 @@ export const FileHeader = observer(function FileHeader(props: {
   // The file's static identity (title, change status) comes from `structure`,
   // joined to the live row by path; comments stay live.
   const path = fileSnapshot.path
+  const entry = structureEntry(structure, path)
   const title = structureFile(structure, path)?.artifact?.title ?? path
   const viewKind = resolveViewKind({ kind: structure.kind, title })
   const image = isImagePath(title)
   const binary = isBinaryContent(content)
-  const changeStatus: ChangeStatus = structureEntry(structure, path)?.change_status ?? null
+  const changeStatus: ChangeStatus = entry?.change_status ?? null
+  const added = entry?.added ?? null
+  const deleted = entry?.deleted ?? null
   // Only markdown has a rendered preview to toggle to; plain source files
   // (.c, .ex, …) render as highlighted source only, so no rendered/source toggle.
   const previewable = isPreviewable(title) && viewKind === "file" && !image && !binary
@@ -81,6 +84,8 @@ export const FileHeader = observer(function FileHeader(props: {
       variant="single"
       filePath={title}
       changeStatus={changeStatus}
+      added={added}
+      deleted={deleted}
       outlineContent={content}
       viewKind={viewKind}
       commentCount={commentCount}

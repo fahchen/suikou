@@ -233,7 +233,7 @@ function Trailing<F extends ReviewFileRow>({ file, props }: { file: F; props: Ro
  * pure-addition/pure-deletion file only shows the meaningful side. Colors ride
  * the shared `--color-green` / `--color-red` tokens so all 13 themes agree.
  */
-function DiffDeltas({ added, deleted }: { added: number | null; deleted: number | null }) {
+export function DiffDeltas({ added, deleted }: { added: number | null; deleted: number | null }) {
   if (added == null && deleted == null) return null
   const showAdded = added != null && added > 0
   const showDeleted = deleted != null && deleted > 0

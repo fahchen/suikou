@@ -2,6 +2,7 @@ import { observer } from "mobx-react-lite"
 import { ChevronRight, Code2, Eye, MessageSquare, MousePointerClick } from "lucide-react"
 
 import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
+import { DiffDeltas } from "./ReviewFileTree"
 import { useHeaderControls } from "./header-slot"
 import { uiStore } from "../stores/ui-store"
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query"
@@ -29,6 +30,10 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
   variant: "single" | "stacked"
   filePath: string
   changeStatus: ChangeStatus
+  /** git_diff per-file line deltas from `git diff --numstat`; both null (or
+   * absent) hides the chip. Available on both single-file and stacked headers. */
+  added?: number | null
+  deleted?: number | null
   outlineContent: string
   viewKind: ViewKind
   commentCount: number
@@ -51,6 +56,8 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
     variant,
     filePath,
     changeStatus,
+    added,
+    deleted,
     outlineContent,
     viewKind,
     commentCount,
@@ -119,6 +126,9 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
       )}
       <ChangeStatusIcon status={changeStatus} size={12} />
       {pathLabel}
+      {viewKind === "diff" && (
+        <DiffDeltas added={added ?? null} deleted={deleted ?? null} />
+      )}
       {tocSupported && (
         <TopBarTocMenu content={outlineContent} path={filePath} />
       )}
