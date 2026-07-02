@@ -1,22 +1,33 @@
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
+import type { LucideIcon } from "lucide-react";
+import { AlertTriangle, HelpCircle, Link2, MessageSquare, SquarePlus } from "lucide-react";
 
 import { uiStore } from "../stores/ui-store";
 import { CommentComposer } from "./CommentComposer";
 import { useReviewCommands } from "./commands";
-import { SquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CRITIQUE_META } from "./types";
 import type { CritiqueType } from "../stores/ui-store";
 
 const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
 
-// Selected chip wears the same tone vocabulary as the comment-card badge so the
-// reviewer picks severity by the color they'll later see on the card.
-const TYPE_TONE: Record<string, string> = {
-  red: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
-  amber: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/30",
-  muted: "bg-soft text-heading ring-1 ring-inset ring-line",
+// Type chip vocabulary — mirrors the mockup's `.cmp-type` picker (icon + label,
+// pill radius, tinted when pressed) so a reviewer picks severity by the same
+// color they will later see on the comment card.
+const TYPE_META: Record<CritiqueType, { icon: LucideIcon; className: string }> = {
+  fix_required: {
+    icon: AlertTriangle,
+    className: "bg-red-soft text-red ring-1 ring-inset ring-red/35",
+  },
+  needs_answer: {
+    icon: HelpCircle,
+    className: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/35",
+  },
+  note: {
+    icon: MessageSquare,
+    className: "bg-soft text-heading ring-1 ring-inset ring-line",
+  },
 };
 
 /** Inline "new comment" composer anchored to a line range. */
@@ -57,44 +68,65 @@ export const Composer = observer(function Composer(props: {
     });
   }
 
+  // Structure follows the mockup's `.composer`: anchor caption (link glyph +
+  // "Comment on line N · path") → type-pill row → textarea → footer with
+  // Suggest on the left, Cancel and Add on the right.
+  const anchorPhrase =
+    props.startLine === props.endLine
+      ? `line ${props.startLine}`
+      : `lines ${props.startLine}-${props.endLine}`;
+  const filename = props.filePath
+    ? props.filePath.split("/").pop() ?? props.filePath
+    : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="my-1 ml-14 flex flex-col gap-2 overflow-hidden rounded-lg border border-blue-soft bg-surface p-3 shadow-[var(--surface-shadow)]"
+      className="my-1 ml-14 flex flex-col gap-[9px] overflow-hidden rounded-[13px] bg-surface p-3 shadow-[var(--surface-shadow)] ring-1 ring-inset ring-line-strong"
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-[12px] font-medium text-heading">
-          New comment on{" "}
-          {props.startLine === props.endLine
-            ? `line ${props.startLine}`
-            : `lines ${props.startLine}-${props.endLine}`}
+      <div className="inline-flex items-center gap-[7px] text-[11.5px] text-muted-foreground">
+        <Link2 size={12} aria-hidden className="text-accent-bright" />
+        <span>
+          New comment on {anchorPhrase}
+          {filename && (
+            <>
+              {" · "}
+              <span className="font-mono text-muted-foreground">{filename}</span>
+            </>
+          )}
         </span>
-        <span className="hidden text-[11px] text-faint">Tap another line to extend.</span>
-        <div className="flex flex-wrap gap-1 sm:ml-auto">
-          {TYPES.map((option) => (
+      </div>
+
+      <div className="flex flex-wrap gap-[6px]">
+        {TYPES.map((option) => {
+          const meta = TYPE_META[option];
+          const Icon = meta.icon;
+          const pressed = type === option;
+          return (
             <button
               key={option}
               type="button"
-              aria-pressed={type === option}
-              className={`inline-flex h-6 cursor-pointer items-center justify-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
-                type === option
-                  ? TYPE_TONE[CRITIQUE_META[option].tone]
-                  : "text-faint ring-1 ring-inset ring-line hover:bg-hover hover:text-muted-foreground"
-              }`}
+              aria-pressed={pressed}
               onClick={() => ui.setComposerType(option, path)}
+              className={`inline-flex h-[24px] cursor-pointer items-center gap-[5px] rounded-full px-[10px] text-[11px] font-[640] tracking-[-0.005em] transition-colors ${
+                pressed
+                  ? meta.className
+                  : "text-muted-foreground ring-1 ring-inset ring-line hover:bg-hover hover:text-heading"
+              }`}
             >
+              <Icon size={11} aria-hidden />
               {CRITIQUE_META[option].label}
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       <CommentComposer
         autoFocus
-        textareaClassName="min-h-20 rounded-md"
+        textareaClassName="min-h-20 rounded-[9px]"
         placeholder="Leave a comment. Markdown supported."
         value={body}
         onChange={(value) => ui.setComposerBody(value, path)}
@@ -105,21 +137,16 @@ export const Composer = observer(function Composer(props: {
         submitKbd
         disabled={commands.addComment.disabled}
         leadingAction={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground"
-              onClick={suggest}
-            >
-              <SquarePlus size={13} />
-              Suggest
-            </Button>
-            <span className="hidden text-[11px] text-faint sm:inline">
-              Saved as a pending draft until you submit the review.
-            </span>
-          </>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={suggest}
+          >
+            <SquarePlus size={13} />
+            Suggest
+          </Button>
         }
       />
     </motion.div>

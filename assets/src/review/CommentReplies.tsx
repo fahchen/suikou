@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
+import { Bot } from "lucide-react";
 
 import type { Comment, Reply } from "./types";
 import { CommentBody } from "./CommentBody";
@@ -56,13 +57,29 @@ function ReplyCard(props: {
 
   return (
     <div
-      className={`rounded-lg border px-2.5 py-1.5 ${
-        reply.author === "agent" ? "border-active-line-border bg-reply-agent" : "border-line bg-reply"
+      className={`rounded-[9px] px-2.5 py-1.5 ${
+        reply.author === "agent"
+          ? "bg-reply-agent ring-1 ring-inset ring-blue-soft"
+          : "bg-reply ring-1 ring-inset ring-line-soft"
       }`}
     >
-      <div className="mb-0.5 flex items-baseline gap-2 text-[12px]">
-        <strong className="text-heading">{reply.author === "agent" ? "Agent" : "You"}</strong>
-        <span className="text-[11px] text-faint" title={fullTimestamp(reply.inserted_at)}>
+      <div className="mb-1 flex items-center gap-2 text-[12px]">
+        {reply.author === "agent" ? (
+          <span
+            aria-hidden
+            className="inline-flex size-[15px] shrink-0 items-center justify-center rounded-[5px] bg-blue text-on-accent shadow-[inset_0_0.5px_0_var(--edge-top-2)]"
+          >
+            <Bot size={10} strokeWidth={1.8} />
+          </span>
+        ) : null}
+        <strong
+          className={`text-[11.5px] font-[700] tracking-[-0.005em] ${
+            reply.author === "agent" ? "text-accent-bright" : "text-heading"
+          }`}
+        >
+          {reply.author === "agent" ? "Agent" : "You"}
+        </strong>
+        <span className="text-[10.5px] text-faint" title={fullTimestamp(reply.inserted_at)}>
           {relativeTime(reply.inserted_at)}
         </span>
         {editable && !editing && (
