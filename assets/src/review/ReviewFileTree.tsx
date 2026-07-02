@@ -206,7 +206,7 @@ function Trailing<F extends ReviewFileRow>({ file, props }: { file: F; props: Ro
   const pending = props.pendingPath != null && file.path === props.pendingPath
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1.5">
-      <DiffDeltas added={file.added ?? null} deleted={file.deleted ?? null} />
+      <DiffDeltas added={file.added ?? null} deleted={file.deleted ?? null} size="sm" />
       {count > 0 && (
         <span
           aria-label={`${count} ${count === 1 ? "comment" : "comments"}`}
@@ -232,8 +232,20 @@ function Trailing<F extends ReviewFileRow>({ file, props }: { file: F; props: Ro
  * file, or a non-diff review) renders nothing; a zero count is skipped so a
  * pure-addition/pure-deletion file only shows the meaningful side. Colors ride
  * the shared `--color-green` / `--color-red` tokens so all 13 themes agree.
+ *
+ * `size="md"` (default) matches the file-head chip (11px / gap 7px); `"sm"` is
+ * the tighter chip used inside navigator rows (10px / gap 5px per the
+ * `.frow .deltas` mockup rule).
  */
-export function DiffDeltas({ added, deleted }: { added: number | null; deleted: number | null }) {
+export function DiffDeltas({
+  added,
+  deleted,
+  size = "md"
+}: {
+  added: number | null
+  deleted: number | null
+  size?: "sm" | "md"
+}) {
   if (added == null && deleted == null) return null
   const showAdded = added != null && added > 0
   const showDeleted = deleted != null && deleted > 0
@@ -244,10 +256,12 @@ export function DiffDeltas({ added, deleted }: { added: number | null; deleted: 
   ]
     .filter(Boolean)
     .join(", ")
+  const scale =
+    size === "sm" ? "gap-[5px] text-[10px]" : "gap-[7px] text-[11px]"
   return (
     <span
       aria-label={label}
-      className="inline-flex shrink-0 items-center gap-[7px] font-mono text-[11px] font-[720] tabular-nums"
+      className={`inline-flex shrink-0 items-center font-mono font-[720] tabular-nums ${scale}`}
     >
       {showAdded && <span className="text-green">+{added}</span>}
       {showDeleted && <span className="text-red">−{deleted}</span>}
