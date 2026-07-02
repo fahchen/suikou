@@ -247,7 +247,7 @@ export function DiffDeltas({ added, deleted }: { added: number | null; deleted: 
   return (
     <span
       aria-label={label}
-      className="inline-flex shrink-0 items-center gap-1 font-mono text-[10.5px] tabular-nums"
+      className="inline-flex shrink-0 items-center gap-[7px] font-mono text-[11px] font-[720] tabular-nums"
     >
       {showAdded && <span className="text-green">+{added}</span>}
       {showDeleted && <span className="text-red">−{deleted}</span>}

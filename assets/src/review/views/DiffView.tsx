@@ -38,13 +38,24 @@ const TYPE_TONE: Record<string, string> = {
   muted: "bg-soft text-heading ring-1 ring-inset ring-line"
 }
 
-// `green-soft` isn't a defined token; the green channel exists only as the solid
-// `--green`, so adds use the same 15% opacity tint everywhere in the view.
+// Diff row tints per mockup: adds ride a --color-green wash, removes a
+// --color-red wash. `bg-red-soft` is the shared removal token (~15%);
+// `bg-green/15` matches its alpha for adds without inventing a `green-soft`.
 const ROW_KIND_CLASS: Record<DiffRow["kind"], { old: string; new: string }> = {
   context: { old: "bg-editor", new: "bg-editor" },
   add: { old: "bg-editor", new: "bg-green/15" },
   remove: { old: "bg-red-soft", new: "bg-editor" },
   replace: { old: "bg-red-soft", new: "bg-green/15" }
+}
+
+// Gutter tint on an add/remove cell — mockup wants the gutter darker than the
+// code cell (`--diff-add-gut` at ~34% vs `--diff-add` at ~16%) so line numbers
+// stay legible against the change color.
+const GUTTER_KIND_CLASS: Record<DiffRow["kind"], { old: string; new: string }> = {
+  context: { old: "", new: "" },
+  add: { old: "", new: "bg-green/30 text-green" },
+  remove: { old: "bg-red/30 text-red", new: "" },
+  replace: { old: "bg-red/30 text-red", new: "bg-green/30 text-green" }
 }
 
 const SIDE_LABEL: Record<DiffSide, string> = { old: "old", new: "new" }
@@ -193,9 +204,9 @@ const HunkBlock = observer(function HunkBlock(props: {
   return (
     <section className="mt-3 first:mt-0">
       <header
-        className={`items-stretch border-y border-line bg-blue-soft/60 font-mono text-[11px] font-semibold text-blue ${
+        className={`items-stretch border-y border-line bg-accent-softer font-mono text-[11px] font-semibold text-accent-bright ${
           layout === "unified"
-            ? "grid grid-cols-[var(--gutter-w)_1fr]"
+            ? "grid grid-cols-[100px_1fr]"
             : "block"
         }`}
       >
@@ -292,18 +303,30 @@ const DiffRowView = observer(function DiffRowView(props: {
 }) {
   const { row, parsed, comments, commentedLines, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const tone = ROW_KIND_CLASS[row.kind]
+  const gutterKindTone = GUTTER_KIND_CLASS[row.kind]
   const composerOpen =
     selection != null &&
     ((selection.side === "old" && row.old?.lineNo === selection.end) ||
       (selection.side === "new" && row.new?.lineNo === selection.end))
+  const activeCell = selection?.side === "old" ? row.old : row.new
+  const isRangeFirst =
+    selection != null && activeCell?.lineNo === selection.start && (
+      (selection.side === "old" && row.old != null) ||
+      (selection.side === "new" && row.new != null)
+    )
 
   return (
     <div>
-      <div className="grid grid-cols-[var(--gutter-w)_1fr_var(--gutter-w)_1fr] items-stretch">
+      <div
+        className={`grid grid-cols-[var(--gutter-w)_1fr_var(--gutter-w)_1fr] items-stretch ${
+          isRangeFirst ? "shadow-[inset_0_1.5px_0_var(--color-accent-edge)]" : ""
+        }`}
+      >
         <SideCell
           cell={row.old}
           side="old"
           tone={tone.old}
+          gutterKindTone={gutterKindTone.old}
           selection={selection}
           commented={row.old != null && commentedLines.has(`old:${row.old.lineNo}`)}
           diffTokens={diffTokens}
@@ -313,6 +336,7 @@ const DiffRowView = observer(function DiffRowView(props: {
           cell={row.new}
           side="new"
           tone={tone.new}
+          gutterKindTone={gutterKindTone.new}
           selection={selection}
           commented={row.new != null && commentedLines.has(`new:${row.new.lineNo}`)}
           diffTokens={diffTokens}
@@ -341,6 +365,15 @@ const UNIFIED_KIND_CLASS: Record<UnifiedRow["kind"], string> = {
   remove: "bg-red-soft"
 }
 
+// Gutter tint per row kind — one shade darker than the row bg so the line
+// number reads (add gutter is greener than the add cell, del gutter redder
+// than the del cell, per the `--diff-*-gut` tokens in the mockup).
+const UNIFIED_GUTTER_KIND_CLASS: Record<UnifiedRow["kind"], string> = {
+  context: "",
+  add: "bg-green/30 text-green",
+  remove: "bg-red/30 text-red"
+}
+
 const UNIFIED_MARKER: Record<UnifiedRow["kind"], string> = {
   context: " ",
   add: "+",
@@ -361,15 +394,17 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
   const { row, parsed, comments, commentedLines, inline, selection, diffTokens, onGutterClick, closeComposer } = props
   const lineNo = row.side === "old" ? row.oldNo : row.newNo
   const tone = UNIFIED_KIND_CLASS[row.kind]
+  const gutterKindTone = UNIFIED_GUTTER_KIND_CLASS[row.kind]
   const selected =
     selection != null && selection.side === row.side && lineNo != null &&
     lineNo >= selection.start && lineNo <= selection.end
+  const isRangeFirst = selected && lineNo === selection?.start
   const composerOpen =
     selection != null && selection.side === row.side && lineNo === selection.end
   const commentedOld = row.oldNo != null && commentedLines.has(`old:${row.oldNo}`)
   const commentedNew = row.newNo != null && commentedLines.has(`new:${row.newNo}`)
-  const cellTone = selected ? "bg-active-line" : tone
-  const gutterTone = selected ? "bg-active-line text-blue" : `${tone} text-faint`
+  const cellTone = selected ? "bg-accent-softer" : tone
+  const gutterTone = selected ? "bg-accent-soft text-accent-bright" : `${gutterKindTone || tone} text-faint`
   const matches = inline
     ? comments.filter((c) => {
         if (c.anchor?.type !== "diff_hunk") return false
@@ -379,13 +414,21 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
 
   return (
     <div>
-      <div className="grid grid-cols-[var(--gutter-w)_var(--gutter-w)_1.25rem_1fr] items-stretch">
+      <div
+        className={`grid grid-cols-[var(--gutter-w)_var(--gutter-w)_1.25rem_1fr] items-stretch ${
+          isRangeFirst ? "shadow-[inset_0_1.5px_0_var(--color-accent-edge)]" : ""
+        }`}
+      >
         <GutterButton
           side="old"
           lineNo={row.oldNo}
           active={row.side === "old"}
           tone={gutterTone}
-          fallbackTone={commentedOld ? "bg-blue-soft text-blue" : `${tone} text-faint`}
+          fallbackTone={
+            commentedOld
+              ? "bg-accent-soft text-accent-bright"
+              : `${row.kind === "remove" ? gutterKindTone : tone} text-faint`
+          }
           onGutterClick={onGutterClick}
         />
         <GutterButton
@@ -393,7 +436,11 @@ const UnifiedRowView = observer(function UnifiedRowView(props: {
           lineNo={row.newNo}
           active={row.side === "new"}
           tone={gutterTone}
-          fallbackTone={commentedNew ? "bg-blue-soft text-blue" : `${tone} text-faint`}
+          fallbackTone={
+            commentedNew
+              ? "bg-accent-soft text-accent-bright"
+              : `${row.kind === "add" ? gutterKindTone : tone} text-faint`
+          }
           onGutterClick={onGutterClick}
         />
         <div className={`flex select-none items-start justify-center font-mono text-[12px] leading-5 ${cellTone} text-faint`}>
@@ -447,7 +494,7 @@ function GutterButton(props: {
       <div className={fallbackTone} aria-hidden />
     )
   }
-  const className = `group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${active ? tone : fallbackTone}`
+  const className = `group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-accent-bright ${active ? tone : fallbackTone}`
   return (
     <button
       type="button"
@@ -458,7 +505,7 @@ function GutterButton(props: {
         onGutterClick(side, lineNo, e.shiftKey)
       }}
     >
-      <Plus size={12} className="hidden text-blue group-hover:block" aria-hidden />
+      <Plus size={12} className="hidden text-accent-bright group-hover:block" aria-hidden />
       {lineNo}
     </button>
   )
@@ -468,24 +515,26 @@ function SideCell(props: {
   cell: DiffCell | null
   side: DiffSide
   tone: string
+  gutterKindTone: string
   selection: Selection | null
   commented: boolean
   diffTokens: DiffTokens
   onGutterClick: (side: DiffSide, lineNo: number, shift: boolean) => void
 }) {
-  const { cell, side, tone, selection, commented, diffTokens, onGutterClick } = props
+  const { cell, side, tone, gutterKindTone, selection, commented, diffTokens, onGutterClick } = props
   const selected =
     cell != null &&
     selection != null &&
     selection.side === side &&
     cell.lineNo >= selection.start &&
     cell.lineNo <= selection.end
+  const gutterBase = gutterKindTone || `${tone} text-faint`
   const gutterTone = selected
-    ? "bg-active-line text-blue"
+    ? "bg-accent-soft text-accent-bright"
     : commented
-      ? "bg-blue-soft text-blue"
-      : `${tone} text-faint`
-  const cellTone = selected ? "bg-active-line" : tone
+      ? "bg-accent-soft text-accent-bright"
+      : gutterBase
+  const cellTone = selected ? "bg-accent-softer" : tone
 
   if (!cell) {
     return (
@@ -503,12 +552,12 @@ function SideCell(props: {
         title={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo} (Shift-click to extend)`}
         aria-label={`Add a comment on ${SIDE_LABEL[side]} line ${cell.lineNo}`}
         aria-selected={selected}
-        className={`group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-blue ${gutterTone}`}
+        className={`group flex cursor-pointer items-start justify-end gap-1 pr-2 text-right font-mono text-[12px] leading-5 transition-colors hover:text-accent-bright ${gutterTone}`}
         onClick={(e) => {
           onGutterClick(side, cell.lineNo, e.shiftKey)
         }}
       >
-        <Plus size={12} className="hidden text-blue group-hover:block" aria-hidden />
+        <Plus size={12} className="hidden text-accent-bright group-hover:block" aria-hidden />
         {cell.lineNo}
       </button>
       <div
@@ -597,7 +646,7 @@ const DiffComposer = observer(function DiffComposer(props: {
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.18, ease: "easeOut" }}
-      className="my-1 ml-14 mr-2 flex flex-col gap-2 overflow-hidden rounded-lg border border-blue-soft bg-surface p-3 shadow-[var(--surface-shadow)]"
+      className="my-1 ml-14 mr-2 flex flex-col gap-2 overflow-hidden rounded-lg border border-accent-edge bg-surface p-3 shadow-[var(--surface-shadow)]"
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <span className="text-[12px] font-medium text-heading">New comment on {range}</span>
