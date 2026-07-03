@@ -262,4 +262,17 @@ describe("renderCommentBody", () => {
     // markdown-it's validateLink refuses the script URL, so no executable href.
     expect(html).not.toContain('href="javascript:')
   })
+
+  it("renders a ```suggestion fence as the mockup's suggest card (F7)", () => {
+    const html = renderCommentBody(
+      'Fix this:\n\n```suggestion\n  user = safe(:id)\n```\n',
+    )
+    // Not a plain code block: the suggestion fence expands to the styled card
+    // with its own header + `.suggest-code` block so it can't be confused for
+    // a regular code fence.
+    expect(html).toContain('class="suggest"')
+    expect(html).toContain("Suggested change")
+    expect(html).toContain("safe(:id)")
+    expect(html).not.toContain("language-suggestion")
+  })
 })

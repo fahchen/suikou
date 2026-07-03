@@ -51,6 +51,51 @@ taskLists(gfm)
 assetImages(gfm)
 gfm.use(emoji).use(footnote).use(sub).use(sup).use(deflist)
 
+// Comment-body-specific GFM: same rules, plus a bespoke renderer for
+// ```suggestion fences (F7 in the state catalog) that emits the mockup's
+// `.suggest` card instead of a plain code block. Kept separate from `gfm` so
+// artifact previews still render suggestion fences as plain code.
+const commentGfm = new MarkdownIt({ html: false, linkify: true, typographer: true })
+taskLists(commentGfm)
+assetImages(commentGfm)
+commentGfm.use(emoji).use(footnote).use(sub).use(sup).use(deflist)
+installSuggestionFence(commentGfm)
+
+/**
+ * Renders a ```suggestion fence as the mockup's `.suggest` block: a header
+ * (a small check glyph + "Suggested change") over the proposed replacement
+ * lines, all in mono. Non-suggestion fences fall through to the default fence
+ * renderer so ordinary code blocks still highlight normally.
+ */
+function installSuggestionFence(md: MarkdownIt): void {
+  const fallback = md.renderer.rules.fence
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx]
+    const info = token.info.trim().toLowerCase()
+    if (info !== "suggestion") {
+      return fallback ? fallback(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
+    }
+    const lines = token.content.replace(/\n$/, "").split("\n")
+    const rows = lines
+      .map(
+        (line) =>
+          `<span class="suggest-line">${md.utils.escapeHtml(line || " ")}</span>`,
+      )
+      .join("")
+    return (
+      '<div class="suggest">' +
+      '<div class="suggest-head" aria-label="Suggested change">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M9 11l3 3 8-8"/>' +
+      '<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>' +
+      "</svg>" +
+      "Suggested change</div>" +
+      `<pre class="suggest-code">${rows}</pre>` +
+      "</div>"
+    )
+  }
+}
+
 /** Strict CommonMark: no tables/strikethrough/autolinks/task lists. */
 const commonmark = new MarkdownIt("commonmark", { html: false, typographer: true })
 assetImages(commonmark)
@@ -62,7 +107,7 @@ assetImages(commonmark)
  * rejects `javascript:`/`vbscript:`/`data:` URLs, so there is no XSS sink.
  */
 export function renderCommentBody(text: string): string {
-  return gfm.render(text)
+  return commentGfm.render(text)
 }
 
 /** A code fence awaiting off-thread Shiki tokenization, paired with its plain blocks. */

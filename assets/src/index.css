@@ -1285,6 +1285,51 @@
     border-radius: 0;
   }
 
+  /* Inline code suggestion (``` suggestion) rendered inside a comment body.
+     The fence is turned into a small card with a header ("Suggested change")
+     and a mono block of the proposed lines so the agent-facing intent reads
+     at a glance without a full diff renderer. Backgrounds/tokens follow the
+     add-diff family so a green tint is preserved with the design system. */
+  .md-comment .suggest {
+    margin: 0;
+    border-radius: 8px;
+    background: var(--diff-add-bg, var(--code-bg));
+    box-shadow: inset 0 0 0 1px var(--line);
+    overflow: hidden;
+  }
+
+  .md-comment .suggest-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 3px;
+    font-size: 11px;
+    font-weight: 640;
+    letter-spacing: 0.02em;
+    color: var(--green);
+  }
+
+  .md-comment .suggest-head svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .md-comment .suggest-code {
+    margin: 0;
+    padding: 4px 10px 8px;
+    background: transparent;
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .md-comment .suggest-line {
+    display: block;
+    color: var(--green-text, var(--heading));
+  }
+
   /* One real table per markdown table: fills the content column and wraps cell
      text so it never forces a horizontal scroll, with a per-row gutter for
      anchoring. */

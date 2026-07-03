@@ -111,7 +111,7 @@
 | F4 | **回复 composer** | thread 内回复框 | ✅ |
 | F5 | **编辑 pending comment** | 改正文/type | ✅ |
 | F6 | **草稿恢复** | 重开带回草稿文字 | ➕ |
-| F7 | **Suggest(代码建议块)** | 围栏建议 | ◐ |
+| F7 | **Suggest(代码建议块)** | 围栏建议 | ✅ |
 
 ## G. Verdict / Submit 态
 
