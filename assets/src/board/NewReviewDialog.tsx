@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
-import { ChevronRight, File, Folder, X } from "lucide-react"
+import { ChevronRight, Folder, X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
+import { FileIcon } from "./FileIcon"
 import type { BoardProject, BoardStore } from "./types"
 
 type Kind = "files" | "diff"
@@ -26,16 +27,19 @@ export function NewReviewDialog({
 }) {
   const createFiles = useMusubiCommand(store, "create_review")
   const createDiff = useMusubiCommand(store, "create_diff_review")
-  const [name, setName] = useState("")
   const [selections, setSelections] = useState<Set<string>>(new Set())
   const [base, setBase] = useState("")
   const [head, setHead] = useState("")
   const [error, setError] = useState<string | null>(null)
   const busy = createFiles.isPending || createDiff.isPending
 
+  // The name is derived from the project, not typed: a diff carries its refs, a
+  // file review takes the project name.
+  const derivedName =
+    kind === "diff" && head.trim() ? `${base.trim() ? `${base.trim()}..` : ""}${head.trim()}` : project.name
+
   useEffect(() => {
     if (!open) return
-    setName("")
     setSelections(new Set())
     setBase("")
     setHead("")
@@ -61,8 +65,7 @@ export function NewReviewDialog({
       return next
     })
 
-  const canSubmit =
-    name.trim().length > 0 && (kind === "files" ? selections.size > 0 : head.trim().length > 0)
+  const canSubmit = kind === "files" ? selections.size > 0 : head.trim().length > 0
 
   const submit = () => {
     if (!canSubmit) return
@@ -76,14 +79,14 @@ export function NewReviewDialog({
     }
     if (kind === "files") {
       createFiles
-        .dispatch({ project_id: project.id, name: name.trim(), selections: [...selections] })
+        .dispatch({ project_id: project.id, name: derivedName, selections: [...selections] })
         .then(done)
         .catch((cause: Error) => setError(cause.message))
     } else {
       createDiff
         .dispatch({
           project_id: project.id,
-          name: name.trim(),
+          name: derivedName,
           base_ref: base.trim() || null,
           head_ref: head.trim(),
         })
@@ -108,17 +111,6 @@ export function NewReviewDialog({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[11.5px] font-semibold text-muted">Name</span>
-            <input
-              autoFocus
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={kind === "files" ? "Runtime store rewrite" : "main..feature branch"}
-              className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 text-[13px] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
-            />
-          </label>
-
           {kind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <span className="text-[11.5px] font-semibold text-muted">
@@ -220,7 +212,7 @@ function DirNode({
             <span className="pointer-events-none flex">
               <Checkbox checked={selections.has(entry.path)} onCheckedChange={() => onToggle(entry.path)} />
             </span>
-            <File size={13} className="text-muted" aria-hidden />
+            <FileIcon name={name} size={13} />
             <span className="min-w-0 flex-1 truncate">{name}</span>
           </button>
         )
