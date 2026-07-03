@@ -32,7 +32,9 @@ export function Combobox({
       <BaseCombobox.Portal>
         <BaseCombobox.Positioner sideOffset={4} className="z-[60]">
           <BaseCombobox.Popup className="max-h-[260px] w-[var(--anchor-width)] min-w-[220px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none">
-            <BaseCombobox.Empty className="px-2 py-2 text-[12px] text-faint">No branches match.</BaseCombobox.Empty>
+            <BaseCombobox.Empty className="text-[12px] text-faint">
+              <span className="block px-2 py-2">No branches match.</span>
+            </BaseCombobox.Empty>
             <BaseCombobox.List>
               {(option: string) => (
                 <BaseCombobox.Item
