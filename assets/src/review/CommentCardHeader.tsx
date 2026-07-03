@@ -176,10 +176,16 @@ export function CommentCardHeader(props: {
             title={
               comment.scope === "review"
                 ? "This note applies to the whole review, not a single file."
-                : "This note applies to the whole file, not a single line."
+                : comment.critique_type === "note"
+                  ? "The note carried alongside this file's verdict — travels with the per-file draft."
+                  : "This note applies to the whole file, not a single line."
             }
           >
-            {comment.scope === "review" ? "on whole review" : "on whole file"}
+            {comment.scope === "review"
+              ? "on whole review"
+              : comment.critique_type === "note"
+                ? "verdict note"
+                : "on whole file"}
             {roundLabel && (
               <>
                 <span className="mx-1 text-faint" aria-hidden>

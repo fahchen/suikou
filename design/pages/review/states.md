@@ -118,7 +118,7 @@
 | # | 状态 | 关键呈现 | 状态 |
 |---|------|----------|------|
 | G1 | **每文件 verdict chip** | none / approve / request_changes / comment | ✅ |
-| G2 | **文件 note(artifact 级)** | verdict chip 内可填 note | ➕ |
+| G2 | **文件 note(artifact 级)** | verdict chip 内可填 note | ✅ |
 | G3 | **submit 面板** | Comment/Approve/Request changes 单选 + pending 计数 | ✅ |
 | G4 | **soft gate 警告** | approve 但有 open fix_required → ⚠ 不阻断 | ✅ |
 | G5 | **submit 确认对话框** | 说明将发布啥 | ✅ |
