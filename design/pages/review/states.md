@@ -93,7 +93,7 @@
 | E7 | **outdated** | 琥珀条 + 原 quote + Re-anchor | ✅ |
 | E8 | **drifted** | 重锚到相似行提示 | ➕ |
 | E9 | **带 agent 回复** | ↳ agent(自定义名) | ✅ |
-| E10 | **带 human 回复(pending)** | 提交才发 | ➕ |
+| E10 | **带 human 回复(pending)** | 提交才发 | ✅ |
 | E11 | **human 回 resolved → 自动重开** | resolved 被回复后重新 open | ➕ |
 | E12 | **reactions 已应用 + picker** | 👍✅👀🎉❤️🙏 + 计数 | ✅ |
 | E13 | **inline 呈现** | editor 行间 | ✅ |

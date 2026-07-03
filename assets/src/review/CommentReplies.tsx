@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
-import { Bot } from "lucide-react";
+import { Bot, Info } from "lucide-react";
 
 import type { Comment, Reply } from "./types";
 import { CommentBody } from "./CommentBody";
@@ -82,6 +82,15 @@ function ReplyCard(props: {
         <span className="text-[10.5px] text-faint" title={fullTimestamp(reply.inserted_at)}>
           {relativeTime(reply.inserted_at)}
         </span>
+        {reply.status === "pending" && (
+          <span
+            title="Not yet published — batches with the review until you Submit."
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-soft px-1.5 py-0.5 font-mono text-[9.5px] font-[700] uppercase tracking-[0.04em] text-amber ring-1 ring-inset ring-amber/35"
+          >
+            <Info size={9} aria-hidden />
+            Pending
+          </span>
+        )}
         {editable && !editing && (
           <div className="ml-auto flex items-center gap-1">
             <Button
