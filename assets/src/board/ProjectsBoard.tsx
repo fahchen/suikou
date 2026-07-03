@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   FileText,
   Folder,
   GitCompare,
@@ -11,6 +12,7 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
@@ -18,6 +20,12 @@ import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 import { NewReviewDialog } from "./NewReviewDialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu"
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
 type LoadBoardReply = CommandReply<"SuikouWeb.Stores.ProjectBoardStore", "load_board", Musubi.Stores>
@@ -118,7 +126,11 @@ function Board({ store }: { store: BoardStore }) {
 
   return (
     <div className="flex h-screen flex-col bg-canvas text-ink">
-      <Toolbar />
+      <Toolbar
+        onNewProject={() => setCreatingProject(true)}
+        onNewReview={setNewReviewKind}
+        canNewReview={selected !== null}
+      />
       <ChipStrip
         projects={projects}
         selectedId={selectedId}
@@ -134,9 +146,11 @@ function Board({ store }: { store: BoardStore }) {
         />
         {selected && (
           <ReviewPane
+            store={store}
             project={selected}
             reviewFiles={board?.review_files ?? []}
             onNewReview={setNewReviewKind}
+            onDeleted={refetch}
           />
         )}
       </div>
@@ -213,7 +227,15 @@ function Centered({ children }: { children: ReactNode }) {
   )
 }
 
-function Toolbar() {
+function Toolbar({
+  onNewProject,
+  onNewReview,
+  canNewReview,
+}: {
+  onNewProject: () => void
+  onNewReview: (kind: "files" | "diff") => void
+  canNewReview: boolean
+}) {
   return (
     <div className="flex h-[50px] items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
       <button className="inline-flex h-[30px] items-center gap-[9px] rounded-ctrl px-1 pr-2 hover:bg-soft">
@@ -238,11 +260,35 @@ function Toolbar() {
       >
         <SlidersHorizontal size={16} aria-hidden />
       </button>
-      <button className="inline-flex h-[30px] items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-[13px] font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
-        <Plus size={15} strokeWidth={1.9} aria-hidden />
-        New
-        <ChevronDown size={11} strokeWidth={2.2} aria-hidden className="-mr-0.5 opacity-80" />
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button className="inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-[13px] font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
+              <Plus size={15} strokeWidth={1.9} aria-hidden />
+              New
+              <ChevronDown size={11} strokeWidth={2.2} aria-hidden className="-mr-0.5 opacity-80" />
+            </button>
+          }
+        />
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={onNewProject}>
+            <Folder size={14} aria-hidden />
+            New project
+          </DropdownMenuItem>
+          {canNewReview && (
+            <>
+              <DropdownMenuItem onClick={() => onNewReview("files")}>
+                <FileText size={14} aria-hidden />
+                New file review
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onNewReview("diff")}>
+                <GitCompare size={14} aria-hidden />
+                New diff review
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
@@ -303,13 +349,17 @@ function Sidebar({
 }
 
 function ReviewPane({
+  store,
   project,
   reviewFiles,
   onNewReview,
+  onDeleted,
 }: {
+  store: BoardStore
   project: BoardProject
   reviewFiles: ReviewFilesGrouped
   onNewReview: (kind: "files" | "diff") => void
+  onDeleted: () => void
 }) {
   return (
     <div className="flex min-w-0 flex-col bg-canvas">
@@ -317,9 +367,7 @@ function ReviewPane({
         <span className="text-[17px] font-bold tracking-[-0.02em] text-ink">{project.name}</span>
         <span className="truncate font-mono text-[11.5px] text-faint">{project.path}</span>
         <span className="flex-1" />
-        <button className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink" title="Project actions">
-          <MoreHorizontal size={18} aria-hidden />
-        </button>
+        <ProjectActions store={store} project={project} onDeleted={onDeleted} />
       </div>
       <div className="flex flex-1 flex-col gap-[9px] overflow-auto px-4 pt-[14px] pb-[18px]">
         <NewReviewCard onNew={onNewReview} />
@@ -328,6 +376,47 @@ function ReviewPane({
         ))}
       </div>
     </div>
+  )
+}
+
+function ProjectActions({
+  store,
+  project,
+  onDeleted,
+}: {
+  store: BoardStore
+  project: BoardProject
+  onDeleted: () => void
+}) {
+  const remove = useMusubiCommand(store, "delete_project")
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            className="grid size-[30px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+            title="Project actions"
+          >
+            <MoreHorizontal size={18} aria-hidden />
+          </button>
+        }
+      />
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={() => void navigator.clipboard?.writeText(project.path)}>
+          <Copy size={14} aria-hidden />
+          Copy path
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          destructive
+          onClick={() => {
+            remove.dispatch({ project_id: project.id }).then(onDeleted).catch(() => {})
+          }}
+        >
+          <Trash2 size={14} aria-hidden />
+          Delete project
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
