@@ -138,9 +138,20 @@ export const Navigator = observer(function Navigator(props: {
           />
         ))}
         {query && filtered.length === 0 && (
-          <p className="px-[10px] py-[14px] text-[11.5px] text-muted-foreground">
-            No files match “{filter.trim()}”.
-          </p>
+          <div className="flex flex-col items-center gap-[6px] px-[12px] py-[22px] text-center">
+            <span
+              aria-hidden
+              className="grid size-[26px] place-items-center rounded-full bg-canvas/70 text-muted-foreground shadow-[inset_0_0_0_1px_var(--line)]"
+            >
+              <Search size={12} />
+            </span>
+            <p className="text-[12px] font-[620] text-heading">
+              No files match “{filter.trim()}”
+            </p>
+            <p className="max-w-[180px] text-[11px] leading-snug text-muted-foreground">
+              Filter matches file names only, not contents.
+            </p>
+          </div>
         )}
       </nav>
 
