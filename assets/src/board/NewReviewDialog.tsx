@@ -5,16 +5,19 @@ import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
 import { Combobox } from "../components/ui/combobox"
 import { FileIcon } from "./FileIcon"
-import type { BoardProject, BoardStore } from "./types"
+import type { BoardProject, BoardReview, BoardStore } from "./types"
 
 type Kind = "files" | "diff"
 
-/** Compose a new review: pick files from the project tree, or a diff between
- * two refs. Dispatches create_review or create_diff_review, then refetches. */
+/** Compose a new review, or edit an existing one. Pick files from the project
+ * tree, or a diff between two refs. Creating dispatches create_review /
+ * create_diff_review; editing dispatches rename_review and (for file reviews)
+ * update_review_files. A diff review's refs are fixed after creation. */
 export function NewReviewDialog({
   store,
   project,
   kind,
+  review,
   open,
   onClose,
   onCreated,
@@ -22,37 +25,55 @@ export function NewReviewDialog({
   store: BoardStore
   project: BoardProject
   kind: Kind
+  review?: BoardReview | null
   open: boolean
   onClose: () => void
   onCreated: () => void
 }) {
   const createFiles = useMusubiCommand(store, "create_review")
   const createDiff = useMusubiCommand(store, "create_diff_review")
+  const renameReview = useMusubiCommand(store, "rename_review")
+  const updateFiles = useMusubiCommand(store, "update_review_files")
   const [name, setName] = useState("")
   const [nameDirty, setNameDirty] = useState(false)
   const [selections, setSelections] = useState<Set<string>>(new Set())
   const [base, setBase] = useState("")
   const [head, setHead] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const busy = createFiles.isPending || createDiff.isPending
+  const editing = review != null
+  const activeKind: Kind = review ? (review.kind === "git_diff" ? "diff" : "files") : kind
+  const busy =
+    createFiles.isPending || createDiff.isPending || renameReview.isPending || updateFiles.isPending
 
   // A sensible default name — the project for a file review, the refs for a
   // diff — that keeps syncing into the field until the user edits it.
   const derivedName =
-    kind === "diff" && head.trim() ? `${base.trim() ? `${base.trim()}..` : ""}${head.trim()}` : project.name
+    activeKind === "diff" && head.trim()
+      ? `${base.trim() ? `${base.trim()}..` : ""}${head.trim()}`
+      : project.name
 
   useEffect(() => {
     if (!open) return
-    setNameDirty(false)
-    setSelections(new Set())
-    setBase("")
-    setHead("")
     setError(null)
-  }, [open, kind, project.id])
+    if (review) {
+      // Prefill from the review being edited; treat the name as dirty so the
+      // derived default never clobbers the existing title.
+      setNameDirty(true)
+      setName(review.name)
+      setSelections(new Set(review.selections))
+      setBase(review.base_ref ?? "")
+      setHead(review.head_ref ?? "")
+    } else {
+      setNameDirty(false)
+      setSelections(new Set())
+      setBase("")
+      setHead("")
+    }
+  }, [open, kind, project.id, review])
 
   useEffect(() => {
-    if (open && !nameDirty) setName(derivedName)
-  }, [open, nameDirty, derivedName])
+    if (open && !nameDirty && !review) setName(derivedName)
+  }, [open, nameDirty, derivedName, review])
 
   useEffect(() => {
     if (!open) return
@@ -83,12 +104,13 @@ export function NewReviewDialog({
     })
 
   const canSubmit =
-    name.trim().length > 0 && (kind === "files" ? selections.size > 0 : head.trim().length > 0)
+    name.trim().length > 0 && (activeKind === "files" ? selections.size > 0 : head.trim().length > 0)
 
   const submit = () => {
     if (!canSubmit) return
     const reviewName = name.trim() || derivedName
-    const done = (reply: { review_id: string | null; error: string | null }) => {
+    const fail = (cause: Error) => setError(cause.message)
+    const done = (reply: { error: string | null }) => {
       if (reply.error) {
         setError(reply.error)
         return
@@ -96,11 +118,32 @@ export function NewReviewDialog({
       onCreated()
       onClose()
     }
-    if (kind === "files") {
+
+    if (review) {
+      // Edit: rename, and for file reviews also update the selection. A diff
+      // review's refs are fixed, so only its name is editable.
+      const renamed =
+        reviewName !== review.name
+          ? renameReview.dispatch({ review_id: review.id, name: reviewName })
+          : Promise.resolve({ error: null })
+      renamed
+        .then((reply) => {
+          if (reply.error) return reply
+          if (activeKind === "files") {
+            return updateFiles.dispatch({ review_id: review.id, selections: [...selections] })
+          }
+          return reply
+        })
+        .then(done)
+        .catch(fail)
+      return
+    }
+
+    if (activeKind === "files") {
       createFiles
         .dispatch({ project_id: project.id, name: reviewName, selections: [...selections] })
         .then(done)
-        .catch((cause: Error) => setError(cause.message))
+        .catch(fail)
     } else {
       createDiff
         .dispatch({
@@ -110,7 +153,7 @@ export function NewReviewDialog({
           head_ref: head.trim(),
         })
         .then(done)
-        .catch((cause: Error) => setError(cause.message))
+        .catch(fail)
     }
   }
 
@@ -120,7 +163,7 @@ export function NewReviewDialog({
       <div className="relative flex max-h-[86vh] w-full flex-col rounded-t-[18px] border border-hair-strong bg-surface shadow-[0_20px_60px_oklch(0%_0_0/0.4)] sm:h-[600px] sm:max-w-[560px] sm:rounded-[16px]">
         <header className="flex items-center gap-3 border-b border-hair px-5 py-4">
           <h2 className="text-[15px] font-bold text-ink">
-            New {kind === "files" ? "file" : "diff"} review
+            {editing ? "Edit" : "New"} {activeKind === "files" ? "file" : "diff"} review
           </h2>
           <span className="text-[12px] text-faint">{project.name}</span>
           <span className="flex-1" />
@@ -143,7 +186,7 @@ export function NewReviewDialog({
             />
           </label>
 
-          {kind === "files" ? (
+          {activeKind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <span className="text-[11.5px] font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
@@ -152,6 +195,8 @@ export function NewReviewDialog({
                 <DirNode store={store} projectId={project.id} path="" depth={0} selections={selections} onToggle={toggle} />
               </div>
             </div>
+          ) : editing ? (
+            <ReadonlyRefs base={base} head={head} />
           ) : (
             <DiffRefs store={store} projectId={project.id} base={base} head={head} onBase={setBase} onHead={setHead} />
           )}
@@ -169,7 +214,7 @@ export function NewReviewDialog({
             disabled={busy || !canSubmit}
             className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create review"}
+            {busy ? (editing ? "Saving…" : "Creating…") : editing ? "Save changes" : "Create review"}
           </button>
         </footer>
       </div>
@@ -262,6 +307,20 @@ function DirNode({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/** A diff review's refs shown read-only — they are fixed once the review
+ * exists, so editing only reaches the review's name. */
+function ReadonlyRefs({ base, head }: { base: string; head: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11.5px] font-semibold text-muted">Diff range</span>
+      <span className="flex h-[34px] items-center rounded-ctrl border border-hair bg-soft px-3 font-mono text-[12.5px] text-faint">
+        {base ? `${base}..${head}` : head}
+      </span>
+      <span className="text-[11px] text-faint">Refs are fixed once the review exists.</span>
     </div>
   )
 }
