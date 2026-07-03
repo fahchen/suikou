@@ -18,8 +18,9 @@ export const StatusBar = observer(function StatusBar(props: {
   round: number
   roundStatus?: "draft" | "superseded" | null
   outcome?: ReviewOutcome | null
+  driftedAnchors?: number
 }) {
-  const { path, viewLabel, round, roundStatus, outcome } = props
+  const { path, viewLabel, round, roundStatus, outcome, driftedAnchors = 0 } = props
   const connected = useSocketConnected()
   const parts = path.split("/")
   const name = parts[parts.length - 1]
@@ -57,6 +58,14 @@ export const StatusBar = observer(function StatusBar(props: {
             }`}
           >
             {outcome === "approved" ? "approved" : "changes requested"}
+          </span>
+        </>
+      ) : null}
+      {driftedAnchors > 0 ? (
+        <>
+          <Dot />
+          <span className="shrink-0 font-[620] text-amber">
+            {driftedAnchors} drifted
           </span>
         </>
       ) : null}

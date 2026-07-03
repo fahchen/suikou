@@ -40,7 +40,7 @@
 | A7 | **round 对比** | 点 ⇄ Compare | critique 变化(resolved/新增/open)+ verdict 变化 | ✅ |
 | A8 | **review 全部 approved** | 末轮 approve | 头部/状态条标 approved(可逆) | ✅ |
 | A9 | **request_changes 态** | 末轮 request_changes | 状态条标 changes requested | ✅ |
-| A10 | **resnapshot 后** | 拉了 agent 改动入 draft | 文件内容更新、outdated 重算提示 | ➕ |
+| A10 | **resnapshot 后** | 拉了 agent 改动入 draft | 文件内容更新、outdated 重算提示 | ✅ |
 
 ## B. 连接 / 系统态
 

@@ -51,6 +51,7 @@ import {
   type DiffRefs,
 } from "./diff-refs";
 import { assetBase } from "./urls";
+import { resnapshotSummary } from "./resnapshot-summary";
 import { ErrorPage, errorCopy } from "@/components/error-page";
 import { Button } from "@/components/ui/button";
 import type { ReviewSnapshot, Verdict } from "./types";
@@ -368,6 +369,12 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
               >
                 <HeaderSlotProvider>
                   {structure.refs && <RefsBanner refs={structure.refs} />}
+                  <ResnapshotBanner
+                    structure={structure}
+                    reviewSnapshot={reviewSnapshot}
+                    latestRound={latestRound}
+                    selectedRound={selectedRound}
+                  />
                   <ReviewOutcomeBanner
                     reviewSnapshot={reviewSnapshot}
                     latestRound={latestRound}
@@ -441,6 +448,11 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             : null
         }
         outcome={reviewOutcome(reviewSnapshot)}
+        driftedAnchors={
+          selectedRound === latestRound && latestRound > 0
+            ? resnapshotSummary(structure, reviewSnapshot.body.files).driftedAnchors
+            : 0
+        }
       />
     </div>
   );
@@ -605,6 +617,64 @@ export function ReviewShellSkeleton(props: { label: string }) {
       </div>
       <span className="sr-only">{props.label}</span>
     </main>
+  );
+}
+
+/** Post-resnapshot rollup (A10): summarises how many files' bytes shifted since
+ * the round was minted and how many published anchors drifted. Only renders on
+ * the latest round (a superseded round is frozen, so drift there is expected
+ * and reads as noise) and only when at least one signal is non-zero. */
+function ResnapshotBanner(props: {
+  structure: ReviewStructure;
+  reviewSnapshot: ReviewSnapshot;
+  latestRound: number;
+  selectedRound: number;
+}) {
+  const { structure, reviewSnapshot, latestRound, selectedRound } = props;
+  if (selectedRound !== latestRound || latestRound === 0) return null;
+  const { filesChanged, driftedAnchors } = resnapshotSummary(
+    structure,
+    reviewSnapshot.body.files,
+  );
+  if (filesChanged === 0 && driftedAnchors === 0) return null;
+  const priorRound = Math.max(latestRound - 1, 0);
+  return (
+    <div
+      role="status"
+      className="mb-3 flex items-start gap-3 rounded-xl border border-accent-edge bg-accent-softer px-3.5 py-2.5 text-[12.5px] leading-[1.45] text-text2 shadow-[inset_0_0.5px_0_var(--edge-top-2)]"
+    >
+      <span
+        aria-hidden
+        className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft shadow-[inset_0_0.5px_0_var(--edge-top-2)]"
+      >
+        <RotateCw size={16} className="text-accent-bright" strokeWidth={1.8} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <b className="font-[660] text-heading">Resnapshotted to Round {latestRound}.</b>{" "}
+        {filesChanged > 0 && (
+          <>
+            {filesChanged} {filesChanged === 1 ? "file" : "files"} changed since Round{" "}
+            {priorRound}.{" "}
+          </>
+        )}
+        {driftedAnchors > 0 && (
+          <>
+            {driftedAnchors} comment{" "}
+            {driftedAnchors === 1 ? "anchor" : "anchors"} drifted and{" "}
+            {driftedAnchors === 1 ? "needs" : "need"} re-anchoring; verdicts reset to
+            draft.
+          </>
+        )}
+        {driftedAnchors > 0 && (
+          <div className="mt-1.5">
+            <span className="inline-flex h-[19px] items-center gap-1.5 rounded-full bg-amber-soft px-2 text-[10.5px] font-[700] text-amber shadow-[inset_0_0_0_0.5px_var(--amber-edge)]">
+              <AlertTriangle size={11} strokeWidth={2} aria-hidden />
+              {driftedAnchors} anchor {driftedAnchors === 1 ? "recalculated" : "recalculated"}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
