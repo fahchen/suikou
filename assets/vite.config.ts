@@ -29,7 +29,7 @@ export default defineConfig({
         // precaching them all would bloat every SW install. They're immutable
         // (content-hashed URLs), so a CacheFirst runtime cache serves them from
         // disk on a forced reload while a new hash always bypasses the stale one.
-        globPatterns: ["index.html", "assets/*.css"],
+        globPatterns: ["index.html", "assets/*.css", "icon-*.png"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/socket/],
         runtimeCaching: [
@@ -48,9 +48,15 @@ export default defineConfig({
         short_name: "Suikou",
         display: "standalone",
         start_url: "/",
-        theme_color: "#f5f6f7",
-        background_color: "#f5f6f7",
-        icons: [{ src: "/favicon.ico", sizes: "any", type: "image/x-icon" }]
+        theme_color: "#157c99",
+        background_color: "#157c99",
+        icons: [
+          { src: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+        ]
       },
       // Off in dev so the SW never shadows Vite HMR on :5173.
       devOptions: { enabled: false }

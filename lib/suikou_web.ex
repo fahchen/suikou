@@ -22,7 +22,8 @@ defmodule SuikouWeb do
   # them and stops SpaController from swallowing /sw.js into the SPA shell.
   @spec static_paths() :: [String.t()]
   def static_paths,
-    do: ~w(assets fonts images favicon.ico robots.txt index.html sw.js manifest.webmanifest)
+    do:
+      ~w(assets fonts images favicon.ico robots.txt index.html sw.js manifest.webmanifest icon-192.png icon-512.png icon-180.png)
 
   @spec router() :: Macro.t()
   def router do
