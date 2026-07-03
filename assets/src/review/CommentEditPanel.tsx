@@ -2,17 +2,13 @@ import { useState } from "react";
 
 import type { Comment } from "./types";
 import { CommentComposer } from "./CommentComposer";
+import { CritiqueTypePicker } from "./Composer";
 import { useReviewCommands } from "./commands";
 import type { CritiqueType } from "../stores/ui-store";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-/** Edit a comment's body and critique type. Owns its own draft state. */
+/** Edit a pending comment's body and critique type (F5 in the state catalog).
+ * Uses the same pill picker + Cancel/Save footer as the new-comment composer
+ * so both flows share one control vocabulary. */
 export function CommentEditPanel(props: { comment: Comment; onDone: () => void }) {
   const { comment, onDone } = props;
   const commands = useReviewCommands();
@@ -20,33 +16,26 @@ export function CommentEditPanel(props: { comment: Comment; onDone: () => void }
   const [type, setType] = useState<CritiqueType>(comment.critique_type);
 
   return (
-    <CommentComposer
-      value={body}
-      onChange={setBody}
-      onSubmit={(text) =>
-        commands.editComment.dispatch({
-          comment_id: comment.id,
-          body: text,
-          critique_type: type,
-        })
-      }
-      onSuccess={onDone}
-      onCancel={onDone}
-      submitLabel="Save"
-      disabled={commands.editComment.disabled}
-      textareaClassName="min-h-16"
-      leadingAction={
-        <Select value={type} onValueChange={(v) => setType(v as CritiqueType)}>
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="fix_required">fix_required</SelectItem>
-            <SelectItem value="needs_answer">needs_answer</SelectItem>
-            <SelectItem value="note">note</SelectItem>
-          </SelectContent>
-        </Select>
-      }
-    />
+    <div className="flex flex-col gap-[9px]">
+      <CritiqueTypePicker value={type} onChange={setType} />
+      <CommentComposer
+        autoFocus
+        value={body}
+        onChange={setBody}
+        onSubmit={(text) =>
+          commands.editComment.dispatch({
+            comment_id: comment.id,
+            body: text,
+            critique_type: type,
+          })
+        }
+        onSuccess={onDone}
+        onCancel={onDone}
+        submitLabel="Save"
+        submitKbd
+        disabled={commands.editComment.disabled}
+        textareaClassName="min-h-16"
+      />
+    </div>
   );
 }

@@ -30,6 +30,43 @@ const TYPE_META: Record<CritiqueType, { icon: LucideIcon; className: string }> =
   },
 };
 
+/**
+ * Segmented type picker shared by the new-comment composer (F1) and the
+ * edit-pending panel (F5). Same three chips, same pressed styling, so the
+ * reviewer picks severity with the same control they will see reflected on the
+ * card afterwards.
+ */
+export function CritiqueTypePicker(props: {
+  value: CritiqueType;
+  onChange: (type: CritiqueType) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-[6px]">
+      {TYPES.map((option) => {
+        const meta = TYPE_META[option];
+        const Icon = meta.icon;
+        const pressed = props.value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={pressed}
+            onClick={() => props.onChange(option)}
+            className={`inline-flex h-[24px] cursor-pointer items-center gap-[5px] rounded-full px-[10px] text-[11px] font-[640] tracking-[-0.005em] transition-colors ${
+              pressed
+                ? meta.className
+                : "text-muted-foreground ring-1 ring-inset ring-line hover:bg-hover hover:text-heading"
+            }`}
+          >
+            <Icon size={11} aria-hidden />
+            {CRITIQUE_META[option].label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Inline "new comment" composer anchored to a line range. */
 export const Composer = observer(function Composer(props: {
   startLine: number;
@@ -100,29 +137,7 @@ export const Composer = observer(function Composer(props: {
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-[6px]">
-        {TYPES.map((option) => {
-          const meta = TYPE_META[option];
-          const Icon = meta.icon;
-          const pressed = type === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={pressed}
-              onClick={() => ui.setComposerType(option, path)}
-              className={`inline-flex h-[24px] cursor-pointer items-center gap-[5px] rounded-full px-[10px] text-[11px] font-[640] tracking-[-0.005em] transition-colors ${
-                pressed
-                  ? meta.className
-                  : "text-muted-foreground ring-1 ring-inset ring-line hover:bg-hover hover:text-heading"
-              }`}
-            >
-              <Icon size={11} aria-hidden />
-              {CRITIQUE_META[option].label}
-            </button>
-          );
-        })}
-      </div>
+      <CritiqueTypePicker value={type} onChange={(t) => ui.setComposerType(t, path)} />
 
       <CommentComposer
         autoFocus
