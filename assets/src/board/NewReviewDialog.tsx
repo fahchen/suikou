@@ -57,11 +57,20 @@ export function NewReviewDialog({
 
   if (!open) return null
 
-  const toggle = (path: string) =>
+  // A selection entry is a file OR a directory path; the server expands a
+  // directory to every file beneath it, so a parent folder can be picked
+  // without opening it. Toggling a directory drops any redundant descendant
+  // entries; a path already covered by a selected ancestor stays put.
+  const toggle = (path: string, isDir: boolean) =>
     setSelections((prev) => {
       const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
+      if (next.has(path)) {
+        next.delete(path)
+        return next
+      }
+      if ([...next].some((sel) => path.startsWith(`${sel}/`))) return next
+      if (isDir) for (const sel of [...next]) if (sel.startsWith(`${path}/`)) next.delete(sel)
+      next.add(path)
       return next
     })
 
@@ -158,7 +167,7 @@ function DirNode({
   path: string
   depth: number
   selections: Set<string>
-  onToggle: (path: string) => void
+  onToggle: (path: string, isDir: boolean) => void
 }) {
   const listDir = useMusubiCommand(store, "list_dir")
   const [entries, setEntries] = useState<{ path: string; dir: boolean }[] | null>(null)
@@ -173,29 +182,42 @@ function DirNode({
     return <div className="px-2 py-1 text-[12px] text-faint">Loading…</div>
   }
 
+  const sel = [...selections]
+  const covered = (p: string) => sel.some((s) => s === p || p.startsWith(`${s}/`))
+  const hasDescendant = (p: string) => sel.some((s) => s.startsWith(`${p}/`))
+
   return (
     <div style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
       {entries.map((entry) => {
         const name = entry.path.slice(entry.path.lastIndexOf("/") + 1)
+        const isCovered = covered(entry.path)
         if (entry.dir) {
           const isOpen = openDirs.has(entry.path)
           return (
             <div key={entry.path}>
-              <button
-                onClick={() =>
-                  setOpenDirs((prev) => {
-                    const next = new Set(prev)
-                    if (next.has(entry.path)) next.delete(entry.path)
-                    else next.add(entry.path)
-                    return next
-                  })
-                }
-                className="flex h-[28px] w-full items-center gap-1.5 rounded-ctrl px-1.5 text-left text-[12.5px] text-text hover:bg-soft"
-              >
-                <ChevronRight size={13} className={`text-faint transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden />
-                <Folder size={14} className="text-muted" aria-hidden />
-                {name}
-              </button>
+              <div className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 hover:bg-soft">
+                <Checkbox
+                  checked={isCovered}
+                  indeterminate={!isCovered && hasDescendant(entry.path)}
+                  onCheckedChange={() => onToggle(entry.path, true)}
+                  aria-label={name}
+                />
+                <button
+                  onClick={() =>
+                    setOpenDirs((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(entry.path)) next.delete(entry.path)
+                      else next.add(entry.path)
+                      return next
+                    })
+                  }
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px] text-text"
+                >
+                  <ChevronRight size={13} className={`shrink-0 text-faint transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden />
+                  <Folder size={14} className="shrink-0 text-muted" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{name}</span>
+                </button>
+              </div>
               {isOpen && (
                 <DirNode store={store} projectId={projectId} path={entry.path} depth={depth + 1} selections={selections} onToggle={onToggle} />
               )}
@@ -206,11 +228,11 @@ function DirNode({
           <button
             key={entry.path}
             type="button"
-            onClick={() => onToggle(entry.path)}
-            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 pl-[26px] text-left text-[12.5px] text-text hover:bg-soft"
+            onClick={() => onToggle(entry.path, false)}
+            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 pl-[30px] text-left text-[12.5px] text-text hover:bg-soft"
           >
             <span className="pointer-events-none flex">
-              <Checkbox checked={selections.has(entry.path)} onCheckedChange={() => onToggle(entry.path)} />
+              <Checkbox checked={isCovered} onCheckedChange={() => onToggle(entry.path, false)} />
             </span>
             <FileIcon name={name} size={13} />
             <span className="min-w-0 flex-1 truncate">{name}</span>
