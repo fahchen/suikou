@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { CircleDashed, ClipboardCheck, Construction, MessageCircleMore } from "lucide-react";
+import {
+  ChevronDown,
+  CircleDashed,
+  ClipboardCheck,
+  Construction,
+  MessageCircleMore,
+} from "lucide-react";
 import { motion, useAnimationControls, useReducedMotion } from "motion/react";
 
 import { useReviewCommands } from "./commands";
@@ -7,7 +13,6 @@ import { COMMIT_PULSE_TRANSITION, commitPulse } from "./motion";
 import { ComposerTextarea } from "./ComposerTextarea";
 import { hasUnresolvedBlocker } from "./store-context";
 import { VERDICT_META, type Comment, type Verdict } from "./types";
-import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** Drives the trigger copy for both per-file (`file`) and review-scope (`review`)
@@ -53,8 +58,6 @@ const VERDICT_TONE: Record<Verdict, string> = {
   request_changes: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
   comment: "bg-tint text-heading ring-1 ring-inset ring-line",
 };
-
-const UNSET_TONE = "bg-tint text-heading ring-1 ring-inset ring-line";
 
 /**
  * Compact verdict control: a single chip reflecting the file's current verdict;
@@ -159,7 +162,7 @@ export function FileVerdictMenu(props: {
   const hasNote = showNote && Boolean(draft);
   const scopePrefix = scope === "file" ? "File verdict" : "Review verdict";
   const noteLabel = scope === "file" ? "File note" : "Review note";
-  const verdictLabel = verdict ? VERDICT_META[verdict].label : "None";
+  const verdictLabel = verdict ? VERDICT_META[verdict].label : "No verdict";
   const triggerLabel = hasNote
     ? `${scopePrefix}: ${verdictLabel} (${noteLabel.toLowerCase()} attached)`
     : `${scopePrefix}: ${verdictLabel}`;
@@ -168,23 +171,28 @@ export function FileVerdictMenu(props: {
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
-          <Button
-            variant="pill"
-            size="icon-xs"
+          <button
+            type="button"
             title={triggerLabel}
             aria-label={triggerLabel}
-            className={`relative ${verdict ? VERDICT_TONE[verdict] : UNSET_TONE}`}
+            className={`relative inline-flex h-[25px] cursor-pointer items-center gap-[5px] rounded-full px-[10px] text-[11.5px] font-[620] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 ${
+              verdict
+                ? VERDICT_TONE[verdict]
+                : "border border-dashed border-line-strong bg-tint text-muted-foreground"
+            }`}
           >
             <motion.span animate={pulse} className="inline-flex">
               <VerdictIcon verdict={verdict} size={13} />
             </motion.span>
+            <span className="whitespace-nowrap">{verdictLabel}</span>
+            <ChevronDown size={11} className="opacity-70" aria-hidden />
             {hasNote && (
               <span
                 aria-hidden
                 className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-blue ring-2 ring-surface"
               />
             )}
-          </Button>
+          </button>
         }
       />
       {/* The trigger card can be filtered out (e.g. hide-reviewed) the moment a

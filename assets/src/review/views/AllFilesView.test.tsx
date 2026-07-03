@@ -243,15 +243,18 @@ describe("AllFilesView card rendering", () => {
   })
 })
 
-describe("AllFilesView source/rendered toggle", () => {
-  it("flips a previewable file between rendered and source", async () => {
+describe("AllFilesView source/preview segmented control", () => {
+  it("flips a previewable file between preview and source via the labeled segments", async () => {
     fetchMock.mockResolvedValue(okResponse("# heading"))
     renderAllFiles([[{ path: "doc.md", artifact_id: "art-d", current_round_hash: "hd" }]])
-    const toggle = await screen.findByRole("button", { name: /Show source/i })
-    expect(toggle).toHaveAttribute("aria-pressed", "false")
-    fireEvent.click(toggle)
-    const back = await screen.findByRole("button", { name: /Show rendered/i })
-    expect(back).toHaveAttribute("aria-pressed", "true")
+    // A previewable file starts on Preview: that segment is pressed, Source is not.
+    const source = await screen.findByRole("button", { name: "Source" })
+    const preview = await screen.findByRole("button", { name: "Preview" })
+    expect(source).toHaveAttribute("aria-pressed", "false")
+    expect(preview).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(source)
+    const sourceAfter = await screen.findByRole("button", { name: "Source" })
+    expect(sourceAfter).toHaveAttribute("aria-pressed", "true")
   })
 })
 

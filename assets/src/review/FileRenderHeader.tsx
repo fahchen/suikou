@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { ChevronRight, Code2, Eye, MessageSquare, MousePointerClick } from "lucide-react"
+import { ChevronRight, MessageSquare, MousePointerClick } from "lucide-react"
 
 import { ChangeStatusIcon, type ChangeStatus } from "./ChangeStatusIcon"
 import { DiffDeltas } from "./ReviewFileTree"
@@ -136,13 +136,18 @@ export const FileRenderHeader = observer(function FileRenderHeader(props: {
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {commentCount > 0 && <CommentCountChip count={commentCount} />}
         {headerControls}
+        {/* ponytail: the mockup's Preview `.md-controls` (density Tight/Normal/Loose +
+           flavor GFM/CommonMark) are not mirrored here. Density already has one
+           control in the top-bar Display menu — duplicating it in the file-head
+           would fork the same state across two widgets — and markdown flavor has
+           no backing state to drive. Left out rather than inventing either. */}
         {capabilities.diffLayout && <DiffLayoutSegmented />}
         {(capabilities.sourceToggle ||
           (capabilities.htmlInteraction && !sourceView)) && (
           <div className="flex items-center gap-1">
             {capabilities.htmlInteraction && !sourceView && <HtmlInteractionToggle />}
             {capabilities.sourceToggle && (
-              <SourceToggle sourceView={sourceView} onChange={onSourceViewChange} />
+              <SourcePreviewSegmented sourceView={sourceView} onChange={onSourceViewChange} />
             )}
           </div>
         )}
@@ -230,28 +235,33 @@ function SegBtn(props: {
 }
 
 /**
- * Per-file rendered-vs-source control, shared by markdown and html. Single icon
- * toggle: shows what the user will see AFTER clicking (Code = "view source", Eye
- * = "view rendered") so the affordance reads as the next action, not the current
- * state.
+ * Per-file rendered-vs-source control, shared by markdown and html. A labeled
+ * `Source | Preview` segmented control matching the mockup's `.seg`: the pressed
+ * segment names the current view rather than the next action, so the reader can
+ * tell at a glance which surface they're on. Reuses the same `SegBtn` chrome as
+ * the diff layout toggle so both segmented controls read identically.
  */
-function SourceToggle(props: {
+function SourcePreviewSegmented(props: {
   sourceView: boolean
   onChange: (source: boolean) => void
 }) {
-  const title = props.sourceView ? "Show rendered" : "Show source"
-  const Icon = props.sourceView ? Eye : Code2
   return (
-    <Button
-      variant="pill"
-      size="icon-xs"
-      title={title}
-      aria-label={title}
-      aria-pressed={props.sourceView}
-      onClick={() => props.onChange(!props.sourceView)}
+    <div
+      className="inline-flex h-[22px] items-center rounded-md bg-canvas/60 p-[2px] shadow-[inset_0_0_0_1px_var(--line)]"
+      role="group"
+      aria-label="File view"
     >
-      <Icon className="text-muted-foreground" />
-    </Button>
+      <SegBtn
+        label="Source"
+        pressed={props.sourceView}
+        onClick={() => props.onChange(true)}
+      />
+      <SegBtn
+        label="Preview"
+        pressed={!props.sourceView}
+        onClick={() => props.onChange(false)}
+      />
+    </div>
   )
 }
 
