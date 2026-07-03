@@ -16,7 +16,7 @@ export const StatusBar = observer(function StatusBar(props: {
   path: string
   viewLabel: string
   round: number
-  roundStatus?: "draft" | null
+  roundStatus?: "draft" | "superseded" | null
   outcome?: ReviewOutcome | null
 }) {
   const { path, viewLabel, round, roundStatus, outcome } = props
@@ -41,6 +41,11 @@ export const StatusBar = observer(function StatusBar(props: {
         <>
           <Dot />
           <span className="shrink-0 text-faint">draft</span>
+        </>
+      ) : roundStatus === "superseded" ? (
+        <>
+          <Dot />
+          <span className="shrink-0 text-faint">superseded &middot; read-only</span>
         </>
       ) : null}
       {outcome ? (

@@ -68,6 +68,10 @@ export interface ReviewView {
   verdict: Verdict | null
   /** Persist a new verdict choice for the mounted artifact. */
   onVerdictChange: (verdict: Verdict) => void
+  /** True when the viewer is looking at a superseded round (older than
+   * `latest_round`). Everything downstream should present as read-only:
+   * no composer, no reply, no verdict chip, gutter+ disabled. */
+  readOnly: boolean
 }
 
 export const ReviewViewContext = createContext<ReviewView | null>(null)

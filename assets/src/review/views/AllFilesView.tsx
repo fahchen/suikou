@@ -211,6 +211,11 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
   const contentError = contentErrorFrom(contentState)
   const loading = blocks.loading || contentState.loading
 
+  const selectedRound =
+    props.reviewSnapshot.body.selected_round ?? props.reviewSnapshot.body.latest_round ?? 0
+  const latestRound = props.reviewSnapshot.body.latest_round ?? 0
+  const readOnly = latestRound > 0 && selectedRound < latestRound
+
   const view = {
     snapshot: fileSnapshot,
     reviewKind,
@@ -225,6 +230,7 @@ const StackedFileCardBody = observer(function StackedFileCardBody(props: {
     rawLines,
     verdict,
     onVerdictChange: changeVerdict,
+    readOnly,
   }
   const ViewComponent = viewComponentFor(viewKind)
 

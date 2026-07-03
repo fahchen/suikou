@@ -36,7 +36,7 @@
 | A3 | **审阅中(有 pending)** | 留了未发 comment / 草稿 verdict | 状态条 "N pending";submit 可用 | ✅ |
 | A4 | **已提交一轮(under review)** | submit 后 | round 标 "under review";comment 已 published | ✅ |
 | A5 | **多轮:看最新 round** | 默认 | round 选择器=latest | ✅ |
-| A6 | **多轮:看历史 round(superseded)** | 切到旧轮 | 只读,标 "superseded";不能在旧轮 author | ➕ |
+| A6 | **多轮:看历史 round(superseded)** | 切到旧轮 | 只读,标 "superseded";不能在旧轮 author | ✅ |
 | A7 | **round 对比** | 点 ⇄ Compare | critique 变化(resolved/新增/open)+ verdict 变化 | ✅ |
 | A8 | **review 全部 approved** | 末轮 approve | 头部/状态条标 approved(可逆) | ➕ |
 | A9 | **request_changes 态** | 末轮 request_changes | 状态条标 changes requested | ✅ |

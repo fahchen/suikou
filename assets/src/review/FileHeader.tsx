@@ -16,6 +16,7 @@ import {
   type StructureFileEntry,
 } from "./use-review-structure"
 import { uiStore } from "../stores/ui-store"
+import { useReviewStore } from "./store-context"
 import type { ChangeStatus } from "./ChangeStatusIcon"
 import type { Verdict } from "./types"
 
@@ -30,6 +31,8 @@ export const FileHeader = observer(function FileHeader(props: {
   const { sourceView, content, verdict, onVerdictChange, stale, onRefresh } = props
   const fileStore = useFileStore()
   const fileSnapshot = useMusubiSnapshot(fileStore)
+  const reviewStore = useReviewStore()
+  const reviewSnapshot = useMusubiSnapshot(reviewStore)
   const structure = useReviewStructure()
   const navigate = useNavigate()
 
@@ -67,6 +70,10 @@ export const FileHeader = observer(function FileHeader(props: {
     void navigate(reviewFileTarget(structure.review_id, title, next))
   }
 
+  const selectedRound = reviewSnapshot?.body.selected_round ?? reviewSnapshot?.body.latest_round ?? 0
+  const latestRound = reviewSnapshot?.body.latest_round ?? 0
+  const readOnly = latestRound > 0 && selectedRound < latestRound
+
   const files = orderedReviewFiles(structure.file_entries)
 
   function commentCountFor(entryPath: string): number {
@@ -98,11 +105,13 @@ export const FileHeader = observer(function FileHeader(props: {
       onSelectFile={(file) => void selectFile(file)}
       commentCountFor={commentCountFor}
       verdictChip={
-        <FileVerdictMenu
-          verdict={verdict}
-          onVerdictChange={onVerdictChange}
-          comments={comments}
-        />
+        readOnly ? null : (
+          <FileVerdictMenu
+            verdict={verdict}
+            onVerdictChange={onVerdictChange}
+            comments={comments}
+          />
+        )
       }
     />
   )

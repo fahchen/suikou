@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
-import { AlertTriangle, ArrowRight, FileX, GitBranch, RotateCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, FileX, GitBranch, Lock, RotateCw, Trash2 } from "lucide-react";
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
@@ -328,6 +328,10 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
   // The review chrome stays; only the content body reports the missing file.
   const missing = !minted && snapshot.content_hash === null;
 
+  const selectedRound = reviewSnapshot.body.selected_round ?? reviewSnapshot.body.latest_round ?? 0;
+  const latestRound = reviewSnapshot.body.latest_round ?? 0;
+  const readOnly = latestRound > 0 && selectedRound < latestRound;
+
   return (
     <div className="flex h-screen flex-col bg-canvas text-ink">
       <TopBar reviewSnapshot={reviewSnapshot} previewable={previewable} content={content} />
@@ -359,6 +363,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
                   rawLines,
                   verdict,
                   onVerdictChange: changeVerdict,
+                  readOnly,
                 }}
               >
                 <HeaderSlotProvider>
@@ -372,12 +377,22 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
                       stale={stale}
                       onRefresh={refresh}
                     />
+                    {readOnly && (
+                      <ReadOnlyRoundStrip
+                        selected={selectedRound}
+                        latest={latestRound}
+                      />
+                    )}
                     {missing ? (
                       <MissingFilePanel
                         reviewId={structure.review_id}
                         path={snapshot.path}
                         kind={structure.kind}
                       />
+                    ) : readOnly ? (
+                      <div className="pointer-events-none select-none opacity-[0.92]" aria-hidden="false">
+                        <Outlet />
+                      </div>
                     ) : (
                       <Outlet />
                     )}
@@ -412,10 +427,11 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
       <StatusBar
         path={snapshot.path}
         viewLabel={statusBarViewLabel(reviewKind, sourceView, ui.diffLayout, wide)}
-        round={reviewSnapshot.body.selected_round ?? reviewSnapshot.body.latest_round ?? 0}
+        round={selectedRound}
         roundStatus={
-          (reviewSnapshot.body.selected_round ?? reviewSnapshot.body.latest_round ?? 0) === 0 &&
-          (reviewSnapshot.body.latest_round ?? 0) === 0
+          readOnly
+            ? "superseded"
+            : selectedRound === 0 && latestRound === 0
             ? "draft"
             : null
         }
@@ -424,6 +440,21 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
     </div>
   );
 });
+
+/** Strip that sits above the editor body when the viewer is on a superseded
+ * round (A6): a lock glyph plus one line explaining that authoring only lands
+ * on the latest round. Neutral tone — a lock, not a warning. */
+function ReadOnlyRoundStrip(props: { selected: number; latest: number }) {
+  return (
+    <div className="mx-3 mt-3 flex items-center gap-2 rounded-md border border-line-strong bg-soft px-3 py-2 text-[12px] text-muted-foreground">
+      <Lock className="size-3.5 shrink-0 text-faint" aria-hidden />
+      <span>
+        Round {props.selected} is superseded and read-only. You can read its comments,
+        but new comments and verdicts can only go on Round {props.latest}.
+      </span>
+    </div>
+  );
+}
 
 /**
  * File-scoped "no reviewable content" panel: the review itself is intact, but

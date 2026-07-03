@@ -65,7 +65,8 @@ function makeView(content: string, comments: Comment[] = []): ReviewView {
     reviewKind: "file",
     reviewSnapshot: {} as unknown as ReviewView["reviewSnapshot"],
     verdict: "comment",
-    onVerdictChange: () => undefined
+    onVerdictChange: () => undefined,
+    readOnly: false
   }
 }
 
