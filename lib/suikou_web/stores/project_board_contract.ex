@@ -108,7 +108,8 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
         content_hash: String.t() | nil,
         change_status: :added | :modified | :deleted | :renamed | :copied | :type_changed | nil,
         added: integer() | nil,
-        deleted: integer() | nil
+        deleted: integer() | nil,
+        soft_removed: boolean()
       }
     end
   end

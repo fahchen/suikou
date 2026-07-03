@@ -387,8 +387,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_review_files, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review -> %{files: Reviews.list_files(review), error: nil}
-        nil -> %{files: [], error: "review_not_found"}
+        %Review{} = review ->
+          %{files: Enum.reject(Reviews.list_files(review), & &1.soft_removed), error: nil}
+
+        nil ->
+          %{files: [], error: "review_not_found"}
       end
 
     {:reply, reply, socket}
@@ -560,7 +563,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp compute_review_files do
     for project <- Projects.list_projects(),
         review <- Reviews.list_for_project(project) do
-      %{review_id: review.id, files: Reviews.list_files(review)}
+      %{review_id: review.id, files: Enum.reject(Reviews.list_files(review), & &1.soft_removed)}
     end
   end
 

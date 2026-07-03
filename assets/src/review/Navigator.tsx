@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useNavigate } from "@tanstack/react-router"
-import { Folder, Search, X } from "lucide-react"
+import { Folder, Plus, Search, X } from "lucide-react"
 
 import { uiStore } from "../stores/ui-store"
 import { ChangeStatusIcon } from "./ChangeStatusIcon"
@@ -76,11 +76,14 @@ export const Navigator = observer(function Navigator(props: {
     ? rows.filter((r) => r.entry.path.toLowerCase().includes(query))
     : rows
 
-  const needsReview = filtered.filter((r) => !r.reviewed)
-  const reviewed = filtered.filter((r) => r.reviewed)
+  const active = filtered.filter((r) => !r.entry.soft_removed)
+  const softRemoved = filtered.filter((r) => r.entry.soft_removed)
+  const needsReview = active.filter((r) => !r.reviewed)
+  const reviewed = active.filter((r) => r.reviewed)
 
-  const total = rows.length
-  const reviewedCount = rows.filter((r) => r.reviewed).length
+  const total = rows.filter((r) => !r.entry.soft_removed).length
+  const softRemovedTotal = rows.filter((r) => r.entry.soft_removed).length
+  const reviewedCount = rows.filter((r) => r.reviewed && !r.entry.soft_removed).length
   const commentsThisRound = rows.reduce((acc, r) => acc + r.commentCount, 0)
   const unresolvedCount = rows.reduce((acc, r) => acc + r.unresolved, 0)
   const blockerCount = rows.reduce((acc, r) => acc + r.blockers, 0)
@@ -102,6 +105,12 @@ export const Navigator = observer(function Navigator(props: {
         <h3 className="text-[12px] font-[660] tracking-[-0.01em] text-heading">Files</h3>
         <span className="ml-auto text-[11px] font-[640] text-muted-foreground tabular-nums">
           {total} {total === 1 ? "file" : "files"}
+          {softRemovedTotal > 0 && (
+            <span className="text-faint">
+              {" · "}
+              {softRemovedTotal} soft-removed
+            </span>
+          )}
         </span>
       </div>
 
@@ -142,6 +151,16 @@ export const Navigator = observer(function Navigator(props: {
             prefix={commonPrefix}
             onSelect={onSelect}
           />
+        ))}
+        {softRemoved.length > 0 && (
+          <GroupHeader
+            label="Soft-removed"
+            count={softRemoved.length}
+            first={needsReview.length === 0 && reviewed.length === 0}
+          />
+        )}
+        {softRemoved.map((r) => (
+          <SoftRemovedRow key={r.entry.path} entry={r.entry} prefix={commonPrefix} />
         ))}
         {query && filtered.length === 0 && (
           <div className="flex flex-col items-center gap-[6px] px-[12px] py-[22px] text-center">
@@ -373,5 +392,38 @@ function NavRow(props: {
         </span>
       )}
     </button>
+  )
+}
+
+/** Soft-removed file row (C8): dimmed + strikethrough so the reviewer can see
+ * what they let go, with a decorative "reselect" pill matching the mockup.
+ * ponytail: the pill is presentational — a real reselect flow needs a
+ * `restore_file` command that adds the path back to the selection; add when
+ * that lands. */
+function SoftRemovedRow(props: { entry: ReviewFileEntry; prefix: string }) {
+  const { entry, prefix } = props
+  const relative = prefix && entry.path.startsWith(prefix) ? entry.path.slice(prefix.length) : entry.path
+  const parts = relative.split("/")
+  const name = parts[parts.length - 1]
+  const dir = parts.length > 1 ? parts.slice(0, -1).join("/") + "/" : ""
+  return (
+    <div
+      title={`${entry.path} — soft-removed`}
+      className="flex h-[31px] w-full items-center gap-[8px] rounded-[9px] px-[9px] text-left text-faint opacity-70"
+    >
+      <ChangeStatusIcon status="deleted" size={14} />
+      <FileIcon name={name} />
+      <span className="min-w-0 flex-1 truncate text-[12.5px] tracking-[-0.006em] line-through decoration-line/40">
+        {dir && <span>{dir}</span>}
+        {name}
+      </span>
+      <span
+        aria-hidden
+        className="inline-flex h-[18px] shrink-0 items-center gap-[3px] rounded-full bg-accent-soft px-[6px] text-[10px] font-[700] text-accent-bright shadow-[inset_0_0_0_0.5px_var(--color-accent-edge)]"
+      >
+        <Plus size={10} strokeWidth={2.4} aria-hidden />
+        reselect
+      </span>
+    </div>
   )
 }

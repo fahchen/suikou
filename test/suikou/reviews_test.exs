@@ -213,6 +213,30 @@ defmodule Suikou.ReviewsTest do
     end
 
     @tag :tmp_dir
+    test "includes soft-removed artifacts as dimmed rows so the reviewer can see them (C8)",
+         %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join([dir, "docs", "keep.md"]), "# Keep\n")
+      File.write!(Path.join([dir, "docs", "drop.md"]), "# Drop\n")
+      review = review_with(dir, ["docs/keep.md", "docs/drop.md"])
+      {:ok, _drop} = Reviews.open_file(review, "docs/drop.md")
+      {:ok, _kept} = Reviews.remove_file(Reviews.get_review(review.id), "docs/drop.md")
+
+      files = Reviews.list_files(Reviews.get_review(review.id))
+      paths = Enum.map(files, & &1.path)
+      assert "docs/keep.md" in paths
+      assert "docs/drop.md" in paths
+
+      assert %{soft_removed: true, artifact_id: id} =
+               Enum.find(files, &(&1.path == "docs/drop.md"))
+
+      assert is_binary(id)
+
+      assert %{soft_removed: false} =
+               Enum.find(files, &(&1.path == "docs/keep.md"))
+    end
+
+    @tag :tmp_dir
     test "includes a gitignored file in the selection when respect_gitignore is false",
          %{tmp_dir: dir} do
       File.write!(Path.join(dir, ".gitignore"), "secret.txt\n")

@@ -425,12 +425,20 @@ defmodule Suikou.Reviews do
   def list_files(%Review{source: %FileSelection{selection_paths: paths}} = review) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
+    # Soft-removed artifacts (deselected in a prior round) surface as dimmed
+    # rows so the reviewer can see what they let go and reselect if needed (C8).
+    # File-selection reviews only — a git_diff's file set is defined by the diff.
+    removed = for a <- review.artifacts, not is_nil(a.removed_at), do: a
 
-    review.project
-    |> expand(paths)
-    |> Enum.map(
-      &file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil, nil)
-    )
+    active_entries =
+      review.project
+      |> expand(paths)
+      |> Enum.map(
+        &file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil, nil)
+      )
+
+    removed_entries = Enum.map(removed, &soft_removed_entry/1)
+    active_entries ++ removed_entries
   end
 
   def list_files(%Review{source: %GitDiff{} = git_diff} = review) do
@@ -467,7 +475,8 @@ defmodule Suikou.Reviews do
            content_hash: String.t() | nil,
            change_status: Git.change_status() | nil,
            added: non_neg_integer() | nil,
-           deleted: non_neg_integer() | nil
+           deleted: non_neg_integer() | nil,
+           soft_removed: boolean()
          }
 
   defp file_entry(path, nil, content_hash, change_status, stats) do
@@ -481,7 +490,8 @@ defmodule Suikou.Reviews do
       content_hash: content_hash,
       change_status: change_status,
       added: added,
-      deleted: deleted
+      deleted: deleted,
+      soft_removed: false
     }
   end
 
@@ -496,7 +506,22 @@ defmodule Suikou.Reviews do
       content_hash: content_hash,
       change_status: change_status,
       added: added,
-      deleted: deleted
+      deleted: deleted,
+      soft_removed: false
+    }
+  end
+
+  defp soft_removed_entry(%Artifact{} = artifact) do
+    %{
+      path: artifact.file_path,
+      artifact_id: artifact.id,
+      approved: not is_nil(artifact.approved_round),
+      verdict: file_verdict(artifact),
+      content_hash: nil,
+      change_status: nil,
+      added: nil,
+      deleted: nil,
+      soft_removed: true
     }
   end
 
