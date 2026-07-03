@@ -75,6 +75,12 @@ export const CommentCard = observer(function CommentCard(props: {
   // Rail cards reveal the reply composer only when selected; inline cards
   // (next to their own line) always show it.
   const showComposer = inline || selected;
+  // E14: an unselected rail card is a Notion-style preview — clamp the body
+  // to three lines and tuck the reply thread behind a "N replies" hint so the
+  // rail can hold many threads without overwhelming the reader. Focus (or
+  // selection) unfolds the full card.
+  const preview = !inline && !selected && !editing;
+  const replyCount = comment.replies.length;
 
   return (
     <motion.article
@@ -129,10 +135,16 @@ export const CommentCard = observer(function CommentCard(props: {
             {editing ? (
               <CommentEditPanel comment={comment} onDone={() => setEditing(false)} />
             ) : (
-              <CommentBody body={comment.body} />
+              <CommentBody body={comment.body} clamp={preview} />
             )}
 
-            <CommentReplies replies={comment.replies} />
+            {preview && replyCount > 0 ? (
+              <p className="text-[11px] text-faint">
+                {replyCount} {replyCount === 1 ? "reply" : "replies"}
+              </p>
+            ) : (
+              <CommentReplies replies={comment.replies} />
+            )}
 
             {!editing &&
               showComposer &&
