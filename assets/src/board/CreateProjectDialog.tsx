@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
+import { Checkbox } from "../components/ui/checkbox"
 import type { BoardStore } from "./types"
 
 /** Register a directory as a project: a name and an absolute path, plus the
@@ -91,15 +92,20 @@ export function CreateProjectDialog({
           />
         </Field>
 
-        <label className="flex items-center gap-2.5 text-[12.5px] text-text">
-          <input
-            type="checkbox"
-            checked={respectGitignore}
-            onChange={(event) => setRespectGitignore(event.target.checked)}
-            className="size-4 accent-[var(--accent)]"
-          />
+        <button
+          type="button"
+          onClick={() => setRespectGitignore((v) => !v)}
+          className="flex items-center gap-2.5 text-left text-[12.5px] text-text"
+        >
+          <span className="pointer-events-none flex">
+            <Checkbox
+              checked={respectGitignore}
+              onCheckedChange={setRespectGitignore}
+              aria-label="Respect .gitignore"
+            />
+          </span>
           Respect .gitignore when listing files
-        </label>
+        </button>
 
         {error && <p className="text-[12px] text-request">{error}</p>}
 

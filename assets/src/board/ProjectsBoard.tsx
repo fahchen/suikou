@@ -17,6 +17,7 @@ import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from 
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
 import { CreateProjectDialog } from "./CreateProjectDialog"
+import { NewReviewDialog } from "./NewReviewDialog"
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
 type LoadBoardReply = CommandReply<"SuikouWeb.Stores.ProjectBoardStore", "load_board", Musubi.Stores>
@@ -107,6 +108,7 @@ function Board({ store }: { store: BoardStore }) {
   }, [connected])
 
   const [creatingProject, setCreatingProject] = useState(false)
+  const [newReviewKind, setNewReviewKind] = useState<"files" | "diff" | null>(null)
   const refetch = () => {
     loadBoard.dispatch({}).then(setBoard).catch(() => {})
   }
@@ -130,7 +132,13 @@ function Board({ store }: { store: BoardStore }) {
           onSelect={setSelectedId}
           onAddProject={() => setCreatingProject(true)}
         />
-        {selected && <ReviewPane project={selected} reviewFiles={board?.review_files ?? []} />}
+        {selected && (
+          <ReviewPane
+            project={selected}
+            reviewFiles={board?.review_files ?? []}
+            onNewReview={setNewReviewKind}
+          />
+        )}
       </div>
       <CreateProjectDialog
         store={store}
@@ -138,6 +146,16 @@ function Board({ store }: { store: BoardStore }) {
         onClose={() => setCreatingProject(false)}
         onCreated={refetch}
       />
+      {selected && (
+        <NewReviewDialog
+          store={store}
+          project={selected}
+          kind={newReviewKind ?? "files"}
+          open={newReviewKind !== null}
+          onClose={() => setNewReviewKind(null)}
+          onCreated={refetch}
+        />
+      )}
       <SettingsModal />
     </div>
   )
@@ -287,9 +305,11 @@ function Sidebar({
 function ReviewPane({
   project,
   reviewFiles,
+  onNewReview,
 }: {
   project: BoardProject
   reviewFiles: ReviewFilesGrouped
+  onNewReview: (kind: "files" | "diff") => void
 }) {
   return (
     <div className="flex min-w-0 flex-col bg-canvas">
@@ -302,7 +322,7 @@ function ReviewPane({
         </button>
       </div>
       <div className="flex flex-1 flex-col gap-[9px] overflow-auto px-4 pt-[14px] pb-[18px]">
-        <NewReviewCard />
+        <NewReviewCard onNew={onNewReview} />
         {project.reviews.map((review) => (
           <ReviewRow key={review.id} review={review} files={filesFor(reviewFiles, review.id)} />
         ))}
@@ -311,27 +331,35 @@ function ReviewPane({
   )
 }
 
-function NewReviewCard() {
+function NewReviewCard({ onNew }: { onNew: (kind: "files" | "diff") => void }) {
   return (
-    <button className="group flex items-center gap-[11px] rounded-panel border border-dashed border-hair-strong bg-canvas/40 px-[13px] py-[11px] text-left hover:border-accent-edge hover:bg-accent-softer">
-      <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
-        <Plus size={17} strokeWidth={1.9} aria-hidden />
-      </span>
-      <span className="flex min-w-0 flex-col gap-px">
-        <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink">New review</span>
-        <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
-      </span>
+    <div className="group flex items-center gap-[11px] rounded-panel border border-dashed border-hair-strong bg-canvas/40 px-[13px] py-[11px] hover:border-accent-edge hover:bg-accent-softer">
+      <button onClick={() => onNew("files")} className="flex min-w-0 flex-1 items-center gap-[11px] text-left">
+        <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+          <Plus size={17} strokeWidth={1.9} aria-hidden />
+        </span>
+        <span className="flex min-w-0 flex-col gap-px">
+          <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink">New review</span>
+          <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
+        </span>
+      </button>
       <span className="ml-auto hidden items-center gap-[7px] sm:inline-flex">
-        <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
+        <button
+          onClick={() => onNew("files")}
+          className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)] hover:text-ink"
+        >
           <FileText size={13} strokeWidth={1.7} aria-hidden />
           Files
-        </span>
-        <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
+        </button>
+        <button
+          onClick={() => onNew("diff")}
+          className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)] hover:text-ink"
+        >
           <GitCompare size={13} strokeWidth={1.8} aria-hidden />
           Diff
-        </span>
+        </button>
       </span>
-    </button>
+    </div>
   )
 }
 
