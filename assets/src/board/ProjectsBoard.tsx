@@ -109,14 +109,49 @@ function Board({ store }: { store: BoardStore }) {
   return (
     <div className="flex h-screen flex-col bg-canvas text-ink">
       <Toolbar />
-      <div className="grid min-h-0 flex-1 grid-cols-[248px_1fr]">
-        <Sidebar
-          projects={projects}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
+      <ChipStrip projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_1fr]">
+        <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
         {selected && <ReviewPane project={selected} reviewFiles={board?.review_files ?? []} />}
       </div>
+    </div>
+  )
+}
+
+/** Mobile project switcher: the desktop sidebar collapsed to a horizontal
+ * scroll of project chips. Hidden at lg where the sidebar takes over. */
+function ChipStrip({
+  projects,
+  selectedId,
+  onSelect,
+}: {
+  projects: BoardProject[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto border-b border-hair-strong bg-surface px-3 py-2 lg:hidden">
+      {projects.map((project) => {
+        const active = project.id === selectedId
+        return (
+          <button
+            key={project.id}
+            onClick={() => onSelect(project.id)}
+            aria-current={active ? "true" : undefined}
+            className={`inline-flex h-[34px] shrink-0 items-center gap-2 rounded-ctrl px-3 text-[13px] font-medium ${
+              active
+                ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
+                : "bg-canvas text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
+            }`}
+          >
+            <Folder size={15} strokeWidth={1.7} className={active ? "text-accent-bright" : "text-muted"} aria-hidden />
+            {project.name}
+          </button>
+        )
+      })}
+      <button className="inline-flex size-[34px] shrink-0 items-center justify-center rounded-ctrl border border-dashed border-hair-strong text-muted" title="Add project">
+        <Plus size={16} strokeWidth={2} aria-hidden />
+      </button>
     </div>
   )
 }
@@ -172,7 +207,7 @@ function Sidebar({
   onSelect: (id: string) => void
 }) {
   return (
-    <aside className="flex flex-col border-r border-hair-strong bg-surface px-[9px] pt-3 pb-[9px]">
+    <aside className="hidden flex-col border-r border-hair-strong bg-surface px-[9px] pt-3 pb-[9px] lg:flex">
       <div className="flex items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold uppercase tracking-[0.12em] text-faint">
         Projects
         <span className="font-mono tabular-nums tracking-[0.06em]">{projects.length}</span>
