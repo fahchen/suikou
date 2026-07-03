@@ -137,12 +137,7 @@ function Board({ store }: { store: BoardStore }) {
         onAddProject={() => setCreatingProject(true)}
       />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_1fr]">
-        <Sidebar
-          projects={projects}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onAddProject={() => setCreatingProject(true)}
-        />
+        <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
         {selected && (
           <ReviewPane
             store={store}
@@ -296,18 +291,15 @@ function Sidebar({
   projects,
   selectedId,
   onSelect,
-  onAddProject,
 }: {
   projects: BoardProject[]
   selectedId: string | null
   onSelect: (id: string) => void
-  onAddProject: () => void
 }) {
   return (
     <aside className="hidden flex-col border-r border-hair-strong bg-surface px-[9px] pt-3 pb-[9px] lg:flex">
       <div className="flex items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-[9.5px] font-bold uppercase tracking-[0.12em] text-faint">
         Projects
-        <span className="font-mono tabular-nums tracking-[0.06em]">{projects.length}</span>
         <span aria-hidden className="h-px flex-1 bg-hair" />
       </div>
       <div className="flex flex-col gap-0.5">
@@ -330,13 +322,6 @@ function Sidebar({
           )
         })}
       </div>
-      <button
-        onClick={onAddProject}
-        className="mt-1 flex h-[34px] shrink-0 items-center gap-[9px] rounded-ctrl border border-dashed border-hair-strong bg-canvas/40 px-2.5 text-[12.5px] font-medium text-muted hover:border-accent-edge hover:text-accent-bright"
-      >
-        <Plus size={15} strokeWidth={1.9} aria-hidden />
-        Add project
-      </button>
       <span className="flex-1" />
       <div className="flex items-center border-t border-hair px-[9px] pt-[9px] pb-0.5 text-[11px] text-faint">
         <span className="font-mono tabular-nums">
