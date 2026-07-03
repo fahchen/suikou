@@ -52,12 +52,19 @@ export const Navigator = observer(function Navigator(props: {
     const items = liveRow?.comments?.items ?? []
     const commentCount = items.length
     const unresolved = items.filter((c) => c.status === "pending" || !c.resolved).length
+    // Blockers (G8) are unresolved fix_required threads; a single one keeps
+    // the review from a clean approve, so the count surfaces on both the file
+    // row and the review-level meter.
+    const blockers = items.filter(
+      (c) => c.critique_type === "fix_required" && (c.status === "pending" || !c.resolved),
+    ).length
     const reviewedThisRound = Boolean(verdict)
     return {
       entry,
       verdict,
       commentCount,
       unresolved,
+      blockers,
       reviewed: reviewedThisRound,
     }
   })
@@ -74,6 +81,7 @@ export const Navigator = observer(function Navigator(props: {
   const reviewedCount = rows.filter((r) => r.reviewed).length
   const commentsThisRound = rows.reduce((acc, r) => acc + r.commentCount, 0)
   const unresolvedCount = rows.reduce((acc, r) => acc + r.unresolved, 0)
+  const blockerCount = rows.reduce((acc, r) => acc + r.blockers, 0)
   const round = reviewSnapshot.body.latest_round ?? 0
 
   function onSelect(entry: ReviewFileEntry) {
@@ -146,7 +154,17 @@ export const Navigator = observer(function Navigator(props: {
           title="Comments"
           value={
             unresolvedCount > 0 ? (
-              <><span className="text-red">{unresolvedCount}</span> unresolved</>
+              <>
+                <span className="text-red">{unresolvedCount}</span> unresolved
+                {blockerCount > 0 && (
+                  <>
+                    {" · "}
+                    <span className="text-red">
+                      {blockerCount} {blockerCount === 1 ? "blocker" : "blockers"}
+                    </span>
+                  </>
+                )}
+              </>
             ) : (
               <>{commentsThisRound} this round</>
             )

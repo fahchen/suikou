@@ -124,7 +124,7 @@
 | G5 | **submit 确认对话框** | 说明将发布啥 | ✅ |
 | G6 | **dismiss approval** | 撤销 approve 重开 | ➕ |
 | G7 | **copy 菜单** | copy noteworthy / all | ➕ |
-| G8 | **未解决 blocker 指示** | 文件/review 有 open fix_required | ◐ |
+| G8 | **未解决 blocker 指示** | 文件/review 有 open fix_required | ✅ |
 
 ## H. Inspector 三态
 
