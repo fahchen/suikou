@@ -1,3 +1,4 @@
+import { act } from "react";
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 
@@ -175,6 +176,35 @@ describe("Editor rendered table", () => {
     expect(screen.getByRole("button", { name: "Add a comment on line 1" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a comment on line 3" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add a comment on line 4" })).toBeTruthy();
+  });
+});
+
+describe("Editor loading skeleton", () => {
+  it("waits 200ms before showing the skeleton so a fast fetch does not flash it", async () => {
+    vi.useFakeTimers();
+    try {
+      const { queryByText } = render(
+        <Editor
+          view="source"
+          content=""
+          blocks={[]}
+          loading={true}
+          comments={[]}
+          rawLines={null}
+          inline={false}
+        />,
+      );
+      // Before the 200ms grace window the hint stays hidden — no flash.
+      expect(queryByText(/Loading file content and highlight/i)).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(250);
+      });
+
+      expect(queryByText(/Loading file content and highlight/i)).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

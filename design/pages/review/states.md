@@ -48,7 +48,7 @@
 |---|------|------|----------|------|
 | B1 | **connected** | 正常 | 连接点静默 | ✅ |
 | B2 | **reconnecting** | socket flap >600ms | toolbar 中部 muted "Reconnecting" | ➕ |
-| B3 | **加载中** | 文件内容/高亮未到 | 占位(<200ms 不显 skeleton) | ➕ |
+| B3 | **加载中** | 文件内容/高亮未到 | 占位(<200ms 不显 skeleton) | ✅ |
 
 ## C. Navigator(文件列表)状态
 

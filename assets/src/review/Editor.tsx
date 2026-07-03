@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { AnimatePresence } from "motion/react";
 import { FileX2, Loader2, Plus } from "lucide-react";
@@ -79,6 +79,21 @@ export const Editor = observer(function Editor(props: EditorProps) {
 // placeholder reads as prose lines, not a progress bar.
 const SKEL_ROWS = [90, 70, 80, 55, 90, 40, 70];
 
+// Suppress the skeleton for sub-200ms fetches so a cached content trip doesn't
+// flash placeholder shapes at the reader (spec B3).
+function useDelayedLoading(loading: boolean, delayMs = 200): boolean {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setShow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setShow(true), delayMs);
+    return () => window.clearTimeout(id);
+  }, [loading, delayMs]);
+  return show;
+}
+
 function LoadingSkeleton(props: { hint: string }) {
   return (
     <div className="px-4 py-6 sm:px-6" aria-live="polite" aria-busy="true">
@@ -156,6 +171,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
   const lineCount = props.content.split("\n").length;
   const stranded = props.comments.filter((c) => isStranded(c, lineCount));
   const tiers = DENSITY[uiStore.density];
+  const showLoading = useDelayedLoading(props.loading);
   const wrapperClass = props.nested
     ? "px-2 py-4 sm:px-3 sm:py-6"
     : "overflow-hidden rounded-xl border border-line bg-editor px-2 py-4 sm:px-3 sm:py-6";
@@ -169,7 +185,7 @@ const RenderView = observer(function RenderView(props: EditorProps) {
           </div>
         ))}
 
-      {props.loading && <LoadingSkeleton hint="Rendering markdown and highlight…" />}
+      {showLoading && <LoadingSkeleton hint="Loading file content and highlight…" />}
 
       {segmentBlocks(props.blocks).map((seg) =>
         seg.type === "code" ? (
@@ -724,6 +740,7 @@ const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
   const stranded = props.comments.filter((c) => isStranded(c, lines.length));
   const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
+  const showLoading = useDelayedLoading(props.loading);
 
   return (
     <article className={`${chrome} px-2 py-4 font-mono text-[13px] sm:px-3 sm:py-6`}>
@@ -733,6 +750,8 @@ const RawView = observer(function RawView(props: EditorProps) {
             <CommentCard comment={comment} context="inline" />
           </div>
         ))}
+
+      {showLoading && <LoadingSkeleton hint="Loading file content and highlight…" />}
 
       {uiStore.wrapLines ? (
         lines.map((line, i) => (
