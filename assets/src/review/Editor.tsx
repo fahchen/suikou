@@ -176,6 +176,21 @@ function isStranded(comment: Comment, lineCount: number): boolean {
  * and edits. Genuine file-level notes (a published whole-file note, an element
  * anchor, a line past the file's end) still pin above, matching mockup E2.
  */
+/** Whether any comment anchors a line inside `[startLine, endLine]` — drives the
+ * gutter's commented tint so a rendered block visibly ties back to its thread. */
+function lineCommented(
+  comments: Comment[],
+  startLine: number,
+  endLine: number,
+): boolean {
+  return comments.some(
+    (c) =>
+      c.anchor?.type === "line_range" &&
+      c.anchor.start_line >= startLine &&
+      c.anchor.start_line <= endLine,
+  );
+}
+
 function documentStranded(comments: Comment[], lineCount: number): Comment[] {
   return comments.filter((c) => {
     if (!isStranded(c, lineCount)) return false;
@@ -295,6 +310,8 @@ function GutterCell(props: {
   endLine: number;
   selected: boolean;
   hovered?: boolean;
+  /** A comment anchors within this cell's line range — tints the gutter. */
+  commented?: boolean;
   className?: string;
   onClick?: (e: React.MouseEvent) => void;
 }) {
@@ -305,6 +322,7 @@ function GutterCell(props: {
       data-line={props.startLine}
       data-selected={props.selected ? "true" : undefined}
       data-hover={props.hovered ? "true" : undefined}
+      data-commented={props.commented ? "true" : undefined}
       data-range={isRange ? "true" : undefined}
       title={`Add a comment on line ${props.startLine} (Shift-click to extend)`}
       aria-label={`Add a comment on line ${props.startLine}`}
@@ -426,6 +444,7 @@ const BlockRow = observer(function BlockRow(props: {
           startLine={startLine}
           endLine={endLine}
           selected={selected}
+          commented={props.inline && lineCommented(props.comments, startLine, endLine)}
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(startLine, endLine, fileScope);
@@ -551,6 +570,7 @@ const CodeFence = observer(function CodeFence(props: {
             lines={item.lines}
             selStart={selStart}
             selEnd={selEnd}
+            commented={(line) => props.inline && lineCommented(props.comments, line, line)}
             onLineClick={onLineClick}
           />
         ),
@@ -566,6 +586,7 @@ function CodeRun(props: {
   lines: RenderedBlock[];
   selStart: number | null;
   selEnd: number | null;
+  commented: (line: number) => boolean;
   onLineClick: (line: number, shift: boolean) => void;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
@@ -598,6 +619,7 @@ function CodeRun(props: {
             endLine={b.endLine}
             selected={selected(b.startLine)}
             hovered={hovered === b.startLine}
+            commented={props.commented(b.startLine)}
             className="h-[1.376rem] items-center"
             onClick={(e) => {
               e.stopPropagation();
@@ -841,6 +863,7 @@ const RawLine = observer(function RawLine(props: {
           startLine={lineNo}
           endLine={lineNo}
           selected={selected}
+          commented={props.inline && lineCommented(props.comments, lineNo, lineNo)}
           onClick={(e) => {
             const extend = selStart != null && e.shiftKey;
             if (extend) ui.extendSelection(lineNo, lineNo, fileScope);
@@ -920,6 +943,7 @@ const RawScrolled = observer(function RawScrolled(props: {
             lines={item.lines}
             selStart={selStart}
             selEnd={selEnd}
+            commented={(line) => props.inline && lineCommented(props.comments, line, line)}
             onLineClick={onLineClick}
           />
         ),
@@ -934,6 +958,7 @@ function RawRun(props: {
   lines: RawLineData[];
   selStart: number | null;
   selEnd: number | null;
+  commented: (line: number) => boolean;
   onLineClick: (line: number, shift: boolean) => void;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
@@ -966,6 +991,7 @@ function RawRun(props: {
             endLine={l.startLine}
             selected={selected(l.startLine)}
             hovered={hovered === l.startLine}
+            commented={props.commented(l.startLine)}
             className="h-[1.5rem] items-center"
             onClick={(e) => {
               e.stopPropagation();

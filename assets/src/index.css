@@ -949,6 +949,10 @@
     width: var(--gutter-w);
     min-width: var(--gutter-w);
     padding-right: 0.5rem;
+    /* Hairline that separates the line-number gutter from the content column,
+       matching the mockup's `.gutter` / `.md-block .mg` border-right so the
+       numbers read as a distinct rail beside every rendered block or code line. */
+    border-right: 1px solid var(--line-soft);
     font-family: var(--mono);
     font-size: 12px;
     color: var(--gutter-fg);
@@ -956,6 +960,14 @@
     cursor: pointer;
     user-select: none;
     transition: color 0.12s;
+  }
+
+  /* A block/line that carries an anchored comment tints its gutter, matching the
+     mockup's `.commented .gutter` / `.md-block.commented .mg` — the gutter is the
+     visible tie from the comment thread back to the block it anchors. */
+  .gutter-cell[data-commented="true"] {
+    background: var(--accent-softer);
+    color: var(--gutter-fg-active);
   }
 
   /* Always laid out, hidden until hover. Toggling `display` here reflowed the
