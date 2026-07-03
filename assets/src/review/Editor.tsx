@@ -167,9 +167,27 @@ function isStranded(comment: Comment, lineCount: number): boolean {
   return anchor.start_line > lineCount;
 }
 
+/**
+ * The stranded comments that legitimately pin above *this file's* document. The
+ * mockup never stacks review-level notes before the rendered document, so drop
+ * two classes that don't belong to the file body: whole-review notes (they live
+ * in the Review summary, not on a single file) and the pending verdict note —
+ * the anchorless artifact draft that the file-head verdict chip already surfaces
+ * and edits. Genuine file-level notes (a published whole-file note, an element
+ * anchor, a line past the file's end) still pin above, matching mockup E2.
+ */
+function documentStranded(comments: Comment[], lineCount: number): Comment[] {
+  return comments.filter((c) => {
+    if (!isStranded(c, lineCount)) return false;
+    if (c.scope === "review") return false;
+    const verdictNote = c.scope === "artifact" && c.status === "pending" && !c.anchor;
+    return !verdictNote;
+  });
+}
+
 const RenderView = observer(function RenderView(props: EditorProps) {
   const lineCount = props.content.split("\n").length;
-  const stranded = props.comments.filter((c) => isStranded(c, lineCount));
+  const stranded = documentStranded(props.comments, lineCount);
   const tiers = DENSITY[uiStore.density];
   const showLoading = useDelayedLoading(props.loading);
   const wrapperClass = props.nested
@@ -738,7 +756,7 @@ function TableRow(props: { startLine: number; endLine: number; cells: string; se
 
 const RawView = observer(function RawView(props: EditorProps) {
   const lines = props.content.split("\n");
-  const stranded = props.comments.filter((c) => isStranded(c, lines.length));
+  const stranded = documentStranded(props.comments, lines.length);
   const chrome = props.nested ? "" : "rounded-xl border border-line bg-editor";
   const showLoading = useDelayedLoading(props.loading);
 

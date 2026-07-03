@@ -208,6 +208,54 @@ describe("Editor loading skeleton", () => {
   });
 });
 
+describe("Editor review-level notes", () => {
+  const withScope = (over: Partial<Comment>): Comment =>
+    ({
+      id: "id",
+      anchor: null,
+      body: "note body",
+      critique_type: "note",
+      status: "published",
+      resolved: false,
+      outdated: false,
+      authored_round: 0,
+      inserted_at: "2026-06-14T00:00:00Z",
+      replies: [],
+      ...over,
+    }) as unknown as Comment;
+
+  function renderWith(comment: Comment) {
+    render(
+      <Editor
+        view="rendered"
+        content={"x\ny"}
+        blocks={[codeLine(1, "x"), codeLine(2, "y")]}
+        loading={false}
+        comments={[comment]}
+        rawLines={null}
+        inline={true}
+      />,
+    );
+  }
+
+  it("does not stack a whole-review note above the file document", () => {
+    renderWith(withScope({ id: "rev", scope: "review", body: "review-wide note" }));
+    expect(screen.queryByText("review-wide note")).toBeNull();
+  });
+
+  it("does not stack the pending verdict note above the document (the chip owns it)", () => {
+    renderWith(
+      withScope({ id: "vn", scope: "artifact", status: "pending", body: "verdict note draft" }),
+    );
+    expect(screen.queryByText("verdict note draft")).toBeNull();
+  });
+
+  it("still pins a published whole-file note above the document", () => {
+    renderWith(withScope({ id: "wf", scope: "artifact", body: "published file note" }));
+    expect(screen.getByText("published file note")).toBeTruthy();
+  });
+});
+
 describe("Editor outdated comment", () => {
   it("renders an outdated line_range comment in the top fallback when its line is gone", () => {
     // Stale anchor points past the rendered content; without the fallback the
