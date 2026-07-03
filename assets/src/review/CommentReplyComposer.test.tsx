@@ -1,26 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { Comment } from "./types";
-
-beforeAll(() => {
-  if (!window.matchMedia) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        addListener: () => {},
-        removeListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    });
-  }
-});
 
 const stubCmd = { dispatch: vi.fn(), isPending: false };
 
@@ -53,10 +34,28 @@ function comment(overrides: Partial<Comment> = {}): Comment {
 }
 
 describe("CommentReplyComposer", () => {
-  it("labels the reply action as Unresolve for resolved comments", () => {
+  it("starts collapsed as a single-line reply box, not an open composer", () => {
+    render(<CommentReplyComposer comment={comment()} />);
+
+    // The collapsed box shows the placeholder but no multi-line textarea yet.
+    expect(screen.getByText("Reply…")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("expands into the full composer when the reply box is clicked", () => {
+    render(<CommentReplyComposer comment={comment()} />);
+
+    fireEvent.click(screen.getByText("Reply…"));
+
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("labels the expanded reply action as Unresolve for resolved comments", () => {
     render(<CommentReplyComposer comment={comment({ resolved: true })} />);
 
-    expect(screen.getByText("Unresolve")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Reply to reopen this comment…"));
+
+    expect(screen.getByRole("button", { name: "Unresolve" })).toBeInTheDocument();
   });
 
   it("explains that replying reopens a resolved comment", () => {
