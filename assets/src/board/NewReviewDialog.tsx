@@ -3,7 +3,7 @@ import { ChevronRight, Folder, X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
-import { Select } from "../components/ui/select"
+import { Combobox } from "../components/ui/combobox"
 import { FileIcon } from "./FileIcon"
 import type { BoardProject, BoardStore } from "./types"
 
@@ -148,7 +148,7 @@ export function NewReviewDialog({
               <span className="text-[11.5px] font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
               </span>
-              <div className="min-h-[200px] flex-1 overflow-auto">
+              <div className="min-h-[200px] flex-1 overflow-auto rounded-ctrl border border-hair-strong bg-canvas p-1">
                 <DirNode store={store} projectId={project.id} path="" depth={0} selections={selections} onToggle={toggle} />
               </div>
             </div>
@@ -314,7 +314,7 @@ function RefSelect({
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[11.5px] font-semibold text-muted">{label}</span>
-      <Select value={value} onValueChange={onChange} options={branches} placeholder="Select a branch…" />
+      <Combobox value={value} onValueChange={onChange} options={branches} placeholder="Search a branch…" />
     </div>
   )
 }
