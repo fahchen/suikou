@@ -78,7 +78,7 @@
 | D8 | **image** | 居中 img,无 zoom,仅 artifact 评论 | ✅ |
 | D9 | **binary** | "Can't render" notice | ✅ |
 | D10 | **wrap on/off**(source) | 长行换行/截断 | ✅ |
-| D11 | **空文件 / 全文件堆叠模式** | stacked 滚动看全部 | ➕ |
+| D11 | **空文件 / 全文件堆叠模式** | stacked 滚动看全部 | ✅ |
 
 ## E. Comment 生命周期态
 
