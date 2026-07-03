@@ -85,7 +85,7 @@
 | # | 状态 | 关键呈现 | 状态 |
 |---|------|----------|------|
 | E1 | **三 type** | fix_required(红)/ needs_answer(琥珀)/ note(中性) | ✅ |
-| E2 | **两 scope** | artifact(文件级)/ located(行/元素) | ◐ |
+| E2 | **两 scope** | artifact(文件级)/ located(行/元素) | ✅ |
 | E3 | **pending(未发)** | 可编辑/删,标 pending | ✅ |
 | E4 | **published(已发)** | 冻结正文/type/anchor | ✅ |
 | E5 | **open(未解决)** | 默认展开 | ✅ |

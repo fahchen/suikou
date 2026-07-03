@@ -171,8 +171,23 @@ export function CommentCardHeader(props: {
             </span>
           )
         ) : (
-          <span className="font-mono text-[11px] text-muted-foreground">
-            File-level comment{roundLabel && <> · {roundLabel}</>}
+          <span
+            className="font-mono text-[11px] text-muted-foreground"
+            title={
+              comment.scope === "review"
+                ? "This note applies to the whole review, not a single file."
+                : "This note applies to the whole file, not a single line."
+            }
+          >
+            {comment.scope === "review" ? "on whole review" : "on whole file"}
+            {roundLabel && (
+              <>
+                <span className="mx-1 text-faint" aria-hidden>
+                  ·
+                </span>
+                {roundLabel}
+              </>
+            )}
           </span>
         )}
 
