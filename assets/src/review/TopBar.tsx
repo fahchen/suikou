@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
 import { TopBarShell, ReviewBreadcrumb, TopBarSep } from "./TopBarShell";
+import { FileSheet } from "./FileSheet";
 import { SubmitControls } from "./SubmitControls";
 import { useReviewCommands } from "./commands";
 import { useFileStore } from "./store-context";
@@ -39,6 +40,8 @@ export const TopBar = observer(function TopBar(props: {
   const fileStore = useFileStore();
   const fileSnapshot = useMusubiSnapshot(fileStore);
   const [navPending, setNavPending] = useState<"prev" | "next" | null>(null);
+  // Mobile-only: the file navigator is a bottom sheet, not a permanent column.
+  const [filesSheetOpen, setFilesSheetOpen] = useState(false);
   // Absent for a frame mid-reconnect (store node not re-hydrated yet).
   if (!fileSnapshot) return null;
 
@@ -91,6 +94,23 @@ export const TopBar = observer(function TopBar(props: {
     </Button>
   );
 
+  // Below `lg` the navigator column is hidden; a Files button opens the bottom
+  // sheet so the file list is still reachable on phone/tablet widths.
+  const filesTrigger = (
+    <Button
+      variant="pill"
+      size="icon"
+      className="inline-flex lg:hidden"
+      title="Files"
+      aria-label="Open files"
+      aria-haspopup="dialog"
+      aria-expanded={filesSheetOpen}
+      onClick={() => setFilesSheetOpen(true)}
+    >
+      <Folder className="text-muted-foreground" />
+    </Button>
+  );
+
   // TopBar is the single-file header, so the prev/next file nav always applies.
   // Hidden below `sm:` — at 390px the mockup's app bar has no room for file
   // pagination beside the breadcrumb; the file-head switcher covers the axis.
@@ -130,10 +150,12 @@ export const TopBar = observer(function TopBar(props: {
   );
 
   return (
+    <>
     <TopBarShell
       crumb={crumb}
       left={
         <>
+          {filesTrigger}
           {navToggle}
           {fileNav}
         </>
@@ -183,5 +205,13 @@ export const TopBar = observer(function TopBar(props: {
         </>
       }
     />
+    <FileSheet
+      open={filesSheetOpen}
+      onOpenChange={setFilesSheetOpen}
+      reviewSnapshot={reviewSnapshot}
+      currentPath={fileSnapshot.path}
+      sourceView={sourceView}
+    />
+    </>
   );
 });
