@@ -52,6 +52,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       field(:name, String.t())
       field(:path, String.t())
       field(:respect_gitignore, boolean())
+      field(:emoji, String.t() | nil)
     end
 
     reply do
@@ -63,7 +64,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   command :update_project do
     payload do
       field(:project_id, String.t())
+      field(:name, String.t())
       field(:respect_gitignore, boolean())
+      field(:emoji, String.t() | nil)
     end
 
     reply do
@@ -246,7 +249,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     params = %{
       name: payload["name"],
       path: payload["path"],
-      respect_gitignore: payload["respect_gitignore"]
+      respect_gitignore: payload["respect_gitignore"],
+      emoji: payload["emoji"]
     }
 
     case Projects.register_project(params) do
@@ -262,7 +266,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     reply =
       case Projects.get_project(payload["project_id"]) do
         %Project{} = project ->
-          params = %{respect_gitignore: payload["respect_gitignore"]}
+          params = Map.take(payload, ["name", "respect_gitignore", "emoji"])
 
           case Projects.update_project(project, params) do
             {:ok, %Project{}} -> %{error: nil}
@@ -497,6 +501,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       name: project.name,
       path: project.path,
       respect_gitignore: project.respect_gitignore,
+      emoji: project.emoji,
       reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)
     }
   end

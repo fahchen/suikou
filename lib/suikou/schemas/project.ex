@@ -13,6 +13,7 @@ defmodule Suikou.Schemas.Project do
     field :name, :string, typed: [null: false]
     field :path, :string, typed: [null: false]
     field :respect_gitignore, :boolean, typed: [null: false]
+    field :emoji, :string
 
     has_many :reviews, Review
 
@@ -37,7 +38,7 @@ defmodule Suikou.Schemas.Project do
   @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(params) do
     %__MODULE__{}
-    |> cast(params, [:name, :path, :respect_gitignore])
+    |> cast(params, [:name, :path, :respect_gitignore, :emoji])
     |> validate_required([:name, :path])
     |> validate_format(:name, ~r/\S/, message: "can't be blank")
     |> validate_format(:path, ~r/\S/, message: "can't be blank")
@@ -45,18 +46,23 @@ defmodule Suikou.Schemas.Project do
   end
 
   @doc """
-  Builds a changeset to edit a project's settings. Only `respect_gitignore` is
-  editable — `name` and `path` are project identity and stay fixed (the path
-  especially must not move once files are anchored to it).
+  Builds a changeset to edit a project's settings: its display `name`, its
+  `emoji` badge, and whether it respects `.gitignore`. `path` is identity and
+  stays fixed — it must not move once files are anchored to it.
 
   ## Examples
 
-      iex> Suikou.Schemas.Project.update_changeset(%Suikou.Schemas.Project{}, %{respect_gitignore: false}).valid?
+      iex> Suikou.Schemas.Project.update_changeset(%Suikou.Schemas.Project{}, %{name: "Docs"}).valid?
       true
+
+      iex> Suikou.Schemas.Project.update_changeset(%Suikou.Schemas.Project{}, %{name: "  "}).valid?
+      false
 
   """
   @spec update_changeset(t(), map()) :: Ecto.Changeset.t()
   def update_changeset(%__MODULE__{} = project, params) do
-    cast(project, params, [:respect_gitignore])
+    project
+    |> cast(params, [:name, :respect_gitignore, :emoji])
+    |> validate_format(:name, ~r/\S/, message: "can't be blank")
   end
 end

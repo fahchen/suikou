@@ -84,8 +84,8 @@ defmodule Suikou.Projects do
   end
 
   @doc """
-  Updates an existing project's settings. Only `respect_gitignore` is editable;
-  `name` and `path` are fixed (see `Project.update_changeset/2`).
+  Updates an existing project's settings — its display `name` and whether it
+  respects `.gitignore`. `path` is fixed (see `Project.update_changeset/2`).
 
   ## Examples
 
