@@ -55,6 +55,32 @@ function filesFor(grouped: ReviewFilesGrouped, reviewId: string): BoardReviewFil
   return grouped.find((entry) => entry.review_id === reviewId)?.files ?? []
 }
 
+// Persist the last-good load_board reply so a reload (or a fresh tab) paints the
+// projects on the first frame, then the command revalidates in the background —
+// stale-while-revalidate, no loading flash. `BOARD_CACHE_BUSTER` is the reply's
+// shape version; bump it when the load_board contract changes.
+const BOARD_CACHE_KEY = "suikou-board"
+const BOARD_CACHE_BUSTER = "v1"
+
+function readBoardCache(): LoadBoardReply | null {
+  try {
+    const raw = localStorage.getItem(BOARD_CACHE_KEY)
+    if (!raw) return null
+    const entry = JSON.parse(raw) as { buster: string; data: LoadBoardReply }
+    return entry.buster === BOARD_CACHE_BUSTER ? entry.data : null
+  } catch {
+    return null
+  }
+}
+
+function writeBoardCache(data: LoadBoardReply): void {
+  try {
+    localStorage.setItem(BOARD_CACHE_KEY, JSON.stringify({ buster: BOARD_CACHE_BUSTER, data }))
+  } catch {
+    // Quota or serialization failure: skip the cache; the command still revalidates.
+  }
+}
+
 /** Projects launcher: a project sidebar and the selected project's review list,
  * under a minimal toolbar. Full-viewport, no window frame. Read + navigate only. */
 export function ProjectsBoard() {
@@ -66,7 +92,9 @@ export function ProjectsBoard() {
   })
 
   if (root.status === "loading") {
-    return <Centered>Loading projects…</Centered>
+    // A warm cache resolves the mount in a microtask, so show a transparent
+    // placeholder instead of flashing the loading screen over the chrome.
+    return readBoardCache() ? <div aria-hidden className="h-screen" /> : <Centered>Loading projects…</Centered>
   }
   if (root.status === "error") {
     return <Centered>Can't reach Suikou. {root.error.message}</Centered>
@@ -77,7 +105,7 @@ export function ProjectsBoard() {
 function Board({ store }: { store: BoardStore }) {
   const loadBoard = useMusubiCommand(store, "load_board")
   const connected = useSocketConnected()
-  const [board, setBoard] = useState<LoadBoardReply | null>(null)
+  const [board, setBoard] = useState<LoadBoardReply | null>(() => readBoardCache())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const boardRef = useRef<LoadBoardReply | null>(null)
   boardRef.current = board
@@ -102,7 +130,9 @@ function Board({ store }: { store: BoardStore }) {
       loadBoard
         .dispatch({})
         .then((reply) => {
-          if (!cancelled) setBoard(reply)
+          if (cancelled) return
+          setBoard(reply)
+          writeBoardCache(reply)
         })
         .catch(() => {
           if (cancelled) return
@@ -122,7 +152,13 @@ function Board({ store }: { store: BoardStore }) {
   const [newReviewKind, setNewReviewKind] = useState<"files" | "diff" | null>(null)
   const [editingReview, setEditingReview] = useState<BoardReview | null>(null)
   const refetch = () => {
-    loadBoard.dispatch({}).then(setBoard).catch(() => {})
+    loadBoard
+      .dispatch({})
+      .then((reply) => {
+        setBoard(reply)
+        writeBoardCache(reply)
+      })
+      .catch(() => {})
   }
 
   const projects = board?.projects ?? []
