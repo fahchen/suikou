@@ -3,6 +3,7 @@ import { ChevronRight, Folder, X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
+import { Select } from "../components/ui/select"
 import { FileIcon } from "./FileIcon"
 import type { BoardProject, BoardStore } from "./types"
 
@@ -289,20 +290,9 @@ function RefSelect({
   onChange: (v: string) => void
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <span className="text-[11.5px] font-semibold text-muted">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-2 text-[13px] text-ink focus:border-accent-edge focus:outline-none"
-      >
-        <option value="">Select a branch…</option>
-        {branches.map((branch) => (
-          <option key={branch} value={branch}>
-            {branch}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select value={value} onValueChange={onChange} options={branches} placeholder="Select a branch…" />
+    </div>
   )
 }
