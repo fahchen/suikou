@@ -148,7 +148,7 @@ export function NewReviewDialog({
               <span className="text-[11.5px] font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
               </span>
-              <div className="min-h-[200px] flex-1 overflow-auto rounded-panel border border-hair-strong bg-canvas p-1.5">
+              <div className="min-h-[200px] flex-1 overflow-auto">
                 <DirNode store={store} projectId={project.id} path="" depth={0} selections={selections} onToggle={toggle} />
               </div>
             </div>
