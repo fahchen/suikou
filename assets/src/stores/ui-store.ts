@@ -11,6 +11,7 @@ export type CommentScope = "review" | "artifact" | "located"
 export type Density = "tight" | "normal" | "loose"
 export type DiffLayout = "unified" | "side"
 export type FileDisplayMode = "single" | "all"
+export type MonoSize = "small" | "default" | "large"
 
 /** A file's unsaved comment composer: its line anchor plus body/type/scope. */
 export interface ComposerDraft {
@@ -29,6 +30,7 @@ const WRAP_LINES_KEY = "suikou-wrap-lines"
 const MARKDOWN_FLAVOR_KEY = "suikou-markdown-flavor"
 const DIFF_LAYOUT_KEY = "suikou-diff-layout"
 const FILE_DISPLAY_MODE_KEY = "suikou-file-display-mode"
+const MONO_SIZE_KEY = "suikou-mono-size"
 const HIDE_REVIEWED_KEY = "suikou-hide-reviewed"
 const COLLAPSED_FILES_KEY = "suikou-collapsed-files"
 const DRAFTS_KEY = "suikou-drafts"
@@ -45,6 +47,10 @@ export class UiStore {
   // matches the storyboard. The rail (E14) is opt-in via the Display menu.
   commentMode: CommentMode = "inline"
   density: Density = "normal"
+  // ponytail: Mono size is persisted here but presentational until the code
+  // views read it — no `--mono-size` consumer wired yet, so it only round-trips
+  // the Settings segmented control and localStorage.
+  monoSize: MonoSize = "default"
   markdownFlavor: MarkdownFlavor = "gfm"
   diffLayout: DiffLayout = "side"
   // Default file mode a review opens in (Settings preference). The active
@@ -161,6 +167,11 @@ export class UiStore {
       this.fileDisplayMode = savedFileDisplayMode
     }
 
+    const savedMonoSize = localStorage.getItem(MONO_SIZE_KEY)
+    if (savedMonoSize === "small" || savedMonoSize === "default" || savedMonoSize === "large") {
+      this.monoSize = savedMonoSize
+    }
+
     if (localStorage.getItem(WRAP_LINES_KEY) === "false") {
       this.wrapLines = false
     }
@@ -223,6 +234,11 @@ export class UiStore {
   setFileDisplayMode(mode: FileDisplayMode): void {
     this.fileDisplayMode = mode
     localStorage.setItem(FILE_DISPLAY_MODE_KEY, mode)
+  }
+
+  setMonoSize(size: MonoSize): void {
+    this.monoSize = size
+    localStorage.setItem(MONO_SIZE_KEY, size)
   }
 
   setWrapLines(wrap: boolean): void {

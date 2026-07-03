@@ -18,7 +18,8 @@ import type {
   CommentMode,
   Density,
   DiffLayout,
-  FileDisplayMode
+  FileDisplayMode,
+  MonoSize
 } from "../stores/ui-store"
 import type { MarkdownFlavor } from "../markdown/render"
 import {
@@ -272,6 +273,21 @@ const AppearancePane = observer(function AppearancePane() {
             checked={ui.wrapLines}
             onCheckedChange={(v) => ui.setWrapLines(v)}
             ariaLabel="Code wrap"
+          />
+        }
+      />
+      <ControlRow
+        label="Mono size"
+        sub="Font size for code, diffs, and anchor readouts."
+        control={
+          <Segmented
+            value={ui.monoSize}
+            options={[
+              { value: "small", label: "Small" },
+              { value: "default", label: "Default" },
+              { value: "large", label: "Large" }
+            ]}
+            onChange={(v) => ui.setMonoSize(v as MonoSize)}
           />
         }
       />
@@ -658,6 +674,19 @@ const MobileSheet = observer(function MobileSheet() {
               ariaLabel="Code wrap"
             />
           </SheetInlineRow>
+          <SheetStackedRow label="Mono size">
+            <Segmented
+              touch
+              className="w-full"
+              value={ui.monoSize}
+              options={[
+                { value: "small", label: "Small" },
+                { value: "default", label: "Default" },
+                { value: "large", label: "Large" }
+              ]}
+              onChange={(v) => ui.setMonoSize(v as MonoSize)}
+            />
+          </SheetStackedRow>
         </SheetGroup>
 
         <SheetGroup title="Review defaults">
