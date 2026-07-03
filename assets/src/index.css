@@ -1,1 +1,176 @@
 @import "tailwindcss";
+
+/* Suikou design tokens. Suikou Dark is the default (:root); every theme is a
+   `[data-theme]` block that only swaps surface, ink, accent, and semantic
+   colours. The structural grammar (spacing, radii, components) is
+   theme-independent. Values come from DESIGN.md, the source of truth. */
+
+@theme inline {
+  --color-canvas: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-surface: var(--bg-2);
+  --color-soft: var(--bg-3);
+  --color-control: var(--bg-4);
+  --color-editor: var(--editor-bg);
+
+  --color-ink: var(--ink-0);
+  --color-text: var(--ink-1);
+  --color-muted: var(--ink-2);
+  --color-faint: var(--ink-3);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-softer: var(--accent-softer);
+  --color-accent-edge: var(--accent-edge);
+  --color-on-accent: var(--on-accent);
+
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-amber-edge: var(--amber-edge);
+  --color-approve: var(--approve);
+  --color-approve-soft: var(--approve-soft);
+  --color-approve-edge: var(--approve-edge);
+  --color-request: var(--request);
+  --color-request-soft: var(--request-soft);
+  --color-request-edge: var(--request-edge);
+
+  --color-hair: var(--hair);
+  --color-hair-strong: var(--hair-strong);
+
+  --radius-ctrl: var(--r-ctrl);
+  --radius-panel: var(--r-panel);
+  --radius-win: var(--r-win);
+}
+
+/* Suikou Dark — the default palette. */
+:root,
+[data-theme="suikou-dark"] {
+  color-scheme: dark;
+  --bg-0: oklch(14.5% 0.012 235);
+  --bg-1: oklch(16.5% 0.013 232);
+  --bg-2: oklch(18.5% 0.014 230);
+  --bg-3: oklch(21% 0.015 228);
+  --bg-4: oklch(24% 0.016 226);
+  --editor-bg: oklch(15.5% 0.012 234);
+
+  --ink-0: oklch(93% 0.006 230);
+  --ink-1: oklch(80% 0.008 230);
+  --ink-2: oklch(66% 0.009 232);
+  --ink-3: oklch(61% 0.010 234);
+
+  --cyan: oklch(82% 0.11 195);
+  --teal: oklch(74% 0.12 215);
+  --blue: oklch(70% 0.12 230);
+  --accent: var(--teal);
+  --accent-strong: oklch(70% 0.12 220);
+  --accent-bright: oklch(86% 0.10 198);
+  --accent-soft: oklch(74% 0.12 215 / 0.14);
+  --accent-softer: oklch(74% 0.12 215 / 0.08);
+  --accent-edge: oklch(74% 0.12 215 / 0.34);
+  --on-accent: oklch(18% 0.02 235);
+
+  --amber: oklch(80% 0.12 78);
+  --amber-deep: oklch(72% 0.13 70);
+  --amber-soft: oklch(80% 0.12 78 / 0.16);
+  --amber-edge: oklch(80% 0.12 78 / 0.30);
+
+  --approve: oklch(76% 0.15 152);
+  --approve-soft: oklch(76% 0.15 152 / 0.15);
+  --approve-edge: oklch(76% 0.15 152 / 0.32);
+  --request: oklch(70% 0.17 22);
+  --request-soft: oklch(70% 0.17 22 / 0.15);
+  --request-edge: oklch(70% 0.17 22 / 0.32);
+
+  --hair: oklch(80% 0.02 230 / 0.10);
+  --hair-strong: oklch(80% 0.02 230 / 0.18);
+  --edge-top: oklch(90% 0.03 220 / 0.16);
+  --edge-top-2: oklch(90% 0.03 220 / 0.10);
+
+  --desk:
+    radial-gradient(70% 55% at 14% 8%, oklch(40% 0.06 200 / 0.35) 0%, transparent 60%),
+    radial-gradient(64% 60% at 92% 12%, oklch(40% 0.06 245 / 0.30) 0%, transparent 58%),
+    radial-gradient(90% 80% at 70% 108%, oklch(38% 0.05 270 / 0.28) 0%, transparent 60%),
+    linear-gradient(160deg, oklch(15% 0.012 235), oklch(13.5% 0.012 236));
+
+  --r-win: 16px;
+  --r-panel: 13px;
+  --r-ctrl: 9px;
+  --r-pill: 999px;
+}
+
+/* Suikou Light — the same system, lit (DESIGN.md). */
+[data-theme="suikou-light"] {
+  color-scheme: light;
+  --bg-0: oklch(96.5% 0.006 240);
+  --bg-1: oklch(98% 0.005 240);
+  --bg-2: oklch(99.4% 0.003 240);
+  --bg-3: oklch(93.5% 0.008 240);
+  --bg-4: oklch(90.5% 0.010 240);
+  --editor-bg: oklch(99.2% 0.003 240);
+
+  --ink-0: oklch(26% 0.020 252);
+  --ink-1: oklch(40% 0.018 250);
+  --ink-2: oklch(50% 0.016 248);
+  --ink-3: oklch(52% 0.015 248);
+
+  --cyan: oklch(60% 0.13 205);
+  --teal: oklch(54% 0.13 222);
+  --blue: oklch(50% 0.16 248);
+  --accent: oklch(53% 0.14 226);
+  --accent-strong: oklch(47% 0.15 232);
+  --accent-bright: oklch(46% 0.16 232);
+  --accent-soft: oklch(54% 0.13 222 / 0.12);
+  --accent-softer: oklch(54% 0.13 222 / 0.07);
+  --accent-edge: oklch(54% 0.13 222 / 0.30);
+  --on-accent: oklch(99% 0.005 230);
+
+  --amber: oklch(56% 0.14 64);
+  --amber-deep: oklch(50% 0.14 58);
+  --amber-soft: oklch(72% 0.13 70 / 0.18);
+  --amber-edge: oklch(60% 0.14 64 / 0.32);
+
+  --approve: oklch(52% 0.15 150);
+  --approve-soft: oklch(62% 0.15 150 / 0.15);
+  --approve-edge: oklch(54% 0.15 150 / 0.32);
+  --request: oklch(53% 0.20 25);
+  --request-soft: oklch(62% 0.20 25 / 0.13);
+  --request-edge: oklch(55% 0.20 25 / 0.32);
+
+  --hair: oklch(30% 0.02 250 / 0.10);
+  --hair-strong: oklch(30% 0.03 248 / 0.16);
+  --edge-top: oklch(100% 0 0 / 0.85);
+  --edge-top-2: oklch(100% 0 0 / 0.55);
+
+  --desk:
+    radial-gradient(70% 55% at 14% 8%, oklch(80% 0.05 200 / 0.45) 0%, transparent 60%),
+    radial-gradient(64% 60% at 92% 12%, oklch(80% 0.05 245 / 0.40) 0%, transparent 58%),
+    radial-gradient(90% 80% at 70% 108%, oklch(82% 0.04 270 / 0.35) 0%, transparent 60%),
+    linear-gradient(160deg, oklch(97% 0.006 240), oklch(95% 0.008 238));
+
+  --r-win: 16px;
+  --r-panel: 13px;
+  --r-ctrl: 9px;
+  --r-pill: 999px;
+}
+
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg-0);
+    color: var(--ink-0);
+    font-family: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", "Inter",
+      sans-serif;
+    font-size: 14px;
+    line-height: 1.42;
+    letter-spacing: -0.004em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
