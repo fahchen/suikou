@@ -3,6 +3,7 @@ import { X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
+import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
 import type { BoardStore } from "./types"
 
@@ -36,17 +37,6 @@ export function CreateProjectDialog({
     setError(null)
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose])
-
-  if (!open) return null
-
   const submit = () => {
     const trimmedName = name.trim()
     const trimmedPath = path.trim()
@@ -65,18 +55,16 @@ export function CreateProjectDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]" />
-      <div className="relative flex w-full flex-col gap-4 rounded-t-[18px] border border-hair-strong bg-surface p-5 shadow-[0_20px_60px_oklch(0%_0_0/0.4)] sm:max-w-[440px] sm:rounded-[16px]">
-        <div className="flex items-center gap-3">
-          <h2 className="text-[15px] font-bold text-ink">New project</h2>
-          <span className="flex-1" />
-          <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
-            <X size={15} aria-hidden />
-          </button>
-        </div>
+    <Dialog open={open} onClose={onClose} className="gap-4 p-5 sm:max-w-[440px]">
+      <div className="flex items-center gap-3">
+        <DialogTitle className="text-[15px] font-bold text-ink">New project</DialogTitle>
+        <span className="flex-1" />
+        <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
+          <X size={15} aria-hidden />
+        </button>
+      </div>
 
-        <Field label="Name">
+      <Field label="Name">
           <input
             autoFocus
             value={name}
@@ -129,8 +117,7 @@ export function CreateProjectDialog({
             {busy ? "Creating…" : "Create project"}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 

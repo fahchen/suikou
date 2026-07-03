@@ -1,9 +1,24 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
-import { Check, ChevronDown, Info, Keyboard, Palette, SlidersHorizontal, X } from "lucide-react"
+import { Check, Info, Keyboard, Palette, SlidersHorizontal, X } from "lucide-react"
 
+import { Dialog, DialogTitle } from "../components/ui/dialog"
+import { Segmented } from "../components/ui/segmented"
+import { Select } from "../components/ui/select"
+import { Switch } from "../components/ui/switch"
 import { uiStore, type Density, type MonoSize } from "../stores/ui-store"
 import { THEME_CODE, THEME_LABELS, THEMES, type ThemeName } from "../themes"
+
+const THEME_GROUPS = [
+  {
+    label: "Light",
+    options: THEMES.filter((t) => !THEME_CODE[t].dark).map((t) => ({ value: t, label: THEME_LABELS[t] })),
+  },
+  {
+    label: "Dark",
+    options: THEMES.filter((t) => THEME_CODE[t].dark).map((t) => ({ value: t, label: THEME_LABELS[t] })),
+  },
+]
 
 type Pane = "appearance" | "review" | "keyboard" | "about"
 
@@ -21,28 +36,10 @@ export const SettingsModal = observer(function SettingsModal() {
   const open = uiStore.settingsOpen
   const close = () => uiStore.setSettingsOpen(false)
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
-
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <button
-        aria-label="Close settings"
-        onClick={close}
-        className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]"
-      />
-      <div className="relative flex max-h-[86vh] w-full flex-col overflow-hidden rounded-t-[18px] border border-hair-strong bg-surface shadow-[0_20px_60px_oklch(0%_0_0/0.4)] sm:h-[560px] sm:max-w-[720px] sm:rounded-[16px]">
+    <Dialog open={open} onClose={close} className="max-h-[86vh] overflow-hidden sm:h-[560px] sm:max-w-[720px]">
         <header className="flex items-center gap-3 border-b border-hair px-5 py-4">
-          <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink">Settings</h2>
+          <DialogTitle className="text-[15px] font-bold tracking-[-0.01em] text-ink">Settings</DialogTitle>
           <span className="flex-1" />
           <button
             onClick={close}
@@ -99,8 +96,7 @@ export const SettingsModal = observer(function SettingsModal() {
             Done
           </button>
         </footer>
-      </div>
-    </div>
+    </Dialog>
   )
 })
 
@@ -112,7 +108,12 @@ const AppearancePane = observer(function AppearancePane() {
         lede="How Suikou looks while you read code and prose for a stretch. Applies across every project."
       />
       <Row title="Theme" sub="Syntax and surface palette. 15 built in, light and dark.">
-        <ThemePicker />
+        <Select
+          aria-label="Theme"
+          value={uiStore.theme}
+          onValueChange={(v) => uiStore.setTheme(v as ThemeName)}
+          groups={THEME_GROUPS}
+        />
       </Row>
       <Row title="Density" sub="Row height and padding across panels and lists.">
         <Segmented<Density>
@@ -126,7 +127,11 @@ const AppearancePane = observer(function AppearancePane() {
         />
       </Row>
       <Row title="Code wrap" sub="Soft-wrap long lines in the source view instead of scrolling.">
-        <Toggle checked={uiStore.codeWrap} onChange={(v) => uiStore.setCodeWrap(v)} />
+        <Switch
+          aria-label="Code wrap"
+          checked={uiStore.codeWrap}
+          onCheckedChange={(v) => uiStore.setCodeWrap(v)}
+        />
       </Row>
       <Row title="Mono size" sub="Font size for code, diffs, and anchor readouts.">
         <Segmented<MonoSize>
@@ -142,80 +147,6 @@ const AppearancePane = observer(function AppearancePane() {
     </div>
   )
 })
-
-const ThemePicker = observer(function ThemePicker() {
-  const [open, setOpen] = useState(false)
-  const light = THEMES.filter((t) => !THEME_CODE[t].dark)
-  const dark = THEMES.filter((t) => THEME_CODE[t].dark)
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="inline-flex h-[30px] min-w-[150px] items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[13px] font-medium text-ink"
-      >
-        <span className="flex-1 text-left">{THEME_LABELS[uiStore.theme]}</span>
-        <ChevronDown size={13} className="text-muted" aria-hidden />
-      </button>
-      {open && (
-        <>
-          <button aria-hidden className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 max-h-[260px] w-[200px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)]">
-            <ThemeGroup
-              label="Light"
-              names={light}
-              onPick={(t) => {
-                setOpen(false)
-                uiStore.setTheme(t)
-              }}
-            />
-            <ThemeGroup
-              label="Dark"
-              names={dark}
-              onPick={(t) => {
-                setOpen(false)
-                uiStore.setTheme(t)
-              }}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  )
-})
-
-function ThemeGroup({
-  label,
-  names,
-  onPick,
-}: {
-  label: string
-  names: readonly ThemeName[]
-  onPick: (t: ThemeName) => void
-}) {
-  return (
-    <>
-      <div className="px-2 pt-2 pb-1 text-[9.5px] font-bold uppercase tracking-[0.12em] text-faint">
-        {label}
-      </div>
-      {names.map((name) => {
-        const active = name === uiStore.theme
-        return (
-          <button
-            key={name}
-            onClick={() => onPick(name)}
-            className={`flex h-[30px] w-full items-center gap-2 rounded-ctrl px-2 text-[12.5px] ${
-              active ? "text-accent-bright" : "text-text hover:bg-soft"
-            }`}
-          >
-            <span className="flex-1 text-left">{THEME_LABELS[name]}</span>
-            {active && <Check size={13} aria-hidden />}
-          </button>
-        )
-      })}
-    </>
-  )
-}
 
 function ReviewDefaultsPane() {
   return (
@@ -296,48 +227,3 @@ function Row({ title, sub, children }: { title: string; sub: string; children: R
   )
 }
 
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T
-  onChange: (v: T) => void
-  options: [T, string][]
-}) {
-  return (
-    <div className="inline-flex rounded-ctrl bg-soft p-0.5 shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
-      {options.map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          aria-pressed={v === value}
-          className={`h-[26px] rounded-[7px] px-3 text-[12px] font-medium ${
-            v === value ? "bg-canvas text-ink shadow-[0_1px_2px_oklch(0%_0_0/0.15)]" : "text-muted hover:text-ink"
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-[24px] w-[42px] items-center rounded-full transition-colors ${
-        checked ? "bg-accent" : "bg-control"
-      }`}
-    >
-      <span
-        className={`inline-block size-[18px] rounded-full bg-[oklch(100%_0_0)] shadow-sm transition-transform ${
-          checked ? "translate-x-[21px]" : "translate-x-[3px]"
-        }`}
-      />
-    </button>
-  )
-}

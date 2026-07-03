@@ -19,6 +19,7 @@ import {
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
+import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 import { NewReviewDialog } from "./NewReviewDialog"
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog"
@@ -241,16 +242,8 @@ function ProjectPickerSheet({
   const [query, setQuery] = useState("")
 
   useEffect(() => {
-    if (!open) return
-    setQuery("")
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose])
-
-  if (!open) return null
+    if (open) setQuery("")
+  }, [open])
 
   const needle = query.trim().toLowerCase()
   const filtered = needle
@@ -258,9 +251,7 @@ function ProjectPickerSheet({
     : projects
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]" />
-      <div className="relative flex max-h-[70vh] w-full flex-col rounded-t-[18px] border border-hair-strong bg-surface shadow-[0_20px_60px_oklch(0%_0_0/0.4)]">
+    <Dialog open={open} onClose={onClose} className="max-h-[70vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-3 py-3">
           <Search size={15} className="shrink-0 text-faint" aria-hidden />
           <input
@@ -293,8 +284,7 @@ function ProjectPickerSheet({
             <p className="px-3 py-4 text-center text-[12.5px] text-faint">No projects match.</p>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 
@@ -557,21 +547,9 @@ function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onCancel])
-
-  if (!open) return null
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <button aria-label="Cancel" onClick={onCancel} className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]" />
-      <div className="relative flex w-full max-w-[400px] flex-col gap-3 rounded-panel border border-hair-strong bg-surface p-5 shadow-[0_20px_60px_oklch(0%_0_0/0.4)]">
-        <h2 className="text-[15px] font-bold text-ink">{title}</h2>
+    <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[400px]">
+        <DialogTitle className="text-[15px] font-bold text-ink">{title}</DialogTitle>
         <p className="text-[12.5px] leading-[1.5] text-muted">{body}</p>
         <div className="flex items-center gap-2 pt-1">
           <span className="flex-1" />
@@ -585,8 +563,7 @@ function ConfirmDialog({
             {confirmLabel}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 

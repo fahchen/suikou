@@ -4,6 +4,7 @@ import { ChevronRight, Folder, X } from "lucide-react"
 import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
 import { Combobox } from "../components/ui/combobox"
+import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { FileIcon } from "./FileIcon"
 import type { BoardProject, BoardReview, BoardStore } from "./types"
 
@@ -74,17 +75,6 @@ export function NewReviewDialog({
   useEffect(() => {
     if (open && !nameDirty && !review) setName(derivedName)
   }, [open, nameDirty, derivedName, review])
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose])
-
-  if (!open) return null
 
   // A selection entry is a file OR a directory path; the server expands a
   // directory to every file beneath it, so a parent folder can be picked
@@ -158,13 +148,11 @@ export function NewReviewDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]" />
-      <div className="relative flex max-h-[86vh] w-full flex-col rounded-t-[18px] border border-hair-strong bg-surface shadow-[0_20px_60px_oklch(0%_0_0/0.4)] sm:h-[600px] sm:max-w-[560px] sm:rounded-[16px]">
+    <Dialog open={open} onClose={onClose} className="max-h-[86vh] overflow-hidden sm:h-[600px] sm:max-w-[560px]">
         <header className="flex items-center gap-3 border-b border-hair px-5 py-4">
-          <h2 className="text-[15px] font-bold text-ink">
+          <DialogTitle className="text-[15px] font-bold text-ink">
             {editing ? "Edit" : "New"} {activeKind === "files" ? "file" : "diff"} review
-          </h2>
+          </DialogTitle>
           <span className="text-[12px] text-faint">{project.name}</span>
           <span className="flex-1" />
           <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
@@ -217,8 +205,7 @@ export function NewReviewDialog({
             {busy ? (editing ? "Saving…" : "Creating…") : editing ? "Save changes" : "Create review"}
           </button>
         </footer>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 
