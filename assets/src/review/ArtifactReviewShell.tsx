@@ -377,6 +377,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
                   />
                   <ReviewOutcomeBanner
                     reviewSnapshot={reviewSnapshot}
+                    structure={structure}
                     latestRound={latestRound}
                     selectedRound={selectedRound}
                   />
@@ -447,7 +448,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             ? "draft"
             : null
         }
-        outcome={reviewOutcome(reviewSnapshot)}
+        outcome={reviewOutcome(reviewSnapshot, structure)}
         driftedAnchors={
           selectedRound === latestRound && latestRound > 0
             ? resnapshotSummary(structure, reviewSnapshot.body.files).driftedAnchors
@@ -680,18 +681,26 @@ function ResnapshotBanner(props: {
 
 /** Terminal-state banner above the editor when the whole review is approved
  * on the latest round (A8). Only renders on the latest round — reading a
- * superseded round should not claim the review is approved. The banner is
- * informational and does not add its own dismiss; approval is undone via the
- * per-file verdict chip / submit menu, matching the mockup copy. */
-function ReviewOutcomeBanner(props: {
+ * superseded round should not claim the review is approved. The banner carries
+ * a `Dismiss approval` action (G6): clears the currently-viewed file's
+ * approved_round, which removes it from the review's approved set so this
+ * banner clears and the reviewer can iterate. Approval is per-artifact, so a
+ * single dismiss reopens the review; submitting a later round auto-clears
+ * remaining approvals via the normal submit path. */
+const ReviewOutcomeBanner = observer(function ReviewOutcomeBanner(props: {
   reviewSnapshot: ReviewSnapshot;
+  structure: ReviewStructure;
   latestRound: number;
   selectedRound: number;
 }) {
-  const { reviewSnapshot, latestRound, selectedRound } = props;
+  const { reviewSnapshot, structure, latestRound, selectedRound } = props;
+  const commands = useReviewCommands();
   if (selectedRound !== latestRound) return null;
-  if (reviewOutcome(reviewSnapshot) !== "approved") return null;
-  const files = reviewSnapshot.body.files;
+  if (reviewOutcome(reviewSnapshot, structure) !== "approved") return null;
+  const activePaths = new Set(
+    structure.file_entries.filter((e) => !e.soft_removed).map((e) => e.path),
+  );
+  const files = reviewSnapshot.body.files.filter((f) => activePaths.has(f.path));
   const total = files.length;
   const blockers = files.reduce(
     (acc, f) =>
@@ -720,9 +729,19 @@ function ReviewOutcomeBanner(props: {
           : `${blockers} open ${blockers === 1 ? "blocker" : "blockers"}`}{" "}
         on Round {latestRound}. Approval is the terminal state, but reversible.
       </div>
+      <button
+        type="button"
+        onClick={() => void commands.dismissApproval.dispatch({})}
+        disabled={commands.dismissApproval.disabled}
+        title="Reopen the review by clearing this file's approval; submitting a later round also auto-clears."
+        className="inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-[9px] bg-surface/80 px-2.5 font-[560] text-[11.5px] text-heading ring-1 ring-inset ring-line-strong shadow-[inset_0_0.5px_0_var(--edge-top-2)] transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 disabled:opacity-60"
+      >
+        <RotateCw size={12} className="text-muted-foreground" />
+        Dismiss approval
+      </button>
     </div>
   );
-}
+});
 
 /** Roll the review's per-file `latest_verdict` up to a single review-level
  * outcome for the status bar (A8/A9). Any file with a published request_changes
@@ -730,15 +749,23 @@ function ReviewOutcomeBanner(props: {
  * published as approve is "approved". A file with no published verdict yet
  * (or `comment`) leaves the review's outcome unset — the reviewer is still
  * working on it. */
-function reviewOutcome(reviewSnapshot: ReviewSnapshot): ReviewOutcome | null {
-  const files = reviewSnapshot.body.files;
+function reviewOutcome(
+  reviewSnapshot: ReviewSnapshot,
+  structure: ReviewStructure,
+): ReviewOutcome | null {
+  const activeEntries = structure.file_entries.filter((e) => !e.soft_removed);
+  const activePaths = new Set(activeEntries.map((e) => e.path));
+  const files = reviewSnapshot.body.files.filter((f) => activePaths.has(f.path));
   if (files.length === 0) return null;
-  let approvedCount = 0;
   for (const f of files) {
     if (f.latest_verdict === "request_changes") return "changes_requested";
-    if (f.latest_verdict === "approve") approvedCount += 1;
   }
-  return approvedCount === files.length ? "approved" : null;
+  // "Approved" reads `approved_round` (structure's `approved` flag), not the
+  // last submitted verdict — dismissing an approval clears `approved_round`
+  // while the submission's `verdict: :approve` row remains, so keying off
+  // `latest_verdict` would let a dismissed banner linger.
+  const approvedCount = activeEntries.filter((e) => e.approved).length;
+  return approvedCount === activeEntries.length ? "approved" : null;
 }
 
 /** Status bar's middle label: for a git_diff review, spell out Unified/Split diff

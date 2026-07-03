@@ -63,6 +63,9 @@ defmodule SuikouWeb.Stores.FileStore do
     end
   end
 
+  command :dismiss_approval do
+  end
+
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
   def init(socket), do: {:ok, reload(socket)}
@@ -108,6 +111,20 @@ defmodule SuikouWeb.Stores.FileStore do
           end
 
         {:error, socket} ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_command(:dismiss_approval, _payload, socket) do
+    socket =
+      case socket.assigns[:artifact_id] do
+        artifact_id when is_binary(artifact_id) ->
+          _result = Submissions.dismiss(artifact_id)
+          socket
+
+        _absent ->
           socket
       end
 

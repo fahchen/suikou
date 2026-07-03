@@ -312,9 +312,19 @@ defmodule Suikou.Submissions do
         {:error, :artifact_not_found}
 
       %Artifact{} = artifact ->
-        artifact |> Artifact.clear_approval_changeset() |> Repo.update()
+        artifact
+        |> Artifact.clear_approval_changeset()
+        |> Repo.update()
+        |> broadcast_dismiss(artifact)
     end
   end
+
+  defp broadcast_dismiss({:ok, %Artifact{} = updated} = result, %Artifact{review_id: review_id}) do
+    Events.review_changed(review_id, updated.id)
+    result
+  end
+
+  defp broadcast_dismiss(other, _artifact), do: other
 
   defp broadcast_review_change({:ok, _submission} = result, round_id) do
     {review_id, artifact_id} = Reads.scope_for_round(round_id)

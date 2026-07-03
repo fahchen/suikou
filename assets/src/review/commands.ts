@@ -57,6 +57,7 @@ function useDefaultReviewCommands() {
     submitReview: wrap(useMusubiCommand(reviewStore, "submit_review")),
     removeFile: wrap(useMusubiCommand(reviewStore, "remove_file")),
     setDraftVerdict: wrap(useMusubiCommand(fileStore, "set_draft_verdict")),
+    dismissApproval: wrap(useMusubiCommand(fileStore, "dismiss_approval")),
   };
 }
 

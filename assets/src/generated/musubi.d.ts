@@ -195,6 +195,10 @@ declare namespace Musubi {
           }
           reply: never
         }
+        dismiss_approval: {
+          payload: {}
+          reply: never
+        }
       }
     >
 
