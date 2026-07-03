@@ -72,7 +72,7 @@
 | D2 | **preview·markdown** | 逐块渲染 + density + flavor + Source 切换 | ✅ |
 | D3 | **html · Comment 模式** | iframe + 元素 hover 虚线 + dot 评论 | ✅ |
 | D4 | **html · Interactive 模式** | 页面可交互,评论锚关闭 | ➕ |
-| D5 | **html · zoom / fullscreen** | 缩放 **10%–200%**(最低 0.1×)/ 全屏 | ◐ |
+| D5 | **html · zoom / fullscreen** | 缩放 **10%–200%**(最低 0.1×)/ 全屏 | ✅ |
 | D6 | **diff · unified** | 单列 +/− + 双行号 | ✅ |
 | D7 | **diff · side-by-side** | 双列 old/new | ✅ |
 | D8 | **image** | 居中 img,无 zoom,仅 artifact 评论 | ✅ |
