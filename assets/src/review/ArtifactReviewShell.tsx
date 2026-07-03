@@ -34,7 +34,7 @@ import { HeaderSlotProvider } from "./header-slot";
 import { useReviewCommands } from "./commands";
 import { CommentRail } from "./CommentRail";
 import { Navigator } from "./Navigator";
-import { StatusBar } from "./StatusBar";
+import { StatusBar, type ReviewOutcome } from "./StatusBar";
 import { useScrollRestore } from "./use-scroll-restore";
 import { HtmlAnchorComposer } from "./views/HtmlAnchorComposer";
 import { isPreviewable, isImagePath } from "./file-type";
@@ -419,6 +419,7 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
             ? "draft"
             : null
         }
+        outcome={reviewOutcome(reviewSnapshot)}
       />
     </div>
   );
@@ -569,6 +570,23 @@ export function ReviewShellSkeleton(props: { label: string }) {
       <span className="sr-only">{props.label}</span>
     </main>
   );
+}
+
+/** Roll the review's per-file `latest_verdict` up to a single review-level
+ * outcome for the status bar (A8/A9). Any file with a published request_changes
+ * puts the whole review in "changes requested"; a review whose files are all
+ * published as approve is "approved". A file with no published verdict yet
+ * (or `comment`) leaves the review's outcome unset — the reviewer is still
+ * working on it. */
+function reviewOutcome(reviewSnapshot: ReviewSnapshot): ReviewOutcome | null {
+  const files = reviewSnapshot.body.files;
+  if (files.length === 0) return null;
+  let approvedCount = 0;
+  for (const f of files) {
+    if (f.latest_verdict === "request_changes") return "changes_requested";
+    if (f.latest_verdict === "approve") approvedCount += 1;
+  }
+  return approvedCount === files.length ? "approved" : null;
 }
 
 /** Status bar's middle label: for a git_diff review, spell out Unified/Split diff

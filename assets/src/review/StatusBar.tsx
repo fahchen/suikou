@@ -7,14 +7,19 @@ import { FileIcon } from "./FileIcon"
  * round in the left cluster, connection state with a green LED on the right.
  * Kept slim (29px) so it reads as chrome, not content. When the viewed round is
  * the initial Round 0 with nothing submitted yet, a muted `draft` chip trails
- * the round label (A2 in the state catalog). */
+ * the round label (A2 in the state catalog); when the review has a settled
+ * outcome (all files approved, or any file at request_changes) a colored word
+ * trails it (A8/A9). */
+export type ReviewOutcome = "approved" | "changes_requested"
+
 export const StatusBar = observer(function StatusBar(props: {
   path: string
   viewLabel: string
   round: number
   roundStatus?: "draft" | null
+  outcome?: ReviewOutcome | null
 }) {
-  const { path, viewLabel, round, roundStatus } = props
+  const { path, viewLabel, round, roundStatus, outcome } = props
   const connected = useSocketConnected()
   const parts = path.split("/")
   const name = parts[parts.length - 1]
@@ -36,6 +41,18 @@ export const StatusBar = observer(function StatusBar(props: {
         <>
           <Dot />
           <span className="shrink-0 text-faint">draft</span>
+        </>
+      ) : null}
+      {outcome ? (
+        <>
+          <Dot />
+          <span
+            className={`shrink-0 font-[620] ${
+              outcome === "approved" ? "text-green" : "text-red"
+            }`}
+          >
+            {outcome === "approved" ? "approved" : "changes requested"}
+          </span>
         </>
       ) : null}
       <span className="flex-1" />
