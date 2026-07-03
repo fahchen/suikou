@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-export const Route = createFileRoute("/")({
-  component: Home,
-})
+import { ProjectsBoard } from "../board/ProjectsBoard"
 
-function Home() {
-  return <div className="p-8 text-sm">Suikou</div>
-}
+export const Route = createFileRoute("/")({
+  component: ProjectsBoard,
+})
