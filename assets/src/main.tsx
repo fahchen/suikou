@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client"
 import { RouterProvider } from "@tanstack/react-router"
 
+import { MusubiProvider, socket } from "./musubi"
 import { router } from "./router"
 import "./index.css"
 
@@ -9,4 +10,8 @@ if (!rootElement) {
   throw new Error("Root element #root not found")
 }
 
-createRoot(rootElement).render(<RouterProvider router={router} />)
+createRoot(rootElement).render(
+  <MusubiProvider socket={socket}>
+    <RouterProvider router={router} />
+  </MusubiProvider>,
+)
