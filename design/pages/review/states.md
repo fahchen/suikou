@@ -4,6 +4,8 @@
 
 图例:✅ = 现有 review mockup 已覆盖;➕ = 待补;◐ = 部分覆盖。
 
+> **实现约束(fidelity worker 必读):这是一个全视口 WEB APP。** 不要复刻 storyboard(`states-codex.html`/mobile mockup)给每个 state 画的**外框**——那个圆角窗口面板 / 窗口 chrome / 手机 bezel 只是**排版用的展示框**(为了在一页里并排展示多个 state)。真 app 铺满浏览器视口,**没有外框/边框/bezel/假浏览器 chrome**。只把**框内的 app UI**(top bar / navigator / editor / comments / status bar)对齐到每个 state。已加了外框的要去掉。
+
 ---
 
 ## 0. Review kind(贯穿全局的最高轴:file_selection vs git_diff)
@@ -30,7 +32,7 @@
 |---|------|------|----------|------|
 | A1 | **空 review** | review 内没有文件 | "选文件开始" 空态 | ✅ |
 | A1b | **打开默认选中第一个文件** | review 有文件、刚进入 | 不留空 editor,自动选 navigator 第一个文件并渲染 | ✅ |
-| A2 | **首轮 round 0(draft)** | 刚建、还没提交 | round 选择器显 Round 0/draft;无 published critique | ◐ |
+| A2 | **首轮 round 0(draft)** | 刚建、还没提交 | round 选择器显 Round 0/draft;无 published critique | ✅ |
 | A3 | **审阅中(有 pending)** | 留了未发 comment / 草稿 verdict | 状态条 "N pending";submit 可用 | ✅ |
 | A4 | **已提交一轮(under review)** | submit 后 | round 标 "under review";comment 已 published | ✅ |
 | A5 | **多轮:看最新 round** | 默认 | round 选择器=latest | ✅ |

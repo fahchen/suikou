@@ -412,7 +412,13 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
       <StatusBar
         path={snapshot.path}
         viewLabel={statusBarViewLabel(reviewKind, sourceView, ui.diffLayout, wide)}
-        round={reviewSnapshot.body.latest_round ?? 0}
+        round={reviewSnapshot.body.selected_round ?? reviewSnapshot.body.latest_round ?? 0}
+        roundStatus={
+          (reviewSnapshot.body.selected_round ?? reviewSnapshot.body.latest_round ?? 0) === 0 &&
+          (reviewSnapshot.body.latest_round ?? 0) === 0
+            ? "draft"
+            : null
+        }
       />
     </div>
   );

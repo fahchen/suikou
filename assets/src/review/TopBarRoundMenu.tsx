@@ -16,13 +16,21 @@ export const TopBarRoundMenu = observer(function TopBarRoundMenu() {
   const selectRound = useMusubiCommand(reviewStore, "select_round");
   if (!reviewSnapshot) return null;
   const summaries = reviewSnapshot.body.round_summaries;
-  // No rounds yet (nothing minted) — nothing to switch between.
-  if (summaries.length === 0) return null;
-
   const latest = reviewSnapshot.body.latest_round;
   const current = reviewSnapshot.body.selected_round;
   const isLatest = current === latest;
-  const triggerLabel = isLatest
+  // No rounds at all = empty review with no artifacts; the picker has nothing
+  // to show.
+  if (summaries.length === 0) return null;
+  const entries = summaries;
+  // latest === 0 means round 0 was never submitted (a submit would have opened
+  // round 1 and pushed latest ≥ 1). Round 0 is the initial draft: it holds
+  // pending comments and a draft verdict, nothing published yet. Any round
+  // that reached publish is under review at latest, superseded otherwise.
+  const isDraft = latest === 0;
+  const triggerLabel = isDraft
+    ? `Round ${current} (draft), switch rounds`
+    : isLatest
     ? `Round ${current} (under review), switch rounds`
     : `Round ${current} (superseded; round ${latest} is current), switch rounds`;
 
@@ -32,15 +40,16 @@ export const TopBarRoundMenu = observer(function TopBarRoundMenu() {
         render={
           <Button variant="pill" size="default" title={triggerLabel} aria-label={triggerLabel}>
             <GitCompare className="text-muted-foreground" />
-            <span className="hidden text-[11px] font-medium sm:inline">R{current}</span>
+            <span className="hidden text-[11px] font-medium sm:inline">Round {current}</span>
             <ChevronDown className="text-faint" />
           </Button>
         }
       />
       <PopoverContent align="end" className="w-60 p-2">
         <div className="flex flex-col gap-0.5">
-          {[...summaries].reverse().map((round) => {
+          {[...entries].reverse().map((round) => {
             const isCurrent = round.number === current;
+            const isDraftRow = isDraft && round.number === latest;
             return (
               <button
                 key={round.number}
@@ -50,7 +59,9 @@ export const TopBarRoundMenu = observer(function TopBarRoundMenu() {
               >
                 <span className="flex items-center gap-2 text-[13px] font-medium text-heading">
                   Round {round.number}
-                  {round.number === latest ? (
+                  {isDraftRow ? (
+                    <span className="text-[11px] font-normal text-faint">draft</span>
+                  ) : round.number === latest ? (
                     <span className="text-[11px] font-normal text-amber">under review</span>
                   ) : (
                     <span className="text-[11px] font-normal text-faint">superseded</span>

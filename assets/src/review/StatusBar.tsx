@@ -5,13 +5,16 @@ import { FileIcon } from "./FileIcon"
 
 /** Persistent bottom bar (`.statusbar` in the mockup): current file · view label ·
  * round in the left cluster, connection state with a green LED on the right.
- * Kept slim (29px) so it reads as chrome, not content. */
+ * Kept slim (29px) so it reads as chrome, not content. When the viewed round is
+ * the initial Round 0 with nothing submitted yet, a muted `draft` chip trails
+ * the round label (A2 in the state catalog). */
 export const StatusBar = observer(function StatusBar(props: {
   path: string
   viewLabel: string
   round: number
+  roundStatus?: "draft" | null
 }) {
-  const { path, viewLabel, round } = props
+  const { path, viewLabel, round, roundStatus } = props
   const connected = useSocketConnected()
   const parts = path.split("/")
   const name = parts[parts.length - 1]
@@ -29,6 +32,12 @@ export const StatusBar = observer(function StatusBar(props: {
       <span className="shrink-0">{viewLabel}</span>
       <Dot />
       <span className="shrink-0">Round {round}</span>
+      {roundStatus === "draft" ? (
+        <>
+          <Dot />
+          <span className="shrink-0 text-faint">draft</span>
+        </>
+      ) : null}
       <span className="flex-1" />
       <span
         className={`inline-flex shrink-0 items-center gap-[5px] ${
