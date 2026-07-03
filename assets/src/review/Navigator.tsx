@@ -45,6 +45,7 @@ export const Navigator = observer(function Navigator(props: {
   }, [])
 
   const ordered = orderedReviewFiles(structure.file_entries)
+  const commonPrefix = commonPathPrefix(ordered.map((e) => e.path))
   const live = reviewSnapshot.body.files ?? []
 
   const rows = ordered.map((entry) => {
@@ -123,6 +124,7 @@ export const Navigator = observer(function Navigator(props: {
             commentCount={r.commentCount}
             unresolved={r.unresolved}
             selected={r.entry.path === currentPath}
+            prefix={commonPrefix}
             onSelect={onSelect}
           />
         ))}
@@ -137,6 +139,7 @@ export const Navigator = observer(function Navigator(props: {
             commentCount={r.commentCount}
             unresolved={r.unresolved}
             selected={r.entry.path === currentPath}
+            prefix={commonPrefix}
             onSelect={onSelect}
           />
         ))}
@@ -293,17 +296,36 @@ function GroupHeader(props: { label: string; count: number; first?: boolean }) {
   )
 }
 
+/** Longest directory prefix (ending with `/`) shared by every path. Trimming it
+ * from each row keeps the file list scannable — a project rooted under `lib/`
+ * shows `handler.ex` / `runtime/store.ex`, not `lib/handler.ex` / `lib/runtime/store.ex`. */
+function commonPathPrefix(paths: string[]): string {
+  if (paths.length === 0) return ""
+  const first = paths[0]
+  let end = first.lastIndexOf("/") + 1
+  for (const path of paths) {
+    while (end > 0 && !path.startsWith(first.slice(0, end))) {
+      end = first.lastIndexOf("/", end - 2) + 1
+    }
+    if (end === 0) return ""
+  }
+  return first.slice(0, end)
+}
+
 function NavRow(props: {
   entry: ReviewFileEntry
   verdict: import("./types").Verdict | null
   commentCount: number
   unresolved: number
   selected: boolean
+  prefix: string
   onSelect: (entry: ReviewFileEntry) => void
 }) {
-  const { entry, verdict, commentCount, unresolved, selected, onSelect } = props
-  const parts = entry.path.split("/")
+  const { entry, verdict, commentCount, unresolved, selected, prefix, onSelect } = props
+  const relative = prefix && entry.path.startsWith(prefix) ? entry.path.slice(prefix.length) : entry.path
+  const parts = relative.split("/")
   const name = parts[parts.length - 1]
+  const dir = parts.length > 1 ? parts.slice(0, -1).join("/") + "/" : ""
   const hasBlocker = verdict === "request_changes" || unresolved > 0
   return (
     <button
@@ -324,6 +346,7 @@ function NavRow(props: {
           selected ? "font-[600] text-blue" : "text-text"
         }`}
       >
+        {dir && <span className="text-muted-foreground">{dir}</span>}
         {name}
       </span>
       {commentCount > 0 && (

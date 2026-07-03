@@ -59,7 +59,7 @@
 | C3 | **未读 / blocker ●** | 有新变化 / 未解决 fix_required | 行首 ● | ✅ |
 | C4 | **comment 数 badge** | 有 comment | 数字 badge(fix 色重) | ✅ |
 | C5 | **选中文件** | 当前查看 | 高亮行 | ✅ |
-| C6 | **树状 vs 平铺** | display 选项 | 目录层级折叠 / 平铺 | ◐(craft 树) |
+| C6 | **树状 vs 平铺** | display 选项 | 目录层级折叠 / 平铺 | ✅ |
 | C7 | **过滤框 有结果/空** | 输入过滤 | **只按文件名**过滤(不搜内容、不全局搜索);命中高亮 / "无匹配" | ✅ |
 | C8 | **soft-removed 文件** | 移出 file-selection | 灰显/可 reselect | ➕ |
 | C9 | **navigator 折叠** | 收起左栏 | editor 全宽 | ✅ |
