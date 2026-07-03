@@ -99,7 +99,7 @@
 | E13 | **inline 呈现** | editor 行间 | ✅ |
 | E14 | **side(inspector)呈现** | 右侧 Notion 式截断 + focus 展开 | ✅ |
 | E15 | **html element:dot 折叠 / popover 展开** | 角标 dot → 就地展开 | ✅ |
-| E16 | **stranded(无锚/超文件)** | 落顶部 | ➕ |
+| E16 | **stranded(无锚/超文件)** | 落顶部 | ✅ |
 
 ## F. Composer(创建/回复/编辑)态
 
