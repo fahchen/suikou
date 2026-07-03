@@ -107,7 +107,7 @@
 |---|------|----------|------|
 | F1 | **行 composer(新建)** | gutter 点 → type pill + textarea + Suggest + Add | ✅ |
 | F2 | **范围选择(shift)** | 多行高亮 | ➕ |
-| F3 | **html element composer** | quote 摘录 + type + textarea | ◐ |
+| F3 | **html element composer** | quote 摘录 + type + textarea | ✅ |
 | F4 | **回复 composer** | thread 内回复框 | ✅ |
 | F5 | **编辑 pending comment** | 改正文/type | ✅ |
 | F6 | **草稿恢复** | 重开带回草稿文字 | ➕ |

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
 import { motion } from "motion/react";
-import { SquarePlus } from "lucide-react";
+import { Link2, SquarePlus } from "lucide-react";
 
 import { CommentComposer } from "../CommentComposer";
 import { useReviewCommands } from "../commands";
@@ -74,13 +74,19 @@ export const HtmlAnchorComposer = observer(function HtmlAnchorComposer(props: {
       transition={{ duration: 0.18, ease: "easeOut" }}
       className={frame}
     >
+      <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+        <Link2 size={13} className="shrink-0 text-faint" aria-hidden />
+        <span>Comment on</span>
+        <code
+          className="min-w-0 truncate rounded bg-soft px-1 py-[1px] font-mono text-[11px] text-heading"
+          title={target.selector}
+        >
+          {target.selector}
+        </code>
+      </p>
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        {variant === "rail" && (
-          <span className="text-[12px] font-medium text-heading">
-            New comment on selected region
-          </span>
-        )}
-        <div className="flex flex-wrap gap-1 sm:ml-auto">
+        <div className="flex flex-wrap gap-1">
           {TYPES.map((kind) => (
             <button
               key={kind}
