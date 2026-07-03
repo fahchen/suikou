@@ -16,6 +16,7 @@ import {
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
+import { CreateProjectDialog } from "./CreateProjectDialog"
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
 type LoadBoardReply = CommandReply<"SuikouWeb.Stores.ProjectBoardStore", "load_board", Musubi.Stores>
@@ -105,17 +106,38 @@ function Board({ store }: { store: BoardStore }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected])
 
+  const [creatingProject, setCreatingProject] = useState(false)
+  const refetch = () => {
+    loadBoard.dispatch({}).then(setBoard).catch(() => {})
+  }
+
   const projects = board?.projects ?? []
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
   return (
     <div className="flex h-screen flex-col bg-canvas text-ink">
       <Toolbar />
-      <ChipStrip projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
+      <ChipStrip
+        projects={projects}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onAddProject={() => setCreatingProject(true)}
+      />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_1fr]">
-        <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
+        <Sidebar
+          projects={projects}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onAddProject={() => setCreatingProject(true)}
+        />
         {selected && <ReviewPane project={selected} reviewFiles={board?.review_files ?? []} />}
       </div>
+      <CreateProjectDialog
+        store={store}
+        open={creatingProject}
+        onClose={() => setCreatingProject(false)}
+        onCreated={refetch}
+      />
       <SettingsModal />
     </div>
   )
@@ -127,10 +149,12 @@ function ChipStrip({
   projects,
   selectedId,
   onSelect,
+  onAddProject,
 }: {
   projects: BoardProject[]
   selectedId: string | null
   onSelect: (id: string) => void
+  onAddProject: () => void
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto border-b border-hair-strong bg-surface px-3 py-2 lg:hidden">
@@ -152,7 +176,11 @@ function ChipStrip({
           </button>
         )
       })}
-      <button className="inline-flex size-[34px] shrink-0 items-center justify-center rounded-ctrl border border-dashed border-hair-strong text-muted" title="Add project">
+      <button
+        onClick={onAddProject}
+        className="inline-flex size-[34px] shrink-0 items-center justify-center rounded-ctrl border border-dashed border-hair-strong text-muted"
+        title="Add project"
+      >
         <Plus size={16} strokeWidth={2} aria-hidden />
       </button>
     </div>
@@ -205,10 +233,12 @@ function Sidebar({
   projects,
   selectedId,
   onSelect,
+  onAddProject,
 }: {
   projects: BoardProject[]
   selectedId: string | null
   onSelect: (id: string) => void
+  onAddProject: () => void
 }) {
   return (
     <aside className="hidden flex-col border-r border-hair-strong bg-surface px-[9px] pt-3 pb-[9px] lg:flex">
@@ -237,7 +267,10 @@ function Sidebar({
           )
         })}
       </div>
-      <button className="mt-1 flex h-[34px] shrink-0 items-center gap-[9px] rounded-ctrl border border-dashed border-hair-strong bg-canvas/40 px-2.5 text-[12.5px] font-medium text-muted hover:border-accent-edge hover:text-accent-bright">
+      <button
+        onClick={onAddProject}
+        className="mt-1 flex h-[34px] shrink-0 items-center gap-[9px] rounded-ctrl border border-dashed border-hair-strong bg-canvas/40 px-2.5 text-[12.5px] font-medium text-muted hover:border-accent-edge hover:text-accent-bright"
+      >
         <Plus size={15} strokeWidth={1.9} aria-hidden />
         Add project
       </button>
