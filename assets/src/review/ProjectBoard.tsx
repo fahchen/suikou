@@ -266,7 +266,7 @@ function Board({
   return (
     <BoardRefetchContext.Provider value={refetch}>
       <NewReviewRequestContext.Provider value={newReviewRequest}>
-        <div className="min-h-screen bg-canvas">
+        <div className="flex min-h-screen flex-col bg-canvas">
           <LauncherToolbar
             onNewProject={() => setCreating(true)}
             canCreateReview={selected !== null}
@@ -274,18 +274,16 @@ function Board({
               setNewReviewRequest((prev) => ({ seq: prev.seq + 1, kind }))
             }
           />
-          <div className="mx-auto max-w-[1240px] px-3 pb-16 pt-3 sm:px-5 sm:pt-5">
-            <div className="relative overflow-hidden rounded-2xl border border-line-strong bg-[linear-gradient(180deg,var(--accent-softer),transparent_22%),var(--panel)] shadow-[0_1px_0_var(--line-soft)_inset,var(--elev-2)]">
-              <BoardBody
-                store={store}
-                board={board}
-                error={error}
-                selected={selected}
-                onSelect={setSelectedId}
-                onOpen={onOpen}
-                onNewProject={() => setCreating(true)}
-              />
-            </div>
+          <div className="relative flex flex-1 flex-col overflow-hidden border-t border-line-strong bg-[linear-gradient(180deg,var(--accent-softer),transparent_22%),var(--panel)]">
+            <BoardBody
+              store={store}
+              board={board}
+              error={error}
+              selected={selected}
+              onSelect={setSelectedId}
+              onOpen={onOpen}
+              onNewProject={() => setCreating(true)}
+            />
           </div>
 
           <CreateProjectDialog store={store} open={creating} onOpenChange={setCreating} />
@@ -306,7 +304,7 @@ function LauncherToolbar({
 }) {
   return (
     <div className="sticky top-0 z-30 border-b border-line-strong bg-surface2 shadow-[inset_0_1px_0_var(--line-soft)] backdrop-blur-md">
-      <div className="mx-auto flex h-[50px] max-w-[1240px] items-center gap-[9px] px-3 sm:px-5">
+      <div className="flex h-[50px] items-center gap-[9px] px-3 sm:px-5">
         <button
           type="button"
           title="Suikou home"
@@ -412,7 +410,7 @@ function BoardBody({
     return <EmptyProjectsState onNewProject={onNewProject} />;
   }
   return (
-    <div className="grid grid-cols-1 sm:min-h-[560px] sm:grid-cols-[248px_1fr]">
+    <div className="grid flex-1 grid-cols-1 sm:grid-cols-[248px_1fr]">
       <ProjectSidebar
         projects={board.projects}
         selectedId={selected?.id ?? null}
