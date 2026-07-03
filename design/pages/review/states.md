@@ -133,7 +133,7 @@
 | H1 | **选中 comment → 完整 thread** | type/anchor/正文/全 reply/回复框/Resolve/re-anchor/react | ✅ |
 | H2 | **没选 → review 概览** | verdict 汇总 / blockers / round 统计 | ✅ |
 | H3 | **submit 面板**(c 态) | 见 G3 | ✅ |
-| H4 | **inspector 折叠** | 收起右栏 | ➕ |
+| H4 | **inspector 折叠** | 收起右栏 | ✅ |
 
 ## I. display 子模式(可组合)
 
