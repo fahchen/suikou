@@ -1,19 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-
-import { ProjectBoard } from "../review/ProjectBoard"
-import { reviewFileTarget } from "../review/review-navigation"
+import { createFileRoute } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/")({
-  component: BoardRoute
+  component: Home,
 })
 
-function BoardRoute() {
-  const navigate = useNavigate()
-  return (
-    <ProjectBoard
-      onOpen={(reviewId, path) =>
-        void navigate(reviewFileTarget(reviewId, path, false))
-      }
-    />
-  )
+function Home() {
+  return <div className="p-8 text-sm">Suikou</div>
 }
