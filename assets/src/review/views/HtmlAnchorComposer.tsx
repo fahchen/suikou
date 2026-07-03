@@ -13,7 +13,7 @@ const TYPES: CritiqueType[] = ["fix_required", "needs_answer", "note"];
 
 const TYPE_TONE: Record<string, string> = {
   red: "bg-red-soft text-red ring-1 ring-inset ring-red/30",
-  amber: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/30",
+  blue: "bg-blue-soft text-accent-bright ring-1 ring-inset ring-blue/30",
   muted: "bg-soft text-heading ring-1 ring-inset ring-line",
 };
 

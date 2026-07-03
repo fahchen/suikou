@@ -42,7 +42,7 @@ const TYPE_PILL: Record<CritiqueType, { icon: LucideIcon; label: string; classNa
   needs_answer: {
     icon: HelpCircle,
     label: "NEEDS_ANSWER",
-    className: "bg-amber-soft text-amber ring-1 ring-inset ring-amber/35",
+    className: "bg-blue-soft text-accent-bright ring-1 ring-inset ring-blue/35",
   },
   note: {
     icon: MessageSquare,

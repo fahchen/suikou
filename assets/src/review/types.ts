@@ -28,7 +28,7 @@ export type ReviewFileEntry = CommandReply<
 
 export const CRITIQUE_META: Record<CritiqueType, { label: string; short: string; tone: string }> = {
   fix_required: { label: "Fix required", short: "Fix", tone: "red" },
-  needs_answer: { label: "Needs answer", short: "Needs", tone: "amber" },
+  needs_answer: { label: "Needs answer", short: "Needs", tone: "blue" },
   note: { label: "Note", short: "Note", tone: "muted" }
 }
 

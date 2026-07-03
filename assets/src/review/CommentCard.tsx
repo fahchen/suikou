@@ -22,7 +22,7 @@ import {
 // Tokens only — no side-stripe borders.
 const CARD_TONE: Record<CritiqueType, string> = {
   fix_required: "bg-red-soft ring-1 ring-inset ring-red/25",
-  needs_answer: "bg-amber-soft ring-1 ring-inset ring-amber/25",
+  needs_answer: "bg-blue-soft ring-1 ring-inset ring-blue/25",
   note: "bg-surface ring-1 ring-inset ring-line-soft",
 };
 
