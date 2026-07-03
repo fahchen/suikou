@@ -62,7 +62,7 @@
 | C6 | **树状 vs 平铺** | display 选项 | 目录层级折叠 / 平铺 | ◐(craft 树) |
 | C7 | **过滤框 有结果/空** | 输入过滤 | **只按文件名**过滤(不搜内容、不全局搜索);命中高亮 / "无匹配" | ✅ |
 | C8 | **soft-removed 文件** | 移出 file-selection | 灰显/可 reselect | ➕ |
-| C9 | **navigator 折叠** | 收起左栏 | editor 全宽 | ➕ |
+| C9 | **navigator 折叠** | 收起左栏 | editor 全宽 | ✅ |
 
 ## D. Editor 渲染态(每种文件类型)
 

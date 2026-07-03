@@ -3,6 +3,7 @@ import { observer } from "mobx-react-lite"
 import { useNavigate } from "@tanstack/react-router"
 import { Folder, Search, X } from "lucide-react"
 
+import { uiStore } from "../stores/ui-store"
 import { ChangeStatusIcon } from "./ChangeStatusIcon"
 import { FileIcon } from "./FileIcon"
 import { VerdictIcon } from "./TopBarVerdictMenu"
@@ -87,6 +88,8 @@ export const Navigator = observer(function Navigator(props: {
   function onSelect(entry: ReviewFileEntry) {
     void navigate(reviewFileTarget(structure.review_id, entry.path, sourceView))
   }
+
+  if (uiStore.navigatorCollapsed) return null
 
   return (
     <aside

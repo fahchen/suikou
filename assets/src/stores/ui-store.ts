@@ -124,6 +124,11 @@ export class UiStore {
   // not a route, so it does not touch the URL and does not persist across reloads.
   settingsOpen = false
 
+  // Collapse the left navigator column to give the editor full width. Session-
+  // only per C9 (the storyboard's slim rail is deferred — for now the column
+  // fully hides and a toolbar button expands it again).
+  navigatorCollapsed = false
+
   constructor() {
     makeAutoObservable(this)
 
@@ -244,6 +249,10 @@ export class UiStore {
   toggleCollapseAll(): void {
     this.commentsCollapsed = !this.commentsCollapsed
     this.collapseNonce++
+  }
+
+  toggleNavigator(): void {
+    this.navigatorCollapsed = !this.navigatorCollapsed
   }
 
   setStatusFilter(filter: StatusFilter): void {

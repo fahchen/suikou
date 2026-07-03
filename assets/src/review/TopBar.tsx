@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { observer } from "mobx-react-lite";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { usePrefetchReviewStore, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
@@ -73,6 +73,24 @@ export const TopBar = observer(function TopBar(props: {
     }
   }
 
+  const navToggle = (
+    <Button
+      variant="pill"
+      size="icon"
+      className="hidden lg:inline-flex"
+      title={uiStore.navigatorCollapsed ? "Show files" : "Hide files"}
+      aria-label={uiStore.navigatorCollapsed ? "Show files" : "Hide files"}
+      aria-pressed={uiStore.navigatorCollapsed}
+      onClick={() => uiStore.toggleNavigator()}
+    >
+      {uiStore.navigatorCollapsed ? (
+        <PanelLeftOpen className="text-muted-foreground" />
+      ) : (
+        <PanelLeftClose className="text-muted-foreground" />
+      )}
+    </Button>
+  );
+
   // TopBar is the single-file header, so the prev/next file nav always applies.
   // Hidden below `sm:` — at 390px the mockup's app bar has no room for file
   // pagination beside the breadcrumb; the file-head switcher covers the axis.
@@ -114,7 +132,12 @@ export const TopBar = observer(function TopBar(props: {
   return (
     <TopBarShell
       crumb={crumb}
-      left={fileNav}
+      left={
+        <>
+          {navToggle}
+          {fileNav}
+        </>
+      }
       right={
         <>
           {/* Round selector + Collapse-all + Display live in a desktop-only cluster.
