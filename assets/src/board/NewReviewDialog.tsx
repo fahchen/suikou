@@ -28,24 +28,31 @@ export function NewReviewDialog({
 }) {
   const createFiles = useMusubiCommand(store, "create_review")
   const createDiff = useMusubiCommand(store, "create_diff_review")
+  const [name, setName] = useState("")
+  const [nameDirty, setNameDirty] = useState(false)
   const [selections, setSelections] = useState<Set<string>>(new Set())
   const [base, setBase] = useState("")
   const [head, setHead] = useState("")
   const [error, setError] = useState<string | null>(null)
   const busy = createFiles.isPending || createDiff.isPending
 
-  // The name is derived from the project, not typed: a diff carries its refs, a
-  // file review takes the project name.
+  // A sensible default name — the project for a file review, the refs for a
+  // diff — that keeps syncing into the field until the user edits it.
   const derivedName =
     kind === "diff" && head.trim() ? `${base.trim() ? `${base.trim()}..` : ""}${head.trim()}` : project.name
 
   useEffect(() => {
     if (!open) return
+    setNameDirty(false)
     setSelections(new Set())
     setBase("")
     setHead("")
     setError(null)
   }, [open, kind, project.id])
+
+  useEffect(() => {
+    if (open && !nameDirty) setName(derivedName)
+  }, [open, nameDirty, derivedName])
 
   useEffect(() => {
     if (!open) return
@@ -75,10 +82,12 @@ export function NewReviewDialog({
       return next
     })
 
-  const canSubmit = kind === "files" ? selections.size > 0 : head.trim().length > 0
+  const canSubmit =
+    name.trim().length > 0 && (kind === "files" ? selections.size > 0 : head.trim().length > 0)
 
   const submit = () => {
     if (!canSubmit) return
+    const reviewName = name.trim() || derivedName
     const done = (reply: { review_id: string | null; error: string | null }) => {
       if (reply.error) {
         setError(reply.error)
@@ -89,14 +98,14 @@ export function NewReviewDialog({
     }
     if (kind === "files") {
       createFiles
-        .dispatch({ project_id: project.id, name: derivedName, selections: [...selections] })
+        .dispatch({ project_id: project.id, name: reviewName, selections: [...selections] })
         .then(done)
         .catch((cause: Error) => setError(cause.message))
     } else {
       createDiff
         .dispatch({
           project_id: project.id,
-          name: derivedName,
+          name: reviewName,
           base_ref: base.trim() || null,
           head_ref: head.trim(),
         })
@@ -121,6 +130,19 @@ export function NewReviewDialog({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11.5px] font-semibold text-muted">Name</span>
+            <input
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameDirty(true)
+              }}
+              placeholder={derivedName}
+              className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 text-[13px] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+            />
+          </label>
+
           {kind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <span className="text-[11.5px] font-semibold text-muted">
