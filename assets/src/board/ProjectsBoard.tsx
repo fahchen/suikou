@@ -4,7 +4,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Copy,
   FileText,
   Folder,
   GitCompare,
@@ -367,10 +366,14 @@ function ReviewPane({
         <span className="text-[17px] font-bold tracking-[-0.02em] text-ink">{project.name}</span>
         <span className="truncate font-mono text-[11.5px] text-faint">{project.path}</span>
         <span className="flex-1" />
-        <ProjectActions store={store} project={project} onDeleted={onDeleted} />
+        <ProjectActions
+          store={store}
+          project={project}
+          onNewReview={onNewReview}
+          onDeleted={onDeleted}
+        />
       </div>
       <div className="flex flex-1 flex-col gap-[9px] overflow-auto px-4 pt-[14px] pb-[18px]">
-        <NewReviewCard onNew={onNewReview} />
         {project.reviews.map((review) => (
           <ReviewRow key={review.id} review={review} files={filesFor(reviewFiles, review.id)} />
         ))}
@@ -382,72 +385,108 @@ function ReviewPane({
 function ProjectActions({
   store,
   project,
+  onNewReview,
   onDeleted,
 }: {
   store: BoardStore
   project: BoardProject
+  onNewReview: (kind: "files" | "diff") => void
   onDeleted: () => void
 }) {
   const remove = useMusubiCommand(store, "delete_project")
+  const [confirmDelete, setConfirmDelete] = useState(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            className="grid size-[30px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-            title="Project actions"
-          >
-            <MoreHorizontal size={18} aria-hidden />
-          </button>
-        }
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              className="grid size-[30px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+              title="Project actions"
+            >
+              <MoreHorizontal size={18} aria-hidden />
+            </button>
+          }
+        />
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={() => onNewReview("files")}>
+            <FileText size={14} aria-hidden />
+            Create file review
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onNewReview("diff")}>
+            <GitCompare size={14} aria-hidden />
+            Create diff review
+          </DropdownMenuItem>
+          <DropdownMenuItem destructive onClick={() => setConfirmDelete(true)}>
+            <Trash2 size={14} aria-hidden />
+            Delete project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${project.name}?`}
+        body="This removes the project and its reviews from Suikou. The files on disk are left untouched."
+        confirmLabel="Delete project"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => {
+          remove
+            .dispatch({ project_id: project.id })
+            .then(() => {
+              setConfirmDelete(false)
+              onDeleted()
+            })
+            .catch(() => {})
+        }}
       />
-      <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => void navigator.clipboard?.writeText(project.path)}>
-          <Copy size={14} aria-hidden />
-          Copy path
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          destructive
-          onClick={() => {
-            remove.dispatch({ project_id: project.id }).then(onDeleted).catch(() => {})
-          }}
-        >
-          <Trash2 size={14} aria-hidden />
-          Delete project
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    </>
   )
 }
 
-function NewReviewCard({ onNew }: { onNew: (kind: "files" | "diff") => void }) {
+function ConfirmDialog({
+  open,
+  title,
+  body,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  title: string
+  body: string
+  confirmLabel: string
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [open, onCancel])
+
+  if (!open) return null
   return (
-    <div className="group flex items-center gap-[11px] rounded-panel border border-dashed border-hair-strong bg-canvas/40 px-[13px] py-[11px] hover:border-accent-edge hover:bg-accent-softer">
-      <button onClick={() => onNew("files")} className="flex min-w-0 flex-1 items-center gap-[11px] text-left">
-        <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
-          <Plus size={17} strokeWidth={1.9} aria-hidden />
-        </span>
-        <span className="flex min-w-0 flex-col gap-px">
-          <span className="text-[13.5px] font-semibold tracking-[-0.01em] text-ink">New review</span>
-          <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
-        </span>
-      </button>
-      <span className="ml-auto hidden items-center gap-[7px] sm:inline-flex">
-        <button
-          onClick={() => onNew("files")}
-          className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)] hover:text-ink"
-        >
-          <FileText size={13} strokeWidth={1.7} aria-hidden />
-          Files
-        </button>
-        <button
-          onClick={() => onNew("diff")}
-          className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)] hover:text-ink"
-        >
-          <GitCompare size={13} strokeWidth={1.8} aria-hidden />
-          Diff
-        </button>
-      </span>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <button aria-label="Cancel" onClick={onCancel} className="absolute inset-0 bg-[oklch(0%_0_0/0.5)] backdrop-blur-[2px]" />
+      <div className="relative flex w-full max-w-[400px] flex-col gap-3 rounded-panel border border-hair-strong bg-surface p-5 shadow-[0_20px_60px_oklch(0%_0_0/0.4)]">
+        <h2 className="text-[15px] font-bold text-ink">{title}</h2>
+        <p className="text-[12.5px] leading-[1.5] text-muted">{body}</p>
+        <div className="flex items-center gap-2 pt-1">
+          <span className="flex-1" />
+          <button onClick={onCancel} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="inline-flex h-[32px] items-center rounded-ctrl bg-request px-4 text-[13px] font-semibold text-on-accent hover:brightness-110"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
