@@ -158,21 +158,11 @@ describe("ProjectBoard", () => {
     }
     await renderBoard()
 
-    // "Files" also appears on the "+ New review" trigger chip; the row badge is
-    // the one whose class carries the kind-token, so scope to review rows.
-    const rowBadges = (await screen.findAllByText("Files")).filter((el) =>
-      el.className.includes("bg-kind-files-bg")
-    )
-    const filesBadge = rowBadges[0]
-    const diffBadge = screen
-      .getAllByText("Diff")
-      .filter((el) => el.className.includes("bg-kind-diff-bg"))[0]
-    // Both badges read off the per-theme `--kind-{files,diff}-*` tokens so the
-    // file-selection vs. diff distinction stays clear across light and dark
-    // themes (the diff chip stays a fixed-hue blue independent of `--primary`).
-    expect(filesBadge.className).toContain("bg-kind-files-bg")
-    expect(diffBadge.className).toContain("bg-kind-diff-bg")
-    expect(diffBadge.className).toContain("text-kind-diff-fg")
+    // The mockup conveys a review's kind through its monochrome row glyph (a
+    // document for file_selection, a compare glyph for git_diff), not a text
+    // badge, so the distinction reads off each row glyph's title.
+    expect(await screen.findByTitle("File selection review")).toBeInTheDocument()
+    expect(screen.getByTitle("Git diff review")).toBeInTheDocument()
     expect(screen.getByText("main..origin/feature/x")).toBeInTheDocument()
     expect(screen.getByText("2 files")).toBeInTheDocument()
   })
@@ -210,12 +200,9 @@ describe("ProjectBoard", () => {
     await renderBoard()
 
     // Only the all-HTML selection earns the badge; a generic file selection stays plain.
-    const htmlBadge = await screen.findByText("HTML")
-    expect(htmlBadge.className).toContain("bg-kind-html-bg")
-    const filesBadges = screen
-      .getAllByText("Files")
-      .filter((el) => el.className.includes("bg-kind-files-bg"))
-    expect(filesBadges).toHaveLength(2)
+    const htmlBadges = await screen.findAllByText("HTML")
+    expect(htmlBadges).toHaveLength(1)
+    expect(htmlBadges[0].className).toContain("bg-kind-html-bg")
   })
 
   it("shows em-dashes on the diff card subline when refs are missing", async () => {

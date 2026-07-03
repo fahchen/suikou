@@ -45,7 +45,6 @@ import {
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { readCommandCache, writeCommandCache } from "./command-cache";
 import { FileTree } from "./FileTree";
-import { KindBadge } from "./KindBadge";
 import { ReviewFileTree } from "./ReviewFileTree";
 import { orderedReviewFiles } from "./file-order";
 import { uiStore } from "../stores/ui-store";
@@ -760,11 +759,11 @@ function NewReviewCard({ onPick }: { onPick: (kind: "files" | "diff") => void })
           <span className="text-[11.5px] text-faint">Select files, or a diff of two refs</span>
         </span>
         <span className="ml-auto hidden shrink-0 items-center gap-[7px] sm:inline-flex">
-          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-text2 shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
             <FileText size={13} strokeWidth={1.7} aria-hidden />
             Files
           </span>
-          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-hover px-[9px] text-[11.5px] font-medium text-muted shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
+          <span className="inline-flex h-[25px] items-center gap-[5px] rounded-full bg-soft px-[9px] text-[11.5px] font-medium text-text2 shadow-[inset_0_0_0_0.5px_var(--line-strong)]">
             <GitCompare size={13} strokeWidth={1.8} aria-hidden />
             Diff
           </span>
@@ -821,6 +820,9 @@ function ReviewCard({
     review.kind === "file_selection" &&
     files.length > 0 &&
     files.every((file) => isHtmlPath(file.path));
+  // The board carries per-file approval, so a review reads as approved once
+  // every one of its files is approved — matching the mockup's "Approved" tag.
+  const approved = files.length > 0 && files.every((file) => file.approved);
 
   async function handleOpen(path: string) {
     setPendingPath(path);
@@ -928,7 +930,6 @@ function ReviewCard({
               <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.012em] text-heading">
                 {review.name}
               </h3>
-              <KindBadge kind={review.kind} />
               {isHtmlReview && <HtmlBadge />}
               {pendingPath !== null && (
                 <Loader2
@@ -957,6 +958,16 @@ function ReviewCard({
               </span>
             </span>
           </button>
+        )}
+
+        {!renaming && approved && (
+          <span
+            className="inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full bg-green-soft py-0 pr-[9px] pl-[7px] text-[11px] font-semibold text-green shadow-[inset_0_0_0_0.5px_var(--color-green)]"
+            title="Approved"
+          >
+            <Check size={13} strokeWidth={2.4} aria-hidden />
+            Approved
+          </span>
         )}
 
         <button
