@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate, useSearch } from "@tanstack/react-router";
 import { observer } from "mobx-react-lite";
-import { AlertTriangle, ArrowRight, FileX, GitBranch, Lock, RotateCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, FileX, GitBranch, Lock, RotateCw, Trash2 } from "lucide-react";
 
 import { storeCache, useMusubiRoot, useMusubiSnapshot } from "../musubi";
 import { uiStore } from "../stores/ui-store";
@@ -368,6 +368,11 @@ const HydratedReviewBody = observer(function HydratedReviewBody(props: {
               >
                 <HeaderSlotProvider>
                   {structure.refs && <RefsBanner refs={structure.refs} />}
+                  <ReviewOutcomeBanner
+                    reviewSnapshot={reviewSnapshot}
+                    latestRound={latestRound}
+                    selectedRound={selectedRound}
+                  />
                   <article className="overflow-hidden rounded-xl border border-line bg-editor">
                     <FileHeader
                       sourceView={sourceView}
@@ -600,6 +605,52 @@ export function ReviewShellSkeleton(props: { label: string }) {
       </div>
       <span className="sr-only">{props.label}</span>
     </main>
+  );
+}
+
+/** Terminal-state banner above the editor when the whole review is approved
+ * on the latest round (A8). Only renders on the latest round — reading a
+ * superseded round should not claim the review is approved. The banner is
+ * informational and does not add its own dismiss; approval is undone via the
+ * per-file verdict chip / submit menu, matching the mockup copy. */
+function ReviewOutcomeBanner(props: {
+  reviewSnapshot: ReviewSnapshot;
+  latestRound: number;
+  selectedRound: number;
+}) {
+  const { reviewSnapshot, latestRound, selectedRound } = props;
+  if (selectedRound !== latestRound) return null;
+  if (reviewOutcome(reviewSnapshot) !== "approved") return null;
+  const files = reviewSnapshot.body.files;
+  const total = files.length;
+  const blockers = files.reduce(
+    (acc, f) =>
+      acc +
+      (f.comments?.items ?? []).filter(
+        (c) => c.critique_type === "fix_required" && (c.status === "pending" || !c.resolved),
+      ).length,
+    0,
+  );
+  return (
+    <div
+      role="status"
+      className="mb-3 flex items-center gap-3 rounded-xl border border-green/30 bg-green-soft px-3.5 py-2.5 text-[12.5px] leading-[1.45] text-text2 shadow-[inset_0_0.5px_0_var(--edge-top-2)]"
+    >
+      <span
+        aria-hidden
+        className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-green/20 shadow-[inset_0_0.5px_0_var(--edge-top-2)]"
+      >
+        <Check size={16} className="text-green" strokeWidth={2.2} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <b className="font-[660] text-heading">Review approved.</b>{" "}
+        All {total} {total === 1 ? "file" : "files"} reviewed,{" "}
+        {blockers === 0
+          ? "no open blockers"
+          : `${blockers} open ${blockers === 1 ? "blocker" : "blockers"}`}{" "}
+        on Round {latestRound}. Approval is the terminal state, but reversible.
+      </div>
+    </div>
   );
 }
 
