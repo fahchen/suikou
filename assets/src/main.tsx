@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router"
 
 import { MusubiProvider, socket } from "./musubi"
 import { router } from "./router"
+import "./stores/ui-store"
 import "./index.css"
 
 const rootElement = document.getElementById("root")

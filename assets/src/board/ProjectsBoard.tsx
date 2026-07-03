@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
+import { uiStore } from "../stores/ui-store"
+import { SettingsModal } from "../settings/SettingsModal"
 
 type BoardStore = StoreProxy<"SuikouWeb.Stores.ProjectBoardStore", Musubi.Stores>
 type LoadBoardReply = CommandReply<"SuikouWeb.Stores.ProjectBoardStore", "load_board", Musubi.Stores>
@@ -114,6 +116,7 @@ function Board({ store }: { store: BoardStore }) {
         <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
         {selected && <ReviewPane project={selected} reviewFiles={board?.review_files ?? []} />}
       </div>
+      <SettingsModal />
     </div>
   )
 }
@@ -183,8 +186,9 @@ function Toolbar() {
       </button>
       <span aria-hidden className="hidden h-[22px] w-px bg-hair-strong sm:block" />
       <button
+        onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-        title="Display options"
+        title="Settings"
       >
         <SlidersHorizontal size={16} aria-hidden />
       </button>
