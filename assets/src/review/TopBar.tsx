@@ -16,6 +16,7 @@ import { structureFile, useReviewStructure, type StructureFileEntry } from "./us
 import { type ReviewSnapshot } from "./types";
 import { TopBarRoundMenu } from "./TopBarRoundMenu";
 import { TopBarDisplayMenu } from "./TopBarDisplayMenu";
+import { TopBarReviewSummary } from "./TopBarReviewSummary";
 import { resolveViewKind, viewCapabilities } from "./view-kind";
 import { useMediaQuery, WIDE_QUERY } from "../hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,10 @@ export const TopBar = observer(function TopBar(props: {
             disabled={!hasUnpublishedWork || commands.submitReview.disabled}
             onSubmit={() => void commands.submitReview.dispatch({})}
           />
+          <div className="hidden sm:contents">
+            <TopBarSep />
+            <TopBarReviewSummary reviewSnapshot={reviewSnapshot} sourceView={sourceView} />
+          </div>
         </>
       }
     />

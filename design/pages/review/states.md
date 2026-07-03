@@ -131,7 +131,7 @@
 | # | 状态 | 关键呈现 | 状态 |
 |---|------|----------|------|
 | H1 | **选中 comment → 完整 thread** | type/anchor/正文/全 reply/回复框/Resolve/re-anchor/react | ✅ |
-| H2 | **没选 → review 概览** | verdict 汇总 / blockers / round 统计 | ◐ |
+| H2 | **没选 → review 概览** | verdict 汇总 / blockers / round 统计 | ✅ |
 | H3 | **submit 面板**(c 态) | 见 G3 | ✅ |
 | H4 | **inspector 折叠** | 收起右栏 | ➕ |
 
