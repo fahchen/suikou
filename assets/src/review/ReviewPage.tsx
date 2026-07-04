@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User, X } from "lucide-react"
+import { AlertTriangle, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
+import { ConfirmDialog } from "../components/ui/confirm-dialog"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { highlightLines } from "./highlight"
@@ -28,6 +29,32 @@ type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][numb
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
 type CritiqueType = "fix_required" | "needs_answer" | "note"
+type Range = { start: number; end: number }
+
+const sameRange = (a: Range, b: Range): boolean => a.start === b.start && a.end === b.end
+
+function safeRange(raw: string): Range | null {
+  try {
+    const value = JSON.parse(raw)
+    return typeof value?.start === "number" && typeof value?.end === "number"
+      ? { start: value.start, end: value.end }
+      : null
+  } catch {
+    return null
+  }
+}
+
+const draftBodyKey = (scope: string, range: Range): string => `suikou-draft:${scope}:${range.start}-${range.end}`
+
+/** Whether a persisted composer draft for this anchor holds unsent text. */
+function hasDraftBody(scope: string, range: Range): boolean {
+  try {
+    const value = JSON.parse(localStorage.getItem(draftBodyKey(scope, range)) || "{}")
+    return typeof value?.body === "string" && value.body.trim().length > 0
+  } catch {
+    return false
+  }
+}
 
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
@@ -591,24 +618,85 @@ const Source = observer(function Source({
   }, [comments, count])
 
   // The line range whose new-comment composer is open (null = none). `drag` is
-  // the live gutter drag in progress; on release it commits to `draft`, which
-  // renders the composer past the range's end line. A plain click is a
-  // zero-length drag (down and up on one line); shift-click extends `draft`.
-  const [draft, setDraft] = useState<{ start: number; end: number } | null>(null)
+  // the live gutter drag in progress; on release it commits to `draft`. `switchTo`
+  // is a range waiting on the user to confirm discarding a dirty open composer.
+  const [draft, setDraft] = useState<Range | null>(null)
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
+  const [switchTo, setSwitchTo] = useState<Range | null>(null)
+  const draftRef = useRef<Range | null>(draft)
+  draftRef.current = draft
 
-  // Commit the drag on pointer release anywhere (the pointer may leave the
-  // gutter before lifting). Re-armed each time the range grows; cheap for the
-  // line counts a review file holds.
+  const openKey = `suikou-composer:${draftScope}`
+
+  // Restore an open composer across reloads: the anchor persists under `openKey`
+  // and the body/type under the composer's own draft key, so a refresh reopens
+  // the card and scrolls to it. Re-runs per file; an absent record closes any
+  // composer carried over from the previous file.
   useEffect(() => {
-    if (!drag) return
-    const commit = () => {
-      setDraft({ start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) })
-      setDrag(null)
+    const raw = localStorage.getItem(openKey)
+    const stored = raw ? safeRange(raw) : null
+    // Only reopen a composer that carried unsaved text; a bare anchor left from
+    // an emptied composer is stale, so drop it.
+    const restored = stored && hasDraftBody(draftScope, stored) ? stored : null
+    if (!restored) localStorage.removeItem(openKey)
+    setDraft(restored)
+    if (restored) {
+      requestAnimationFrame(() =>
+        document.querySelector(`[data-review-line="${restored.end}"]`)?.scrollIntoView({ block: "center" }),
+      )
     }
-    window.addEventListener("pointerup", commit)
-    return () => window.removeEventListener("pointerup", commit)
-  }, [drag])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey])
+
+  const open = (range: Range) => {
+    setDraft(range)
+    localStorage.setItem(openKey, JSON.stringify(range))
+  }
+  const close = () => {
+    const current = draftRef.current
+    if (current) localStorage.removeItem(draftBodyKey(draftScope, current))
+    localStorage.removeItem(openKey)
+    setDraft(null)
+  }
+  // Open a range, but if a different composer is open with unsaved text, stash
+  // the target behind a discard confirm first.
+  const requestOpen = (range: Range) => {
+    const current = draftRef.current
+    if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
+    else open(range)
+  }
+
+  // Drag selection via a window listener + hit-testing, not per-line
+  // `onPointerEnter`: touch implicitly captures the pointer to the first target,
+  // so enter never fires on the lines dragged over — `elementFromPoint` finds
+  // them instead, which works for mouse and touch alike.
+  const dragging = drag !== null
+  const dragRef = useRef(drag)
+  dragRef.current = drag
+  useEffect(() => {
+    if (!dragging) return
+    const lineAt = (x: number, y: number): number | null => {
+      const el = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest("[data-review-line]")
+      const value = el?.getAttribute("data-review-line")
+      return value ? Number(value) : null
+    }
+    const move = (event: PointerEvent) => {
+      const line = lineAt(event.clientX, event.clientY)
+      if (line != null) setDrag((d) => (d && d.to !== line ? { ...d, to: line } : d))
+    }
+    const up = () => {
+      const d = dragRef.current
+      setDrag(null)
+      if (d) requestOpen({ start: Math.min(d.from, d.to), end: Math.max(d.from, d.to) })
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+    return () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging])
 
   const submitNew = (body: string, type: CritiqueType) => {
     if (!fileProxy || !draft) return
@@ -620,7 +708,7 @@ const Source = observer(function Source({
         anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
       })
       .catch(() => undefined)
-    setDraft(null)
+    close()
   }
 
   return (
@@ -644,13 +732,11 @@ const Source = observer(function Source({
                 type="button"
                 onPointerDown={(event) => {
                   if (event.shiftKey && draft) {
-                    setDraft({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
+                    open({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
                   } else {
-                    setDraft(null)
                     setDrag({ from: lineNo, to: lineNo })
                   }
                 }}
-                onPointerEnter={() => setDrag((d) => (d ? { ...d, to: lineNo } : d))}
                 style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
                 title="Comment on this line — drag or shift-click for a range"
                 className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
@@ -681,10 +767,10 @@ const Source = observer(function Source({
             {draft && draft.end === lineNo && (
               <Composer
                 anchorLabel={`line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}`}
-                draftKey={`suikou-draft:${draftScope}:${draft.start}-${draft.end}`}
+                draftKey={draftBodyKey(draftScope, draft)}
                 pending={addComment.isPending}
                 onSubmit={submitNew}
-                onCancel={() => setDraft(null)}
+                onCancel={close}
               />
             )}
             {threads?.map((comment) => (
@@ -693,6 +779,18 @@ const Source = observer(function Source({
           </Fragment>
         )
       })}
+      <ConfirmDialog
+        open={switchTo !== null}
+        title="Discard unsaved comment?"
+        body="You have an unfinished comment open. Starting another one here discards it."
+        confirmLabel="Discard"
+        onCancel={() => setSwitchTo(null)}
+        onConfirm={() => {
+          if (draft) localStorage.removeItem(draftBodyKey(draftScope, draft))
+          if (switchTo) open(switchTo)
+          setSwitchTo(null)
+        }}
+      />
     </div>
   )
 })
@@ -838,10 +936,23 @@ const TYPE_OPTIONS: { value: CritiqueType; label: string; Icon: typeof AlertTria
   { value: "note", label: "Note", Icon: StickyNote, dot: "bg-type-note" },
 ]
 
-// The compact inline composer: a header (anchor + type dropdown + close), a
-// textarea, and Add/Cancel. Type lives in a header dropdown rather than a pill
-// row to keep the card short. `anchorLabel: null` = reply mode (no type/anchor).
-// A `draftKey` persists the in-progress body to localStorage (F6).
+function safeDraft(raw: string | null): { type: CritiqueType; body: string } | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(raw)
+    if (typeof value?.body !== "string") return null
+    const type: CritiqueType = value.type === "needs_answer" || value.type === "note" ? value.type : "fix_required"
+    return { type, body: value.body }
+  } catch {
+    return null
+  }
+}
+
+// The compact inline composer: a header (anchor + type dropdown), a textarea,
+// and Add/Cancel. Type lives in a header dropdown rather than a pill row to keep
+// the card short. `anchorLabel: null` = reply mode (no type/anchor). A `draftKey`
+// persists the in-progress type+body to localStorage so a reload restores it;
+// Cancel with unsaved text asks before discarding.
 function Composer({
   anchorLabel,
   initialType = "fix_required",
@@ -864,8 +975,13 @@ function Composer({
   onCancel: () => void
 }) {
   const withType = anchorLabel !== null
-  const [type, setType] = useState<CritiqueType>(initialType)
-  const [body, setBody] = useState(() => (draftKey ? (localStorage.getItem(draftKey) ?? initialBody) : initialBody))
+  const [type, setType] = useState<CritiqueType>(
+    () => (draftKey ? safeDraft(localStorage.getItem(draftKey))?.type : undefined) ?? initialType,
+  )
+  const [body, setBody] = useState<string>(
+    () => (draftKey ? safeDraft(localStorage.getItem(draftKey))?.body : undefined) ?? initialBody,
+  )
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -877,15 +993,32 @@ function Composer({
 
   useEffect(() => {
     if (!draftKey) return
-    if (body.trim()) localStorage.setItem(draftKey, body)
+    if (body.trim()) localStorage.setItem(draftKey, JSON.stringify({ type, body }))
     else localStorage.removeItem(draftKey)
-  }, [body, draftKey])
+  }, [type, body, draftKey])
+
+  const dirty = body.trim() !== initialBody.trim()
 
   const submit = () => {
     const text = body.trim()
     if (!text) return
     if (draftKey) localStorage.removeItem(draftKey)
     onSubmit(text, type)
+  }
+  // Clicking Cancel is an explicit choice, so it discards straight away. Escape
+  // and switching to another line are easier to hit by accident, so those route
+  // through `requestCancel` and confirm first when there's unsaved text.
+  const cancelNow = () => {
+    if (draftKey) localStorage.removeItem(draftKey)
+    onCancel()
+  }
+  const requestCancel = () => {
+    if (dirty) setConfirmDiscard(true)
+    else cancelNow()
+  }
+  const discard = () => {
+    setConfirmDiscard(false)
+    cancelNow()
   }
 
   const current = TYPE_OPTIONS.find((o) => o.value === type) ?? TYPE_OPTIONS[0]
@@ -925,14 +1058,6 @@ function Composer({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Cancel"
-          className="grid size-6 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-        >
-          <X size={14} aria-hidden />
-        </button>
       </div>
       <div className="px-3 pb-3">
         <textarea
@@ -945,7 +1070,7 @@ function Composer({
               submit()
             } else if (event.key === "Escape") {
               event.preventDefault()
-              onCancel()
+              requestCancel()
             }
           }}
           rows={3}
@@ -955,7 +1080,7 @@ function Composer({
         <div className="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={cancelNow}
             className="h-[28px] rounded-ctrl px-3 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
           >
             Cancel
@@ -971,6 +1096,14 @@ function Composer({
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="Discard this comment?"
+        body="Your unsaved text will be lost."
+        confirmLabel="Discard"
+        onCancel={() => setConfirmDiscard(false)}
+        onConfirm={discard}
+      />
     </div>
   )
 }
