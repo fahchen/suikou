@@ -621,9 +621,14 @@ function Editor({
                 <Minus size={12} aria-hidden />
               </button>
               <span className="h-full w-px bg-hair-strong" />
-              <span className="min-w-[42px] px-2 text-center font-medium tabular-nums text-ink">
+              <button
+                type="button"
+                onClick={() => setHtmlZoom(1)}
+                title="Reset zoom to 100%"
+                className="h-[24px] min-w-[42px] px-2 text-center font-medium tabular-nums text-ink hover:bg-soft"
+              >
                 {Math.round(htmlZoom * 100)}%
-              </span>
+              </button>
               <span className="h-full w-px bg-hair-strong" />
               <button
                 type="button"
