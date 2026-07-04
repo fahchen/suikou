@@ -1035,7 +1035,7 @@ function htmlAnchorScript(): string {
   function rectOf(el) { var r = el.getBoundingClientRect(); return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; }
   function elFor(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
 
-  var anchored = [], tracked = null, hoverSel = null;
+  var anchored = [], tracked = null, hoverSel = null, active = true;
   function postAnchored() {
     var items = [];
     for (var i = 0; i < anchored.length; i++) { var el = elFor(anchored[i]); if (el) items.push({ selector: anchored[i], rect: rectOf(el) }); }
@@ -1051,6 +1051,7 @@ function htmlAnchorScript(): string {
     if (el) parent.postMessage({ source: "suikou-html", kind: "rect", selector: tracked, rect: rectOf(el) }, "*");
   }
   document.addEventListener("pointermove", function (e) {
+    if (!active) return;
     var t = e.target;
     var ok = t && t.nodeType === 1 && t !== document.body && t !== document.documentElement;
     var sel = ok ? selectorFor(t) : null;
@@ -1058,6 +1059,7 @@ function htmlAnchorScript(): string {
   }, true);
   document.addEventListener("pointerleave", function () { if (hoverSel !== null) { hoverSel = null; postHover(); } }, true);
   document.addEventListener("click", function (e) {
+    if (!active) return;
     var t = e.target;
     if (!t || t.nodeType !== 1) return;
     e.preventDefault(); e.stopPropagation();
@@ -1073,6 +1075,7 @@ function htmlAnchorScript(): string {
     if (!d || d.source !== "suikou-host") return;
     if (d.kind === "anchors") { anchored = d.selectors || []; postAnchored(); }
     if (d.kind === "track") { tracked = d.selector || null; postTracked(); }
+    if (d.kind === "mode") { active = !d.interactive; if (!active && hoverSel !== null) { hoverSel = null; postHover(); } }
   });
   parent.postMessage({ source: "suikou-html", kind: "ready" }, "*");
 })();
@@ -1156,11 +1159,12 @@ const HtmlView = observer(function HtmlView({
   const pendingRef = useRef(pendingRestore)
   pendingRef.current = pendingRestore
 
-  // Comment mode carries the bridge script; interactive serves the raw page.
-  const srcDoc = useMemo(() => {
-    if (interactive) return source
-    return `${source}\n<script>${htmlAnchorScript()}</scr` + `ipt>`
-  }, [source, interactive])
+  // The bridge script rides along in both modes so toggling Comment/Interactive
+  // never reloads the iframe (which would lose scroll and form state). The script
+  // only reports geometry; a `mode` message flips whether it intercepts.
+  const srcDoc = useMemo(() => `${source}\n<script>${htmlAnchorScript()}</scr` + `ipt>`, [source])
+  const interactiveRef = useRef(interactive)
+  interactiveRef.current = interactive
 
   const post = (message: object) => iframeRef.current?.contentWindow?.postMessage({ source: "suikou-host", ...message }, "*")
 
@@ -1172,7 +1176,8 @@ const HtmlView = observer(function HtmlView({
       const data = event.data
       if (!data || data.source !== "suikou-html") return
       if (data.kind === "ready") {
-        post({ kind: "anchors", selectors: anchoredSelectors })
+        post({ kind: "mode", interactive: interactiveRef.current })
+        if (!interactiveRef.current) post({ kind: "anchors", selectors: anchoredSelectors })
         if (trackRef.current) post({ kind: "track", selector: trackRef.current })
       } else if (data.kind === "rects") setAnchoredRects(Array.isArray(data.items) ? data.items : [])
       else if (data.kind === "hover")
@@ -1204,13 +1209,19 @@ const HtmlView = observer(function HtmlView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackSel])
 
+  // Toggle the frame's interception without reloading it. Leaving comment clears
+  // the parent annotation; returning re-requests the anchored rects.
   useEffect(() => {
+    post({ kind: "mode", interactive })
     if (interactive) {
       setOverlay(null)
       setHover(null)
       setAnchoredRects([])
       setPendingRestore(null)
+    } else {
+      post({ kind: "anchors", selectors: anchoredSelectors })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interactive])
 
   const submit = (body: string, type: CritiqueType) => {
