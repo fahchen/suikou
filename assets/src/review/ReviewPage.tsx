@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
+import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -438,7 +438,8 @@ function FileRow({
 type Content =
   | { kind: "loading" }
   | { kind: "text"; lines: string[]; tokens: ThemedToken[][] | null }
-  | { kind: "unsupported"; mime: string }
+  | { kind: "image"; url: string; mime: string; bytes: number | null }
+  | { kind: "binary"; mime: string; bytes: number | null }
   | { kind: "error"; message: string }
 
 const MD_VIEW_KEY = "suikou-md-view"
@@ -498,7 +499,14 @@ function Editor({
         }
         const mime = response.headers.get("content-type") ?? ""
         if (!isTextMime(mime)) {
-          setContent({ kind: "unsupported", mime: mime.split(";")[0] || "binary" })
+          const type = mime.split(";")[0].trim() || "application/octet-stream"
+          const bytes = Number(response.headers.get("content-length")) || null
+          if (type.startsWith("image/")) {
+            const url = `/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`
+            setContent({ kind: "image", url, mime: type, bytes })
+          } else {
+            setContent({ kind: "binary", mime: type, bytes })
+          }
           return
         }
         const body = (await response.text()).replace(/\n$/, "")
@@ -579,10 +587,10 @@ function Editor({
         <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
       ) : content.kind === "error" ? (
         <div className="grid flex-1 place-items-center text-[13px] text-request">{content.message}</div>
-      ) : content.kind === "unsupported" ? (
-        <div className="grid flex-1 place-items-center px-6 text-center text-[13px] text-faint">
-          Can't render {content.mime} here yet.
-        </div>
+      ) : content.kind === "image" ? (
+        <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
+      ) : content.kind === "binary" ? (
+        <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
       ) : previewable && view === "preview" ? (
         <MarkdownPreview source={content.lines.join("\n")} />
       ) : (
@@ -635,6 +643,57 @@ function MarkdownPreview({ source }: { source: string }) {
       </div>
     </div>
   )
+}
+
+/** Image render (D8): the artifact centered on a checkerboard backdrop with a
+ * metadata caption. No zoom and no located anchors — an image is commented at
+ * the artifact scope only. */
+function ImageView({ name, url, mime, bytes }: { name: string; url: string; mime: string; bytes: number | null }) {
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
+  const format = mime.split("/")[1]?.split("+")[0]?.toUpperCase() ?? "IMAGE"
+  const meta = [name, dims && `${dims.w}×${dims.h}`, bytes && formatBytes(bytes), format].filter(Boolean).join(" · ")
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-6 [background:repeating-conic-gradient(var(--bg-2)_0%_25%,var(--bg-1)_0%_50%)_50%/18px_18px]">
+      <figure className="max-w-[80%] overflow-hidden rounded-[12px] border border-hair-strong bg-soft shadow-[0_10px_30px_-10px_oklch(0%_0_0/0.28)]">
+        <img
+          src={url}
+          alt={name}
+          onLoad={(event) => setDims({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
+          className="block h-auto w-full"
+        />
+        <figcaption className="border-t border-hair-strong bg-control px-3 py-1.5 text-center font-mono text-[11px] text-muted">
+          {meta}
+        </figcaption>
+      </figure>
+    </div>
+  )
+}
+
+/** Binary render (D9): a file the reviewer can neither read nor anchor a comment
+ * to, so the editor states that plainly and shows the file's metadata. */
+function BinaryNotice({ name, mime, bytes }: { name: string; mime: string; bytes: number | null }) {
+  const meta = [name, bytes && formatBytes(bytes), mime].filter(Boolean).join(" · ")
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[13px] px-8 py-12 text-center">
+      <div className="grid size-[54px] place-items-center rounded-[16px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
+        <Binary size={26} aria-hidden />
+      </div>
+      <h3 className="text-[15px] font-[680] text-ink">Cannot render this file</h3>
+      <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">
+        This is a binary artifact. There is no text or visual representation to show, and no place to anchor a comment.
+      </p>
+      <div className="rounded-full bg-control px-[11px] py-1 font-mono text-[11px] text-faint">{meta}</div>
+    </div>
+  )
+}
+
+/** Human-readable byte size for a file's metadata line (1024-based). */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`
+  const mb = kb / 1024
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`
 }
 
 const MONO_PX: Record<MonoSize, string> = { small: "11.5px", default: "12.5px", large: "14px" }
