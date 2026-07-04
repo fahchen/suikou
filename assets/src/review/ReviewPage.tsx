@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
+import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -600,7 +600,12 @@ function Editor({
       ) : content.kind === "binary" ? (
         <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
       ) : content.lines.length === 1 && content.lines[0] === "" ? (
-        <div className="grid min-h-0 flex-1 place-items-center text-[13px] text-faint">This file is empty.</div>
+        <FileNotice
+          icon={File}
+          title="This file is empty"
+          body="There's nothing to show or comment on in this file yet."
+          meta={name}
+        />
       ) : previewable && view === "preview" ? (
         <MarkdownPreview
           source={content.lines.join("\n")}
@@ -869,21 +874,32 @@ function ImageView({ name, url, mime, bytes }: { name: string; url: string; mime
   )
 }
 
+/** A centered empty-state for a file with nothing to render: an icon badge, a
+ * heading, an explanation, and an optional metadata pill. */
+function FileNotice({ icon: Icon, title, body, meta }: { icon: typeof Binary; title: string; body: string; meta?: string }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[13px] px-8 py-12 text-center">
+      <div className="grid size-[54px] place-items-center rounded-[16px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
+        <Icon size={26} aria-hidden />
+      </div>
+      <h3 className="text-[15px] font-[680] text-ink">{title}</h3>
+      <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">{body}</p>
+      {meta && <div className="rounded-full bg-control px-[11px] py-1 font-mono text-[11px] text-faint">{meta}</div>}
+    </div>
+  )
+}
+
 /** Binary render (D9): a file the reviewer can neither read nor anchor a comment
  * to, so the editor states that plainly and shows the file's metadata. */
 function BinaryNotice({ name, mime, bytes }: { name: string; mime: string; bytes: number | null }) {
   const meta = [name, bytes && formatBytes(bytes), mime].filter(Boolean).join(" · ")
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[13px] px-8 py-12 text-center">
-      <div className="grid size-[54px] place-items-center rounded-[16px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
-        <Binary size={26} aria-hidden />
-      </div>
-      <h3 className="text-[15px] font-[680] text-ink">Cannot render this file</h3>
-      <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">
-        This is a binary artifact. There is no text or visual representation to show, and no place to anchor a comment.
-      </p>
-      <div className="rounded-full bg-control px-[11px] py-1 font-mono text-[11px] text-faint">{meta}</div>
-    </div>
+    <FileNotice
+      icon={Binary}
+      title="Cannot render this file"
+      body="This is a binary artifact. There is no text or visual representation to show, and no place to anchor a comment."
+      meta={meta}
+    />
   )
 }
 
