@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
+import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, Minus, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -478,14 +478,28 @@ function Editor({
   const [content, setContent] = useState<Content>({ kind: "loading" })
   const [toc, setToc] = useState<OutlineItem[]>([])
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
+  const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => readMdView())
+  const [htmlMode, setHtmlMode] = useState<"comment" | "interactive">("comment")
+  const [htmlZoom, setHtmlZoom] = useState(1)
+  const htmlFrameRef = useRef<HTMLDivElement | null>(null)
 
   // A markdown file opens in the reader's remembered mode; any other file has
-  // only Source. Re-runs when the selected file changes.
+  // only Source. An html file resets to Comment mode at 100%. Re-runs when the
+  // selected file changes.
   useEffect(() => {
     setView(previewable ? readMdView() : "source")
+    setHtmlMode("comment")
+    setHtmlZoom(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry])
+
+  const toggleFullscreen = () => {
+    const el = htmlFrameRef.current
+    if (!el) return
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void el.requestFullscreen?.()
+  }
 
   const chooseView = (next: "source" | "preview") => {
     setView(next)
@@ -587,7 +601,50 @@ function Editor({
             ]}
           />
         )}
-        {toc.length > 0 && <TocMenu items={toc} onJump={scrollToLine} />}
+        {htmlFile && content.kind === "text" && (
+          <>
+            <Segmented<"comment" | "interactive">
+              value={htmlMode}
+              onChange={setHtmlMode}
+              options={[
+                ["comment", "Comment"],
+                ["interactive", "Interactive"],
+              ]}
+            />
+            <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setHtmlZoom((z) => clampZoom(z - 0.1))}
+                title="Zoom out"
+                className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
+              >
+                <Minus size={12} aria-hidden />
+              </button>
+              <span className="h-full w-px bg-hair-strong" />
+              <span className="min-w-[42px] px-2 text-center font-medium tabular-nums text-ink">
+                {Math.round(htmlZoom * 100)}%
+              </span>
+              <span className="h-full w-px bg-hair-strong" />
+              <button
+                type="button"
+                onClick={() => setHtmlZoom((z) => clampZoom(z + 0.1))}
+                title="Zoom in"
+                className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
+              >
+                <Plus size={12} aria-hidden />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title="Fullscreen"
+              className="grid size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink"
+            >
+              <Maximize2 size={13} aria-hidden />
+            </button>
+          </>
+        )}
+        {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
       </div>
       {!entry ? (
         <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
@@ -606,6 +663,8 @@ function Editor({
           body="There's nothing to show or comment on in this file yet."
           meta={name}
         />
+      ) : htmlFile ? (
+        <HtmlView source={content.lines.join("\n")} mode={htmlMode} zoom={htmlZoom} frameRef={htmlFrameRef} />
       ) : previewable && view === "preview" ? (
         <MarkdownPreview
           source={content.lines.join("\n")}
@@ -857,6 +916,62 @@ const MarkdownPreview = observer(function MarkdownPreview({
     </div>
   )
 })
+
+/** Clamp an html zoom factor to the 10%–200% range on a 10% grid. */
+const clampZoom = (zoom: number): number => Math.min(2, Math.max(0.1, Math.round(zoom * 10) / 10))
+
+/** HTML render (D3/D4/D5): the artifact in a sandboxed iframe. Comment mode
+ * leaves the page inert (pointer events off) so it can be annotated; Interactive
+ * mode makes it live behind a hint. Zoom scales the frame; fullscreen expands it.
+ * The sandbox withholds same-origin, so the framed page cannot reach this app. */
+function HtmlView({
+  source,
+  mode,
+  zoom,
+  frameRef,
+}: {
+  source: string
+  mode: "comment" | "interactive"
+  zoom: number
+  frameRef: RefObject<HTMLDivElement | null>
+}) {
+  const interactive = mode === "interactive"
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
+      {interactive && (
+        <div className="mb-[14px] flex items-center gap-[9px] rounded-ctrl border border-accent-edge bg-accent-softer px-3 py-[9px] text-[11.5px] leading-[1.45] text-ink">
+          <Info size={15} className="shrink-0 text-accent-bright" aria-hidden />
+          <span>
+            <b className="font-[640] text-ink">Interactive mode.</b> Links, hovers, and form controls are live. Comment
+            anchoring is paused so the page is not intercepted; switch back to Comment to anchor again.
+          </span>
+        </div>
+      )}
+      <div
+        ref={frameRef}
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]"
+      >
+        <span className="absolute right-2 top-2 z-10 inline-flex h-[19px] items-center gap-1 rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 text-[9.5px] font-bold uppercase tracking-wide text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
+          <Lock size={10} aria-hidden />
+          sandboxed iframe{interactive ? " · interactive" : ""}
+        </span>
+        <iframe
+          title="HTML preview"
+          srcDoc={source}
+          sandbox="allow-scripts allow-forms allow-popups allow-modals"
+          className="block border-0 bg-white"
+          style={{
+            width: `${100 / zoom}%`,
+            height: `${100 / zoom}%`,
+            transform: `scale(${zoom})`,
+            transformOrigin: "top left",
+            pointerEvents: interactive ? "auto" : "none",
+          }}
+        />
+      </div>
+    </div>
+  )
+}
 
 /** Image render (D8): the artifact centered on a checkerboard backdrop with a
  * metadata caption. No zoom and no located anchors — an image is commented at
