@@ -531,21 +531,27 @@ const Source = observer(function Source({
   const count = rows.length
   const gutter = String(count).length
   const wrap = uiStore.codeWrap
-  // Published line-anchored threads, bucketed by their anchor's start line. The
-  // frontend trusts the server's `start_line` and `outdated` flags — it never
-  // re-locates against the file text. A comment whose line ran off the end of a
-  // shrunken file (stranded) pins to the last line so it stays visible.
-  const threadsByLine = useMemo(() => {
+  // Published line-anchored threads. The frontend trusts the server's line
+  // numbers and `outdated` flag — it never re-locates against the file text.
+  // Each thread's card is bucketed by its anchor's *end* line, so a multi-line
+  // range shows its card just past the last anchored line; `anchoredLines`
+  // carries every line the range spans so the whole span highlights. A comment
+  // whose lines ran off the end of a shrunken file pins to the last line.
+  const { threadsByLine, anchoredLines } = useMemo(() => {
     const map = new Map<number, Comment[]>()
+    const spanned = new Set<number>()
+    const last = count || 1
     for (const comment of comments) {
       if (comment.status !== "published" || comment.scope !== "located") continue
       if (comment.anchor?.type !== "line_range") continue
-      const line = Math.min(Math.max(comment.anchor.start_line, 1), count || 1)
-      const bucket = map.get(line)
+      const start = Math.min(Math.max(comment.anchor.start_line, 1), last)
+      const end = Math.min(Math.max(comment.anchor.end_line, start), last)
+      for (let line = start; line <= end; line++) spanned.add(line)
+      const bucket = map.get(end)
       if (bucket) bucket.push(comment)
-      else map.set(line, [comment])
+      else map.set(end, [comment])
     }
-    return map
+    return { threadsByLine: map, anchoredLines: spanned }
   }, [comments, count])
 
   return (
@@ -556,17 +562,18 @@ const Source = observer(function Source({
       {rows.map((lineTokens, index) => {
         const lineNo = index + 1
         const threads = threadsByLine.get(lineNo)
+        const anchored = anchoredLines.has(lineNo)
         return (
           <Fragment key={index}>
             <div
               data-review-line={lineNo}
-              className={`flex scroll-mt-2 ${threads ? "bg-accent-soft" : "hover:bg-soft/40"}`}
+              className={`flex scroll-mt-2 ${anchored ? "bg-accent-soft" : "hover:bg-soft/40"}`}
             >
               <span
                 aria-hidden
                 style={{ minWidth: `${gutter + 2}ch` }}
                 className={`sticky left-0 shrink-0 select-none px-3 text-right tabular-nums ${
-                  threads ? "bg-accent-soft font-semibold text-accent-bright" : "bg-editor text-faint"
+                  anchored ? "bg-accent-soft font-semibold text-accent-bright" : "bg-editor text-faint"
                 }`}
               >
                 {lineNo}
