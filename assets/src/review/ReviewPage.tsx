@@ -977,28 +977,15 @@ type ElRect = { top: number; left: number; right: number; bottom: number; width:
 type HtmlOverlay = { kind: "compose"; selector: string; quote: string; rect: ElRect } | { kind: "thread"; selector: string; rect: ElRect }
 
 /** The script injected into the (null-origin) html iframe in Comment mode. Since
- * the sandbox withholds same-origin, the parent cannot read the framed document,
- * so this script is the bridge: it tints an element on hover, draws a pulsing dot
- * on each already-commented element, intercepts clicks to post a stable CSS
- * selector + quote (or open an existing thread), and streams the tracked
- * element's rect so the host can anchor its overlay. */
-function htmlAnchorScript(accent: string): string {
+ * the sandbox withholds same-origin, the parent cannot read the framed document
+ * and — to keep the page's DOM untouched — the annotation layer (hover highlight
+ * and dots) lives in the parent, over the iframe. So this script only hit-tests
+ * and reports geometry: the hovered element's selector + rect, a click's selector
+ * (+ quote), and the rects of the host's anchored selectors, restreamed on scroll
+ * so the parent overlay stays pinned. */
+function htmlAnchorScript(): string {
   return `
 (function () {
-  var ACCENT = ${JSON.stringify(accent)};
-  var TINT = "color-mix(in oklab, " + ACCENT + " 15%, transparent)";
-  var EDGE = "color-mix(in oklab, " + ACCENT + " 55%, transparent)";
-  var GLOW = "color-mix(in oklab, " + ACCENT + " 50%, transparent)";
-  var SHEEN = "color-mix(in oklab, " + ACCENT + " 78%, white)";
-  var style = document.createElement("style");
-  style.textContent =
-    ".suikou-hi{background:" + TINT + " !important;border-radius:4px !important;box-shadow:inset 0 0 0 1px " + EDGE + " !important;cursor:pointer !important}" +
-    ".suikou-dots{position:absolute;top:0;left:0;width:0;height:0}" +
-    ".suikou-dot{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:radial-gradient(circle at 34% 30%, " + SHEEN + ", " + ACCENT + ");cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2px oklch(100% 0 0 / 0.92),0 0 12px 2px " + GLOW + ",0 1px 4px oklch(0% 0 0 / 0.22);transition:transform .12s ease-out,box-shadow .12s ease-out}" +
-    ".suikou-dot:hover{transform:scale(1.22);box-shadow:0 0 0 2px oklch(100% 0 0 / 0.95),0 0 16px 3px " + GLOW + ",0 1px 5px oklch(0% 0 0 / 0.25)}";
-  (document.head || document.documentElement).appendChild(style);
-  var layer = document.createElement("div");
-  layer.className = "suikou-dots";
   function esc(s) { return window.CSS && CSS.escape ? CSS.escape(s) : s; }
   function selectorFor(el) {
     if (!el || el === document.body || el === document.documentElement) return "body";
@@ -1009,10 +996,7 @@ function htmlAnchorScript(accent: string): string {
       var tag = node.tagName.toLowerCase(), parent = node.parentElement;
       if (parent) {
         var same = [];
-        for (var i = 0; i < parent.children.length; i++) {
-          var c = parent.children[i];
-          if (c.tagName === node.tagName && c !== layer) same.push(c);
-        }
+        for (var i = 0; i < parent.children.length; i++) if (parent.children[i].tagName === node.tagName) same.push(parent.children[i]);
         var idx = same.indexOf(node);
         if (same.length > 1 && idx >= 0) tag += ":nth-of-type(" + (idx + 1) + ")";
       }
@@ -1023,73 +1007,46 @@ function htmlAnchorScript(accent: string): string {
   }
   function quoteFor(el) { return (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 200); }
   function rectOf(el) { var r = el.getBoundingClientRect(); return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; }
-
-  var dots = [], tracked = null, hovered = null;
-  function setHover(el) {
-    if (hovered === el) return;
-    if (hovered) hovered.classList.remove("suikou-hi");
-    hovered = el;
-    if (hovered) hovered.classList.add("suikou-hi");
-    parent.postMessage({ source: "suikou-html", kind: "hover", selector: el ? selectorFor(el) : null }, "*");
-  }
   function elFor(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
-  function anchoredEl(el) { for (var i = 0; i < dots.length; i++) if (dots[i].el === el) return true; return false; }
-  function placeDots() {
-    for (var i = 0; i < dots.length; i++) {
-      var d = dots[i];
-      if (!d.el.isConnected) { d.dot.style.display = "none"; continue; }
-      var r = d.el.getBoundingClientRect();
-      d.dot.style.display = "";
-      d.dot.style.left = (r.right + window.scrollX) + "px";
-      d.dot.style.top = (r.top + window.scrollY) + "px";
-    }
+
+  var anchored = [], tracked = null, hoverSel = null;
+  function postAnchored() {
+    var items = [];
+    for (var i = 0; i < anchored.length; i++) { var el = elFor(anchored[i]); if (el) items.push({ selector: anchored[i], rect: rectOf(el) }); }
+    parent.postMessage({ source: "suikou-html", kind: "rects", items: items }, "*");
   }
-  function rebuild(selectors) {
-    for (var i = 0; i < dots.length; i++) dots[i].dot.remove();
-    dots = [];
-    if (!layer.parentNode && document.body) document.body.appendChild(layer);
-    (selectors || []).forEach(function (sel) {
-      var el = elFor(sel);
-      if (!el) return;
-      var dot = document.createElement("div");
-      dot.className = "suikou-dot";
-      dot.setAttribute("data-sel", sel);
-      layer.appendChild(dot);
-      dots.push({ selector: sel, el: el, dot: dot });
-    });
-    placeDots();
+  function postHover() {
+    var el = hoverSel ? elFor(hoverSel) : null;
+    parent.postMessage({ source: "suikou-html", kind: "hover", selector: hoverSel, rect: el ? rectOf(el) : null }, "*");
+  }
+  function postTracked() {
+    if (!tracked) return;
+    var el = elFor(tracked);
+    if (el) parent.postMessage({ source: "suikou-html", kind: "rect", selector: tracked, rect: rectOf(el) }, "*");
   }
   document.addEventListener("pointermove", function (e) {
     var t = e.target;
-    if (t && t.classList && t.classList.contains("suikou-dot")) { setHover(elFor(t.getAttribute("data-sel"))); return; }
-    if (t && t.nodeType === 1 && t !== document.body && t !== document.documentElement && !anchoredEl(t)) setHover(t);
-    else setHover(null);
+    var ok = t && t.nodeType === 1 && t !== document.body && t !== document.documentElement;
+    var sel = ok ? selectorFor(t) : null;
+    if (sel !== hoverSel) { hoverSel = sel; postHover(); }
   }, true);
-  document.addEventListener("pointerleave", function () { setHover(null); }, true);
+  document.addEventListener("pointerleave", function () { if (hoverSel !== null) { hoverSel = null; postHover(); } }, true);
   document.addEventListener("click", function (e) {
     var t = e.target;
     if (!t || t.nodeType !== 1) return;
     e.preventDefault(); e.stopPropagation();
-    if (t.classList && t.classList.contains("suikou-dot")) {
-      var sel = t.getAttribute("data-sel"), el = elFor(sel);
-      parent.postMessage({ source: "suikou-html", kind: "open", selector: sel, rect: el ? rectOf(el) : null }, "*");
-    } else if (anchoredEl(t)) {
-      parent.postMessage({ source: "suikou-html", kind: "open", selector: selectorFor(t), rect: rectOf(t) }, "*");
-    } else {
-      parent.postMessage({ source: "suikou-html", kind: "pick", selector: selectorFor(t), quote: quoteFor(t), rect: rectOf(t) }, "*");
-    }
+    var sel = selectorFor(t);
+    if (anchored.indexOf(sel) !== -1) parent.postMessage({ source: "suikou-html", kind: "open", selector: sel, rect: rectOf(t) }, "*");
+    else parent.postMessage({ source: "suikou-html", kind: "pick", selector: sel, quote: quoteFor(t), rect: rectOf(t) }, "*");
   }, true);
-  function sync() {
-    placeDots();
-    if (tracked) { var el = elFor(tracked); if (el) parent.postMessage({ source: "suikou-html", kind: "rect", selector: tracked, rect: rectOf(el) }, "*"); }
-  }
+  function sync() { postAnchored(); postTracked(); if (hoverSel) postHover(); }
   window.addEventListener("scroll", sync, true);
   window.addEventListener("resize", sync);
   window.addEventListener("message", function (e) {
     var d = e.data;
     if (!d || d.source !== "suikou-host") return;
-    if (d.kind === "anchors") rebuild(d.selectors);
-    if (d.kind === "track") { tracked = d.selector || null; sync(); }
+    if (d.kind === "anchors") { anchored = d.selectors || []; postAnchored(); }
+    if (d.kind === "track") { tracked = d.selector || null; postTracked(); }
   });
   parent.postMessage({ source: "suikou-html", kind: "ready" }, "*");
 })();
@@ -1126,7 +1083,8 @@ const HtmlView = observer(function HtmlView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
   const [overlay, setOverlay] = useState<HtmlOverlay | null>(null)
-  const [hoverSel, setHoverSel] = useState<string | null>(null)
+  const [hover, setHover] = useState<{ selector: string; rect: ElRect } | null>(null)
+  const [anchoredRects, setAnchoredRects] = useState<{ selector: string; rect: ElRect }[]>([])
   const [, setTick] = useState(0)
 
   const anchoredSelectors = useMemo(
@@ -1145,8 +1103,7 @@ const HtmlView = observer(function HtmlView({
   // Comment mode carries the bridge script; interactive serves the raw page.
   const srcDoc = useMemo(() => {
     if (interactive) return source
-    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "oklch(62% 0.19 255)"
-    return `${source}\n<script>${htmlAnchorScript(accent)}</scr` + `ipt>`
+    return `${source}\n<script>${htmlAnchorScript()}</scr` + `ipt>`
   }, [source, interactive])
 
   const post = (message: object) => iframeRef.current?.contentWindow?.postMessage({ source: "suikou-host", ...message }, "*")
@@ -1159,11 +1116,13 @@ const HtmlView = observer(function HtmlView({
       const data = event.data
       if (!data || data.source !== "suikou-html") return
       if (data.kind === "ready") post({ kind: "anchors", selectors: anchoredSelectors })
+      else if (data.kind === "rects") setAnchoredRects(Array.isArray(data.items) ? data.items : [])
+      else if (data.kind === "hover")
+        setHover(data.selector && data.rect ? { selector: String(data.selector), rect: data.rect } : null)
       else if (data.kind === "pick" && data.rect)
         setOverlay({ kind: "compose", selector: String(data.selector), quote: String(data.quote ?? ""), rect: data.rect })
       else if (data.kind === "open" && data.rect) setOverlay({ kind: "thread", selector: String(data.selector), rect: data.rect })
       else if (data.kind === "rect") setOverlay((o) => (o && o.selector === data.selector ? { ...o, rect: data.rect } : o))
-      else if (data.kind === "hover") setHoverSel(data.selector ? String(data.selector) : null)
     }
     window.addEventListener("message", onMessage)
     post({ kind: "anchors", selectors: anchoredSelectors })
@@ -1184,7 +1143,8 @@ const HtmlView = observer(function HtmlView({
   useEffect(() => {
     if (interactive) {
       setOverlay(null)
-      setHoverSel(null)
+      setHover(null)
+      setAnchoredRects([])
     }
   }, [interactive])
 
@@ -1217,9 +1177,9 @@ const HtmlView = observer(function HtmlView({
           <Lock size={10} aria-hidden />
           sandboxed iframe{interactive ? " · interactive" : ""}
         </span>
-        {hoverSel && !overlay && !interactive && (
-          <span className="pointer-events-none absolute left-2 top-2 z-10 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-[9.5px] font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
-            {hoverSel}
+        {hover && !interactive && (
+          <span className="pointer-events-none absolute left-2 top-2 z-20 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-[9.5px] font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
+            {hover.selector}
           </span>
         )}
         <iframe
@@ -1235,6 +1195,38 @@ const HtmlView = observer(function HtmlView({
             transformOrigin: "top left",
           }}
         />
+        {!interactive && (
+          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+            {hover && (
+              <div
+                className="absolute rounded-[4px] bg-accent-soft ring-1 ring-inset ring-accent-edge"
+                style={{
+                  left: hover.rect.left * zoom,
+                  top: hover.rect.top * zoom,
+                  width: hover.rect.width * zoom,
+                  height: hover.rect.height * zoom,
+                }}
+              />
+            )}
+            {anchoredRects.map(({ selector, rect }) => (
+              <button
+                key={selector}
+                type="button"
+                aria-label="Open comment"
+                onMouseEnter={() => setHover({ selector, rect })}
+                onMouseLeave={() => setHover(null)}
+                onClick={() => setOverlay({ kind: "thread", selector, rect })}
+                style={{ left: rect.right * zoom, top: rect.top * zoom }}
+                className="pointer-events-auto absolute grid size-[18px] -translate-x-1/2 -translate-y-1/2 place-items-center"
+              >
+                <span className="relative flex size-[11px]">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" />
+                  <span className="relative inline-flex size-[11px] rounded-full bg-accent shadow-[0_0_0_2px_white,0_1px_3px_oklch(0%_0_0/0.3)]" />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {overlay &&
         overlayPos &&
