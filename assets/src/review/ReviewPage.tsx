@@ -482,7 +482,7 @@ function Editor({
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => readMdView())
-  const [htmlMode, setHtmlMode] = useState<"comment" | "interactive">("comment")
+  const [htmlMode, setHtmlMode] = useState<"source" | "comment" | "interactive">("comment")
   const [htmlZoom, setHtmlZoom] = useState(1)
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
 
@@ -605,68 +605,75 @@ function Editor({
         )}
         {htmlFile && content.kind === "text" && (
           <>
-            <Segmented<"comment" | "interactive">
+            <Segmented<"source" | "comment" | "interactive">
               value={htmlMode}
               onChange={setHtmlMode}
               options={[
+                ["source", "Source"],
                 ["comment", "Comment"],
-                ["interactive", "Interactive"],
+                [
+                  "interactive",
+                  <span className="inline-flex items-center gap-1.5">
+                    Interactive
+                    <Tooltip
+                      side="bottom"
+                      content={
+                        <>
+                          <b className="font-semibold text-ink">Interactive mode</b> makes links, hovers, and form
+                          controls live. Comment anchoring is paused so the page is not intercepted; switch back to
+                          Comment to anchor.
+                        </>
+                      }
+                      render={
+                        <span aria-label="About interactive mode" className="grid place-items-center">
+                          <Info size={12} aria-hidden />
+                        </span>
+                      }
+                    />
+                  </span>,
+                ],
               ]}
             />
-            <Tooltip
-              side="bottom"
-              content={
-                <>
-                  <b className="font-semibold text-ink">Interactive mode</b> makes links, hovers, and form controls
-                  live. Comment anchoring is paused so the page is not intercepted; switch back to Comment to anchor.
-                </>
-              }
-              render={
+            {htmlMode !== "source" && (
+              <>
+                <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setHtmlZoom((z) => clampZoom(z - 0.1))}
+                    title="Zoom out"
+                    className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
+                  >
+                    <Minus size={12} aria-hidden />
+                  </button>
+                  <span className="h-full w-px bg-hair-strong" />
+                  <button
+                    type="button"
+                    onClick={() => setHtmlZoom(1)}
+                    title="Reset zoom to 100%"
+                    className="h-[24px] min-w-[42px] px-2 text-center font-medium tabular-nums text-ink hover:bg-soft"
+                  >
+                    {Math.round(htmlZoom * 100)}%
+                  </button>
+                  <span className="h-full w-px bg-hair-strong" />
+                  <button
+                    type="button"
+                    onClick={() => setHtmlZoom((z) => clampZoom(z + 0.1))}
+                    title="Zoom in"
+                    className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
+                  >
+                    <Plus size={12} aria-hidden />
+                  </button>
+                </div>
                 <button
                   type="button"
-                  aria-label="About interactive mode"
+                  onClick={toggleFullscreen}
+                  title="Fullscreen"
                   className="grid size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink"
                 >
-                  <Info size={13} aria-hidden />
+                  <Maximize2 size={13} aria-hidden />
                 </button>
-              }
-            />
-            <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setHtmlZoom((z) => clampZoom(z - 0.1))}
-                title="Zoom out"
-                className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
-              >
-                <Minus size={12} aria-hidden />
-              </button>
-              <span className="h-full w-px bg-hair-strong" />
-              <button
-                type="button"
-                onClick={() => setHtmlZoom(1)}
-                title="Reset zoom to 100%"
-                className="h-[24px] min-w-[42px] px-2 text-center font-medium tabular-nums text-ink hover:bg-soft"
-              >
-                {Math.round(htmlZoom * 100)}%
-              </button>
-              <span className="h-full w-px bg-hair-strong" />
-              <button
-                type="button"
-                onClick={() => setHtmlZoom((z) => clampZoom(z + 0.1))}
-                title="Zoom in"
-                className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
-              >
-                <Plus size={12} aria-hidden />
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              title="Fullscreen"
-              className="grid size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink"
-            >
-              <Maximize2 size={13} aria-hidden />
-            </button>
+              </>
+            )}
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
@@ -688,7 +695,7 @@ function Editor({
           body="There's nothing to show or comment on in this file yet."
           meta={name}
         />
-      ) : htmlFile ? (
+      ) : htmlFile && htmlMode !== "source" ? (
         <HtmlView
           source={content.lines.join("\n")}
           mode={htmlMode}
@@ -973,9 +980,8 @@ function htmlAnchorScript(accent: string): string {
   style.textContent =
     ".suikou-hi{background:" + TINT + " !important;border-radius:4px !important;box-shadow:inset 0 0 0 1px " + EDGE + " !important;cursor:pointer !important}" +
     ".suikou-dots{position:absolute;top:0;left:0;width:0;height:0}" +
-    ".suikou-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:" + ACCENT + ";cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.35);animation:suikou-breathe 1.8s ease-in-out infinite}" +
-    ".suikou-dot:hover{transform:scale(1.2)}" +
-    "@keyframes suikou-breathe{0%,100%{box-shadow:0 0 0 2px #fff,0 0 0 0 " + EDGE + "}50%{box-shadow:0 0 0 2px #fff,0 0 0 6px transparent}}";
+    ".suikou-dot{position:absolute;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:" + ACCENT + ";cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2.5px oklch(100% 0 0 / 0.92),0 1px 4px oklch(0% 0 0 / 0.28);transition:transform .12s ease-out}" +
+    ".suikou-dot:hover{transform:scale(1.25)}";
   (document.head || document.documentElement).appendChild(style);
   var layer = document.createElement("div");
   layer.className = "suikou-dots";
@@ -991,9 +997,10 @@ function htmlAnchorScript(accent: string): string {
         var same = [];
         for (var i = 0; i < parent.children.length; i++) {
           var c = parent.children[i];
-          if (c.tagName === node.tagName && String(c.className || "").indexOf("suikou-") === -1) same.push(c);
+          if (c.tagName === node.tagName && c !== layer) same.push(c);
         }
-        if (same.length > 1) tag += ":nth-of-type(" + (same.indexOf(node) + 1) + ")";
+        var idx = same.indexOf(node);
+        if (same.length > 1 && idx >= 0) tag += ":nth-of-type(" + (idx + 1) + ")";
       }
       parts.unshift(tag);
       node = node.parentElement;
@@ -1009,6 +1016,7 @@ function htmlAnchorScript(accent: string): string {
     if (hovered) hovered.classList.remove("suikou-hi");
     hovered = el;
     if (hovered) hovered.classList.add("suikou-hi");
+    parent.postMessage({ source: "suikou-html", kind: "hover", selector: el ? selectorFor(el) : null }, "*");
   }
   function elFor(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
   function anchoredEl(el) { for (var i = 0; i < dots.length; i++) if (dots[i].el === el) return true; return false; }
@@ -1104,6 +1112,7 @@ const HtmlView = observer(function HtmlView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
   const [overlay, setOverlay] = useState<HtmlOverlay | null>(null)
+  const [hoverSel, setHoverSel] = useState<string | null>(null)
   const [, setTick] = useState(0)
 
   const anchoredSelectors = useMemo(
@@ -1139,6 +1148,7 @@ const HtmlView = observer(function HtmlView({
         setOverlay({ kind: "compose", selector: String(data.selector), quote: String(data.quote ?? ""), rect: data.rect })
       else if (data.kind === "open" && data.rect) setOverlay({ kind: "thread", selector: String(data.selector), rect: data.rect })
       else if (data.kind === "rect") setOverlay((o) => (o && o.selector === data.selector ? { ...o, rect: data.rect } : o))
+      else if (data.kind === "hover") setHoverSel(data.selector ? String(data.selector) : null)
     }
     window.addEventListener("message", onMessage)
     post({ kind: "anchors", selectors: anchoredSelectors })
@@ -1157,7 +1167,10 @@ const HtmlView = observer(function HtmlView({
   }, [overlay?.selector])
 
   useEffect(() => {
-    if (interactive) setOverlay(null)
+    if (interactive) {
+      setOverlay(null)
+      setHoverSel(null)
+    }
   }, [interactive])
 
   const submit = (body: string, type: CritiqueType) => {
@@ -1203,12 +1216,24 @@ const HtmlView = observer(function HtmlView({
           }}
         />
       </div>
+      {hoverSel &&
+        !overlay &&
+        !interactive &&
+        createPortal(
+          <div className="pointer-events-none fixed right-4 top-4 z-[45] max-w-[420px] truncate rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 font-mono text-[11px] text-accent-bright shadow-lg">
+            {hoverSel}
+          </div>,
+          document.body,
+        )}
       {overlay &&
         overlayPos &&
         !interactive &&
         createPortal(
-          <div style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 60, width: 320 }}>
-            <div className="mb-1.5 flex items-center gap-2 rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 text-[11px] shadow-lg">
+          <div
+            style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 40, width: 320 }}
+            className="overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
+          >
+            <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-[11px]">
               <span className="truncate font-mono text-accent-bright">{overlay.selector}</span>
               <span className="flex-1" />
               <button
@@ -1221,9 +1246,9 @@ const HtmlView = observer(function HtmlView({
               </button>
             </div>
             {overlay.kind === "compose" ? (
-              <>
+              <div className="p-2.5">
                 {overlay.quote && (
-                  <div className="mb-1.5 truncate rounded-md bg-surface px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
                     “{overlay.quote}”
                   </div>
                 )}
@@ -1231,15 +1256,16 @@ const HtmlView = observer(function HtmlView({
                   anchorLabel="this element"
                   draftKey={`suikou-eldraft:${draftScope}:${overlay.selector}`}
                   pending={addComment.isPending}
+                  chrome={false}
                   onSubmit={submit}
                   onCancel={() => setOverlay(null)}
                   className="m-0"
                 />
-              </>
+              </div>
             ) : (
-              <div className="max-h-[60vh] overflow-auto">
+              <div className="max-h-[60vh] overflow-auto p-2.5">
                 {openThreads.map((comment) => (
-                  <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-1.5" />
+                  <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" />
                 ))}
               </div>
             )}
@@ -1727,6 +1753,7 @@ function Composer({
   submitLabel = "Add",
   pending,
   className = "my-1.5 ml-14 mr-3.5",
+  chrome = true,
   onSubmit,
   onCancel,
 }: {
@@ -1737,6 +1764,7 @@ function Composer({
   submitLabel?: string
   pending?: boolean
   className?: string
+  chrome?: boolean
   onSubmit: (body: string, type: CritiqueType) => void
   onCancel: () => void
 }) {
@@ -1802,7 +1830,9 @@ function Composer({
   const current = TYPE_OPTIONS.find((o) => o.value === type) ?? TYPE_OPTIONS[0]
 
   return (
-    <div className={`overflow-hidden rounded-panel border border-hair-strong bg-surface font-sans shadow-lg ${className}`}>
+    <div
+      className={`overflow-hidden font-sans ${chrome ? "rounded-panel border border-hair-strong bg-surface shadow-lg" : ""} ${className}`}
+    >
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
         {anchorLabel && (
           <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted">

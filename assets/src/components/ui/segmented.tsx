@@ -1,5 +1,6 @@
 import { Toggle } from "@base-ui/react/toggle"
 import { ToggleGroup } from "@base-ui/react/toggle-group"
+import type { ReactNode } from "react"
 
 /** Themed single-select segmented control over Base UI ToggleGroup: a pill
  * track whose pressed option lifts onto the canvas. Always keeps one selected —
@@ -11,7 +12,7 @@ export function Segmented<T extends string>({
 }: {
   value: T
   onChange: (value: T) => void
-  options: [T, string][]
+  options: [T, ReactNode][]
 }) {
   return (
     <ToggleGroup
