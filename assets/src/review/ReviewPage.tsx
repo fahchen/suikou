@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy } from "@musubi/react"
+import type { ThemedToken } from "shiki"
 import { ChevronRight, Circle, FileText, Folder, GitCompare, PanelLeft, Search, SlidersHorizontal } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
-import { uiStore } from "../stores/ui-store"
+import { uiStore, type MonoSize } from "../stores/ui-store"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
+import { highlightLines } from "./highlight"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_structure", Musubi.Stores>
@@ -375,7 +378,7 @@ function FileRow({
 
 type Content =
   | { kind: "loading" }
-  | { kind: "text"; lines: string[] }
+  | { kind: "text"; lines: string[]; tokens: ThemedToken[][] | null }
   | { kind: "unsupported"; mime: string }
   | { kind: "error"; message: string }
 
@@ -409,8 +412,15 @@ function Editor({
           setContent({ kind: "unsupported", mime: mime.split(";")[0] || "binary" })
           return
         }
-        const text = await response.text()
-        if (!cancelled) setContent({ kind: "text", lines: text.replace(/\n$/, "").split("\n") })
+        const body = (await response.text()).replace(/\n$/, "")
+        if (cancelled) return
+        setContent({ kind: "text", lines: body.split("\n"), tokens: null })
+        const ext = path.slice(path.lastIndexOf(".") + 1)
+        highlightLines(body, ext)
+          .then((tokens) => {
+            if (!cancelled) setContent({ kind: "text", lines: body.split("\n"), tokens })
+          })
+          .catch(() => undefined)
       })
       .catch((cause: Error) => {
         if (!cancelled) setContent({ kind: "error", message: cause.message })
@@ -455,11 +465,13 @@ function Editor({
           Can't render {content.mime} here yet.
         </div>
       ) : (
-        <Source lines={content.lines} />
+        <Source lines={content.lines} tokens={content.tokens} />
       )}
     </div>
   )
 }
+
+const MONO_PX: Record<MonoSize, string> = { small: "11.5px", default: "12.5px", large: "14px" }
 
 // Source files with an unknown extension are served as octet-stream, so treat
 // that (and svg) as text; only a real media type (image/*, font, pdf, …) is a
@@ -471,25 +483,46 @@ function isTextMime(mime: string): boolean {
   return /^application\/(json|javascript|xml|x-yaml|yaml|toml|x-sh|x-httpd-php|graphql|sql)$/.test(type)
 }
 
-function Source({ lines }: { lines: string[] }) {
-  const gutter = String(lines.length).length
+const Source = observer(function Source({
+  lines,
+  tokens,
+}: {
+  lines: string[]
+  tokens: ThemedToken[][] | null
+}) {
+  const count = tokens ? tokens.length : lines.length
+  const gutter = String(count).length
+  const wrap = uiStore.codeWrap
   return (
-    <div className="min-h-0 flex-1 overflow-auto py-1 font-mono text-[12.5px] leading-[1.55]">
-      {lines.map((line, index) => (
+    <div
+      className="min-h-0 flex-1 overflow-auto py-1 font-mono leading-[1.55]"
+      style={{ fontSize: MONO_PX[uiStore.monoSize] }}
+    >
+      {(tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])).map((lineTokens, index) => (
         <div key={index} className="flex hover:bg-soft/40">
           <span
             aria-hidden
             style={{ minWidth: `${gutter + 2}ch` }}
-            className="shrink-0 select-none px-3 text-right text-faint tabular-nums"
+            className="sticky left-0 shrink-0 select-none bg-editor px-3 text-right text-faint tabular-nums"
           >
             {index + 1}
           </span>
-          <code className="whitespace-pre pr-6 text-text">{line === "" ? " " : line}</code>
+          <code className={`pr-6 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+            {lineTokens.length === 0 ? (
+              " "
+            ) : (
+              lineTokens.map((token, ti) => (
+                <span key={ti} style={token.color ? { color: token.color } : undefined}>
+                  {token.content}
+                </span>
+              ))
+            )}
+          </code>
         </div>
       ))}
     </div>
   )
-}
+})
 
 function Inspector({ entries }: { entries: FileEntry[] }) {
   const reviewed = entries.filter((e) => e.verdict !== null).length

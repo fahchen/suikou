@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./shiki-themes.css";
 
 /* Suikou design tokens. Suikou Dark is the default (:root); every theme is a
    `[data-theme]` block that only swaps surface, ink, accent, and semantic
