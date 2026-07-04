@@ -356,85 +356,69 @@ const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
 
 /** G3 submit panel + G4 soft gate + G5 confirm. The review verdict is a rollup
  * of per-file verdicts (set via the file-head chip), so the rows are a read-only
- * summary; Submit publishes every pending comment and draft verdict at once. */
+ * summary; Submit publishes every pending comment and draft verdict at once. On
+ * desktop it's a toolbar popover; on mobile a bottom sheet (there's no right rail
+ * to host the overview, so the sheet also lists the open blockers). */
 function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSummary }) {
   const submit = useMusubiCommand(store, "submit_review")
-  const [open, setOpen] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const nothing = !review.hasUnpublished && review.pendingComments === 0 && review.draftVerdicts === 0
-  const softGate = review.verdict === "approve" && review.blockers.length > 0
 
   const run = () => {
     void submit.dispatch({}).finally(() => {
       setConfirm(false)
-      setOpen(false)
+      setPopoverOpen(false)
+      setSheetOpen(false)
     })
   }
 
   return (
     <>
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        className="w-[290px] p-[7px]"
-        render={
-          <button
-            type="button"
-            className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
-          >
-            <Upload size={14} aria-hidden />
-            Submit
-            <ChevronDown size={12} className="opacity-80" aria-hidden />
-          </button>
-        }
+      <div className="hidden lg:block">
+        <Popover
+          open={popoverOpen}
+          onOpenChange={setPopoverOpen}
+          className="w-[290px] p-[7px]"
+          render={<SubmitTrigger />}
+        >
+          <SubmitPanel
+            review={review}
+            heading
+            nothing={nothing}
+            submitting={submit.isPending}
+            onSubmit={() => setConfirm(true)}
+          />
+        </Popover>
+      </div>
+      <button type="button" onClick={() => setSheetOpen(true)} className="lg:hidden">
+        <SubmitTrigger />
+      </button>
+      <Dialog
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        className="max-h-[86vh] sm:max-w-[360px]"
       >
-        <div className="px-[9px] pt-2 pb-[7px] text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
-          Finish review
+        <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
+          <Upload size={16} className="text-muted" aria-hidden />
+          <DialogTitle className="text-[14px] font-bold text-ink">Finish review</DialogTitle>
         </div>
-        <div className="flex flex-col">
-          {SUBMIT_ROWS.map(({ verdict, hint }) => {
-            const on = review.verdict === verdict
-            return (
-              <div
-                key={verdict}
-                className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-[13px] ${on ? "bg-soft" : ""}`}
-              >
-                <VerdictRadio verdict={verdict} on={on} />
-                <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
-                  {VERDICT_META[verdict].label}
-                </span>
-                {hint && <span className="ml-auto text-[11px] text-faint">{hint}</span>}
-              </div>
-            )
-          })}
+        <div className="flex min-h-0 flex-col gap-2 overflow-auto p-2">
+          <SubmitPanel
+            review={review}
+            nothing={nothing}
+            submitting={submit.isPending}
+            onSubmit={() => setConfirm(true)}
+          />
+          {review.blockers.length > 0 && (
+            <div className="px-1">
+              <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
+              <BlockerList blockers={review.blockers} />
+            </div>
+          )}
         </div>
-        <div className="my-1.5 h-px bg-hair-strong" />
-        <div className="flex flex-col gap-1.5 px-[9px] py-1 text-[12px] text-text">
-          <SummaryRow icon={MessageSquare} n={review.pendingComments} label="pending comments" />
-          <SummaryRow icon={FileText} n={review.draftVerdicts} label="draft verdicts" />
-        </div>
-        {softGate && (
-          <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-[11.5px] leading-[1.45] text-amber-deep">
-            <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
-            <span>
-              <b className="font-bold">
-                {review.blockers.length} open fix_required.
-              </b>{" "}
-              Approving anyway is allowed, you have the final call.
-            </span>
-          </div>
-        )}
-        <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
-          <button
-            type="button"
-            disabled={nothing || submit.isPending}
-            onClick={() => setConfirm(true)}
-            className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-[13px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
-          >
-            {nothing ? "Nothing to submit" : "Submit review"}
-          </button>
-        </div>
-      </Popover>
+      </Dialog>
       <SubmitConfirm
         open={confirm}
         review={review}
@@ -443,6 +427,103 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
         onConfirm={run}
       />
     </>
+  )
+}
+
+function SubmitTrigger() {
+  return (
+    <span className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px">
+      <Upload size={14} aria-hidden />
+      Submit
+      <ChevronDown size={12} className="opacity-80" aria-hidden />
+    </span>
+  )
+}
+
+function SubmitPanel({
+  review,
+  heading = false,
+  nothing,
+  submitting,
+  onSubmit,
+}: {
+  review: ReviewSummary
+  heading?: boolean
+  nothing: boolean
+  submitting: boolean
+  onSubmit: () => void
+}) {
+  const softGate = review.verdict === "approve" && review.blockers.length > 0
+  return (
+    <>
+      {heading && (
+        <div className="px-[9px] pt-2 pb-[7px] text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+          Finish review
+        </div>
+      )}
+      <div className="flex flex-col">
+        {SUBMIT_ROWS.map(({ verdict, hint }) => {
+          const on = review.verdict === verdict
+          return (
+            <div
+              key={verdict}
+              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-[13px] ${on ? "bg-soft" : ""}`}
+            >
+              <VerdictRadio verdict={verdict} on={on} />
+              <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
+                {VERDICT_META[verdict].label}
+              </span>
+              {hint && <span className="ml-auto text-[11px] text-faint">{hint}</span>}
+            </div>
+          )
+        })}
+      </div>
+      <div className="my-1.5 h-px bg-hair-strong" />
+      <div className="flex flex-col gap-1.5 px-[9px] py-1 text-[12px] text-text">
+        <SummaryRow icon={MessageSquare} n={review.pendingComments} label="pending comments" />
+        <SummaryRow icon={FileText} n={review.draftVerdicts} label="draft verdicts" />
+      </div>
+      {softGate && (
+        <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-[11.5px] leading-[1.45] text-amber-deep">
+          <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
+          <span>
+            <b className="font-bold">{review.blockers.length} open fix_required.</b> Approving anyway is
+            allowed, you have the final call.
+          </span>
+        </div>
+      )}
+      <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
+        <button
+          type="button"
+          disabled={nothing || submitting}
+          onClick={onSubmit}
+          className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-[13px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
+        >
+          {nothing ? "Nothing to submit" : "Submit review"}
+        </button>
+      </div>
+    </>
+  )
+}
+
+/** The open-blocker rows, shared by the inspector overview (desktop) and the
+ * submit sheet (mobile). */
+function BlockerList({ blockers }: { blockers: Blocker[] }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {blockers.map((b, i) => (
+        <div
+          key={`${b.path}:${b.line}:${i}`}
+          className="flex items-center gap-2 rounded-[7px] border border-request-edge bg-request-soft px-2.5 py-1.5"
+        >
+          <span className="size-1.5 shrink-0 rounded-full bg-request shadow-[0_0_6px_var(--request)]" aria-hidden />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink">
+            {b.path.slice(b.path.lastIndexOf("/") + 1)}
+          </span>
+          {b.line !== null && <span className="shrink-0 font-mono text-[11px] text-muted">line {b.line}</span>}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -2591,20 +2672,7 @@ function Inspector({ review }: { review: ReviewSummary }) {
             No open blockers
           </div>
         ) : (
-          <div className="flex flex-col gap-1">
-            {review.blockers.map((b, i) => (
-              <div
-                key={`${b.path}:${b.line}:${i}`}
-                className="flex items-center gap-2 rounded-[7px] border border-request-edge bg-request-soft px-2.5 py-1.5"
-              >
-                <span className="size-1.5 shrink-0 rounded-full bg-request shadow-[0_0_6px_var(--request)]" aria-hidden />
-                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink">
-                  {b.path.slice(b.path.lastIndexOf("/") + 1)}
-                </span>
-                {b.line !== null && <span className="shrink-0 font-mono text-[11px] text-muted">line {b.line}</span>}
-              </div>
-            ))}
-          </div>
+          <BlockerList blockers={review.blockers} />
         )}
       </div>
       <div>
