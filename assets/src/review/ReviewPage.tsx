@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Bot, ChevronRight, Circle, CircleCheck, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Search, SlidersHorizontal, StickyNote, User } from "lucide-react"
+import { AlertTriangle, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -25,6 +25,9 @@ type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_struc
 type FileEntry = Structure["file_entries"][number]
 type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][number]
+type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
+type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
+type CritiqueType = "fix_required" | "needs_answer" | "note"
 
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
@@ -88,12 +91,18 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   // absent or stale param falls back to the first file.
   const selectedPath = entries.some((e) => e.path === file) ? file! : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
-  // Published comment threads stream on the live snapshot; the structure (chrome,
-  // file list) rides the command reply. Join them by path here.
+  // Comment threads stream on the live snapshot; the structure (chrome, file
+  // list) rides the command reply. Join them by path here.
+  const fileIndex = snap?.body?.files.findIndex((f) => f.path === selectedPath) ?? -1
   const comments = useMemo(
-    () => snap?.body?.files.find((f) => f.path === selectedPath)?.comments.items ?? [],
-    [snap, selectedPath],
+    () => (fileIndex >= 0 ? (snap?.body?.files[fileIndex]?.comments.items ?? []) : []),
+    [snap, fileIndex],
   )
+  // The matching child proxies for authoring: the file's FileStore (add_comment)
+  // and its CommentsStore (reply/edit/delete). `store.body` is safe to walk once
+  // the snapshot carries a body — the same guard `fileIndex >= 0` implies.
+  const fileProxy: FileStoreProxy | null = fileIndex >= 0 && snap?.body ? store.body.files[fileIndex] : null
+  const commentsProxy: CommentsStoreProxy | null = fileProxy?.comments ?? null
 
   if (structure && !structure.exists) {
     return <Centered>Review not found.</Centered>
@@ -112,7 +121,14 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           <NavHeader entries={entries} />
           <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} />
         </aside>
-        <Editor reviewId={reviewId} entry={selected} comments={comments} onOpenFiles={() => setFilesSheetOpen(true)} />
+        <Editor
+          reviewId={reviewId}
+          entry={selected}
+          comments={comments}
+          fileProxy={fileProxy}
+          commentsProxy={commentsProxy}
+          onOpenFiles={() => setFilesSheetOpen(true)}
+        />
         <Inspector entries={entries} />
       </div>
       <StatusBar path={selectedPath} connected={connected} />
@@ -401,11 +417,15 @@ function Editor({
   reviewId,
   entry,
   comments,
+  fileProxy,
+  commentsProxy,
   onOpenFiles,
 }: {
   reviewId: string
   entry: FileEntry | null
   comments: Comment[]
+  fileProxy: FileStoreProxy | null
+  commentsProxy: CommentsStoreProxy | null
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -500,7 +520,14 @@ function Editor({
           Can't render {content.mime} here yet.
         </div>
       ) : (
-        <Source lines={content.lines} tokens={content.tokens} comments={comments} />
+        <Source
+          lines={content.lines}
+          tokens={content.tokens}
+          comments={comments}
+          fileProxy={fileProxy}
+          commentsProxy={commentsProxy}
+          draftScope={`${reviewId}:${entry.path}`}
+        />
       )}
     </div>
   )
@@ -522,28 +549,37 @@ const Source = observer(function Source({
   lines,
   tokens,
   comments,
+  fileProxy,
+  commentsProxy,
+  draftScope,
 }: {
   lines: string[]
   tokens: ThemedToken[][] | null
   comments: Comment[]
+  fileProxy: FileStoreProxy | null
+  commentsProxy: CommentsStoreProxy | null
+  draftScope: string
 }) {
   const rows = tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])
   const count = rows.length
   const gutter = String(count).length
   const wrap = uiStore.codeWrap
-  // Published line-anchored threads. The frontend trusts the server's line
-  // numbers and `outdated` flag — it never re-locates against the file text.
-  // Each thread's card is bucketed by its anchor's *end* line, so a multi-line
-  // range shows its card just past the last anchored line; `anchoredLines`
-  // carries every line the range spans so the whole span highlights. A comment
-  // whose lines ran off the end of a shrunken file pins to the last line.
+
+  // `add_comment` lives on the FileStore. The proxy is null only in the brief
+  // window before the file's child store mounts, and every dispatch is guarded,
+  // so the cast keeps the hook unconditional (Rules of Hooks).
+  const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
+
+  // Line-anchored threads bucket by their anchor's *end* line (card past the
+  // range); `anchoredLines` carries the full span so a multi-line range
+  // highlights whole. Pending comments (the author's own unsent drafts) render
+  // alongside published ones so they can be seen and edited before submit.
   const { threadsByLine, anchoredLines } = useMemo(() => {
     const map = new Map<number, Comment[]>()
     const spanned = new Set<number>()
     const last = count || 1
     for (const comment of comments) {
-      if (comment.status !== "published" || comment.scope !== "located") continue
-      if (comment.anchor?.type !== "line_range") continue
+      if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
       const start = Math.min(Math.max(comment.anchor.start_line, 1), last)
       const end = Math.min(Math.max(comment.anchor.end_line, start), last)
       for (let line = start; line <= end; line++) spanned.add(line)
@@ -554,6 +590,24 @@ const Source = observer(function Source({
     return { threadsByLine: map, anchoredLines: spanned }
   }, [comments, count])
 
+  // The line range whose new-comment composer is open (null = none). F1 opens a
+  // single line; F2 (a later pass) will widen this to a selected range. The
+  // composer renders just past the range's end line.
+  const [draft, setDraft] = useState<{ start: number; end: number } | null>(null)
+
+  const submitNew = (body: string, type: CritiqueType) => {
+    if (!fileProxy || !draft) return
+    addComment
+      .dispatch({
+        scope: "located",
+        critique_type: type,
+        body,
+        anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
+      })
+      .catch(() => undefined)
+    setDraft(null)
+  }
+
   return (
     <div
       className="min-h-0 flex-1 overflow-auto py-1 font-mono leading-[1.55]"
@@ -563,21 +617,31 @@ const Source = observer(function Source({
         const lineNo = index + 1
         const threads = threadsByLine.get(lineNo)
         const anchored = anchoredLines.has(lineNo)
+        const selecting = draft && lineNo >= draft.start && lineNo <= draft.end
         return (
           <Fragment key={index}>
             <div
               data-review-line={lineNo}
-              className={`flex scroll-mt-2 ${anchored ? "bg-accent-soft" : "hover:bg-soft/40"}`}
+              className={`flex scroll-mt-2 ${anchored || selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}
             >
-              <span
-                aria-hidden
+              <button
+                type="button"
+                onClick={() => setDraft({ start: lineNo, end: lineNo })}
                 style={{ minWidth: `${gutter + 2}ch` }}
-                className={`sticky left-0 shrink-0 select-none px-3 text-right tabular-nums ${
-                  anchored ? "bg-accent-soft font-semibold text-accent-bright" : "bg-editor text-faint"
+                title="Comment on this line"
+                className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
+                  anchored || selecting
+                    ? "bg-accent-soft font-semibold text-accent-bright"
+                    : "bg-editor text-faint hover:text-accent-bright"
                 }`}
               >
-                {lineNo}
-              </span>
+                <span className="group-hover/gut:opacity-0">{lineNo}</span>
+                <Plus
+                  size={12}
+                  aria-hidden
+                  className="absolute inset-y-0 right-2.5 my-auto hidden group-hover/gut:block"
+                />
+              </button>
               <code className={`pr-6 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
                 {lineTokens.length === 0 ? (
                   " "
@@ -590,7 +654,18 @@ const Source = observer(function Source({
                 )}
               </code>
             </div>
-            {threads?.map((comment) => <Thread key={comment.id} comment={comment} />)}
+            {draft && draft.end === lineNo && (
+              <Composer
+                anchorLabel={`line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}`}
+                draftKey={`suikou-draft:${draftScope}:${draft.start}-${draft.end}`}
+                pending={addComment.isPending}
+                onSubmit={submitNew}
+                onCancel={() => setDraft(null)}
+              />
+            )}
+            {threads?.map((comment) => (
+              <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
+            ))}
           </Fragment>
         )
       })}
@@ -604,13 +679,46 @@ const TYPE_META = {
   note: { label: "NOTE", Icon: StickyNote, card: "bg-type-note-soft ring-type-note-edge", pill: "bg-type-note-soft text-muted ring-type-note-edge" },
 } as const
 
-// A read-only published comment thread, inserted inline below its anchored code
-// line. Authoring affordances (reply box, resolve, react) belong to a later
-// pass; this renders the head, the markdown body, and any replies.
-function Thread({ comment }: { comment: Comment }) {
+// An inline comment thread below its anchored code line. Published comments are
+// read-only with a Reply affordance; a pending comment (the author's own unsent
+// draft) carries a Pending badge and Edit / Delete. Editing swaps the card for a
+// prefilled composer.
+function Thread({ comment, commentsProxy }: { comment: Comment; commentsProxy: CommentsStoreProxy | null }) {
   const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
+  const pending = comment.status === "pending"
   const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
+
+  // Guarded casts: the CommentsStore proxy is null only until the child mounts,
+  // and every dispatch below checks it first (Rules of Hooks keep the calls
+  // unconditional).
+  const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_comment")
+  const deleteCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "delete_comment")
+  const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
+  const [editing, setEditing] = useState(false)
+  const [replying, setReplying] = useState(false)
+
+  const range = anchor
+    ? `line ${anchor.start_line}${anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}`
+    : "comment"
+
+  if (editing) {
+    return (
+      <Composer
+        anchorLabel={range}
+        initialType={comment.critique_type}
+        initialBody={comment.body}
+        submitLabel="Save"
+        pending={editCmd.isPending}
+        onSubmit={(body, type) => {
+          if (commentsProxy) editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).catch(() => undefined)
+          setEditing(false)
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    )
+  }
+
   return (
     <div
       className={`my-1.5 ml-14 mr-3.5 overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
@@ -625,17 +733,22 @@ function Thread({ comment }: { comment: Comment }) {
         {anchor && (
           <span className="font-mono text-[11px] text-muted">
             on line {anchor.start_line}
-            {anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""} · Round {comment.authored_round}
+            {anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}
+            {pending ? "" : ` · Round ${comment.authored_round}`}
           </span>
         )}
         {comment.outdated && <span className="font-mono text-[11px] text-amber">· outdated</span>}
         <span className="flex-1" />
-        {comment.resolved && (
+        {pending ? (
+          <span className="inline-flex items-center rounded-full bg-amber-soft px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
+            PENDING
+          </span>
+        ) : comment.resolved ? (
           <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-approve">
             <CircleCheck size={12} aria-hidden />
             Resolved
           </span>
-        )}
+        ) : null}
       </div>
       <div
         className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
@@ -649,6 +762,191 @@ function Thread({ comment }: { comment: Comment }) {
           ))}
         </div>
       )}
+      <div className="flex items-center gap-0.5 px-2.5 pb-2">
+        {pending ? (
+          <>
+            <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
+            <ThreadAction
+              icon={Trash2}
+              label="Delete"
+              onClick={() => {
+                if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+              }}
+            />
+          </>
+        ) : (
+          !replying && <ThreadAction icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
+        )}
+      </div>
+      {replying && (
+        <Composer
+          anchorLabel={null}
+          submitLabel="Reply"
+          className="mx-2.5 mb-2.5"
+          pending={replyCmd.isPending}
+          onSubmit={(body) => {
+            if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+            setReplying(false)
+          }}
+          onCancel={() => setReplying(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ThreadAction({ icon: Icon, label, onClick }: { icon: typeof Pencil; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-[26px] items-center gap-1.5 rounded-ctrl px-2 text-[11.5px] font-medium text-muted hover:bg-soft hover:text-ink"
+    >
+      <Icon size={13} aria-hidden />
+      {label}
+    </button>
+  )
+}
+
+const TYPE_OPTIONS: { value: CritiqueType; label: string; Icon: typeof AlertTriangle; dot: string }[] = [
+  { value: "fix_required", label: "Fix required", Icon: AlertTriangle, dot: "bg-type-fix" },
+  { value: "needs_answer", label: "Needs answer", Icon: HelpCircle, dot: "bg-type-ask" },
+  { value: "note", label: "Note", Icon: StickyNote, dot: "bg-type-note" },
+]
+
+// The compact inline composer: a header (anchor + type dropdown + close), a
+// textarea, and Add/Cancel. Type lives in a header dropdown rather than a pill
+// row to keep the card short. `anchorLabel: null` = reply mode (no type/anchor).
+// A `draftKey` persists the in-progress body to localStorage (F6).
+function Composer({
+  anchorLabel,
+  initialType = "fix_required",
+  initialBody = "",
+  draftKey,
+  submitLabel = "Add",
+  pending,
+  className = "my-1.5 ml-14 mr-3.5",
+  onSubmit,
+  onCancel,
+}: {
+  anchorLabel: string | null
+  initialType?: CritiqueType
+  initialBody?: string
+  draftKey?: string
+  submitLabel?: string
+  pending?: boolean
+  className?: string
+  onSubmit: (body: string, type: CritiqueType) => void
+  onCancel: () => void
+}) {
+  const withType = anchorLabel !== null
+  const [type, setType] = useState<CritiqueType>(initialType)
+  const [body, setBody] = useState(() => (draftKey ? (localStorage.getItem(draftKey) ?? initialBody) : initialBody))
+  const areaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = areaRef.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [])
+
+  useEffect(() => {
+    if (!draftKey) return
+    if (body.trim()) localStorage.setItem(draftKey, body)
+    else localStorage.removeItem(draftKey)
+  }, [body, draftKey])
+
+  const submit = () => {
+    const text = body.trim()
+    if (!text) return
+    if (draftKey) localStorage.removeItem(draftKey)
+    onSubmit(text, type)
+  }
+
+  const current = TYPE_OPTIONS.find((o) => o.value === type) ?? TYPE_OPTIONS[0]
+
+  return (
+    <div className={`overflow-hidden rounded-panel border border-hair-strong bg-surface font-sans shadow-lg ${className}`}>
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+        {anchorLabel && (
+          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted">
+            <CornerDownRight size={12} aria-hidden />
+            {anchorLabel}
+          </span>
+        )}
+        <span className="flex-1" />
+        {withType && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="inline-flex h-[24px] cursor-pointer items-center gap-1.5 rounded-full border border-hair-strong bg-canvas px-2.5 text-[11px] font-semibold text-text hover:bg-soft"
+                >
+                  <span className={`size-2 rounded-full ${current.dot}`} aria-hidden />
+                  {current.label}
+                  <ChevronDown size={12} className="text-faint" aria-hidden />
+                </button>
+              }
+            />
+            <DropdownMenuContent>
+              {TYPE_OPTIONS.map((option) => (
+                <DropdownMenuItem key={option.value} onClick={() => setType(option.value)}>
+                  <span className={`size-2 shrink-0 rounded-full ${option.dot}`} aria-hidden />
+                  <option.Icon size={13} className="shrink-0 text-muted" aria-hidden />
+                  <span className="flex-1">{option.label}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Cancel"
+          className="grid size-6 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+        >
+          <X size={14} aria-hidden />
+        </button>
+      </div>
+      <div className="px-3 pb-3">
+        <textarea
+          ref={areaRef}
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault()
+              submit()
+            } else if (event.key === "Escape") {
+              event.preventDefault()
+              onCancel()
+            }
+          }}
+          rows={3}
+          placeholder={withType ? "Leave a comment…" : "Write a reply…"}
+          className="w-full resize-y rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+        />
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-[28px] rounded-ctrl px-3 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!body.trim() || pending}
+            className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:opacity-50"
+          >
+            {submitLabel}
+            <span className="text-[11px] opacity-80">⌘⏎</span>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
