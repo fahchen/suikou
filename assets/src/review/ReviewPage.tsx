@@ -669,7 +669,15 @@ function Editor({
           meta={name}
         />
       ) : htmlFile ? (
-        <HtmlView source={content.lines.join("\n")} mode={htmlMode} zoom={htmlZoom} frameRef={htmlFrameRef} />
+        <HtmlView
+          source={content.lines.join("\n")}
+          mode={htmlMode}
+          zoom={htmlZoom}
+          frameRef={htmlFrameRef}
+          comments={comments}
+          fileProxy={fileProxy}
+          draftScope={`${reviewId}:${entry.path}`}
+        />
       ) : previewable && view === "preview" ? (
         <MarkdownPreview
           source={content.lines.join("\n")}
@@ -925,22 +933,145 @@ const MarkdownPreview = observer(function MarkdownPreview({
 /** Clamp an html zoom factor to the 10%–200% range on a 10% grid. */
 const clampZoom = (zoom: number): number => Math.min(2, Math.max(0.1, Math.round(zoom * 10) / 10))
 
-/** HTML render (D3/D4/D5): the artifact in a sandboxed iframe. Comment mode
- * leaves the page inert (pointer events off) so it can be annotated; Interactive
- * mode makes it live behind a hint. Zoom scales the frame; fullscreen expands it.
- * The sandbox withholds same-origin, so the framed page cannot reach this app. */
-function HtmlView({
+/** The script injected into the (null-origin) html iframe in Comment mode. Since
+ * the sandbox withholds same-origin, the parent cannot read the framed document,
+ * so this script is the bridge: it paints a dashed outline on hover, intercepts
+ * clicks to post a stable CSS selector + text quote back to the parent, and
+ * outlines the elements the parent reports as already anchored. */
+function htmlAnchorScript(accent: string): string {
+  return `
+(function () {
+  var ACCENT = ${JSON.stringify(accent)};
+  var style = document.createElement("style");
+  style.textContent =
+    ".suikou-hover{outline:1.5px dashed " + ACCENT + " !important;outline-offset:2px !important;cursor:crosshair !important}" +
+    ".suikou-anchored{outline:1.5px dashed " + ACCENT + " !important;outline-offset:2px !important}";
+  (document.head || document.documentElement).appendChild(style);
+  function esc(s) { return window.CSS && CSS.escape ? CSS.escape(s) : s; }
+  function selectorFor(el) {
+    if (!el || el === document.body || el === document.documentElement) return "body";
+    if (el.id) return "#" + esc(el.id);
+    var parts = [], node = el;
+    while (node && node !== document.body && node !== document.documentElement) {
+      if (node.id) { parts.unshift("#" + esc(node.id)); break; }
+      var tag = node.tagName.toLowerCase(), parent = node.parentElement;
+      if (parent) {
+        var same = [];
+        for (var i = 0; i < parent.children.length; i++) if (parent.children[i].tagName === node.tagName) same.push(parent.children[i]);
+        if (same.length > 1) tag += ":nth-of-type(" + (same.indexOf(node) + 1) + ")";
+      }
+      parts.unshift(tag);
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
+  }
+  function quoteFor(el) { return (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 200); }
+  var hovered = null;
+  function setHover(el) {
+    if (hovered === el) return;
+    if (hovered) hovered.classList.remove("suikou-hover");
+    hovered = el;
+    if (hovered) hovered.classList.add("suikou-hover");
+  }
+  document.addEventListener("pointermove", function (e) {
+    var el = e.target;
+    setHover(el && el.nodeType === 1 && el !== document.body && el !== document.documentElement ? el : null);
+  }, true);
+  document.addEventListener("pointerleave", function () { setHover(null); }, true);
+  document.addEventListener("click", function (e) {
+    var el = e.target;
+    if (!el || el.nodeType !== 1) return;
+    e.preventDefault(); e.stopPropagation();
+    parent.postMessage({ source: "suikou-html", kind: "pick", selector: selectorFor(el), quote: quoteFor(el) }, "*");
+  }, true);
+  function applyAnchors(selectors) {
+    var prev = document.querySelectorAll(".suikou-anchored");
+    for (var i = 0; i < prev.length; i++) prev[i].classList.remove("suikou-anchored");
+    (selectors || []).forEach(function (sel) {
+      var el; try { el = document.querySelector(sel); } catch (_) { el = null; }
+      if (el) el.classList.add("suikou-anchored");
+    });
+  }
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.source !== "suikou-host") return;
+    if (d.kind === "anchors") applyAnchors(d.selectors);
+  });
+  parent.postMessage({ source: "suikou-html", kind: "ready" }, "*");
+})();
+`
+}
+
+/** HTML render (D3/D4/D5 + element anchoring): the artifact in a sandboxed
+ * iframe. Comment mode injects a bridge script so hovering paints a dashed
+ * outline and clicking an element opens a composer anchored to its CSS selector;
+ * Interactive mode drops the script and makes the page live behind a hint. Zoom
+ * scales the frame; fullscreen expands it. The sandbox withholds same-origin, so
+ * the framed page cannot reach this app. */
+const HtmlView = observer(function HtmlView({
   source,
   mode,
   zoom,
   frameRef,
+  comments,
+  fileProxy,
+  draftScope,
 }: {
   source: string
   mode: "comment" | "interactive"
   zoom: number
   frameRef: RefObject<HTMLDivElement | null>
+  comments: Comment[]
+  fileProxy: FileStoreProxy | null
+  draftScope: string
 }) {
   const interactive = mode === "interactive"
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
+  const [picked, setPicked] = useState<{ selector: string; quote: string } | null>(null)
+
+  const anchoredSelectors = useMemo(
+    () => comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : [])),
+    [comments],
+  )
+
+  // Comment mode carries the bridge script; interactive serves the raw page.
+  const srcDoc = useMemo(() => {
+    if (interactive) return source
+    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "oklch(62% 0.19 255)"
+    return `${source}\n<script>${htmlAnchorScript(accent)}</scr` + `ipt>`
+  }, [source, interactive])
+
+  // Bridge: receive picks and the frame's ready signal; (re)send the anchored
+  // selectors whenever they change so the frame can outline them.
+  useEffect(() => {
+    const postAnchors = () =>
+      iframeRef.current?.contentWindow?.postMessage({ source: "suikou-host", kind: "anchors", selectors: anchoredSelectors }, "*")
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return
+      const data = event.data
+      if (!data || data.source !== "suikou-html") return
+      if (data.kind === "pick") setPicked({ selector: String(data.selector), quote: String(data.quote ?? "") })
+      if (data.kind === "ready") postAnchors()
+    }
+    window.addEventListener("message", onMessage)
+    postAnchors()
+    return () => window.removeEventListener("message", onMessage)
+  }, [anchoredSelectors])
+
+  // Interactive mode has no picking; drop any open element composer.
+  useEffect(() => {
+    if (interactive) setPicked(null)
+  }, [interactive])
+
+  const submit = (body: string, type: CritiqueType) => {
+    if (!fileProxy || !picked) return
+    addComment
+      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: picked.selector, quote: picked.quote } })
+      .catch(() => undefined)
+    setPicked(null)
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
       {interactive && (
@@ -961,8 +1092,9 @@ function HtmlView({
           sandboxed iframe{interactive ? " · interactive" : ""}
         </span>
         <iframe
+          ref={iframeRef}
           title="HTML preview"
-          srcDoc={source}
+          srcDoc={srcDoc}
           sandbox="allow-scripts allow-forms allow-popups allow-modals"
           className="block border-0 bg-white"
           style={{
@@ -970,13 +1102,33 @@ function HtmlView({
             height: `${100 / zoom}%`,
             transform: `scale(${zoom})`,
             transformOrigin: "top left",
-            pointerEvents: interactive ? "auto" : "none",
           }}
         />
       </div>
+      {picked && !interactive && (
+        <div className="mt-[14px] flex flex-col gap-2">
+          <div className="flex items-center gap-2 rounded-ctrl border border-hair-strong bg-surface px-3 py-2 text-[11px]">
+            <span className="shrink-0 font-semibold text-muted">Element</span>
+            <span className="truncate font-mono text-accent-bright">{picked.selector}</span>
+          </div>
+          {picked.quote && (
+            <div className="truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+              “{picked.quote}”
+            </div>
+          )}
+          <Composer
+            anchorLabel="this element"
+            draftKey={`suikou-eldraft:${draftScope}:${picked.selector}`}
+            pending={addComment.isPending}
+            onSubmit={submit}
+            onCancel={() => setPicked(null)}
+            className="m-0"
+          />
+        </div>
+      )}
     </div>
   )
-}
+})
 
 /** Image render (D8): the artifact centered on a checkerboard backdrop with a
  * metadata caption. No zoom and no located anchors — an image is commented at
