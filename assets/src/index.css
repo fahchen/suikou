@@ -37,12 +37,37 @@
   --color-request-soft: var(--request-soft);
   --color-request-edge: var(--request-edge);
 
+  --color-type-fix: var(--type-fix);
+  --color-type-fix-soft: var(--type-fix-soft);
+  --color-type-fix-edge: var(--type-fix-edge);
+  --color-type-ask: var(--type-ask);
+  --color-type-ask-soft: var(--type-ask-soft);
+  --color-type-ask-edge: var(--type-ask-edge);
+  --color-type-note: var(--type-note);
+  --color-type-note-soft: var(--type-note-soft);
+  --color-type-note-edge: var(--type-note-edge);
+
   --color-hair: var(--hair);
   --color-hair-strong: var(--hair-strong);
 
   --radius-ctrl: var(--r-ctrl);
   --radius-panel: var(--r-panel);
   --radius-win: var(--r-win);
+}
+
+/* Critique-type accents (fix / ask / note) derive from the semantic palette so
+   every theme inherits them at runtime without redefining per-theme: the var()
+   references resolve against whichever [data-theme] block is in scope. */
+:root {
+  --type-fix: var(--request);
+  --type-fix-soft: var(--request-soft);
+  --type-fix-edge: var(--request-edge);
+  --type-ask: var(--blue);
+  --type-ask-soft: color-mix(in oklab, var(--blue) 15%, transparent);
+  --type-ask-edge: color-mix(in oklab, var(--blue) 34%, transparent);
+  --type-note: var(--ink-2);
+  --type-note-soft: color-mix(in oklab, var(--ink-3) 14%, transparent);
+  --type-note-edge: color-mix(in oklab, var(--ink-3) 26%, transparent);
 }
 
 /* Suikou Dark — the default palette. */
@@ -824,4 +849,52 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+}
+
+/* Rendered markdown for comment/reply bodies (injected via markdown-it). Vars
+   resolve per active theme, so the chips and links re-skin with the palette. */
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+.md-body p {
+  margin: 0.4em 0;
+}
+.md-body code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--ink-3) 10%, transparent);
+  box-shadow: inset 0 0 0 0.5px var(--hair);
+}
+.md-body a {
+  color: var(--accent-bright);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body ul,
+.md-body ol {
+  margin: 0.35em 0;
+  padding-left: 1.3em;
+}
+.md-body li {
+  margin: 0.15em 0;
+}
+.md-body pre {
+  margin: 0.45em 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  overflow: auto;
+  background: color-mix(in oklab, var(--ink-3) 8%, transparent);
+}
+.md-body pre code {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.md-body strong {
+  font-weight: 700;
 }

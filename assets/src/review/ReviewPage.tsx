@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
-import type { CommandReply, StoreProxy } from "@musubi/react"
+import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ChevronRight, Circle, FileText, Folder, GitCompare, ListTree, PanelLeft, Search, SlidersHorizontal } from "lucide-react"
+import { AlertTriangle, Bot, ChevronRight, Circle, CircleCheck, FileText, Folder, GitCompare, HelpCircle, ListTree, PanelLeft, Search, SlidersHorizontal, StickyNote, User } from "lucide-react"
 
-import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
+import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
 import {
   DropdownMenu,
@@ -17,11 +17,14 @@ import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { highlightLines } from "./highlight"
+import { renderMarkdown } from "./markdown"
 import { langForPath, outline, type OutlineItem } from "../treesitter/outline"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_structure", Musubi.Stores>
 type FileEntry = Structure["file_entries"][number]
+type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
+type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][number]
 
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
@@ -42,6 +45,7 @@ export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string
 function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
   const load = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
+  const snap = useMusubiSnapshot(store)
   const navigate = useNavigate()
   const [structure, setStructure] = useState<Structure | null>(null)
   const structRef = useRef<Structure | null>(null)
@@ -79,15 +83,21 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
 
-  if (structure && !structure.exists) {
-    return <Centered>Review not found.</Centered>
-  }
-
   const isDiff = structure?.kind === "diff"
   // The open file lives in the URL (`?file=`), so a reload lands back on it; an
   // absent or stale param falls back to the first file.
   const selectedPath = entries.some((e) => e.path === file) ? file! : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
+  // Published comment threads stream on the live snapshot; the structure (chrome,
+  // file list) rides the command reply. Join them by path here.
+  const comments = useMemo(
+    () => snap?.body?.files.find((f) => f.path === selectedPath)?.comments.items ?? [],
+    [snap, selectedPath],
+  )
+
+  if (structure && !structure.exists) {
+    return <Centered>Review not found.</Centered>
+  }
 
   const select = (path: string) => {
     setFilesSheetOpen(false)
@@ -102,7 +112,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           <NavHeader entries={entries} />
           <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} />
         </aside>
-        <Editor reviewId={reviewId} entry={selected} onOpenFiles={() => setFilesSheetOpen(true)} />
+        <Editor reviewId={reviewId} entry={selected} comments={comments} onOpenFiles={() => setFilesSheetOpen(true)} />
         <Inspector entries={entries} />
       </div>
       <StatusBar path={selectedPath} connected={connected} />
@@ -390,10 +400,12 @@ type Content =
 function Editor({
   reviewId,
   entry,
+  comments,
   onOpenFiles,
 }: {
   reviewId: string
   entry: FileEntry | null
+  comments: Comment[]
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -488,7 +500,7 @@ function Editor({
           Can't render {content.mime} here yet.
         </div>
       ) : (
-        <Source lines={content.lines} tokens={content.tokens} />
+        <Source lines={content.lines} tokens={content.tokens} comments={comments} />
       )}
     </div>
   )
@@ -509,43 +521,154 @@ function isTextMime(mime: string): boolean {
 const Source = observer(function Source({
   lines,
   tokens,
+  comments,
 }: {
   lines: string[]
   tokens: ThemedToken[][] | null
+  comments: Comment[]
 }) {
-  const count = tokens ? tokens.length : lines.length
+  const rows = tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])
+  const count = rows.length
   const gutter = String(count).length
   const wrap = uiStore.codeWrap
+  // Published line-anchored threads, bucketed by their anchor's start line. The
+  // frontend trusts the server's `start_line` and `outdated` flags — it never
+  // re-locates against the file text. A comment whose line ran off the end of a
+  // shrunken file (stranded) pins to the last line so it stays visible.
+  const threadsByLine = useMemo(() => {
+    const map = new Map<number, Comment[]>()
+    for (const comment of comments) {
+      if (comment.status !== "published" || comment.scope !== "located") continue
+      if (comment.anchor?.type !== "line_range") continue
+      const line = Math.min(Math.max(comment.anchor.start_line, 1), count || 1)
+      const bucket = map.get(line)
+      if (bucket) bucket.push(comment)
+      else map.set(line, [comment])
+    }
+    return map
+  }, [comments, count])
+
   return (
     <div
       className="min-h-0 flex-1 overflow-auto py-1 font-mono leading-[1.55]"
       style={{ fontSize: MONO_PX[uiStore.monoSize] }}
     >
-      {(tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])).map((lineTokens, index) => (
-        <div key={index} data-review-line={index + 1} className="flex scroll-mt-2 hover:bg-soft/40">
-          <span
-            aria-hidden
-            style={{ minWidth: `${gutter + 2}ch` }}
-            className="sticky left-0 shrink-0 select-none bg-editor px-3 text-right text-faint tabular-nums"
-          >
-            {index + 1}
-          </span>
-          <code className={`pr-6 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
-            {lineTokens.length === 0 ? (
-              " "
-            ) : (
-              lineTokens.map((token, ti) => (
-                <span key={ti} style={token.color ? { color: token.color } : undefined}>
-                  {token.content}
-                </span>
-              ))
-            )}
-          </code>
-        </div>
-      ))}
+      {rows.map((lineTokens, index) => {
+        const lineNo = index + 1
+        const threads = threadsByLine.get(lineNo)
+        return (
+          <Fragment key={index}>
+            <div
+              data-review-line={lineNo}
+              className={`flex scroll-mt-2 ${threads ? "bg-accent-soft" : "hover:bg-soft/40"}`}
+            >
+              <span
+                aria-hidden
+                style={{ minWidth: `${gutter + 2}ch` }}
+                className={`sticky left-0 shrink-0 select-none px-3 text-right tabular-nums ${
+                  threads ? "bg-accent-soft font-semibold text-accent-bright" : "bg-editor text-faint"
+                }`}
+              >
+                {lineNo}
+              </span>
+              <code className={`pr-6 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+                {lineTokens.length === 0 ? (
+                  " "
+                ) : (
+                  lineTokens.map((token, ti) => (
+                    <span key={ti} style={token.color ? { color: token.color } : undefined}>
+                      {token.content}
+                    </span>
+                  ))
+                )}
+              </code>
+            </div>
+            {threads?.map((comment) => <Thread key={comment.id} comment={comment} />)}
+          </Fragment>
+        )
+      })}
     </div>
   )
 })
+
+const TYPE_META = {
+  fix_required: { label: "FIX_REQUIRED", Icon: AlertTriangle, card: "bg-type-fix-soft ring-type-fix-edge", pill: "bg-type-fix-soft text-type-fix ring-type-fix-edge" },
+  needs_answer: { label: "NEEDS_ANSWER", Icon: HelpCircle, card: "bg-type-ask-soft ring-type-ask-edge", pill: "bg-type-ask-soft text-type-ask ring-type-ask-edge" },
+  note: { label: "NOTE", Icon: StickyNote, card: "bg-type-note-soft ring-type-note-edge", pill: "bg-type-note-soft text-muted ring-type-note-edge" },
+} as const
+
+// A read-only published comment thread, inserted inline below its anchored code
+// line. Authoring affordances (reply box, resolve, react) belong to a later
+// pass; this renders the head, the markdown body, and any replies.
+function Thread({ comment }: { comment: Comment }) {
+  const meta = TYPE_META[comment.critique_type]
+  const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
+  const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
+  return (
+    <div
+      className={`my-1.5 ml-14 mr-3.5 overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
+        comment.resolved ? "opacity-65" : ""
+      }`}
+    >
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+        <span className={`inline-flex h-[19px] items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
+          <meta.Icon size={11} aria-hidden />
+          {meta.label}
+        </span>
+        {anchor && (
+          <span className="font-mono text-[11px] text-muted">
+            on line {anchor.start_line}
+            {anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""} · Round {comment.authored_round}
+          </span>
+        )}
+        {comment.outdated && <span className="font-mono text-[11px] text-amber">· outdated</span>}
+        <span className="flex-1" />
+        {comment.resolved && (
+          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-approve">
+            <CircleCheck size={12} aria-hidden />
+            Resolved
+          </span>
+        )}
+      </div>
+      <div
+        className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+      />
+      {comment.replies.length > 0 && (
+        <div className="mx-3 mb-2.5 flex flex-col gap-2">
+          {comment.replies.map((reply) => (
+            <Reply key={reply.id} reply={reply} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Reply({ reply }: { reply: Comment["replies"][number] }) {
+  const agent = reply.author === "agent"
+  const bodyHtml = useMemo(() => renderMarkdown(reply.body), [reply.body])
+  return (
+    <div
+      className={`rounded-ctrl px-3 py-2 ring-1 ring-inset ${
+        agent ? "bg-accent-softer ring-accent-edge" : "bg-soft ring-hair-strong"
+      }`}
+    >
+      <div className={`mb-1 inline-flex items-center gap-1.5 text-[11px] font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
+        <span className={`grid size-[15px] place-items-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
+          {agent ? <Bot size={10} aria-hidden /> : <User size={10} aria-hidden />}
+        </span>
+        {agent ? "agent" : "you"}
+      </div>
+      <div
+        className="md-body text-[12px] leading-[1.5] text-text"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+      />
+    </div>
+  )
+}
 
 function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line: number) => void }) {
   return (
