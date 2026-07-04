@@ -20,7 +20,8 @@ import {
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
-import { Dialog, DialogTitle } from "../components/ui/dialog"
+import { Dialog } from "../components/ui/dialog"
+import { ConfirmDialog } from "../components/ui/confirm-dialog"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 import { NewReviewDialog } from "./NewReviewDialog"
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog"
@@ -566,41 +567,6 @@ function ProjectActions({
         }}
       />
     </>
-  )
-}
-
-function ConfirmDialog({
-  open,
-  title,
-  body,
-  confirmLabel,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean
-  title: string
-  body: string
-  confirmLabel: string
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  return (
-    <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[400px]">
-        <DialogTitle className="text-[15px] font-bold text-ink">{title}</DialogTitle>
-        <p className="text-[12.5px] leading-[1.5] text-muted">{body}</p>
-        <div className="flex items-center gap-2 pt-1">
-          <span className="flex-1" />
-          <button onClick={onCancel} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft">
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="inline-flex h-[32px] items-center rounded-ctrl bg-request px-4 text-[13px] font-semibold text-on-accent hover:brightness-110"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-    </Dialog>
   )
 }
 
