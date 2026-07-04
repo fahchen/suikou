@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, Minus, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User } from "lucide-react"
+import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, Minus, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -16,6 +17,7 @@ import {
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { ConfirmDialog } from "../components/ui/confirm-dialog"
 import { Segmented } from "../components/ui/segmented"
+import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { highlightLines } from "./highlight"
@@ -611,6 +613,24 @@ function Editor({
                 ["interactive", "Interactive"],
               ]}
             />
+            <Tooltip
+              side="bottom"
+              content={
+                <>
+                  <b className="font-semibold text-ink">Interactive mode</b> makes links, hovers, and form controls
+                  live. Comment anchoring is paused so the page is not intercepted; switch back to Comment to anchor.
+                </>
+              }
+              render={
+                <button
+                  type="button"
+                  aria-label="About interactive mode"
+                  className="grid size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink"
+                >
+                  <Info size={13} aria-hidden />
+                </button>
+              }
+            />
             <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
               <button
                 type="button"
@@ -676,6 +696,7 @@ function Editor({
           frameRef={htmlFrameRef}
           comments={comments}
           fileProxy={fileProxy}
+          commentsProxy={commentsProxy}
           draftScope={`${reviewId}:${entry.path}`}
         />
       ) : previewable && view === "preview" ? (
@@ -933,20 +954,31 @@ const MarkdownPreview = observer(function MarkdownPreview({
 /** Clamp an html zoom factor to the 10%–200% range on a 10% grid. */
 const clampZoom = (zoom: number): number => Math.min(2, Math.max(0.1, Math.round(zoom * 10) / 10))
 
+type ElRect = { top: number; left: number; right: number; bottom: number; width: number; height: number }
+type HtmlOverlay = { kind: "compose"; selector: string; quote: string; rect: ElRect } | { kind: "thread"; selector: string; rect: ElRect }
+
 /** The script injected into the (null-origin) html iframe in Comment mode. Since
  * the sandbox withholds same-origin, the parent cannot read the framed document,
- * so this script is the bridge: it paints a dashed outline on hover, intercepts
- * clicks to post a stable CSS selector + text quote back to the parent, and
- * outlines the elements the parent reports as already anchored. */
+ * so this script is the bridge: it tints an element on hover, draws a pulsing dot
+ * on each already-commented element, intercepts clicks to post a stable CSS
+ * selector + quote (or open an existing thread), and streams the tracked
+ * element's rect so the host can anchor its overlay. */
 function htmlAnchorScript(accent: string): string {
   return `
 (function () {
   var ACCENT = ${JSON.stringify(accent)};
+  var TINT = "color-mix(in oklab, " + ACCENT + " 15%, transparent)";
+  var EDGE = "color-mix(in oklab, " + ACCENT + " 55%, transparent)";
   var style = document.createElement("style");
   style.textContent =
-    ".suikou-hover{outline:1.5px dashed " + ACCENT + " !important;outline-offset:2px !important;cursor:crosshair !important}" +
-    ".suikou-anchored{outline:1.5px dashed " + ACCENT + " !important;outline-offset:2px !important}";
+    ".suikou-hi{background:" + TINT + " !important;border-radius:4px !important;box-shadow:inset 0 0 0 1px " + EDGE + " !important;cursor:pointer !important}" +
+    ".suikou-dots{position:absolute;top:0;left:0;width:0;height:0}" +
+    ".suikou-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:" + ACCENT + ";cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.35);animation:suikou-breathe 1.8s ease-in-out infinite}" +
+    ".suikou-dot:hover{transform:scale(1.2)}" +
+    "@keyframes suikou-breathe{0%,100%{box-shadow:0 0 0 2px #fff,0 0 0 0 " + EDGE + "}50%{box-shadow:0 0 0 2px #fff,0 0 0 6px transparent}}";
   (document.head || document.documentElement).appendChild(style);
+  var layer = document.createElement("div");
+  layer.className = "suikou-dots";
   function esc(s) { return window.CSS && CSS.escape ? CSS.escape(s) : s; }
   function selectorFor(el) {
     if (!el || el === document.body || el === document.documentElement) return "body";
@@ -957,7 +989,10 @@ function htmlAnchorScript(accent: string): string {
       var tag = node.tagName.toLowerCase(), parent = node.parentElement;
       if (parent) {
         var same = [];
-        for (var i = 0; i < parent.children.length; i++) if (parent.children[i].tagName === node.tagName) same.push(parent.children[i]);
+        for (var i = 0; i < parent.children.length; i++) {
+          var c = parent.children[i];
+          if (c.tagName === node.tagName && String(c.className || "").indexOf("suikou-") === -1) same.push(c);
+        }
         if (same.length > 1) tag += ":nth-of-type(" + (same.indexOf(node) + 1) + ")";
       }
       parts.unshift(tag);
@@ -966,36 +1001,73 @@ function htmlAnchorScript(accent: string): string {
     return parts.join(" > ");
   }
   function quoteFor(el) { return (el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 200); }
-  var hovered = null;
+  function rectOf(el) { var r = el.getBoundingClientRect(); return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; }
+
+  var dots = [], tracked = null, hovered = null;
   function setHover(el) {
     if (hovered === el) return;
-    if (hovered) hovered.classList.remove("suikou-hover");
+    if (hovered) hovered.classList.remove("suikou-hi");
     hovered = el;
-    if (hovered) hovered.classList.add("suikou-hover");
+    if (hovered) hovered.classList.add("suikou-hi");
+  }
+  function elFor(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
+  function anchoredEl(el) { for (var i = 0; i < dots.length; i++) if (dots[i].el === el) return true; return false; }
+  function placeDots() {
+    for (var i = 0; i < dots.length; i++) {
+      var d = dots[i];
+      if (!d.el.isConnected) { d.dot.style.display = "none"; continue; }
+      var r = d.el.getBoundingClientRect();
+      d.dot.style.display = "";
+      d.dot.style.left = (r.right + window.scrollX) + "px";
+      d.dot.style.top = (r.top + window.scrollY) + "px";
+    }
+  }
+  function rebuild(selectors) {
+    for (var i = 0; i < dots.length; i++) dots[i].dot.remove();
+    dots = [];
+    if (!layer.parentNode && document.body) document.body.appendChild(layer);
+    (selectors || []).forEach(function (sel) {
+      var el = elFor(sel);
+      if (!el) return;
+      var dot = document.createElement("div");
+      dot.className = "suikou-dot";
+      dot.setAttribute("data-sel", sel);
+      layer.appendChild(dot);
+      dots.push({ selector: sel, el: el, dot: dot });
+    });
+    placeDots();
   }
   document.addEventListener("pointermove", function (e) {
-    var el = e.target;
-    setHover(el && el.nodeType === 1 && el !== document.body && el !== document.documentElement ? el : null);
+    var t = e.target;
+    if (t && t.classList && t.classList.contains("suikou-dot")) { setHover(elFor(t.getAttribute("data-sel"))); return; }
+    if (t && t.nodeType === 1 && t !== document.body && t !== document.documentElement && !anchoredEl(t)) setHover(t);
+    else setHover(null);
   }, true);
   document.addEventListener("pointerleave", function () { setHover(null); }, true);
   document.addEventListener("click", function (e) {
-    var el = e.target;
-    if (!el || el.nodeType !== 1) return;
+    var t = e.target;
+    if (!t || t.nodeType !== 1) return;
     e.preventDefault(); e.stopPropagation();
-    parent.postMessage({ source: "suikou-html", kind: "pick", selector: selectorFor(el), quote: quoteFor(el) }, "*");
+    if (t.classList && t.classList.contains("suikou-dot")) {
+      var sel = t.getAttribute("data-sel"), el = elFor(sel);
+      parent.postMessage({ source: "suikou-html", kind: "open", selector: sel, rect: el ? rectOf(el) : null }, "*");
+    } else if (anchoredEl(t)) {
+      parent.postMessage({ source: "suikou-html", kind: "open", selector: selectorFor(t), rect: rectOf(t) }, "*");
+    } else {
+      parent.postMessage({ source: "suikou-html", kind: "pick", selector: selectorFor(t), quote: quoteFor(t), rect: rectOf(t) }, "*");
+    }
   }, true);
-  function applyAnchors(selectors) {
-    var prev = document.querySelectorAll(".suikou-anchored");
-    for (var i = 0; i < prev.length; i++) prev[i].classList.remove("suikou-anchored");
-    (selectors || []).forEach(function (sel) {
-      var el; try { el = document.querySelector(sel); } catch (_) { el = null; }
-      if (el) el.classList.add("suikou-anchored");
-    });
+  function sync() {
+    placeDots();
+    if (tracked) { var el = elFor(tracked); if (el) parent.postMessage({ source: "suikou-html", kind: "rect", selector: tracked, rect: rectOf(el) }, "*"); }
   }
+  window.addEventListener("scroll", sync, true);
+  window.addEventListener("resize", sync);
   window.addEventListener("message", function (e) {
     var d = e.data;
     if (!d || d.source !== "suikou-host") return;
-    if (d.kind === "anchors") applyAnchors(d.selectors);
+    if (d.kind === "anchors") rebuild(d.selectors);
+    if (d.kind === "track") { tracked = d.selector || null; sync(); }
   });
   parent.postMessage({ source: "suikou-html", kind: "ready" }, "*");
 })();
@@ -1003,11 +1075,12 @@ function htmlAnchorScript(accent: string): string {
 }
 
 /** HTML render (D3/D4/D5 + element anchoring): the artifact in a sandboxed
- * iframe. Comment mode injects a bridge script so hovering paints a dashed
- * outline and clicking an element opens a composer anchored to its CSS selector;
- * Interactive mode drops the script and makes the page live behind a hint. Zoom
- * scales the frame; fullscreen expands it. The sandbox withholds same-origin, so
- * the framed page cannot reach this app. */
+ * iframe. Comment mode injects a bridge script — hovering tints an element,
+ * commented elements carry a pulsing dot, and clicking either opens an overlay
+ * (a composer for a fresh element, the thread for an anchored one) pinned beside
+ * the element in the parent so it escapes the frame's clip and tracks scroll.
+ * Only one overlay is open at a time. Interactive mode drops the script and makes
+ * the page live. The sandbox withholds same-origin, so the page can't reach us. */
 const HtmlView = observer(function HtmlView({
   source,
   mode,
@@ -1015,6 +1088,7 @@ const HtmlView = observer(function HtmlView({
   frameRef,
   comments,
   fileProxy,
+  commentsProxy,
   draftScope,
 }: {
   source: string
@@ -1023,16 +1097,25 @@ const HtmlView = observer(function HtmlView({
   frameRef: RefObject<HTMLDivElement | null>
   comments: Comment[]
   fileProxy: FileStoreProxy | null
+  commentsProxy: CommentsStoreProxy | null
   draftScope: string
 }) {
   const interactive = mode === "interactive"
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
-  const [picked, setPicked] = useState<{ selector: string; quote: string } | null>(null)
+  const [overlay, setOverlay] = useState<HtmlOverlay | null>(null)
+  const [, setTick] = useState(0)
 
   const anchoredSelectors = useMemo(
     () => comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : [])),
     [comments],
+  )
+  const openThreads = useMemo(
+    () =>
+      overlay?.kind === "thread"
+        ? comments.filter((c) => c.anchor?.type === "element" && c.anchor.selector === overlay.selector)
+        : [],
+    [comments, overlay],
   )
 
   // Comment mode carries the bridge script; interactive serves the raw page.
@@ -1042,47 +1125,62 @@ const HtmlView = observer(function HtmlView({
     return `${source}\n<script>${htmlAnchorScript(accent)}</scr` + `ipt>`
   }, [source, interactive])
 
-  // Bridge: receive picks and the frame's ready signal; (re)send the anchored
-  // selectors whenever they change so the frame can outline them.
+  const post = (message: object) => iframeRef.current?.contentWindow?.postMessage({ source: "suikou-host", ...message }, "*")
+
+  // Bridge: receive picks / opens / rect updates and the ready signal; keep the
+  // frame's dots in sync with the anchored selectors.
   useEffect(() => {
-    const postAnchors = () =>
-      iframeRef.current?.contentWindow?.postMessage({ source: "suikou-host", kind: "anchors", selectors: anchoredSelectors }, "*")
     const onMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return
       const data = event.data
       if (!data || data.source !== "suikou-html") return
-      if (data.kind === "pick") setPicked({ selector: String(data.selector), quote: String(data.quote ?? "") })
-      if (data.kind === "ready") postAnchors()
+      if (data.kind === "ready") post({ kind: "anchors", selectors: anchoredSelectors })
+      else if (data.kind === "pick" && data.rect)
+        setOverlay({ kind: "compose", selector: String(data.selector), quote: String(data.quote ?? ""), rect: data.rect })
+      else if (data.kind === "open" && data.rect) setOverlay({ kind: "thread", selector: String(data.selector), rect: data.rect })
+      else if (data.kind === "rect") setOverlay((o) => (o && o.selector === data.selector ? { ...o, rect: data.rect } : o))
     }
     window.addEventListener("message", onMessage)
-    postAnchors()
+    post({ kind: "anchors", selectors: anchoredSelectors })
     return () => window.removeEventListener("message", onMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchoredSelectors])
 
-  // Interactive mode has no picking; drop any open element composer.
+  // Track the open element so the frame streams its rect; reposition on resize.
   useEffect(() => {
-    if (interactive) setPicked(null)
+    post({ kind: "track", selector: overlay?.selector ?? null })
+    if (!overlay) return
+    const onResize = () => setTick((t) => t + 1)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay?.selector])
+
+  useEffect(() => {
+    if (interactive) setOverlay(null)
   }, [interactive])
 
   const submit = (body: string, type: CritiqueType) => {
-    if (!fileProxy || !picked) return
+    if (!fileProxy || overlay?.kind !== "compose") return
     addComment
-      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: picked.selector, quote: picked.quote } })
+      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote: overlay.quote } })
       .catch(() => undefined)
-    setPicked(null)
+    setOverlay(null)
   }
+
+  // Pin the overlay beside the element: the frame's rect plus the element's rect
+  // scaled by the zoom, clamped into the viewport.
+  const frameRect = frameRef.current?.getBoundingClientRect()
+  const overlayPos =
+    overlay && frameRect
+      ? {
+          left: Math.min(Math.max(frameRect.left + overlay.rect.left * zoom, 8), window.innerWidth - 336),
+          top: Math.min(frameRect.top + overlay.rect.bottom * zoom + 8, window.innerHeight - 90),
+        }
+      : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
-      {interactive && (
-        <div className="mb-[14px] flex items-center gap-[9px] rounded-ctrl border border-accent-edge bg-accent-softer px-3 py-[9px] text-[11.5px] leading-[1.45] text-ink">
-          <Info size={15} className="shrink-0 text-accent-bright" aria-hidden />
-          <span>
-            <b className="font-[640] text-ink">Interactive mode.</b> Links, hovers, and form controls are live. Comment
-            anchoring is paused so the page is not intercepted; switch back to Comment to anchor again.
-          </span>
-        </div>
-      )}
       <div
         ref={frameRef}
         className="relative min-h-0 flex-1 overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]"
@@ -1105,27 +1203,49 @@ const HtmlView = observer(function HtmlView({
           }}
         />
       </div>
-      {picked && !interactive && (
-        <div className="mt-[14px] flex flex-col gap-2">
-          <div className="flex items-center gap-2 rounded-ctrl border border-hair-strong bg-surface px-3 py-2 text-[11px]">
-            <span className="shrink-0 font-semibold text-muted">Element</span>
-            <span className="truncate font-mono text-accent-bright">{picked.selector}</span>
-          </div>
-          {picked.quote && (
-            <div className="truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
-              “{picked.quote}”
+      {overlay &&
+        overlayPos &&
+        !interactive &&
+        createPortal(
+          <div style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 60, width: 320 }}>
+            <div className="mb-1.5 flex items-center gap-2 rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 text-[11px] shadow-lg">
+              <span className="truncate font-mono text-accent-bright">{overlay.selector}</span>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setOverlay(null)}
+                className="grid size-[18px] shrink-0 place-items-center rounded text-faint hover:bg-soft hover:text-ink"
+                aria-label="Close"
+              >
+                <X size={13} aria-hidden />
+              </button>
             </div>
-          )}
-          <Composer
-            anchorLabel="this element"
-            draftKey={`suikou-eldraft:${draftScope}:${picked.selector}`}
-            pending={addComment.isPending}
-            onSubmit={submit}
-            onCancel={() => setPicked(null)}
-            className="m-0"
-          />
-        </div>
-      )}
+            {overlay.kind === "compose" ? (
+              <>
+                {overlay.quote && (
+                  <div className="mb-1.5 truncate rounded-md bg-surface px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                    “{overlay.quote}”
+                  </div>
+                )}
+                <Composer
+                  anchorLabel="this element"
+                  draftKey={`suikou-eldraft:${draftScope}:${overlay.selector}`}
+                  pending={addComment.isPending}
+                  onSubmit={submit}
+                  onCancel={() => setOverlay(null)}
+                  className="m-0"
+                />
+              </>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto">
+                {openThreads.map((comment) => (
+                  <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-1.5" />
+                ))}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 })
@@ -1442,7 +1562,15 @@ const TYPE_META = {
 // read-only with a Reply affordance; a pending comment (the author's own unsent
 // draft) carries a Pending badge and Edit / Delete. Editing swaps the card for a
 // prefilled composer.
-function Thread({ comment, commentsProxy }: { comment: Comment; commentsProxy: CommentsStoreProxy | null }) {
+function Thread({
+  comment,
+  commentsProxy,
+  className = "my-1.5 ml-14 mr-3.5",
+}: {
+  comment: Comment
+  commentsProxy: CommentsStoreProxy | null
+  className?: string
+}) {
   const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
   const pending = comment.status === "pending"
@@ -1480,7 +1608,7 @@ function Thread({ comment, commentsProxy }: { comment: Comment; commentsProxy: C
 
   return (
     <div
-      className={`my-1.5 ml-14 mr-3.5 overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
+      className={`${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
         comment.resolved ? "opacity-65" : ""
       }`}
     >
