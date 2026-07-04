@@ -677,10 +677,18 @@ const MarkdownPreview = observer(function MarkdownPreview({
   const dragRef = useRef(drag)
   dragRef.current = drag
 
-  const open = (range: Range) => setDraft(range)
+  // The open composer's anchor persists under `openKey` (shared with Source, so
+  // the same file's composer carries across the Source/Preview toggle) and its
+  // body under the composer's own draft key, so a reload reopens it.
+  const openKey = `suikou-composer:${draftScope}`
+  const open = (range: Range) => {
+    setDraft(range)
+    localStorage.setItem(openKey, JSON.stringify(range))
+  }
   const close = () => {
     const current = draftRef.current
     if (current) localStorage.removeItem(draftBodyKey(draftScope, current))
+    localStorage.removeItem(openKey)
     setDraft(null)
   }
   // Opening a block with a dirty composer already open elsewhere confirms first.
@@ -689,6 +697,23 @@ const MarkdownPreview = observer(function MarkdownPreview({
     if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
     else open(range)
   }
+
+  // Reopen a composer left with unsaved text across a reload or a Source/Preview
+  // toggle: reopen only when the persisted anchor still holds body, and scroll to
+  // its start block. Re-runs per file; a stale bare anchor is dropped.
+  useEffect(() => {
+    const raw = localStorage.getItem(openKey)
+    const stored = raw ? safeRange(raw) : null
+    const restored = stored && hasDraftBody(draftScope, stored) ? stored : null
+    if (!restored) localStorage.removeItem(openKey)
+    setDraft(restored)
+    if (restored) {
+      requestAnimationFrame(() =>
+        document.querySelector(`[data-review-line="${restored.start}"]`)?.scrollIntoView({ block: "center" }),
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey])
   const submitNew = (body: string, type: CritiqueType) => {
     if (!fileProxy || !draft) return
     addComment
