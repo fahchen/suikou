@@ -590,10 +590,25 @@ const Source = observer(function Source({
     return { threadsByLine: map, anchoredLines: spanned }
   }, [comments, count])
 
-  // The line range whose new-comment composer is open (null = none). F1 opens a
-  // single line; F2 (a later pass) will widen this to a selected range. The
-  // composer renders just past the range's end line.
+  // The line range whose new-comment composer is open (null = none). `drag` is
+  // the live gutter drag in progress; on release it commits to `draft`, which
+  // renders the composer past the range's end line. A plain click is a
+  // zero-length drag (down and up on one line); shift-click extends `draft`.
   const [draft, setDraft] = useState<{ start: number; end: number } | null>(null)
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
+
+  // Commit the drag on pointer release anywhere (the pointer may leave the
+  // gutter before lifting). Re-armed each time the range grows; cheap for the
+  // line counts a review file holds.
+  useEffect(() => {
+    if (!drag) return
+    const commit = () => {
+      setDraft({ start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) })
+      setDrag(null)
+    }
+    window.addEventListener("pointerup", commit)
+    return () => window.removeEventListener("pointerup", commit)
+  }, [drag])
 
   const submitNew = (body: string, type: CritiqueType) => {
     if (!fileProxy || !draft) return
@@ -617,7 +632,8 @@ const Source = observer(function Source({
         const lineNo = index + 1
         const threads = threadsByLine.get(lineNo)
         const anchored = anchoredLines.has(lineNo)
-        const selecting = draft && lineNo >= draft.start && lineNo <= draft.end
+        const active = drag ? { start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) } : draft
+        const selecting = active && lineNo >= active.start && lineNo <= active.end
         return (
           <Fragment key={index}>
             <div
@@ -626,9 +642,17 @@ const Source = observer(function Source({
             >
               <button
                 type="button"
-                onClick={() => setDraft({ start: lineNo, end: lineNo })}
-                style={{ minWidth: `${gutter + 2}ch` }}
-                title="Comment on this line"
+                onPointerDown={(event) => {
+                  if (event.shiftKey && draft) {
+                    setDraft({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
+                  } else {
+                    setDraft(null)
+                    setDrag({ from: lineNo, to: lineNo })
+                  }
+                }}
+                onPointerEnter={() => setDrag((d) => (d ? { ...d, to: lineNo } : d))}
+                style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
+                title="Comment on this line — drag or shift-click for a range"
                 className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
                   anchored || selecting
                     ? "bg-accent-soft font-semibold text-accent-bright"
