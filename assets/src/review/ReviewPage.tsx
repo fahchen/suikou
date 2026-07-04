@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, Minus, PanelLeft, Pencil, Plus, Search, SlidersHorizontal, StickyNote, Trash2, User, X } from "lucide-react"
+import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Copy, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -16,6 +16,7 @@ import {
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { ConfirmDialog } from "../components/ui/confirm-dialog"
+import { Popover } from "../components/ui/popover"
 import { Segmented } from "../components/ui/segmented"
 import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
@@ -32,7 +33,55 @@ type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][numb
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
 type CritiqueType = "fix_required" | "needs_answer" | "note"
+type Verdict = "approve" | "request_changes" | "comment"
 type Range = { start: number; end: number }
+type BodyFile = ReviewSnapshot["body"]["files"][number]
+
+const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
+  approve: { label: "Approve", short: "Approved" },
+  request_changes: { label: "Request changes", short: "Request changes" },
+  comment: { label: "Comment", short: "Comment" },
+}
+
+/** An open blocker is a published fix_required comment that has not been
+ * resolved — the review's hard "needs work" signal. */
+function isOpenBlocker(comment: Comment): boolean {
+  return comment.status === "published" && comment.critique_type === "fix_required" && !comment.resolved
+}
+
+const anchorLine = (comment: Comment): number | null =>
+  comment.anchor && comment.anchor.type !== "element" ? comment.anchor.start_line : null
+
+/** The review-level verdict rolled up from each file's effective verdict (its
+ * unpublished draft if set, else its last published verdict): any request wins,
+ * else all-approve is Approve, else any set is Comment. */
+function rollupVerdict(effective: (Verdict | null)[]): Verdict | null {
+  if (effective.some((v) => v === "request_changes")) return "request_changes"
+  if (effective.length > 0 && effective.every((v) => v === "approve")) return "approve"
+  if (effective.some((v) => v !== null)) return "comment"
+  return null
+}
+
+type PerFile = {
+  path: string
+  draftVerdict: Verdict | null
+  latestVerdict: Verdict | null
+  approved: boolean
+  openBlockers: number
+  pending: number
+}
+type Blocker = { path: string; line: number | null }
+type ReviewSummary = {
+  perFile: PerFile[]
+  verdict: Verdict | null
+  reviewed: number
+  draftVerdicts: number
+  pendingComments: number
+  blockers: Blocker[]
+  allApproved: boolean
+  unresolved: number
+  hasUnpublished: boolean
+}
 
 const sameRange = (a: Range, b: Range): boolean => a.start === b.start && a.end === b.end
 
@@ -153,6 +202,47 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   const fileProxy: FileStoreProxy | null = fileIndex >= 0 && snap?.body ? store.body.files[fileIndex] : null
   const commentsProxy: CommentsStoreProxy | null = fileProxy?.comments ?? null
 
+  // Join each file's static entry (published verdict, approved) with its live
+  // FileStore snapshot (draft verdict, streamed comments) so the verdict chip,
+  // blocker dots, overview, and submit panel all read one consistent view.
+  const bodyFiles = snap?.body?.files ?? []
+  const review = useMemo<ReviewSummary>(() => {
+    const liveByPath = new Map<string, BodyFile>(bodyFiles.map((f) => [f.path, f]))
+    const perFile: PerFile[] = entries.map((e) => {
+      const live = liveByPath.get(e.path)
+      return {
+        path: e.path,
+        draftVerdict: (live?.draft_verdict ?? null) as Verdict | null,
+        latestVerdict: (e.verdict ?? null) as Verdict | null,
+        approved: e.approved,
+        openBlockers: live ? live.comments.items.filter(isOpenBlocker).length : 0,
+        pending: live ? live.comments.items.filter((c) => c.status === "pending").length : 0,
+      }
+    })
+    const blockers = entries.flatMap((e) => {
+      const live = liveByPath.get(e.path)
+      if (!live) return [] as Blocker[]
+      return live.comments.items.filter(isOpenBlocker).map((c) => ({ path: e.path, line: anchorLine(c) }))
+    })
+    return {
+      perFile,
+      verdict: rollupVerdict(perFile.map((f) => f.draftVerdict ?? f.latestVerdict)),
+      reviewed: perFile.filter((f) => (f.draftVerdict ?? f.latestVerdict) !== null).length,
+      draftVerdicts: perFile.filter((f) => f.draftVerdict !== null).length,
+      pendingComments: perFile.reduce((n, f) => n + f.pending, 0),
+      blockers,
+      allApproved: perFile.length > 0 && perFile.every((f) => f.approved),
+      unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockers.length,
+      hasUnpublished: snap?.body?.has_unpublished ?? false,
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, snap])
+  const statusByPath = useMemo(
+    () => new Map(review.perFile.map((f) => [f.path, f])),
+    [review],
+  )
+  const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
+
   if (structure && !structure.exists) {
     return <Centered>Review not found.</Centered>
   }
@@ -165,11 +255,17 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
-      <Toolbar name={structure?.name ?? "…"} isDiff={isDiff} connected={connected} />
+      <Toolbar
+        name={structure?.name ?? "…"}
+        isDiff={isDiff}
+        connected={connected}
+        store={store}
+        review={review}
+      />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr_300px]">
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
-          <NavHeader entries={entries} />
-          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} />
+          <NavHeader entries={entries} reviewed={review.reviewed} />
+          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
         </aside>
         <Editor
           reviewId={reviewId}
@@ -177,22 +273,23 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           comments={comments}
           fileProxy={fileProxy}
           commentsProxy={commentsProxy}
+          verdict={selectedLive}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
-        <Inspector entries={entries} />
+        <Inspector review={review} />
       </div>
-      <StatusBar path={selectedPath} connected={connected} />
+      <StatusBar path={selectedPath} connected={connected} blockers={review.blockers.length} />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
           <DialogTitle className="text-[15px] font-bold text-ink">Files</DialogTitle>
           <span className="flex-1" />
           <span className="text-[12px] font-semibold text-muted tabular-nums">
-            {entries.filter((e) => e.verdict !== null).length}/{entries.length}
+            {review.reviewed}/{entries.length}
           </span>
         </div>
         <div className="flex min-h-0 flex-col overflow-hidden pt-2">
-          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} />
+          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
         </div>
       </Dialog>
       <SettingsModal />
@@ -200,7 +297,19 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   )
 }
 
-function Toolbar({ name, isDiff, connected }: { name: string; isDiff: boolean; connected: boolean }) {
+function Toolbar({
+  name,
+  isDiff,
+  connected,
+  store,
+  review,
+}: {
+  name: string
+  isDiff: boolean
+  connected: boolean
+  store: ReviewStore
+  review: ReviewSummary
+}) {
   return (
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
       <a
@@ -226,6 +335,8 @@ function Toolbar({ name, isDiff, connected }: { name: string; isDiff: boolean; c
         )}
       </div>
       <span className="flex-1" />
+      <CopyMenu store={store} />
+      <SubmitButton store={store} review={review} />
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -234,6 +345,331 @@ function Toolbar({ name, isDiff, connected }: { name: string; isDiff: boolean; c
         <SlidersHorizontal size={16} aria-hidden />
       </button>
     </div>
+  )
+}
+
+const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
+  { verdict: "comment", hint: "no verdict" },
+  { verdict: "approve", hint: "all files" },
+  { verdict: "request_changes", hint: "" },
+]
+
+/** G3 submit panel + G4 soft gate + G5 confirm. The review verdict is a rollup
+ * of per-file verdicts (set via the file-head chip), so the rows are a read-only
+ * summary; Submit publishes every pending comment and draft verdict at once. */
+function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSummary }) {
+  const submit = useMusubiCommand(store, "submit_review")
+  const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const nothing = !review.hasUnpublished && review.pendingComments === 0 && review.draftVerdicts === 0
+  const softGate = review.verdict === "approve" && review.blockers.length > 0
+
+  const run = () => {
+    void submit.dispatch({}).finally(() => {
+      setConfirm(false)
+      setOpen(false)
+    })
+  }
+
+  return (
+    <>
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        className="w-[290px] p-[7px]"
+        render={
+          <button
+            type="button"
+            className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
+          >
+            <Upload size={14} aria-hidden />
+            Submit
+            <ChevronDown size={12} className="opacity-80" aria-hidden />
+          </button>
+        }
+      >
+        <div className="px-[9px] pt-2 pb-[7px] text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+          Finish review
+        </div>
+        <div className="flex flex-col">
+          {SUBMIT_ROWS.map(({ verdict, hint }) => {
+            const on = review.verdict === verdict
+            return (
+              <div
+                key={verdict}
+                className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-[13px] ${on ? "bg-soft" : ""}`}
+              >
+                <VerdictRadio verdict={verdict} on={on} />
+                <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
+                  {VERDICT_META[verdict].label}
+                </span>
+                {hint && <span className="ml-auto text-[11px] text-faint">{hint}</span>}
+              </div>
+            )
+          })}
+        </div>
+        <div className="my-1.5 h-px bg-hair-strong" />
+        <div className="flex flex-col gap-1.5 px-[9px] py-1 text-[12px] text-text">
+          <SummaryRow icon={MessageSquare} n={review.pendingComments} label="pending comments" />
+          <SummaryRow icon={FileText} n={review.draftVerdicts} label="draft verdicts" />
+        </div>
+        {softGate && (
+          <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-[11.5px] leading-[1.45] text-amber-deep">
+            <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
+            <span>
+              <b className="font-bold">
+                {review.blockers.length} open fix_required.
+              </b>{" "}
+              Approving anyway is allowed, you have the final call.
+            </span>
+          </div>
+        )}
+        <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
+          <button
+            type="button"
+            disabled={nothing || submit.isPending}
+            onClick={() => setConfirm(true)}
+            className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-[13px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
+          >
+            {nothing ? "Nothing to submit" : "Submit review"}
+          </button>
+        </div>
+      </Popover>
+      <SubmitConfirm
+        open={confirm}
+        review={review}
+        pending={submit.isPending}
+        onCancel={() => setConfirm(false)}
+        onConfirm={run}
+      />
+    </>
+  )
+}
+
+function VerdictRadio({ verdict, on }: { verdict: Verdict; on: boolean }) {
+  const ring = verdict === "request_changes" ? "border-request" : verdict === "approve" ? "border-approve" : "border-accent"
+  const dot = verdict === "request_changes" ? "bg-request" : verdict === "approve" ? "bg-approve" : "bg-accent"
+  return (
+    <span
+      className={`grid size-4 shrink-0 place-items-center rounded-full border-[1.5px] ${on ? ring : "border-hair-strong"}`}
+    >
+      {on && <span className={`size-2 rounded-full ${dot}`} />}
+    </span>
+  )
+}
+
+function SummaryRow({ icon: Icon, n, label }: { icon: typeof MessageSquare; n: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon size={13} className="text-muted" aria-hidden />
+      <span>
+        <b className="font-bold text-ink tabular-nums">{n}</b> {label}
+      </span>
+    </div>
+  )
+}
+
+function verdictText(verdict: Verdict): string {
+  return verdict === "request_changes" ? "text-request" : verdict === "approve" ? "text-approve" : "text-accent-bright"
+}
+
+/** G5: the submit confirmation dialog, spelling out exactly what publishing
+ * this round will do. */
+function SubmitConfirm({
+  open,
+  review,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  review: ReviewSummary
+  pending: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const verdict = review.verdict ?? "comment"
+  return (
+    <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[380px]">
+      <div className="flex items-center gap-2.5">
+        <span className={`grid size-[30px] shrink-0 place-items-center rounded-[9px] ${verdictSoft(verdict)}`}>
+          <Upload size={16} className={verdictText(verdict)} aria-hidden />
+        </span>
+        <DialogTitle className="text-[13.5px] font-bold text-ink">
+          Submit this review as <span className={verdictText(verdict)}>{VERDICT_META[verdict].label}</span>?
+        </DialogTitle>
+      </div>
+      <div className="flex flex-col gap-2 text-[12px] text-text">
+        <ConfirmLine icon={MessageSquare}>
+          Publishes <b className="font-bold text-ink">{review.pendingComments}</b> pending comments across all files
+        </ConfirmLine>
+        <ConfirmLine icon={FileText}>
+          Records <b className="font-bold text-ink">{review.draftVerdicts}</b> draft file verdicts
+        </ConfirmLine>
+        {review.blockers.length > 0 && (
+          <ConfirmLine icon={AlertTriangle}>
+            <b className="font-bold text-ink">{review.blockers.length} open fix_required</b> stays open for the agent
+          </ConfirmLine>
+        )}
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        <span className="flex-1" />
+        <button
+          onClick={onCancel}
+          className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={pending}
+          className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+        >
+          Submit review
+        </button>
+      </div>
+    </Dialog>
+  )
+}
+
+function ConfirmLine({ icon: Icon, children }: { icon: typeof MessageSquare; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon size={14} className="mt-px shrink-0 text-muted" aria-hidden />
+      <span className="leading-[1.45]">{children}</span>
+    </div>
+  )
+}
+
+function verdictSoft(verdict: Verdict): string {
+  return verdict === "request_changes"
+    ? "bg-request-soft"
+    : verdict === "approve"
+      ? "bg-approve-soft"
+      : "bg-accent-soft"
+}
+
+/** G7: copy the round's comments to the clipboard as markdown, either the
+ * noteworthy subset (fix_required + needs_answer) or all of them. */
+function CopyMenu({ store }: { store: ReviewStore }) {
+  const snap = useMusubiSnapshot(store)
+  const copy = (filter: "noteworthy" | "all") => {
+    const files = snap?.body?.files ?? []
+    void navigator.clipboard.writeText(commentsToMarkdown(files, filter))
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            title="Copy comments"
+            className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          >
+            <Copy size={15} aria-hidden />
+          </button>
+        }
+      />
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={() => copy("noteworthy")}>
+          <Copy size={13} aria-hidden />
+          Copy noteworthy
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => copy("all")}>
+          <Copy size={13} aria-hidden />
+          Copy all comments
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const CRITIQUE_LABEL: Record<CritiqueType, string> = {
+  fix_required: "fix required",
+  needs_answer: "needs answer",
+  note: "note",
+}
+
+function commentsToMarkdown(files: BodyFile[], filter: "noteworthy" | "all"): string {
+  const noteworthy = (c: Comment) => c.critique_type === "fix_required" || c.critique_type === "needs_answer"
+  const blocks: string[] = []
+  for (const file of files) {
+    const items = file.comments.items.filter((c) => c.status === "published" && (filter === "all" || noteworthy(c)))
+    if (items.length === 0) continue
+    blocks.push(`## ${file.path}`)
+    for (const c of items) {
+      const where = c.anchor && c.anchor.type !== "element" ? ` (L${c.anchor.start_line})` : ""
+      blocks.push(`- **[${CRITIQUE_LABEL[c.critique_type]}]**${where} ${c.body.trim()}`)
+      for (const r of c.replies.filter((r) => r.status === "published")) {
+        blocks.push(`  - _${r.author}:_ ${r.body.trim()}`)
+      }
+    }
+    blocks.push("")
+  }
+  return blocks.join("\n").trim() || "No comments to copy."
+}
+
+const VERDICT_CHIP: Record<
+  Verdict,
+  { icon: typeof Check; className: string }
+> = {
+  approve: { icon: Check, className: "bg-approve-soft text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]" },
+  request_changes: { icon: X, className: "bg-request-soft text-request shadow-[inset_0_0_0_0.5px_var(--request-edge)]" },
+  comment: { icon: MessageSquare, className: "bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]" },
+}
+
+/** G1 per-file verdict chip + G6 dismiss approval. Shows the file's effective
+ * verdict (its unsent draft if any, else the last published one) and lets the
+ * reviewer draft a new one; an amber dot marks a draft that has not been
+ * submitted yet. An approved file can have its approval dismissed to reopen it. */
+function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) {
+  const setVerdict = useMusubiCommand(proxy, "set_draft_verdict")
+  const dismiss = useMusubiCommand(proxy, "dismiss_approval")
+  const effective = file.draftVerdict ?? file.latestVerdict
+  const chip = effective ? VERDICT_CHIP[effective] : null
+  const Icon = chip?.icon ?? Circle
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            title="Per-file verdict"
+            className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold ${
+              chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
+            }`}
+          >
+            <Icon size={13} aria-hidden />
+            {effective ? VERDICT_META[effective].label : "No verdict"}
+            {file.draftVerdict !== null && (
+              <span className="size-1.5 rounded-full bg-amber" title="Unsubmitted draft" aria-hidden />
+            )}
+            <ChevronDown size={11} className="opacity-70" aria-hidden />
+          </button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        {(["approve", "request_changes", "comment"] as Verdict[]).map((v) => {
+          const meta = VERDICT_CHIP[v]
+          return (
+            <DropdownMenuItem key={v} onClick={() => void setVerdict.dispatch({ verdict: v })}>
+              <meta.icon size={13} className={verdictText(v)} aria-hidden />
+              {VERDICT_META[v].label}
+              {effective === v && <Check size={13} className="ml-auto text-approve" aria-hidden />}
+            </DropdownMenuItem>
+          )
+        })}
+        {file.approved && (
+          <>
+            <div className="my-1 h-px bg-hair-strong" />
+            <DropdownMenuItem onClick={() => void dismiss.dispatch({})}>
+              <RotateCcw size={13} className="text-muted" aria-hidden />
+              Dismiss approval
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -249,14 +685,14 @@ const STATUS_META: Record<
   type_changed: { letter: "T", className: "text-muted", title: "Type changed" },
 }
 
-function NavHeader({ entries }: { entries: FileEntry[] }) {
+function NavHeader({ entries, reviewed }: { entries: FileEntry[]; reviewed: number }) {
   return (
     <div className="flex items-center gap-[7px] px-3 pb-2">
       <FileText size={15} className="text-muted" aria-hidden />
       <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Files</h3>
       <span className="flex-1" />
       <span className="text-[11px] font-semibold text-muted tabular-nums">
-        {entries.filter((e) => e.verdict !== null).length}/{entries.length}
+        {reviewed}/{entries.length}
       </span>
     </div>
   )
@@ -301,11 +737,13 @@ function FileList({
   isDiff,
   selectedPath,
   onSelect,
+  status,
 }: {
   entries: FileEntry[]
   isDiff: boolean
   selectedPath: string | null
   onSelect: (path: string) => void
+  status: Map<string, PerFile>
 }) {
   const [query, setQuery] = useState("")
   const [closedDirs, setClosedDirs] = useState<Set<string>>(new Set())
@@ -339,6 +777,7 @@ function FileList({
           isDiff={isDiff}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          status={status}
           // While filtering, ignore collapse state so every match is visible.
           closedDirs={needle ? EMPTY_SET : closedDirs}
           onToggleDir={toggleDir}
@@ -357,6 +796,7 @@ function TreeNodes({
   isDiff,
   selectedPath,
   onSelect,
+  status,
   closedDirs,
   onToggleDir,
 }: {
@@ -365,6 +805,7 @@ function TreeNodes({
   isDiff: boolean
   selectedPath: string | null
   onSelect: (path: string) => void
+  status: Map<string, PerFile>
   closedDirs: Set<string>
   onToggleDir: (path: string) => void
 }) {
@@ -394,6 +835,7 @@ function TreeNodes({
                 isDiff={isDiff}
                 selectedPath={selectedPath}
                 onSelect={onSelect}
+                status={status}
                 closedDirs={closedDirs}
                 onToggleDir={onToggleDir}
               />
@@ -407,6 +849,7 @@ function TreeNodes({
             isDiff={isDiff}
             selected={node.path === selectedPath}
             onSelect={onSelect}
+            live={status.get(node.path)}
           />
         ),
       )}
@@ -420,15 +863,22 @@ function FileRow({
   isDiff,
   selected,
   onSelect,
+  live,
 }: {
   entry: FileEntry
   depth: number
   isDiff: boolean
   selected: boolean
   onSelect: (path: string) => void
+  live: PerFile | undefined
 }) {
   const name = entry.path.slice(entry.path.lastIndexOf("/") + 1)
   const status = entry.change_status ? STATUS_META[entry.change_status] : null
+  // Prefer the live view (draft verdict, streamed blockers) so the row's ✓ and
+  // blocker badge update immediately, falling back to the static entry.
+  const blockers = live?.openBlockers ?? 0
+  const approved = live?.approved ?? entry.approved
+  const reviewed = (live ? (live.draftVerdict ?? live.latestVerdict) : entry.verdict) !== null
   return (
     <button
       type="button"
@@ -452,7 +902,18 @@ function FileRow({
           <span className="text-request">−{entry.deleted ?? 0}</span>
         </span>
       )}
-      {entry.approved && <Circle size={7} className="shrink-0 fill-approve text-approve" aria-hidden />}
+      {blockers > 0 ? (
+        <span
+          title={`${blockers} open blocker${blockers > 1 ? "s" : ""}`}
+          className="grid h-4 min-w-[17px] shrink-0 place-items-center rounded-full bg-request-soft px-1 text-[10px] font-bold tabular-nums text-request shadow-[inset_0_0_0_0.5px_var(--request-edge)]"
+        >
+          {blockers}
+        </span>
+      ) : approved ? (
+        <Circle size={7} className="shrink-0 fill-approve text-approve" aria-hidden />
+      ) : reviewed ? (
+        <Check size={13} className="shrink-0 text-approve" aria-hidden />
+      ) : null}
     </button>
   )
 }
@@ -491,6 +952,7 @@ function Editor({
   comments,
   fileProxy,
   commentsProxy,
+  verdict,
   onOpenFiles,
 }: {
   reviewId: string
@@ -498,6 +960,7 @@ function Editor({
   comments: Comment[]
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
+  verdict: PerFile | null
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -714,6 +1177,7 @@ function Editor({
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
+        {entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
       </div>
       {!entry ? (
         <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
@@ -2111,39 +2575,129 @@ function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line: numbe
   )
 }
 
-function Inspector({ entries }: { entries: FileEntry[] }) {
-  const reviewed = entries.filter((e) => e.verdict !== null).length
-  const approved = entries.filter((e) => e.approved).length
+/** H2 review overview: the draft verdict rollup, the open-blocker list, and this
+ * round's file stats. The right rail whenever no comment inspector is open. */
+function Inspector({ review }: { review: ReviewSummary }) {
+  const total = review.perFile.length
   return (
-    <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface p-4 lg:flex">
+    <aside className="hidden min-h-0 flex-col gap-3 overflow-auto border-l border-hair-strong bg-surface p-4 lg:flex">
       <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Review overview</h3>
-      <dl className="mt-3 flex flex-col gap-2 text-[12px]">
-        <Stat label="Files" value={`${entries.length}`} />
-        <Stat label="Reviewed" value={`${reviewed}/${entries.length}`} />
-        <Stat label="Approved" value={`${approved}`} />
-      </dl>
-      <p className="mt-4 text-[11.5px] leading-[1.5] text-faint">
-        Comments, verdicts, and the submit panel arrive in the next pass.
-      </p>
+      <VerdictSummary verdict={review.verdict} allApproved={review.allApproved} />
+      <div>
+        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
+        {review.blockers.length === 0 ? (
+          <div className="flex items-center justify-center gap-1.5 rounded-[7px] border border-approve-edge bg-approve-soft py-2 text-[12px] font-medium text-approve">
+            <Check size={14} aria-hidden />
+            No open blockers
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {review.blockers.map((b, i) => (
+              <div
+                key={`${b.path}:${b.line}:${i}`}
+                className="flex items-center gap-2 rounded-[7px] border border-request-edge bg-request-soft px-2.5 py-1.5"
+              >
+                <span className="size-1.5 shrink-0 rounded-full bg-request shadow-[0_0_6px_var(--request)]" aria-hidden />
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink">
+                  {b.path.slice(b.path.lastIndexOf("/") + 1)}
+                </span>
+                {b.line !== null && <span className="shrink-0 font-mono text-[11px] text-muted">line {b.line}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">This round</p>
+        <div className="grid grid-cols-3 gap-[7px]">
+          <IoStat n={total} label="files" />
+          <IoStat n={review.unresolved} label="unresolved" tone={review.unresolved > 0 ? "warn" : undefined} />
+          <IoStat n={review.reviewed} label="reviewed" tone={review.reviewed === total && total > 0 ? "ok" : undefined} />
+        </div>
+      </div>
     </aside>
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function VerdictSummary({ verdict, allApproved }: { verdict: Verdict | null; allApproved: boolean }) {
+  if (allApproved) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-[9px] bg-approve-soft px-[11px] py-2.5 shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
+        <span className="grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-approve-soft">
+          <Check size={15} className="text-approve" aria-hidden />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-faint">Verdict</span>
+          <span className="text-[13px] font-semibold text-approve">Review approved</span>
+        </span>
+      </div>
+    )
+  }
+  const bad = verdict === "request_changes"
+  const tint = bad
+    ? "bg-request-soft shadow-[inset_0_0_0_0.5px_var(--request-edge)]"
+    : verdict === "approve"
+      ? "bg-approve-soft shadow-[inset_0_0_0_0.5px_var(--approve-edge)]"
+      : "bg-soft shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
   return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-mono tabular-nums text-ink">{value}</dd>
+    <div className={`flex items-center gap-2.5 rounded-[9px] px-[11px] py-2.5 ${tint}`}>
+      <span className="grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-canvas/40">
+        {bad ? (
+          <X size={15} className="text-request" aria-hidden />
+        ) : verdict === "approve" ? (
+          <Check size={15} className="text-approve" aria-hidden />
+        ) : (
+          <MessageSquare size={15} className="text-accent-bright" aria-hidden />
+        )}
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-faint">Draft verdict</span>
+        <span className={`text-[13px] font-semibold ${verdict ? verdictText(verdict) : "text-muted"}`}>
+          {verdict ? `${VERDICT_META[verdict].label} (draft)` : "No verdict yet"}
+        </span>
+      </span>
     </div>
   )
 }
 
-function StatusBar({ path, connected }: { path: string | null; connected: boolean }) {
+function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "warn" }) {
+  const color = tone === "ok" ? "text-approve" : tone === "warn" ? "text-request" : "text-ink"
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2 border-t border-hair-strong bg-surface px-3 text-[11px] text-muted">
-      <span className="truncate font-mono text-faint">{path ?? ""}</span>
+    <div className="flex flex-col items-center gap-0.5 rounded-lg border border-hair-strong bg-canvas py-2">
+      <span className={`text-[18px] font-bold tabular-nums ${color}`}>{n}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.02em] text-muted">{label}</span>
+    </div>
+  )
+}
+
+function StatusBar({
+  path,
+  connected,
+  blockers,
+}: {
+  path: string | null
+  connected: boolean
+  blockers: number
+}) {
+  return (
+    <div className="flex h-[29px] shrink-0 items-center gap-2.5 border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
+      <span className="truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      {blockers > 0 && (
+        <>
+          <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
+          <span className="font-semibold text-request">
+            {blockers} unresolved
+          </span>
+        </>
+      )}
       <span className="flex-1" />
-      <span className={`size-[7px] rounded-full ${connected ? "bg-approve" : "bg-amber"}`} aria-hidden />
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className={`size-[7px] rounded-full ${connected ? "bg-approve shadow-[0_0_0_2.5px_var(--approve-soft)]" : "bg-amber shadow-[0_0_0_2.5px_var(--amber-soft)]"}`}
+          aria-hidden
+        />
+        {connected ? "connected" : "reconnecting…"}
+      </span>
     </div>
   )
 }
