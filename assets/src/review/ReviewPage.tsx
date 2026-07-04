@@ -477,6 +477,14 @@ function writeDocView(value: "source" | "rendered"): void {
   localStorage.setItem(DOC_VIEW_KEY, value)
 }
 
+const HTML_ZOOM_KEY = "suikou-html-zoom"
+
+/** The reader's remembered html zoom, kept across files and reloads. */
+function readHtmlZoom(): number {
+  const value = Number(localStorage.getItem(HTML_ZOOM_KEY))
+  return value >= 0.1 && value <= 2 ? value : 1
+}
+
 function Editor({
   reviewId,
   entry,
@@ -502,19 +510,24 @@ function Editor({
   const [htmlMode, setHtmlMode] = useState<"source" | "comment" | "interactive">(() =>
     readDocView() === "source" ? "source" : "comment",
   )
-  const [htmlZoom, setHtmlZoom] = useState(1)
+  const [htmlZoom, setHtmlZoom] = useState(() => readHtmlZoom())
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
 
   // Every renderable file opens in the reader's remembered Source-vs-rendered
-  // choice; a plain file has only Source. html resets its sub-mode to Comment and
-  // zoom to 100%. Re-runs when the selected file changes.
+  // choice; a plain file has only Source. html resets its sub-mode to Comment
+  // (zoom is kept across files). Re-runs when the selected file changes.
   useEffect(() => {
     const pref = readDocView()
     setView(previewable ? (pref === "source" ? "source" : "preview") : "source")
     setHtmlMode(pref === "source" ? "source" : "comment")
-    setHtmlZoom(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry])
+
+  const chooseZoom = (next: number) => {
+    const clamped = clampZoom(next)
+    setHtmlZoom(clamped)
+    localStorage.setItem(HTML_ZOOM_KEY, String(clamped))
+  }
 
   const toggleFullscreen = () => {
     const el = htmlFrameRef.current
@@ -663,7 +676,7 @@ function Editor({
                 <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
                   <button
                     type="button"
-                    onClick={() => setHtmlZoom((z) => clampZoom(z - 0.1))}
+                    onClick={() => chooseZoom(htmlZoom - 0.1)}
                     title="Zoom out"
                     className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
                   >
@@ -672,7 +685,7 @@ function Editor({
                   <span className="h-full w-px bg-hair-strong" />
                   <button
                     type="button"
-                    onClick={() => setHtmlZoom(1)}
+                    onClick={() => chooseZoom(1)}
                     title="Reset zoom to 100%"
                     className="h-[24px] min-w-[42px] px-2 text-center font-medium tabular-nums text-ink hover:bg-soft"
                   >
@@ -681,7 +694,7 @@ function Editor({
                   <span className="h-full w-px bg-hair-strong" />
                   <button
                     type="button"
-                    onClick={() => setHtmlZoom((z) => clampZoom(z + 0.1))}
+                    onClick={() => chooseZoom(htmlZoom + 0.1)}
                     title="Zoom in"
                     className="grid h-[24px] w-[26px] place-items-center text-muted hover:bg-soft"
                   >
