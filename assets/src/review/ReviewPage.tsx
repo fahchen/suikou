@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ChevronRight, Circle, FileText, Folder, GitCompare, PanelLeft, Search, SlidersHorizontal } from "lucide-react"
+import { ChevronRight, Circle, FileText, Folder, GitCompare, ListTree, PanelLeft, Search, SlidersHorizontal } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { highlightLines } from "./highlight"
+import { langForPath, outline, type OutlineItem } from "../treesitter/outline"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_structure", Musubi.Stores>
@@ -18,7 +26,7 @@ type FileEntry = Structure["file_entries"][number]
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
  * structure; file content and the live comment overlay arrive in later passes. */
-export function ReviewPage({ reviewId }: { reviewId: string }) {
+export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string }) {
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: reviewId,
@@ -28,14 +36,14 @@ export function ReviewPage({ reviewId }: { reviewId: string }) {
 
   if (root.status === "loading") return <Centered>Loading review…</Centered>
   if (root.status === "error") return <Centered>Can't reach Suikou. {root.error.message}</Centered>
-  return <Shell store={root.store} reviewId={reviewId} />
+  return <Shell store={root.store} reviewId={reviewId} file={file} />
 }
 
-function Shell({ store, reviewId }: { store: ReviewStore; reviewId: string }) {
+function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
   const load = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
+  const navigate = useNavigate()
   const [structure, setStructure] = useState<Structure | null>(null)
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const structRef = useRef<Structure | null>(null)
   structRef.current = structure
 
@@ -69,24 +77,21 @@ function Shell({ store, reviewId }: { store: ReviewStore; reviewId: string }) {
     [structure],
   )
 
-  useEffect(() => {
-    if (entries.length === 0) return
-    if (selectedPath === null || !entries.some((e) => e.path === selectedPath)) {
-      setSelectedPath(entries[0].path)
-    }
-  }, [entries, selectedPath])
+  const [filesSheetOpen, setFilesSheetOpen] = useState(false)
 
   if (structure && !structure.exists) {
     return <Centered>Review not found.</Centered>
   }
 
   const isDiff = structure?.kind === "diff"
+  // The open file lives in the URL (`?file=`), so a reload lands back on it; an
+  // absent or stale param falls back to the first file.
+  const selectedPath = entries.some((e) => e.path === file) ? file! : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
-  const [filesSheetOpen, setFilesSheetOpen] = useState(false)
 
   const select = (path: string) => {
-    setSelectedPath(path)
     setFilesSheetOpen(false)
+    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: path } })
   }
 
   return (
@@ -394,12 +399,14 @@ function Editor({
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
   const [content, setContent] = useState<Content>({ kind: "loading" })
+  const [toc, setToc] = useState<OutlineItem[]>([])
 
   useEffect(() => {
     if (!entry) return
     const path = entry.path
     let cancelled = false
     setContent({ kind: "loading" })
+    setToc([])
     fetch(`/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`)
       .then(async (response) => {
         if (cancelled) return
@@ -421,6 +428,14 @@ function Editor({
             if (!cancelled) setContent({ kind: "text", lines: body.split("\n"), tokens })
           })
           .catch(() => undefined)
+        const lang = langForPath(path)
+        if (lang) {
+          outline(body, lang)
+            .then((items) => {
+              if (!cancelled) setToc(items)
+            })
+            .catch(() => undefined)
+        }
       })
       .catch((cause: Error) => {
         if (!cancelled) setContent({ kind: "error", message: cause.message })
@@ -429,6 +444,12 @@ function Editor({
       cancelled = true
     }
   }, [reviewId, entry])
+
+  const scrollToLine = (line: number) => {
+    document
+      .querySelector(`[data-review-line="${line}"]`)
+      ?.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
@@ -453,6 +474,8 @@ function Editor({
         ) : (
           <span className="text-[12.5px] text-faint">No file selected</span>
         )}
+        <span className="flex-1" />
+        {toc.length > 0 && <TocMenu items={toc} onJump={scrollToLine} />}
       </div>
       {!entry ? (
         <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
@@ -499,7 +522,7 @@ const Source = observer(function Source({
       style={{ fontSize: MONO_PX[uiStore.monoSize] }}
     >
       {(tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])).map((lineTokens, index) => (
-        <div key={index} className="flex hover:bg-soft/40">
+        <div key={index} data-review-line={index + 1} className="flex scroll-mt-2 hover:bg-soft/40">
           <span
             aria-hidden
             style={{ minWidth: `${gutter + 2}ch` }}
@@ -523,6 +546,38 @@ const Source = observer(function Source({
     </div>
   )
 })
+
+function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line: number) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            className="grid size-[30px] shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+            title="Outline"
+          >
+            <ListTree size={16} aria-hidden />
+          </button>
+        }
+      />
+      <DropdownMenuContent>
+        <div className="max-h-[60vh] w-[260px] overflow-auto">
+          {items.map((item, index) => (
+            <DropdownMenuItem key={`${item.line}-${index}`} onClick={() => onJump(item.line)}>
+              <span
+                style={{ paddingLeft: (item.level - 1) * 12 }}
+                className="min-w-0 flex-1 truncate font-mono text-[12px]"
+              >
+                {item.text}
+              </span>
+              <span className="ml-2 shrink-0 font-mono text-[10.5px] tabular-nums text-faint">{item.line}</span>
+            </DropdownMenuItem>
+          ))}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 function Inspector({ entries }: { entries: FileEntry[] }) {
   const reviewed = entries.filter((e) => e.verdict !== null).length
