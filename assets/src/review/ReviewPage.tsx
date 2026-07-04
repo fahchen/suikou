@@ -94,7 +94,7 @@ function Shell({ store, reviewId }: { store: ReviewStore; reviewId: string }) {
           <NavHeader entries={entries} />
           <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} />
         </aside>
-        <Editor entry={selected} onOpenFiles={() => setFilesSheetOpen(true)} />
+        <Editor reviewId={reviewId} entry={selected} onOpenFiles={() => setFilesSheetOpen(true)} />
         <Inspector entries={entries} />
       </div>
       <StatusBar path={selectedPath} connected={connected} />
@@ -373,9 +373,53 @@ function FileRow({
   )
 }
 
-function Editor({ entry, onOpenFiles }: { entry: FileEntry | null; onOpenFiles: () => void }) {
+type Content =
+  | { kind: "loading" }
+  | { kind: "text"; lines: string[] }
+  | { kind: "unsupported"; mime: string }
+  | { kind: "error"; message: string }
+
+function Editor({
+  reviewId,
+  entry,
+  onOpenFiles,
+}: {
+  reviewId: string
+  entry: FileEntry | null
+  onOpenFiles: () => void
+}) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
+  const [content, setContent] = useState<Content>({ kind: "loading" })
+
+  useEffect(() => {
+    if (!entry) return
+    const path = entry.path
+    let cancelled = false
+    setContent({ kind: "loading" })
+    fetch(`/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`)
+      .then(async (response) => {
+        if (cancelled) return
+        if (!response.ok) {
+          setContent({ kind: "error", message: `Couldn't load file (${response.status}).` })
+          return
+        }
+        const mime = response.headers.get("content-type") ?? ""
+        if (!isTextMime(mime)) {
+          setContent({ kind: "unsupported", mime: mime.split(";")[0] || "binary" })
+          return
+        }
+        const text = await response.text()
+        if (!cancelled) setContent({ kind: "text", lines: text.replace(/\n$/, "").split("\n") })
+      })
+      .catch((cause: Error) => {
+        if (!cancelled) setContent({ kind: "error", message: cause.message })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reviewId, entry])
+
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-4">
@@ -400,9 +444,49 @@ function Editor({ entry, onOpenFiles }: { entry: FileEntry | null; onOpenFiles: 
           <span className="text-[12.5px] text-faint">No file selected</span>
         )}
       </div>
-      <div className="grid flex-1 place-items-center text-[13px] text-faint">
-        {entry ? "File content renders in the next pass." : "Select a file to review."}
-      </div>
+      {!entry ? (
+        <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
+      ) : content.kind === "loading" ? (
+        <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
+      ) : content.kind === "error" ? (
+        <div className="grid flex-1 place-items-center text-[13px] text-request">{content.message}</div>
+      ) : content.kind === "unsupported" ? (
+        <div className="grid flex-1 place-items-center px-6 text-center text-[13px] text-faint">
+          Can't render {content.mime} here yet.
+        </div>
+      ) : (
+        <Source lines={content.lines} />
+      )}
+    </div>
+  )
+}
+
+// Source files with an unknown extension are served as octet-stream, so treat
+// that (and svg) as text; only a real media type (image/*, font, pdf, …) is a
+// genuine non-text file the source view can't show.
+function isTextMime(mime: string): boolean {
+  const type = mime.split(";")[0].trim()
+  if (type === "" || type === "application/octet-stream" || type === "image/svg+xml") return true
+  if (type.startsWith("text/")) return true
+  return /^application\/(json|javascript|xml|x-yaml|yaml|toml|x-sh|x-httpd-php|graphql|sql)$/.test(type)
+}
+
+function Source({ lines }: { lines: string[] }) {
+  const gutter = String(lines.length).length
+  return (
+    <div className="min-h-0 flex-1 overflow-auto py-1 font-mono text-[12.5px] leading-[1.55]">
+      {lines.map((line, index) => (
+        <div key={index} className="flex hover:bg-soft/40">
+          <span
+            aria-hidden
+            style={{ minWidth: `${gutter + 2}ch` }}
+            className="shrink-0 select-none px-3 text-right text-faint tabular-nums"
+          >
+            {index + 1}
+          </span>
+          <code className="whitespace-pre pr-6 text-text">{line === "" ? " " : line}</code>
+        </div>
+      ))}
     </div>
   )
 }
