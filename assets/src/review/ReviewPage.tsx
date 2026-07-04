@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
@@ -880,11 +880,11 @@ function Thread({ comment, commentsProxy }: { comment: Comment; commentsProxy: C
       {comment.replies.length > 0 && (
         <div className="mx-3 mb-2.5 flex flex-col gap-2">
           {comment.replies.map((reply) => (
-            <Reply key={reply.id} reply={reply} />
+            <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
           ))}
         </div>
       )}
-      <div className="flex items-center gap-0.5 px-2.5 pb-2">
+      <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
         {pending ? (
           <>
             <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
@@ -904,6 +904,7 @@ function Thread({ comment, commentsProxy }: { comment: Comment; commentsProxy: C
         <Composer
           anchorLabel={null}
           submitLabel="Reply"
+          draftKey={`suikou-reply:${comment.id}`}
           className="mx-2.5 mb-2.5"
           pending={replyCmd.isPending}
           onSubmit={(body) => {
@@ -991,13 +992,25 @@ function Composer({
     el.setSelectionRange(el.value.length, el.value.length)
   }, [])
 
+  // Grow the textarea to fit its content up to a max height, then scroll. Reset
+  // to `auto` first so it also shrinks when text is deleted.
+  useLayoutEffect(() => {
+    const el = areaRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [body])
+
   useEffect(() => {
     if (!draftKey) return
     if (body.trim()) localStorage.setItem(draftKey, JSON.stringify({ type, body }))
     else localStorage.removeItem(draftKey)
   }, [type, body, draftKey])
 
-  const dirty = body.trim() !== initialBody.trim()
+  // Any non-empty text is treated as unsaved content worth protecting, so the
+  // discard confirm fires the same way whether the composer is a fresh comment,
+  // a reply, or an edit prefilled with existing text.
+  const hasText = body.trim().length > 0
 
   const submit = () => {
     const text = body.trim()
@@ -1013,7 +1026,7 @@ function Composer({
     onCancel()
   }
   const requestCancel = () => {
-    if (dirty) setConfirmDiscard(true)
+    if (hasText) setConfirmDiscard(true)
     else cancelNow()
   }
   const discard = () => {
@@ -1073,9 +1086,9 @@ function Composer({
               requestCancel()
             }
           }}
-          rows={3}
+          rows={2}
           placeholder={withType ? "Leave a comment…" : "Write a reply…"}
-          className="w-full resize-y rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+          className="block max-h-[240px] min-h-[58px] w-full resize-none overflow-y-auto rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
         />
         <div className="mt-2 flex items-center justify-end gap-2">
           <button
@@ -1098,7 +1111,7 @@ function Composer({
       </div>
       <ConfirmDialog
         open={confirmDiscard}
-        title="Discard this comment?"
+        title="Discard unsaved changes?"
         body="Your unsaved text will be lost."
         confirmLabel="Discard"
         onCancel={() => setConfirmDiscard(false)}
@@ -1108,20 +1121,71 @@ function Composer({
   )
 }
 
-function Reply({ reply }: { reply: Comment["replies"][number] }) {
+// A reply under a comment. Agent and published human replies are read-only; the
+// author's own pending (unsent) reply can still be edited or deleted before the
+// round is submitted. Editing swaps the bubble for a prefilled reply composer.
+function Reply({
+  reply,
+  commentsProxy,
+}: {
+  reply: Comment["replies"][number]
+  commentsProxy: CommentsStoreProxy | null
+}) {
   const agent = reply.author === "agent"
+  const pending = reply.status === "pending"
   const bodyHtml = useMemo(() => renderMarkdown(reply.body), [reply.body])
+  const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_reply")
+  const deleteCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "delete_reply")
+  const [editing, setEditing] = useState(false)
+
+  if (editing) {
+    return (
+      <Composer
+        anchorLabel={null}
+        initialBody={reply.body}
+        submitLabel="Save"
+        className=""
+        pending={editCmd.isPending}
+        onSubmit={(body) => {
+          if (commentsProxy) editCmd.dispatch({ reply_id: reply.id, body }).catch(() => undefined)
+          setEditing(false)
+        }}
+        onCancel={() => setEditing(false)}
+      />
+    )
+  }
+
   return (
     <div
       className={`rounded-ctrl px-3 py-2 ring-1 ring-inset ${
         agent ? "bg-accent-softer ring-accent-edge" : "bg-soft ring-hair-strong"
       }`}
     >
-      <div className={`mb-1 inline-flex items-center gap-1.5 text-[11px] font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
-        <span className={`grid size-[15px] place-items-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
-          {agent ? <Bot size={10} aria-hidden /> : <User size={10} aria-hidden />}
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
+          <span className={`grid size-[15px] place-items-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
+            {agent ? <Bot size={10} aria-hidden /> : <User size={10} aria-hidden />}
+          </span>
+          {agent ? "agent" : "you"}
         </span>
-        {agent ? "agent" : "you"}
+        {pending && (
+          <span className="inline-flex items-center rounded-full bg-amber-soft px-1.5 py-px text-[9px] font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
+            PENDING
+          </span>
+        )}
+        <span className="flex-1" />
+        {pending && (
+          <>
+            <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
+            <ThreadAction
+              icon={Trash2}
+              label="Delete"
+              onClick={() => {
+                if (commentsProxy) deleteCmd.dispatch({ reply_id: reply.id }).catch(() => undefined)
+              }}
+            />
+          </>
+        )}
       </div>
       <div
         className="md-body text-[12px] leading-[1.5] text-text"
