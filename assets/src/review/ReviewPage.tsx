@@ -359,7 +359,7 @@ function FileRow({
       onClick={() => onSelect(entry.path)}
       aria-current={selected ? "true" : undefined}
       style={{ paddingLeft: 9 + depth * 12 }}
-      className={`flex h-[31px] shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-[12.5px] ${
+      className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-[12.5px] ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
           : "text-text hover:bg-soft"
