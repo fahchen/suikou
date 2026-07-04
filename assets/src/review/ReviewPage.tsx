@@ -452,12 +452,17 @@ type Content =
   | { kind: "binary"; mime: string; bytes: number | null }
   | { kind: "error"; message: string }
 
-const MD_VIEW_KEY = "suikou-md-view"
+const DOC_VIEW_KEY = "suikou-doc-view"
 
-/** The reader's remembered choice between Source and Preview for markdown, kept
- * so it survives a reload and carries to the next markdown file. */
-function readMdView(): "source" | "preview" {
-  return localStorage.getItem(MD_VIEW_KEY) === "source" ? "source" : "preview"
+/** The reader's remembered choice between the raw Source and the rendered view,
+ * shared across renderable files (markdown Preview, html Comment) so the choice
+ * carries between them and survives a reload. */
+function readDocView(): "source" | "rendered" {
+  return localStorage.getItem(DOC_VIEW_KEY) === "source" ? "source" : "rendered"
+}
+
+function writeDocView(value: "source" | "rendered"): void {
+  localStorage.setItem(DOC_VIEW_KEY, value)
 }
 
 function Editor({
@@ -481,17 +486,20 @@ function Editor({
   const [toc, setToc] = useState<OutlineItem[]>([])
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
-  const [view, setView] = useState<"source" | "preview">(() => readMdView())
-  const [htmlMode, setHtmlMode] = useState<"source" | "comment" | "interactive">("comment")
+  const [view, setView] = useState<"source" | "preview">(() => (readDocView() === "source" ? "source" : "preview"))
+  const [htmlMode, setHtmlMode] = useState<"source" | "comment" | "interactive">(() =>
+    readDocView() === "source" ? "source" : "comment",
+  )
   const [htmlZoom, setHtmlZoom] = useState(1)
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
 
-  // A markdown file opens in the reader's remembered mode; any other file has
-  // only Source. An html file resets to Comment mode at 100%. Re-runs when the
-  // selected file changes.
+  // Every renderable file opens in the reader's remembered Source-vs-rendered
+  // choice; a plain file has only Source. html resets its sub-mode to Comment and
+  // zoom to 100%. Re-runs when the selected file changes.
   useEffect(() => {
-    setView(previewable ? readMdView() : "source")
-    setHtmlMode("comment")
+    const pref = readDocView()
+    setView(previewable ? (pref === "source" ? "source" : "preview") : "source")
+    setHtmlMode(pref === "source" ? "source" : "comment")
     setHtmlZoom(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry])
@@ -505,7 +513,11 @@ function Editor({
 
   const chooseView = (next: "source" | "preview") => {
     setView(next)
-    localStorage.setItem(MD_VIEW_KEY, next)
+    writeDocView(next === "source" ? "source" : "rendered")
+  }
+  const chooseHtmlMode = (next: "source" | "comment" | "interactive") => {
+    setHtmlMode(next)
+    writeDocView(next === "source" ? "source" : "rendered")
   }
 
   useEffect(() => {
@@ -607,7 +619,7 @@ function Editor({
           <>
             <Segmented<"source" | "comment" | "interactive">
               value={htmlMode}
-              onChange={setHtmlMode}
+              onChange={chooseHtmlMode}
               options={[
                 ["source", "Source"],
                 ["comment", "Comment"],
@@ -976,12 +988,14 @@ function htmlAnchorScript(accent: string): string {
   var ACCENT = ${JSON.stringify(accent)};
   var TINT = "color-mix(in oklab, " + ACCENT + " 15%, transparent)";
   var EDGE = "color-mix(in oklab, " + ACCENT + " 55%, transparent)";
+  var GLOW = "color-mix(in oklab, " + ACCENT + " 50%, transparent)";
+  var SHEEN = "color-mix(in oklab, " + ACCENT + " 78%, white)";
   var style = document.createElement("style");
   style.textContent =
     ".suikou-hi{background:" + TINT + " !important;border-radius:4px !important;box-shadow:inset 0 0 0 1px " + EDGE + " !important;cursor:pointer !important}" +
     ".suikou-dots{position:absolute;top:0;left:0;width:0;height:0}" +
-    ".suikou-dot{position:absolute;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:" + ACCENT + ";cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2.5px oklch(100% 0 0 / 0.92),0 1px 4px oklch(0% 0 0 / 0.28);transition:transform .12s ease-out}" +
-    ".suikou-dot:hover{transform:scale(1.25)}";
+    ".suikou-dot{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:radial-gradient(circle at 34% 30%, " + SHEEN + ", " + ACCENT + ");cursor:pointer;z-index:2147483647;box-shadow:0 0 0 2px oklch(100% 0 0 / 0.92),0 0 12px 2px " + GLOW + ",0 1px 4px oklch(0% 0 0 / 0.22);transition:transform .12s ease-out,box-shadow .12s ease-out}" +
+    ".suikou-dot:hover{transform:scale(1.22);box-shadow:0 0 0 2px oklch(100% 0 0 / 0.95),0 0 16px 3px " + GLOW + ",0 1px 5px oklch(0% 0 0 / 0.25)}";
   (document.head || document.documentElement).appendChild(style);
   var layer = document.createElement("div");
   layer.className = "suikou-dots";
@@ -1126,6 +1140,7 @@ const HtmlView = observer(function HtmlView({
         : [],
     [comments, overlay],
   )
+  const threadQuote = openThreads[0]?.anchor?.type === "element" ? openThreads[0].anchor.quote : ""
 
   // Comment mode carries the bridge script; interactive serves the raw page.
   const srcDoc = useMemo(() => {
@@ -1187,7 +1202,7 @@ const HtmlView = observer(function HtmlView({
   const overlayPos =
     overlay && frameRect
       ? {
-          left: Math.min(Math.max(frameRect.left + overlay.rect.left * zoom, 8), window.innerWidth - 336),
+          left: Math.min(Math.max(frameRect.left + overlay.rect.left * zoom, 8), window.innerWidth - 348),
           top: Math.min(frameRect.top + overlay.rect.bottom * zoom + 8, window.innerHeight - 90),
         }
       : null
@@ -1202,6 +1217,11 @@ const HtmlView = observer(function HtmlView({
           <Lock size={10} aria-hidden />
           sandboxed iframe{interactive ? " · interactive" : ""}
         </span>
+        {hoverSel && !overlay && !interactive && (
+          <span className="pointer-events-none absolute left-2 top-2 z-10 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-[9.5px] font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
+            {hoverSel}
+          </span>
+        )}
         <iframe
           ref={iframeRef}
           title="HTML preview"
@@ -1216,21 +1236,12 @@ const HtmlView = observer(function HtmlView({
           }}
         />
       </div>
-      {hoverSel &&
-        !overlay &&
-        !interactive &&
-        createPortal(
-          <div className="pointer-events-none fixed right-4 top-4 z-[45] max-w-[420px] truncate rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 font-mono text-[11px] text-accent-bright shadow-lg">
-            {hoverSel}
-          </div>,
-          document.body,
-        )}
       {overlay &&
         overlayPos &&
         !interactive &&
         createPortal(
           <div
-            style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 40, width: 320 }}
+            style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 40, width: 340 }}
             className="overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
           >
             <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-[11px]">
@@ -1264,8 +1275,13 @@ const HtmlView = observer(function HtmlView({
               </div>
             ) : (
               <div className="max-h-[60vh] overflow-auto p-2.5">
+                {threadQuote && (
+                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                    “{threadQuote}”
+                  </div>
+                )}
                 {openThreads.map((comment) => (
-                  <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" />
+                  <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" compact />
                 ))}
               </div>
             )}
@@ -1592,10 +1608,12 @@ function Thread({
   comment,
   commentsProxy,
   className = "my-1.5 ml-14 mr-3.5",
+  compact = false,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
   className?: string
+  compact?: boolean
 }) {
   const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
@@ -1623,6 +1641,8 @@ function Thread({
         initialBody={comment.body}
         submitLabel="Save"
         pending={editCmd.isPending}
+        chrome={!compact}
+        className={compact ? "m-0" : undefined}
         onSubmit={(body, type) => {
           if (commentsProxy) editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).catch(() => undefined)
           setEditing(false)
