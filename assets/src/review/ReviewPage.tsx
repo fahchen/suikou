@@ -591,6 +591,8 @@ function Editor({
         <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
       ) : content.kind === "binary" ? (
         <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
+      ) : content.lines.length === 1 && content.lines[0] === "" ? (
+        <div className="grid min-h-0 flex-1 place-items-center text-[13px] text-faint">This file is empty.</div>
       ) : previewable && view === "preview" ? (
         <MarkdownPreview source={content.lines.join("\n")} />
       ) : (
