@@ -704,13 +704,21 @@ const MarkdownPreview = observer(function MarkdownPreview({
   }
 
   // Reopen a composer left with unsaved text across a reload or a Source/Preview
-  // toggle: reopen only when the persisted anchor still holds body, and scroll to
-  // its start block. Re-runs per file; a stale bare anchor is dropped.
+  // toggle: reopen only when the persisted anchor still holds body AND still maps
+  // to a block in this document. If the file changed so the anchor is out of range
+  // or unlocatable, discard the cached draft outright rather than let it linger
+  // invisibly and block new comments behind a spurious discard confirm. Re-runs
+  // per file; a stale or bare anchor is dropped.
   useEffect(() => {
     const raw = localStorage.getItem(openKey)
     const stored = raw ? safeRange(raw) : null
-    const restored = stored && hasDraftBody(draftScope, stored) ? stored : null
-    if (!restored) localStorage.removeItem(openKey)
+    const locatable =
+      stored !== null && blocks.some((block) => block.endLine === stored.end && block.line >= stored.start)
+    const restored = stored && locatable && hasDraftBody(draftScope, stored) ? stored : null
+    if (!restored) {
+      localStorage.removeItem(openKey)
+      if (stored) localStorage.removeItem(draftBodyKey(draftScope, stored))
+    }
     setDraft(restored)
     if (restored) {
       requestAnimationFrame(() =>
@@ -987,10 +995,15 @@ const Source = observer(function Source({
   useEffect(() => {
     const raw = localStorage.getItem(openKey)
     const stored = raw ? safeRange(raw) : null
-    // Only reopen a composer that carried unsaved text; a bare anchor left from
-    // an emptied composer is stale, so drop it.
-    const restored = stored && hasDraftBody(draftScope, stored) ? stored : null
-    if (!restored) localStorage.removeItem(openKey)
+    // Only reopen a composer that carried unsaved text and still points at lines
+    // this file has; a bare anchor left from an emptied composer, or one now out
+    // of range because the file shrank, is stale and discarded outright.
+    const inRange = stored !== null && stored.start >= 1 && stored.end <= count
+    const restored = stored && inRange && hasDraftBody(draftScope, stored) ? stored : null
+    if (!restored) {
+      localStorage.removeItem(openKey)
+      if (stored) localStorage.removeItem(draftBodyKey(draftScope, stored))
+    }
     setDraft(restored)
     if (restored) {
       requestAnimationFrame(() =>
