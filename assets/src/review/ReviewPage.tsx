@@ -594,7 +594,13 @@ function Editor({
       ) : content.lines.length === 1 && content.lines[0] === "" ? (
         <div className="grid min-h-0 flex-1 place-items-center text-[13px] text-faint">This file is empty.</div>
       ) : previewable && view === "preview" ? (
-        <MarkdownPreview source={content.lines.join("\n")} />
+        <MarkdownPreview
+          source={content.lines.join("\n")}
+          comments={comments}
+          fileProxy={fileProxy}
+          commentsProxy={commentsProxy}
+          draftScope={`${reviewId}:${entry.path}`}
+        />
       ) : (
         <Source
           lines={content.lines}
@@ -609,43 +615,150 @@ function Editor({
   )
 }
 
-/** Markdown Preview (D2): each top-level block rendered to HTML in a two-column
- * grid — a line-number gutter and the prose — so a reviewer can map a rendered
- * block back to its source line. Read-only for now; block anchoring is a later
- * pass. */
-function MarkdownPreview({ source }: { source: string }) {
+/** Markdown Preview (D2): each top-level block rendered to HTML with a
+ * line-number gutter mapping it back to source. A reviewer anchors a comment to
+ * a whole block — the gutter is a click target, and published/pending threads
+ * whose located anchor falls in a block render beneath it, mirroring Source. */
+const MarkdownPreview = observer(function MarkdownPreview({
+  source,
+  comments,
+  fileProxy,
+  commentsProxy,
+  draftScope,
+}: {
+  source: string
+  comments: Comment[]
+  fileProxy: FileStoreProxy | null
+  commentsProxy: CommentsStoreProxy | null
+  draftScope: string
+}) {
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   // Match the source view's gutter: a narrow left column sized to the digit
   // count, right-aligned numbers, and the rest of the width for the prose.
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
+  const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
+
+  // Bucket each located comment to the block it belongs to: the block whose
+  // source range contains the anchor's start line, else the last block that
+  // begins at or before it (a comment can predate a re-rendered doc's blocks).
+  const { threadsByBlock, anchoredBlocks } = useMemo(() => {
+    const map = new Map<number, Comment[]>()
+    const anchored = new Set<number>()
+    for (const comment of comments) {
+      if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
+      const start = comment.anchor.start_line
+      let idx = blocks.findIndex((block) => start >= block.line && start <= block.endLine)
+      if (idx === -1) {
+        idx = 0
+        for (let i = 0; i < blocks.length; i++) if (blocks[i].line <= start) idx = i
+      }
+      anchored.add(idx)
+      const bucket = map.get(idx)
+      if (bucket) bucket.push(comment)
+      else map.set(idx, [comment])
+    }
+    return { threadsByBlock: map, anchoredBlocks: anchored }
+  }, [comments, blocks])
+
+  const [draft, setDraft] = useState<Range | null>(null)
+  const [switchTo, setSwitchTo] = useState<Range | null>(null)
+  const draftRef = useRef<Range | null>(draft)
+  draftRef.current = draft
+
+  const open = (range: Range) => setDraft(range)
+  const close = () => {
+    const current = draftRef.current
+    if (current) localStorage.removeItem(draftBodyKey(draftScope, current))
+    setDraft(null)
+  }
+  // Opening a block with a dirty composer already open elsewhere confirms first.
+  const requestOpen = (range: Range) => {
+    const current = draftRef.current
+    if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
+    else open(range)
+  }
+  const submitNew = (body: string, type: CritiqueType) => {
+    if (!fileProxy || !draft) return
+    addComment
+      .dispatch({
+        scope: "located",
+        critique_type: type,
+        body,
+        anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
+      })
+      .catch(() => undefined)
+    close()
+  }
+
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="md-doc py-4">
-        {blocks.map((block, index) => (
-          <div key={index} className="flex">
-            <div
-              style={{ minWidth: `${gutter + 2}ch` }}
-              className="flex shrink-0 select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] font-mono text-[10.5px] tabular-nums text-faint"
-            >
-              <span data-review-line={block.line}>{block.line}</span>
-              {block.endLine > block.line && (
-                <>
-                  <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong" />
-                  <span>{block.endLine}</span>
-                </>
+        {blocks.map((block, index) => {
+          const range = { start: block.line, end: block.endLine }
+          const threads = threadsByBlock.get(index)
+          const anchored = anchoredBlocks.has(index)
+          const opened = draft !== null && sameRange(draft, range)
+          const label = `line ${block.line}${block.endLine > block.line ? `–${block.endLine}` : ""}`
+          return (
+            <Fragment key={index}>
+              <div className={`flex ${anchored || opened ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+                <button
+                  type="button"
+                  onClick={() => requestOpen(range)}
+                  style={{ minWidth: `${gutter + 2}ch` }}
+                  title="Comment on this block"
+                  className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
+                    anchored || opened ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+                  }`}
+                >
+                  <span data-review-line={block.line} className="group-hover/gut:opacity-0">
+                    {block.line}
+                  </span>
+                  {block.endLine > block.line && (
+                    <>
+                      <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong group-hover/gut:opacity-0" />
+                      <span className="group-hover/gut:opacity-0">{block.endLine}</span>
+                    </>
+                  )}
+                  <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
+                </button>
+                <div
+                  className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: block.html }}
+                />
+              </div>
+              {opened && (
+                <Composer
+                  anchorLabel={label}
+                  draftKey={draftBodyKey(draftScope, range)}
+                  pending={addComment.isPending}
+                  onSubmit={submitNew}
+                  onCancel={close}
+                />
               )}
-            </div>
-            <div
-              className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
-              // eslint-disable-next-line react/no-danger
-              dangerouslySetInnerHTML={{ __html: block.html }}
-            />
-          </div>
-        ))}
+              {threads?.map((comment) => (
+                <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
+              ))}
+            </Fragment>
+          )
+        })}
       </div>
+      <ConfirmDialog
+        open={switchTo !== null}
+        title="Discard unsaved comment?"
+        body="You have an unfinished comment open. Starting another one here discards it."
+        confirmLabel="Discard"
+        onCancel={() => setSwitchTo(null)}
+        onConfirm={() => {
+          if (draft) localStorage.removeItem(draftBodyKey(draftScope, draft))
+          if (switchTo) open(switchTo)
+          setSwitchTo(null)
+        }}
+      />
     </div>
   )
-}
+})
 
 /** Image render (D8): the artifact centered on a checkerboard backdrop with a
  * metadata caption. No zoom and no located anchors — an image is commented at
