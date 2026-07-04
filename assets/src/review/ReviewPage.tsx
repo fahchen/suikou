@@ -115,9 +115,16 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
 
   const isDiff = structure?.kind === "diff"
-  // The open file lives in the URL (`?file=`), so a reload lands back on it; an
-  // absent or stale param falls back to the first file.
-  const selectedPath = entries.some((e) => e.path === file) ? file! : (entries[0]?.path ?? null)
+  // The open file lives in the URL (`?file=`), so a reload lands back on it. When
+  // the param is absent (opened from the board) or stale, fall back to the file
+  // last viewed in this review, then to the first file.
+  const fileKey = `suikou-file:${reviewId}`
+  const remembered = localStorage.getItem(fileKey)
+  const selectedPath = entries.some((e) => e.path === file)
+    ? file!
+    : entries.some((e) => e.path === remembered)
+      ? remembered
+      : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
   // Comment threads stream on the live snapshot; the structure (chrome, file
   // list) rides the command reply. Join them by path here.
@@ -138,6 +145,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
 
   const select = (path: string) => {
     setFilesSheetOpen(false)
+    localStorage.setItem(fileKey, path)
     navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: path } })
   }
 
@@ -662,8 +670,12 @@ const MarkdownPreview = observer(function MarkdownPreview({
 
   const [draft, setDraft] = useState<Range | null>(null)
   const [switchTo, setSwitchTo] = useState<Range | null>(null)
+  // A live gutter drag, in block indices; on release it commits to a line range.
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
   const draftRef = useRef<Range | null>(draft)
   draftRef.current = draft
+  const dragRef = useRef(drag)
+  dragRef.current = drag
 
   const open = (range: Range) => setDraft(range)
   const close = () => {
@@ -690,25 +702,73 @@ const MarkdownPreview = observer(function MarkdownPreview({
     close()
   }
 
+  // Drag across block gutters to select a multi-block range, hit-testing the
+  // block under the pointer (works for mouse and touch alike). On release the
+  // span from the first to the last block's source lines becomes the anchor.
+  const dragging = drag !== null
+  useEffect(() => {
+    if (!dragging) return
+    const blockAt = (x: number, y: number): number | null => {
+      const el = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest("[data-review-block]")
+      const value = el?.getAttribute("data-review-block")
+      return value ? Number(value) : null
+    }
+    const move = (event: PointerEvent) => {
+      const idx = blockAt(event.clientX, event.clientY)
+      if (idx != null) setDrag((d) => (d && d.to !== idx ? { ...d, to: idx } : d))
+    }
+    const up = () => {
+      const d = dragRef.current
+      setDrag(null)
+      if (d) {
+        const lo = Math.min(d.from, d.to)
+        const hi = Math.max(d.from, d.to)
+        requestOpen({ start: blocks[lo].line, end: blocks[hi].endLine })
+      }
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+    return () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging])
+
+  const dragLo = drag ? Math.min(drag.from, drag.to) : -1
+  const dragHi = drag ? Math.max(drag.from, drag.to) : -1
+
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="md-doc py-4">
         {blocks.map((block, index) => {
-          const range = { start: block.line, end: block.endLine }
           const threads = threadsByBlock.get(index)
           const anchored = anchoredBlocks.has(index)
-          const opened = draft !== null && sameRange(draft, range)
-          const label = `line ${block.line}${block.endLine > block.line ? `–${block.endLine}` : ""}`
+          // A block is highlighted while it's in the live drag, or (once a range
+          // is committed) while it falls within the open composer's line span.
+          const inDrag = drag !== null && index >= dragLo && index <= dragHi
+          const inDraft = draft !== null && block.line >= draft.start && block.endLine <= draft.end
+          const selecting = inDrag || inDraft
+          // The composer renders once, after the last block of the committed span.
+          const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
+          const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
           return (
             <Fragment key={index}>
-              <div className={`flex ${anchored || opened ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+              <div className={`flex ${anchored || selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 <button
                   type="button"
-                  onClick={() => requestOpen(range)}
-                  style={{ minWidth: `${gutter + 2}ch` }}
-                  title="Comment on this block"
+                  data-review-block={index}
+                  onPointerDown={(event) => {
+                    if (event.shiftKey && draft) {
+                      open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
+                    } else {
+                      setDrag({ from: index, to: index })
+                    }
+                  }}
+                  style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
+                  title="Comment on this block — drag or shift-click for a range"
                   className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
-                    anchored || opened ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+                    anchored || selecting ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
                   }`}
                 >
                   <span data-review-line={block.line} className="group-hover/gut:opacity-0">
@@ -728,10 +788,10 @@ const MarkdownPreview = observer(function MarkdownPreview({
                   dangerouslySetInnerHTML={{ __html: block.html }}
                 />
               </div>
-              {opened && (
+              {composerHere && draft && (
                 <Composer
                   anchorLabel={label}
-                  draftKey={draftBodyKey(draftScope, range)}
+                  draftKey={draftBodyKey(draftScope, draft)}
                   pending={addComment.isPending}
                   onSubmit={submitNew}
                   onCancel={close}
