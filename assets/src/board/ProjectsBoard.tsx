@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
 import {
   Check,
@@ -618,13 +619,14 @@ function ReviewRow({
 }) {
   const isDiff = review.kind === "git_diff"
   const approved = files.length > 0 && files.every((file) => file.approved)
-  // ponytail: opening a review navigates to the review detail route, which is
-  // rebuilt in a later pass; the row's open area is inert until that route
-  // exists — the ⋯ menu is the live affordance.
 
   return (
     <div className="group flex items-center gap-3 rounded-panel px-3 py-[11px] pl-[13px] hover:bg-surface hover:shadow-[inset_0_0_0_1px_var(--hair-strong)]">
-      <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+      <Link
+        to="/reviews/$reviewId"
+        params={{ reviewId: review.id }}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
         <span
           aria-hidden
           title={isDiff ? "Git diff review" : "File selection review"}
@@ -654,7 +656,7 @@ function ReviewRow({
             <span className="font-mono tabular-nums text-faint">{elapsed(review.inserted_at)}</span>
           </span>
         </span>
-      </button>
+      </Link>
       {approved && (
         <span className="inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full bg-approve-soft pr-[9px] pl-[7px] text-[11px] font-semibold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
           <Check size={13} strokeWidth={2.4} aria-hidden />
