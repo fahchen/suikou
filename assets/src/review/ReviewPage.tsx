@@ -59,6 +59,18 @@ function hasDraftBody(scope: string, range: Range): boolean {
   }
 }
 
+const elDraftKey = (scope: string, selector: string): string => `suikou-eldraft:${scope}:${selector}`
+
+/** Whether a persisted html element composer draft holds unsent text. */
+function hasElDraftBody(scope: string, selector: string): boolean {
+  try {
+    const value = JSON.parse(localStorage.getItem(elDraftKey(scope, selector)) || "{}")
+    return typeof value?.body === "string" && value.body.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
  * structure; file content and the live comment overlay arrive in later passes. */
@@ -709,6 +721,7 @@ function Editor({
         />
       ) : htmlFile && htmlMode !== "source" ? (
         <HtmlView
+          key={entry.path}
           source={content.lines.join("\n")}
           mode={htmlMode}
           zoom={htmlZoom}
@@ -1085,7 +1098,29 @@ const HtmlView = observer(function HtmlView({
   const [overlay, setOverlay] = useState<HtmlOverlay | null>(null)
   const [hover, setHover] = useState<{ selector: string; rect: ElRect } | null>(null)
   const [anchoredRects, setAnchoredRects] = useState<{ selector: string; rect: ElRect }[]>([])
+  const elOpenKey = `suikou-elopen:${draftScope}`
+  // An element compose left with unsaved text on the last visit, waiting for the
+  // frame to report its rect so the composer can reopen where it was. Seeded on
+  // mount (this view remounts per file) so it's set before the frame's ready.
+  const [pendingRestore, setPendingRestore] = useState<{ selector: string; quote: string } | null>(() => {
+    if (interactive) return null
+    try {
+      const stored = JSON.parse(localStorage.getItem(elOpenKey) || "null")
+      if (typeof stored?.selector === "string" && hasElDraftBody(draftScope, stored.selector)) {
+        return { selector: stored.selector, quote: typeof stored.quote === "string" ? stored.quote : "" }
+      }
+    } catch {
+      // fall through
+    }
+    localStorage.removeItem(elOpenKey)
+    return null
+  })
   const [, setTick] = useState(0)
+  const applyOverlay = (next: HtmlOverlay | null) => {
+    setOverlay(next)
+    if (next?.kind === "compose") localStorage.setItem(elOpenKey, JSON.stringify({ selector: next.selector, quote: next.quote }))
+    else localStorage.removeItem(elOpenKey)
+  }
 
   const anchoredSelectors = useMemo(
     () => comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : [])),
@@ -1099,6 +1134,14 @@ const HtmlView = observer(function HtmlView({
     [comments, overlay],
   )
   const threadQuote = openThreads[0]?.anchor?.type === "element" ? openThreads[0].anchor.quote : ""
+
+  // The element whose rect the frame should stream: the open overlay's, or the
+  // one being restored. A ref lets the ready handler re-request it after reload.
+  const trackSel = overlay?.selector ?? pendingRestore?.selector ?? null
+  const trackRef = useRef<string | null>(trackSel)
+  trackRef.current = trackSel
+  const pendingRef = useRef(pendingRestore)
+  pendingRef.current = pendingRestore
 
   // Comment mode carries the bridge script; interactive serves the raw page.
   const srcDoc = useMemo(() => {
@@ -1115,14 +1158,22 @@ const HtmlView = observer(function HtmlView({
       if (event.source !== iframeRef.current?.contentWindow) return
       const data = event.data
       if (!data || data.source !== "suikou-html") return
-      if (data.kind === "ready") post({ kind: "anchors", selectors: anchoredSelectors })
-      else if (data.kind === "rects") setAnchoredRects(Array.isArray(data.items) ? data.items : [])
+      if (data.kind === "ready") {
+        post({ kind: "anchors", selectors: anchoredSelectors })
+        if (trackRef.current) post({ kind: "track", selector: trackRef.current })
+      } else if (data.kind === "rects") setAnchoredRects(Array.isArray(data.items) ? data.items : [])
       else if (data.kind === "hover")
         setHover(data.selector && data.rect ? { selector: String(data.selector), rect: data.rect } : null)
       else if (data.kind === "pick" && data.rect)
-        setOverlay({ kind: "compose", selector: String(data.selector), quote: String(data.quote ?? ""), rect: data.rect })
-      else if (data.kind === "open" && data.rect) setOverlay({ kind: "thread", selector: String(data.selector), rect: data.rect })
-      else if (data.kind === "rect") setOverlay((o) => (o && o.selector === data.selector ? { ...o, rect: data.rect } : o))
+        applyOverlay({ kind: "compose", selector: String(data.selector), quote: String(data.quote ?? ""), rect: data.rect })
+      else if (data.kind === "open" && data.rect) applyOverlay({ kind: "thread", selector: String(data.selector), rect: data.rect })
+      else if (data.kind === "rect" && data.rect) {
+        const pending = pendingRef.current
+        if (pending && pending.selector === data.selector) {
+          applyOverlay({ kind: "compose", selector: pending.selector, quote: pending.quote, rect: data.rect })
+          setPendingRestore(null)
+        } else setOverlay((o) => (o && o.selector === data.selector ? { ...o, rect: data.rect } : o))
+      }
     }
     window.addEventListener("message", onMessage)
     post({ kind: "anchors", selectors: anchoredSelectors })
@@ -1130,21 +1181,22 @@ const HtmlView = observer(function HtmlView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchoredSelectors])
 
-  // Track the open element so the frame streams its rect; reposition on resize.
+  // Track the open (or restoring) element so the frame streams its rect; reposition on resize.
   useEffect(() => {
-    post({ kind: "track", selector: overlay?.selector ?? null })
-    if (!overlay) return
+    post({ kind: "track", selector: trackSel })
+    if (!trackSel) return
     const onResize = () => setTick((t) => t + 1)
     window.addEventListener("resize", onResize)
     return () => window.removeEventListener("resize", onResize)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlay?.selector])
+  }, [trackSel])
 
   useEffect(() => {
     if (interactive) {
       setOverlay(null)
       setHover(null)
       setAnchoredRects([])
+      setPendingRestore(null)
     }
   }, [interactive])
 
@@ -1153,7 +1205,7 @@ const HtmlView = observer(function HtmlView({
     addComment
       .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote: overlay.quote } })
       .catch(() => undefined)
-    setOverlay(null)
+    applyOverlay(null)
   }
 
   // Pin the overlay beside the element: the frame's rect plus the element's rect
@@ -1215,7 +1267,7 @@ const HtmlView = observer(function HtmlView({
                 aria-label="Open comment"
                 onMouseEnter={() => setHover({ selector, rect })}
                 onMouseLeave={() => setHover(null)}
-                onClick={() => setOverlay({ kind: "thread", selector, rect })}
+                onClick={() => applyOverlay({ kind: "thread", selector, rect })}
                 style={{ left: rect.right * zoom, top: rect.top * zoom }}
                 className="group pointer-events-auto absolute grid size-[16px] -translate-x-1/2 -translate-y-1/2 place-items-center"
               >
@@ -1241,7 +1293,7 @@ const HtmlView = observer(function HtmlView({
               <span className="flex-1" />
               <button
                 type="button"
-                onClick={() => setOverlay(null)}
+                onClick={() => applyOverlay(null)}
                 className="grid size-[18px] shrink-0 place-items-center rounded text-faint hover:bg-soft hover:text-ink"
                 aria-label="Close"
               >
@@ -1257,11 +1309,11 @@ const HtmlView = observer(function HtmlView({
                 )}
                 <Composer
                   anchorLabel="this element"
-                  draftKey={`suikou-eldraft:${draftScope}:${overlay.selector}`}
+                  draftKey={elDraftKey(draftScope, overlay.selector)}
                   pending={addComment.isPending}
                   chrome={false}
                   onSubmit={submit}
-                  onCancel={() => setOverlay(null)}
+                  onCancel={() => applyOverlay(null)}
                   className="m-0"
                 />
               </div>
