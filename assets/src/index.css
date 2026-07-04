@@ -898,3 +898,63 @@
 .md-body strong {
   font-weight: 700;
 }
+
+/* Document-level prose, scoped so it never bleeds into comment bodies. */
+.md-doc .md-body h1 {
+  font-size: 1.55em;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  margin: 0.1em 0 0.4em;
+  color: var(--ink-0);
+}
+.md-doc .md-body h2 {
+  font-size: 1.28em;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+  margin: 0.7em 0 0.35em;
+  color: var(--ink-0);
+}
+.md-doc .md-body h3 {
+  font-size: 1.1em;
+  font-weight: 680;
+  margin: 0.55em 0 0.3em;
+  color: var(--ink-0);
+}
+.md-doc .md-body h4,
+.md-doc .md-body h5,
+.md-doc .md-body h6 {
+  font-weight: 680;
+  margin: 0.5em 0 0.25em;
+  color: var(--ink-1);
+}
+.md-doc .md-body blockquote {
+  margin: 0.5em 0;
+  padding: 0.4em 0.8em;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--ink-3) 6%, transparent);
+  color: var(--ink-2);
+}
+.md-doc .md-body hr {
+  border: none;
+  border-top: 1px solid var(--hair-strong);
+  margin: 1em 0;
+}
+.md-doc .md-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.95em;
+}
+.md-doc .md-body th,
+.md-doc .md-body td {
+  border: 1px solid var(--hair-strong);
+  padding: 4px 10px;
+  text-align: left;
+}
+.md-doc .md-body th {
+  background: color-mix(in oklab, var(--ink-3) 8%, transparent);
+  font-weight: 680;
+}
+.md-doc .md-body img {
+  max-width: 100%;
+  border-radius: 8px;
+}

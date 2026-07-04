@@ -15,10 +15,11 @@ import {
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { ConfirmDialog } from "../components/ui/confirm-dialog"
+import { Segmented } from "../components/ui/segmented"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { highlightLines } from "./highlight"
-import { renderMarkdown } from "./markdown"
+import { markdownToc, renderMarkdown, renderMarkdownBlocks } from "./markdown"
 import { langForPath, outline, type OutlineItem } from "../treesitter/outline"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
@@ -440,6 +441,14 @@ type Content =
   | { kind: "unsupported"; mime: string }
   | { kind: "error"; message: string }
 
+const MD_VIEW_KEY = "suikou-md-view"
+
+/** The reader's remembered choice between Source and Preview for markdown, kept
+ * so it survives a reload and carries to the next markdown file. */
+function readMdView(): "source" | "preview" {
+  return localStorage.getItem(MD_VIEW_KEY) === "source" ? "source" : "preview"
+}
+
 function Editor({
   reviewId,
   entry,
@@ -459,6 +468,20 @@ function Editor({
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
   const [content, setContent] = useState<Content>({ kind: "loading" })
   const [toc, setToc] = useState<OutlineItem[]>([])
+  const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
+  const [view, setView] = useState<"source" | "preview">(() => readMdView())
+
+  // A markdown file opens in the reader's remembered mode; any other file has
+  // only Source. Re-runs when the selected file changes.
+  useEffect(() => {
+    setView(previewable ? readMdView() : "source")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry])
+
+  const chooseView = (next: "source" | "preview") => {
+    setView(next)
+    localStorage.setItem(MD_VIEW_KEY, next)
+  }
 
   useEffect(() => {
     if (!entry) return
@@ -487,13 +510,17 @@ function Editor({
             if (!cancelled) setContent({ kind: "text", lines: body.split("\n"), tokens })
           })
           .catch(() => undefined)
-        const lang = langForPath(path)
-        if (lang) {
-          outline(body, lang)
-            .then((items) => {
-              if (!cancelled) setToc(items)
-            })
-            .catch(() => undefined)
+        if (/\.(md|markdown)$/i.test(path)) {
+          if (!cancelled) setToc(markdownToc(body))
+        } else {
+          const lang = langForPath(path)
+          if (lang) {
+            outline(body, lang)
+              .then((items) => {
+                if (!cancelled) setToc(items)
+              })
+              .catch(() => undefined)
+          }
         }
       })
       .catch((cause: Error) => {
@@ -534,6 +561,16 @@ function Editor({
           <span className="text-[12.5px] text-faint">No file selected</span>
         )}
         <span className="flex-1" />
+        {previewable && content.kind === "text" && (
+          <Segmented<"source" | "preview">
+            value={view}
+            onChange={chooseView}
+            options={[
+              ["source", "Source"],
+              ["preview", "Preview"],
+            ]}
+          />
+        )}
         {toc.length > 0 && <TocMenu items={toc} onJump={scrollToLine} />}
       </div>
       {!entry ? (
@@ -546,6 +583,8 @@ function Editor({
         <div className="grid flex-1 place-items-center px-6 text-center text-[13px] text-faint">
           Can't render {content.mime} here yet.
         </div>
+      ) : previewable && view === "preview" ? (
+        <MarkdownPreview source={content.lines.join("\n")} />
       ) : (
         <Source
           lines={content.lines}
@@ -556,6 +595,44 @@ function Editor({
           draftScope={`${reviewId}:${entry.path}`}
         />
       )}
+    </div>
+  )
+}
+
+/** Markdown Preview (D2): each top-level block rendered to HTML in a two-column
+ * grid — a line-number gutter and the prose — so a reviewer can map a rendered
+ * block back to its source line. Read-only for now; block anchoring is a later
+ * pass. */
+function MarkdownPreview({ source }: { source: string }) {
+  const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
+  // Match the source view's gutter: a narrow left column sized to the digit
+  // count, right-aligned numbers, and the rest of the width for the prose.
+  const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
+  return (
+    <div className="min-h-0 flex-1 overflow-auto">
+      <div className="md-doc py-4">
+        {blocks.map((block, index) => (
+          <div key={index} className="flex">
+            <div
+              style={{ minWidth: `${gutter + 2}ch` }}
+              className="flex shrink-0 select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] font-mono text-[10.5px] tabular-nums text-faint"
+            >
+              <span data-review-line={block.line}>{block.line}</span>
+              {block.endLine > block.line && (
+                <>
+                  <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong" />
+                  <span>{block.endLine}</span>
+                </>
+              )}
+            </div>
+            <div
+              className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: block.html }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
