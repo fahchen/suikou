@@ -22,7 +22,7 @@ const EXT_LANG: Record<string, string> = {
   ts: "typescript", tsx: "tsx", mts: "typescript", cts: "typescript",
   js: "javascript", jsx: "jsx", mjs: "javascript", cjs: "javascript",
   json: "json", jsonc: "jsonc",
-  md: "markdown", markdown: "markdown", mdx: "mdx",
+  md: "markdown", markdown: "markdown", mdx: "mdx", feature: "gherkin",
   css: "css", scss: "scss", less: "less", html: "html", xml: "xml", svg: "xml",
   sh: "shell", bash: "shell", zsh: "shell", fish: "fish",
   yml: "yaml", yaml: "yaml", toml: "toml",
