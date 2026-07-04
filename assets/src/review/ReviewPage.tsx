@@ -1293,11 +1293,11 @@ const HtmlView = observer(function HtmlView({
                 onMouseLeave={() => setHover(null)}
                 onClick={() => applyOverlay({ kind: "thread", selector, rect })}
                 style={{ left: rect.right * zoom, top: rect.top * zoom }}
-                className="group pointer-events-auto absolute grid size-[16px] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
+                className="group pointer-events-auto absolute grid size-[22px] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
               >
-                <span className="relative flex size-[4px] transition-transform duration-100 group-hover:scale-[1.25]">
+                <span className="relative flex size-[12px] transition-transform duration-100 group-hover:scale-[1.15]">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" />
-                  <span className="relative inline-flex size-[4px] rounded-full bg-accent shadow-[0_0_0_1.5px_white,0_1px_2px_oklch(0%_0_0/0.3)]" />
+                  <span className="relative inline-flex size-[12px] rounded-full bg-accent shadow-[0_0_0_2px_white,0_1px_3px_oklch(0%_0_0/0.3)]" />
                 </span>
               </button>
             ))}
