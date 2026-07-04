@@ -715,13 +715,13 @@ function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) 
         render={
           <button
             type="button"
-            title="Per-file verdict"
-            className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold ${
+            title={`Per-file verdict${effective ? `: ${VERDICT_META[effective].label}` : ""}`}
+            className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-semibold sm:px-2.5 ${
               chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
             }`}
           >
             <Icon size={13} aria-hidden />
-            {effective ? VERDICT_META[effective].label : "No verdict"}
+            <span className="hidden sm:inline">{effective ? VERDICT_META[effective].label : "No verdict"}</span>
             {file.draftVerdict !== null && (
               <span className="size-1.5 rounded-full bg-amber" title="Unsubmitted draft" aria-hidden />
             )}
