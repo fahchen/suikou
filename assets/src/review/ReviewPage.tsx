@@ -121,6 +121,20 @@ function hasElDraftBody(scope: string, selector: string): boolean {
   }
 }
 
+function useDesktopLayout(): boolean {
+  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches)
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)")
+    const update = () => setDesktop(query.matches)
+    update()
+    query.addEventListener("change", update)
+    return () => query.removeEventListener("change", update)
+  }, [])
+
+  return desktop
+}
+
 const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
 
 /** Whether a persisted file-comment composer draft holds unsent text, so a
@@ -193,7 +207,8 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
 
   const isDiff = structure?.kind === "diff"
-  const commentDisplay = uiStore.commentDisplay
+  const desktopLayout = useDesktopLayout()
+  const commentDisplay = desktopLayout ? uiStore.commentDisplay : "inline"
   // The open file lives in the URL (`?file=`), so a reload lands back on it. When
   // the param is absent (opened from the board) or stale, fall back to the file
   // last viewed in this review, then to the first file.
