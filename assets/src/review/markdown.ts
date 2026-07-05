@@ -6,6 +6,29 @@ import MarkdownIt from "markdown-it"
 // string is safe to inject.
 const md = new MarkdownIt({ html: false, linkify: true })
 
+// F7: a ```suggestion fenced block renders as a proposed-change card (each line
+// an "add" row) instead of a plain code block. The content is escaped, so the
+// generated HTML is safe to inject alongside the rest of the rendered body.
+const defaultFence =
+  md.renderer.rules.fence ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  if (token.info.trim().toLowerCase() === "suggestion") {
+    const rows = token.content
+      .replace(/\n$/, "")
+      .split("\n")
+      .map((line) => `<span class="block rounded-[4px] bg-approve-soft px-1.5 text-ink">${md.utils.escapeHtml(line) || " "}</span>`)
+      .join("")
+    return (
+      `<div class="my-2 overflow-hidden rounded-[9px] border border-approve-edge bg-soft/50">` +
+      `<div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-approve">Suggested change</div>` +
+      `<div class="whitespace-pre overflow-x-auto px-2 py-1.5 font-mono text-[11.5px] leading-[1.6]">${rows}</div>` +
+      `</div>`
+    )
+  }
+  return defaultFence(tokens, idx, options, env, self)
+}
+
 /** Render a comment/reply markdown body to a sanitized HTML string. */
 export function renderMarkdown(src: string): string {
   return md.render(src)

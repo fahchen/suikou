@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
+import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Code2, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -2268,6 +2268,7 @@ const Source = observer(function Source({
                 anchorLabel={`line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}`}
                 draftKey={draftBodyKey(draftScope, draft)}
                 pending={addComment.isPending}
+                suggestSeed={lines.slice(draft.start - 1, draft.end).join("\n")}
                 onSubmit={submitNew}
                 onCancel={close}
               />
@@ -2474,6 +2475,7 @@ function Composer({
   pending,
   className = "my-1.5 ml-14 mr-3.5",
   chrome = true,
+  suggestSeed,
   onSubmit,
   onCancel,
 }: {
@@ -2485,6 +2487,7 @@ function Composer({
   pending?: boolean
   className?: string
   chrome?: boolean
+  suggestSeed?: string
   onSubmit: (body: string, type: CritiqueType) => void
   onCancel: () => void
 }) {
@@ -2530,6 +2533,13 @@ function Composer({
     if (!text) return
     if (draftKey) localStorage.removeItem(draftKey)
     onSubmit(text, type)
+  }
+  // F7: drop a ```suggestion fence seeded with the anchored source so the
+  // reviewer edits it into the proposed replacement.
+  const insertSuggestion = () => {
+    const fence = "```suggestion\n" + (suggestSeed ?? "") + "\n```\n"
+    setBody((prev) => (prev.trim() ? prev.replace(/\s*$/, "\n\n") : "") + fence)
+    requestAnimationFrame(() => areaRef.current?.focus())
   }
   // Clicking Cancel is an explicit choice, so it discards straight away. Escape
   // and switching to another line are easier to hit by accident, so those route
@@ -2605,7 +2615,19 @@ function Composer({
           placeholder={withType ? "Leave a comment…" : "Write a reply…"}
           className="block max-h-[240px] min-h-[58px] w-full resize-none overflow-y-auto rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
         />
-        <div className="mt-2 flex items-center justify-end gap-2">
+        <div className="mt-2 flex items-center gap-2">
+          {suggestSeed !== undefined && (
+            <button
+              type="button"
+              onClick={insertSuggestion}
+              title="Insert a code suggestion"
+              className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12px] font-medium text-text hover:bg-soft"
+            >
+              <Code2 size={13} className="text-muted" aria-hidden />
+              Suggest
+            </button>
+          )}
+          <span className="flex-1" />
           <button
             type="button"
             onClick={cancelNow}
