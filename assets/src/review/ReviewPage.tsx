@@ -309,7 +309,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
         compareOpen={compareOpen}
         onToggleCompare={() => setCompareOpen((open) => !open)}
       />
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr_300px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr]">
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
           <NavHeader entries={entries} reviewed={review.reviewed} />
           <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
@@ -326,7 +326,6 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           compare={compareOpen ? compare : null}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
-        <Inspector review={review} />
       </div>
       <StatusBar path={selectedPath} connected={connected} blockers={review.blockers.length} round={selectedRound} readOnly={readOnly} />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
@@ -399,6 +398,9 @@ function Toolbar({
         )}
       </div>
       <span className="flex-1" />
+      <span className="hidden sm:inline-flex">
+        <ReviewButton review={review} />
+      </span>
       {canCompare && (
         <button
           type="button"
@@ -2967,13 +2969,34 @@ function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line: numbe
   )
 }
 
-/** H2 review overview: the draft verdict rollup, the open-blocker list, and this
- * round's file stats. The right rail whenever no comment inspector is open. */
-function Inspector({ review }: { review: ReviewSummary }) {
+/** H2 review overview — the draft verdict rollup, open-blocker list, and round
+ * stats. No longer a persistent column; opened from the toolbar Review button. */
+function ReviewButton({ review }: { review: ReviewSummary }) {
+  return (
+    <Popover
+      align="end"
+      className="w-[290px] p-3"
+      render={
+        <button
+          type="button"
+          title="Review summary"
+          className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft"
+        >
+          <ListTree size={14} className="text-muted" aria-hidden />
+          Review
+          <ChevronDown size={12} className="text-faint" aria-hidden />
+        </button>
+      }
+    >
+      <ReviewOverview review={review} />
+    </Popover>
+  )
+}
+
+function ReviewOverview({ review }: { review: ReviewSummary }) {
   const total = review.perFile.length
   return (
-    <aside className="hidden min-h-0 flex-col gap-3 overflow-auto border-l border-hair-strong bg-surface p-4 lg:flex">
-      <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Review overview</h3>
+    <div className="flex flex-col gap-3">
       <VerdictSummary verdict={review.verdict} allApproved={review.allApproved} />
       <div>
         <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
@@ -2994,7 +3017,7 @@ function Inspector({ review }: { review: ReviewSummary }) {
           <IoStat n={review.reviewed} label="reviewed" tone={review.reviewed === total && total > 0 ? "ok" : undefined} />
         </div>
       </div>
-    </aside>
+    </div>
   )
 }
 
