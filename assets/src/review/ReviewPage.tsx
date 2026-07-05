@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Copy, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
+import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -335,8 +335,6 @@ function Toolbar({
         )}
       </div>
       <span className="flex-1" />
-      <CopyMenu store={store} />
-      <SubmitButton store={store} review={review} />
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -344,6 +342,7 @@ function Toolbar({
       >
         <SlidersHorizontal size={16} aria-hidden />
       </button>
+      <SubmitButton store={store} review={review} />
     </div>
   )
 }
@@ -652,91 +651,6 @@ function verdictSoft(verdict: Verdict): string {
     : verdict === "approve"
       ? "bg-approve-soft"
       : "bg-accent-soft"
-}
-
-/** Copy text to the clipboard. `navigator.clipboard` only exists in a secure
- * context (https or localhost), so over plain http on a LAN/Tailscale host it is
- * undefined — fall back to a hidden textarea + execCommand there. */
-function copyText(text: string): void {
-  if (navigator.clipboard?.writeText) {
-    void navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
-  } else {
-    execCommandCopy(text)
-  }
-}
-
-function execCommandCopy(text: string): void {
-  const area = document.createElement("textarea")
-  area.value = text
-  area.style.position = "fixed"
-  area.style.opacity = "0"
-  document.body.appendChild(area)
-  area.select()
-  try {
-    document.execCommand("copy")
-  } finally {
-    document.body.removeChild(area)
-  }
-}
-
-/** G7: copy the round's comments to the clipboard as markdown, either the
- * noteworthy subset (fix_required + needs_answer) or all of them. */
-function CopyMenu({ store }: { store: ReviewStore }) {
-  const snap = useMusubiSnapshot(store)
-  const copy = (filter: "noteworthy" | "all") => {
-    const files = snap?.body?.files ?? []
-    copyText(commentsToMarkdown(files, filter))
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            title="Copy comments"
-            className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-          >
-            <Copy size={15} aria-hidden />
-          </button>
-        }
-      />
-      <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => copy("noteworthy")}>
-          <Copy size={13} aria-hidden />
-          Copy noteworthy
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => copy("all")}>
-          <Copy size={13} aria-hidden />
-          Copy all comments
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-const CRITIQUE_LABEL: Record<CritiqueType, string> = {
-  fix_required: "fix required",
-  needs_answer: "needs answer",
-  note: "note",
-}
-
-function commentsToMarkdown(files: BodyFile[], filter: "noteworthy" | "all"): string {
-  const noteworthy = (c: Comment) => c.critique_type === "fix_required" || c.critique_type === "needs_answer"
-  const blocks: string[] = []
-  for (const file of files) {
-    const items = file.comments.items.filter((c) => c.status === "published" && (filter === "all" || noteworthy(c)))
-    if (items.length === 0) continue
-    blocks.push(`## ${file.path}`)
-    for (const c of items) {
-      const where = c.anchor && c.anchor.type !== "element" ? ` (L${c.anchor.start_line})` : ""
-      blocks.push(`- **[${CRITIQUE_LABEL[c.critique_type]}]**${where} ${c.body.trim()}`)
-      for (const r of c.replies.filter((r) => r.status === "published")) {
-        blocks.push(`  - _${r.author}:_ ${r.body.trim()}`)
-      }
-    }
-    blocks.push("")
-  }
-  return blocks.join("\n").trim() || "No comments to copy."
 }
 
 const VERDICT_CHIP: Record<
