@@ -354,17 +354,24 @@ const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
   { verdict: "request_changes", hint: "" },
 ]
 
-/** G3 submit panel + G4 soft gate + G5 confirm. The review verdict is a rollup
- * of per-file verdicts (set via the file-head chip), so the rows are a read-only
- * summary; Submit publishes every pending comment and draft verdict at once. On
- * desktop it's a toolbar popover; on mobile a bottom sheet (there's no right rail
- * to host the overview, so the sheet also lists the open blockers). */
+/** G3 submit panel + G4 soft gate + G5 confirm. `submit_review` carries no
+ * verdict — the file verdicts are the source of truth — so the radio is a local
+ * choice the reviewer confirms before publishing, defaulting to the current
+ * rollup (or Comment when nothing is set). On desktop it's a toolbar popover; on
+ * mobile a bottom sheet (there's no right rail to host the overview, so the sheet
+ * also lists the open blockers). */
 function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSummary }) {
   const submit = useMusubiCommand(store, "submit_review")
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [chosen, setChosen] = useState<Verdict>("comment")
   const nothing = !review.hasUnpublished && review.pendingComments === 0 && review.draftVerdicts === 0
+
+  const openPanel = (set: (open: boolean) => void) => (open: boolean) => {
+    if (open) setChosen(review.verdict ?? "comment")
+    set(open)
+  }
 
   const run = () => {
     void submit.dispatch({}).finally(() => {
@@ -379,7 +386,7 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
       <div className="hidden lg:block">
         <Popover
           open={popoverOpen}
-          onOpenChange={setPopoverOpen}
+          onOpenChange={openPanel(setPopoverOpen)}
           className="w-[290px] p-[7px]"
           render={
             <button type="button" className={SUBMIT_BTN}>
@@ -392,13 +399,19 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
           <SubmitPanel
             review={review}
             heading
+            chosen={chosen}
+            onChoose={setChosen}
             nothing={nothing}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
         </Popover>
       </div>
-      <button type="button" onClick={() => setSheetOpen(true)} className={`lg:hidden ${SUBMIT_BTN}`}>
+      <button
+        type="button"
+        onClick={() => openPanel(setSheetOpen)(true)}
+        className={`lg:hidden ${SUBMIT_BTN}`}
+      >
         <Upload size={14} aria-hidden />
         Submit
         <ChevronDown size={12} className="opacity-80" aria-hidden />
@@ -415,6 +428,8 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
         <div className="flex min-h-0 flex-col gap-2 overflow-auto p-2">
           <SubmitPanel
             review={review}
+            chosen={chosen}
+            onChoose={setChosen}
             nothing={nothing}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
@@ -430,6 +445,7 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
       <SubmitConfirm
         open={confirm}
         review={review}
+        verdict={chosen}
         pending={submit.isPending}
         onCancel={() => setConfirm(false)}
         onConfirm={run}
@@ -444,17 +460,21 @@ const SUBMIT_BTN =
 function SubmitPanel({
   review,
   heading = false,
+  chosen,
+  onChoose,
   nothing,
   submitting,
   onSubmit,
 }: {
   review: ReviewSummary
   heading?: boolean
+  chosen: Verdict
+  onChoose: (verdict: Verdict) => void
   nothing: boolean
   submitting: boolean
   onSubmit: () => void
 }) {
-  const softGate = review.verdict === "approve" && review.blockers.length > 0
+  const softGate = chosen === "approve" && review.blockers.length > 0
   return (
     <>
       {heading && (
@@ -464,18 +484,20 @@ function SubmitPanel({
       )}
       <div className="flex flex-col">
         {SUBMIT_ROWS.map(({ verdict, hint }) => {
-          const on = review.verdict === verdict
+          const on = chosen === verdict
           return (
-            <div
+            <button
               key={verdict}
-              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-[13px] ${on ? "bg-soft" : ""}`}
+              type="button"
+              onClick={() => onChoose(verdict)}
+              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-left text-[13px] ${on ? "bg-soft" : "hover:bg-soft/60"}`}
             >
               <VerdictRadio verdict={verdict} on={on} />
               <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
                 {VERDICT_META[verdict].label}
               </span>
               {hint && <span className="ml-auto text-[11px] text-faint">{hint}</span>}
-            </div>
+            </button>
           )
         })}
       </div>
@@ -560,17 +582,18 @@ function verdictText(verdict: Verdict): string {
 function SubmitConfirm({
   open,
   review,
+  verdict,
   pending,
   onCancel,
   onConfirm,
 }: {
   open: boolean
   review: ReviewSummary
+  verdict: Verdict
   pending: boolean
   onCancel: () => void
   onConfirm: () => void
 }) {
-  const verdict = review.verdict ?? "comment"
   return (
     <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[380px]">
       <div className="flex items-center gap-2.5">
@@ -725,58 +748,114 @@ const VERDICT_CHIP: Record<
   comment: { icon: MessageSquare, className: "bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]" },
 }
 
-/** G1 per-file verdict chip + G6 dismiss approval. Shows the file's effective
- * verdict (its unsent draft if any, else the last published one) and lets the
- * reviewer draft a new one; an amber dot marks a draft that has not been
- * submitted yet. An approved file can have its approval dismissed to reopen it. */
+/** G1 per-file verdict chip + G2 file note + G6 dismiss approval. Shows the
+ * file's effective verdict (unsent draft if any, else the last published one; an
+ * amber dot marks an unsubmitted draft) and opens a panel to pick a verdict and
+ * attach an artifact-scope note. An approved file can have its approval dismissed
+ * to reopen it. `set_draft_verdict` takes no note, so the note is a separate
+ * artifact comment via `add_comment`. */
 function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) {
   const setVerdict = useMusubiCommand(proxy, "set_draft_verdict")
   const dismiss = useMusubiCommand(proxy, "dismiss_approval")
+  const addComment = useMusubiCommand(proxy, "add_comment")
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState("")
   const effective = file.draftVerdict ?? file.latestVerdict
   const chip = effective ? VERDICT_CHIP[effective] : null
   const Icon = chip?.icon ?? Circle
+
+  const addNote = () => {
+    const body = note.trim()
+    if (!body) return
+    void addComment
+      .dispatch({ scope: "artifact", critique_type: "note", body, anchor: null })
+      .then(() => setNote(""))
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            title={`Per-file verdict${effective ? `: ${VERDICT_META[effective].label}` : ""}`}
-            className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-semibold sm:px-2.5 ${
-              chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
-            }`}
-          >
-            <Icon size={13} aria-hidden />
-            <span className="hidden sm:inline">{effective ? VERDICT_META[effective].label : "No verdict"}</span>
-            {file.draftVerdict !== null && (
-              <span className="size-1.5 rounded-full bg-amber" title="Unsubmitted draft" aria-hidden />
-            )}
-            <ChevronDown size={11} className="opacity-70" aria-hidden />
-          </button>
-        }
-      />
-      <DropdownMenuContent align="end">
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      align="end"
+      className="w-[264px] p-2"
+      render={
+        <button
+          type="button"
+          title={`Per-file verdict${effective ? `: ${VERDICT_META[effective].label}` : ""}`}
+          className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-semibold sm:px-2.5 ${
+            chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
+          }`}
+        >
+          <Icon size={13} aria-hidden />
+          <span className="hidden sm:inline">{effective ? VERDICT_META[effective].label : "No verdict"}</span>
+          {file.draftVerdict !== null && (
+            <span className="size-1.5 rounded-full bg-amber" title="Unsubmitted draft" aria-hidden />
+          )}
+          <ChevronDown size={11} className="opacity-70" aria-hidden />
+        </button>
+      }
+    >
+      <div className="px-1 pt-1 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+        File verdict
+      </div>
+      <div className="flex flex-col">
         {(["approve", "request_changes", "comment"] as Verdict[]).map((v) => {
           const meta = VERDICT_CHIP[v]
+          const on = effective === v
           return (
-            <DropdownMenuItem key={v} onClick={() => void setVerdict.dispatch({ verdict: v })}>
-              <meta.icon size={13} className={verdictText(v)} aria-hidden />
-              {VERDICT_META[v].label}
-              {effective === v && <Check size={13} className="ml-auto text-approve" aria-hidden />}
-            </DropdownMenuItem>
+            <button
+              key={v}
+              type="button"
+              onClick={() => void setVerdict.dispatch({ verdict: v })}
+              className={`flex items-center gap-2.5 rounded-ctrl px-2 py-1.5 text-left text-[13px] ${on ? "bg-soft" : "hover:bg-soft/60"}`}
+            >
+              <meta.icon size={14} className={verdictText(v)} aria-hidden />
+              <span className={`font-medium ${on ? verdictText(v) : "text-ink"}`}>{VERDICT_META[v].label}</span>
+              {on && <Check size={13} className="ml-auto text-approve" aria-hidden />}
+            </button>
           )
         })}
-        {file.approved && (
-          <>
-            <div className="my-1 h-px bg-hair-strong" />
-            <DropdownMenuItem onClick={() => void dismiss.dispatch({})}>
-              <RotateCcw size={13} className="text-muted" aria-hidden />
-              Dismiss approval
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+      <div className="my-1.5 h-px bg-hair-strong" />
+      <div className="px-1 pb-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">Note</div>
+      <textarea
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            addNote()
+          }
+        }}
+        rows={2}
+        placeholder="Add a note for this file…"
+        className="block max-h-[160px] min-h-[52px] w-full resize-none rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+      />
+      <div className="mt-1.5 flex justify-end">
+        <button
+          type="button"
+          disabled={!note.trim() || addComment.isPending}
+          onClick={addNote}
+          className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
+        >
+          Add note
+          <span className="text-[11px] opacity-80">⌘⏎</span>
+        </button>
+      </div>
+      {file.approved && (
+        <>
+          <div className="my-1.5 h-px bg-hair-strong" />
+          <button
+            type="button"
+            onClick={() => void dismiss.dispatch({})}
+            className="flex w-full items-center gap-2 rounded-ctrl px-2 py-1.5 text-left text-[12.5px] text-text hover:bg-soft"
+          >
+            <RotateCcw size={13} className="text-muted" aria-hidden />
+            Dismiss approval
+          </button>
+        </>
+      )}
+    </Popover>
   )
 }
 
