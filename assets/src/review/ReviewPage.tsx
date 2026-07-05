@@ -404,7 +404,7 @@ function Toolbar({
           type="button"
           onClick={onToggleCompare}
           title="Compare with the previous round"
-          className={`inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border px-2.5 text-[12.5px] font-medium ${
+          className={`hidden h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border px-2.5 text-[12.5px] font-medium sm:inline-flex ${
             compareOpen
               ? "border-accent-edge bg-accent-soft text-accent-bright"
               : "border-hair-strong bg-canvas text-ink hover:bg-soft"
@@ -424,7 +424,7 @@ function Toolbar({
       )}
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
-        className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+        className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
         title="Settings"
       >
         <SlidersHorizontal size={16} aria-hidden />
@@ -454,13 +454,15 @@ function RoundSelector({
         render={
           <button
             type="button"
-            title="Round selector"
-            className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft"
+            title={`Round ${selectedRound}${selectedRound < latestRound ? " (read-only)" : ""}`}
+            className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border border-hair-strong bg-canvas px-2 text-[12.5px] font-medium text-ink hover:bg-soft sm:px-2.5"
           >
             <GitCompare size={14} className="text-muted" aria-hidden />
-            Round {selectedRound}
+            <span className="hidden sm:inline">Round </span>
+            <span className="sm:hidden">R</span>
+            {selectedRound}
             {selectedRound < latestRound && (
-              <span className="text-[11px] font-semibold text-muted">· read-only</span>
+              <span className="hidden text-[11px] font-semibold text-muted sm:inline">· read-only</span>
             )}
             <ChevronDown size={12} className="text-faint" aria-hidden />
           </button>
@@ -590,7 +592,7 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
 }
 
 const SUBMIT_BTN =
-  "inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
+  "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
 
 function SubmitPanel({
   review,
