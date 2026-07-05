@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
+import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -114,6 +114,19 @@ const elDraftKey = (scope: string, selector: string): string => `suikou-eldraft:
 function hasElDraftBody(scope: string, selector: string): boolean {
   try {
     const value = JSON.parse(localStorage.getItem(elDraftKey(scope, selector)) || "{}")
+    return typeof value?.body === "string" && value.body.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
+
+/** Whether a persisted file-comment composer draft holds unsent text, so a
+ * reload reopens it just like a line composer. */
+function hasArtifactDraftBody(scope: string): boolean {
+  try {
+    const value = JSON.parse(localStorage.getItem(artifactDraftKey(scope)) || "{}")
     return typeof value?.body === "string" && value.body.trim().length > 0
   } catch {
     return false
@@ -744,66 +757,56 @@ function ArtifactComments({
   fileProxy,
   commentsProxy,
   draftScope,
+  composing,
+  onClose,
 }: {
   comments: Comment[]
   fileProxy: FileStoreProxy
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
+  composing: boolean
+  onClose: () => void
 }) {
   const addComment = useMusubiCommand(fileProxy, "add_comment")
-  const [composing, setComposing] = useState(false)
   const items = comments.filter((c) => c.scope === "artifact")
+  const composerRef = useRef<HTMLDivElement>(null)
+
+  // Bring the composer into view when opened from the file-head button while
+  // scrolled into the content.
+  useEffect(() => {
+    if (composing) composerRef.current?.scrollIntoView({ block: "nearest" })
+  }, [composing])
 
   const submit = (body: string, type: CritiqueType) => {
     addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).catch(() => undefined)
-    setComposing(false)
+    onClose()
   }
 
-  if (items.length === 0 && !composing) {
-    return (
-      <div className="border-b border-hair px-3.5 py-1.5">
-        <button
-          type="button"
-          onClick={() => setComposing(true)}
-          className="inline-flex items-center gap-1.5 rounded-ctrl px-2 py-1 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
-        >
-          <MessageSquare size={13} aria-hidden />
-          Comment on this file
-        </button>
-      </div>
-    )
-  }
+  if (items.length === 0 && !composing) return null
 
   return (
-    <div className="border-b border-hair bg-soft/30 px-3.5 py-2">
-      <div className="flex items-center gap-2 px-1 pb-0.5">
-        <MessageSquare size={13} className="text-muted" aria-hidden />
-        <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
-        {items.length > 0 && <span className="text-[11px] font-semibold text-muted tabular-nums">{items.length}</span>}
-        <span className="flex-1" />
-        {!composing && (
-          <button
-            type="button"
-            onClick={() => setComposing(true)}
-            className="inline-flex items-center gap-1 rounded-ctrl px-2 py-0.5 text-[11.5px] font-medium text-muted hover:bg-soft hover:text-ink"
-          >
-            <Plus size={12} aria-hidden />
-            Add
-          </button>
-        )}
-      </div>
+    <div className="shrink-0 border-b border-hair px-3.5 pt-2 pb-1">
+      {items.length > 0 && (
+        <div className="flex items-center gap-2 px-1 pb-0.5">
+          <MessageSquare size={13} className="text-muted" aria-hidden />
+          <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
+          <span className="text-[11px] font-semibold text-muted tabular-nums">{items.length}</span>
+        </div>
+      )}
       {items.map((comment) => (
         <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="my-1.5" />
       ))}
       {composing && (
-        <Composer
-          anchorLabel="whole file"
-          draftKey={`suikou-artifact:${draftScope}`}
-          pending={addComment.isPending}
-          className="my-1.5"
-          onSubmit={submit}
-          onCancel={() => setComposing(false)}
-        />
+        <div ref={composerRef}>
+          <Composer
+            anchorLabel="whole file"
+            draftKey={artifactDraftKey(draftScope)}
+            pending={addComment.isPending}
+            className="my-1.5"
+            onSubmit={submit}
+            onCancel={onClose}
+          />
+        </div>
       )}
     </div>
   )
@@ -1112,14 +1115,17 @@ function Editor({
   )
   const [htmlZoom, setHtmlZoom] = useState(() => readHtmlZoom())
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
+  const [artifactComposing, setArtifactComposing] = useState(false)
 
   // Every renderable file opens in the reader's remembered Source-vs-rendered
   // choice; a plain file has only Source. html resets its sub-mode to Comment
-  // (zoom is kept across files). Re-runs when the selected file changes.
+  // (zoom is kept across files). A file-comment composer left open with unsaved
+  // text reopens on reload, like a line composer. Re-runs when the file changes.
   useEffect(() => {
     const pref = readDocView()
     setView(previewable ? (pref === "source" ? "source" : "preview") : "source")
     setHtmlMode(pref === "source" ? "source" : "comment")
+    setArtifactComposing(entry ? hasArtifactDraftBody(`${reviewId}:${entry.path}`) : false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry])
 
@@ -1314,34 +1320,20 @@ function Editor({
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
+        {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+          <button
+            type="button"
+            onClick={() => setArtifactComposing(true)}
+            title="Comment on this file"
+            aria-label="Comment on this file"
+            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          >
+            <MessageSquarePlus size={16} aria-hidden />
+          </button>
+        )}
         {entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
       </div>
-      {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
-        <ArtifactComments
-          comments={comments}
-          fileProxy={fileProxy}
-          commentsProxy={commentsProxy}
-          draftScope={`${reviewId}:${entry.path}`}
-        />
-      )}
-      {!entry ? (
-        <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
-      ) : content.kind === "loading" ? (
-        <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
-      ) : content.kind === "error" ? (
-        <div className="grid flex-1 place-items-center text-[13px] text-request">{content.message}</div>
-      ) : content.kind === "image" ? (
-        <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
-      ) : content.kind === "binary" ? (
-        <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
-      ) : content.lines.length === 1 && content.lines[0] === "" ? (
-        <FileNotice
-          icon={File}
-          title="This file is empty"
-          body="There's nothing to show or comment on in this file yet."
-          meta={name}
-        />
-      ) : htmlFile && htmlMode !== "source" ? (
+      {entry && htmlFile && htmlMode !== "source" && content.kind === "text" ? (
         <HtmlView
           key={entry.path}
           source={content.lines.join("\n")}
@@ -1353,23 +1345,54 @@ function Editor({
           commentsProxy={commentsProxy}
           draftScope={`${reviewId}:${entry.path}`}
         />
-      ) : previewable && view === "preview" ? (
-        <MarkdownPreview
-          source={content.lines.join("\n")}
-          comments={comments}
-          fileProxy={fileProxy}
-          commentsProxy={commentsProxy}
-          draftScope={`${reviewId}:${entry.path}`}
-        />
       ) : (
-        <Source
-          lines={content.lines}
-          tokens={content.tokens}
-          comments={comments}
-          fileProxy={fileProxy}
-          commentsProxy={commentsProxy}
-          draftScope={`${reviewId}:${entry.path}`}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+          {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+            <ArtifactComments
+              comments={comments}
+              fileProxy={fileProxy}
+              commentsProxy={commentsProxy}
+              draftScope={`${reviewId}:${entry.path}`}
+              composing={artifactComposing}
+              onClose={() => setArtifactComposing(false)}
+            />
+          )}
+          {!entry ? (
+            <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
+          ) : content.kind === "loading" ? (
+            <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
+          ) : content.kind === "error" ? (
+            <div className="grid flex-1 place-items-center text-[13px] text-request">{content.message}</div>
+          ) : content.kind === "image" ? (
+            <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
+          ) : content.kind === "binary" ? (
+            <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
+          ) : content.lines.length === 1 && content.lines[0] === "" ? (
+            <FileNotice
+              icon={File}
+              title="This file is empty"
+              body="There's nothing to show or comment on in this file yet."
+              meta={name}
+            />
+          ) : previewable && view === "preview" ? (
+            <MarkdownPreview
+              source={content.lines.join("\n")}
+              comments={comments}
+              fileProxy={fileProxy}
+              commentsProxy={commentsProxy}
+              draftScope={`${reviewId}:${entry.path}`}
+            />
+          ) : (
+            <Source
+              lines={content.lines}
+              tokens={content.tokens}
+              comments={comments}
+              fileProxy={fileProxy}
+              commentsProxy={commentsProxy}
+              draftScope={`${reviewId}:${entry.path}`}
+            />
+          )}
+        </div>
       )}
     </div>
   )
@@ -1524,7 +1547,7 @@ const MarkdownPreview = observer(function MarkdownPreview({
   const dragHi = drag ? Math.max(drag.from, drag.to) : -1
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="shrink-0">
       <div className="md-doc py-4">
         {blocks.map((block, index) => {
           const threads = threadsByBlock.get(index)
@@ -2189,7 +2212,7 @@ const Source = observer(function Source({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-auto py-1 font-mono leading-[1.55]"
+      className="shrink-0 py-1 font-mono leading-[1.55]"
       style={{ fontSize: MONO_PX[uiStore.monoSize] }}
     >
       {rows.map((lineTokens, index) => {
