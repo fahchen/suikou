@@ -6,7 +6,7 @@ import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { Segmented } from "../components/ui/segmented"
 import { Select } from "../components/ui/select"
 import { Switch } from "../components/ui/switch"
-import { uiStore, type Density, type MonoSize } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type Density, type MonoSize } from "../stores/ui-store"
 import { THEME_CODE, THEME_LABELS, THEMES, type ThemeName } from "../themes"
 
 const THEME_GROUPS = [
@@ -148,18 +148,24 @@ const AppearancePane = observer(function AppearancePane() {
   )
 })
 
-function ReviewDefaultsPane() {
+const ReviewDefaultsPane = observer(function ReviewDefaultsPane() {
   return (
     <div className="flex flex-col gap-6">
       <PaneHead title="Review defaults" lede="How new reviews open until you change them per review." />
-      <p className="text-[12.5px] text-muted">
-        {/* ponytail: review-default settings need their own ui-store state and a
-            consumer in the review surface, which is rebuilt in a later pass. */}
-        Review defaults arrive with the review surface rebuild.
-      </p>
+      <Row title="Comments" sub="Default placement for review comments on desktop. Mobile stays inline.">
+        <Segmented<CommentDisplayMode>
+          value={uiStore.commentDisplay}
+          onChange={(v) => uiStore.setCommentDisplay(v)}
+          options={[
+            ["inline", "Inline"],
+            ["side", "Side"],
+            ["hidden", "Hidden"],
+          ]}
+        />
+      </Row>
     </div>
   )
-}
+})
 
 function KeyboardPane() {
   const keys: [string, string][] = [
@@ -226,4 +232,3 @@ function Row({ title, sub, children }: { title: string; sub: string; children: R
     </div>
   )
 }
-

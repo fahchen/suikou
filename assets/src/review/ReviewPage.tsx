@@ -7,7 +7,7 @@ import type { ThemedToken } from "shiki"
 import { AlertTriangle, ArrowRight, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Code2, CornerDownRight, File, FileText, Folder, GitCompare, GitCompareArrows, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
-import { uiStore, type MonoSize } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type MonoSize } from "../stores/ui-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,7 +150,7 @@ export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string
   return <Shell store={root.store} reviewId={reviewId} file={file} />
 }
 
-function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
+const Shell = observer(function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
   const load = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
   const snap = useMusubiSnapshot(store)
@@ -190,8 +190,10 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   )
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
+  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
 
   const isDiff = structure?.kind === "diff"
+  const commentDisplay = uiStore.commentDisplay
   // The open file lives in the URL (`?file=`), so a reload lands back on it. When
   // the param is absent (opened from the board) or stale, fall back to the file
   // last viewed in this review, then to the first file.
@@ -256,6 +258,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
     [review],
   )
   const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
+  const focusedComment = comments.find((comment) => comment.id === focusedCommentId) ?? null
 
   // Multi-round: a past round is read-only — you can read its published threads
   // but new comments and verdicts only land on the latest round.
@@ -309,7 +312,11 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
         compareOpen={compareOpen}
         onToggleCompare={() => setCompareOpen((open) => !open)}
       />
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr]">
+      <div
+        className={`grid min-h-0 flex-1 grid-cols-1 ${
+          commentDisplay === "side" ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
+        }`}
+      >
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
           <NavHeader entries={entries} reviewed={review.reviewed} />
           <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
@@ -324,10 +331,26 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           readOnly={readOnly}
           selectedRound={selectedRound}
           compare={compareOpen ? compare : null}
+          commentDisplay={commentDisplay}
+          focusedComment={focusedComment}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
+        {commentDisplay === "side" && (
+          <SideRail
+            comments={comments}
+            focusedId={focusedCommentId}
+            onFocus={(comment) => setFocusedCommentId(comment.id)}
+          />
+        )}
       </div>
-      <StatusBar path={selectedPath} connected={connected} blockers={review.blockers.length} round={selectedRound} readOnly={readOnly} />
+      <StatusBar
+        path={selectedPath}
+        connected={connected}
+        blockers={review.blockers.length}
+        round={selectedRound}
+        readOnly={readOnly}
+        commentDisplay={commentDisplay}
+      />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
@@ -344,7 +367,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
       <SettingsModal />
     </div>
   )
-}
+})
 
 type RoundSummary = { number: number; comment_count: number; unresolved_count: number }
 
@@ -1226,6 +1249,8 @@ function Editor({
   readOnly,
   selectedRound,
   compare,
+  commentDisplay,
+  focusedComment,
   onOpenFiles,
 }: {
   reviewId: string
@@ -1237,6 +1262,8 @@ function Editor({
   readOnly: boolean
   selectedRound: number
   compare: RoundCompare | null
+  commentDisplay: CommentDisplayMode
+  focusedComment: Comment | null
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -1493,7 +1520,7 @@ function Editor({
         />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+          {commentDisplay === "inline" && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
             <ArtifactComments
               comments={comments}
               fileProxy={fileProxy}
@@ -1528,6 +1555,8 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
+              showThreads={commentDisplay === "inline"}
+              focusedComment={focusedComment}
             />
           ) : (
             <Source
@@ -1538,6 +1567,8 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
+              showThreads={commentDisplay === "inline"}
+              focusedComment={focusedComment}
             />
           )}
         </div>
@@ -1607,6 +1638,8 @@ const MarkdownPreview = observer(function MarkdownPreview({
   commentsProxy,
   draftScope,
   readOnly = false,
+  showThreads = true,
+  focusedComment = null,
 }: {
   source: string
   comments: Comment[]
@@ -1614,6 +1647,8 @@ const MarkdownPreview = observer(function MarkdownPreview({
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
   readOnly?: boolean
+  showThreads?: boolean
+  focusedComment?: Comment | null
 }) {
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   // Match the source view's gutter: a narrow left column sized to the digit
@@ -1758,12 +1793,16 @@ const MarkdownPreview = observer(function MarkdownPreview({
           const inDrag = drag !== null && index >= dragLo && index <= dragHi
           const inDraft = draft !== null && block.line >= draft.start && block.endLine <= draft.end
           const selecting = inDrag || inDraft
+          const focused =
+            focusedComment?.anchor?.type === "line_range" &&
+            focusedComment.anchor.start_line >= block.line &&
+            focusedComment.anchor.start_line <= block.endLine
           // The composer renders once, after the last block of the committed span.
           const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
           const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
           return (
             <Fragment key={index}>
-              <div className={`flex ${anchored || selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+              <div className={`flex ${anchored || selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 <button
                   type="button"
                   data-review-block={index}
@@ -1777,7 +1816,7 @@ const MarkdownPreview = observer(function MarkdownPreview({
                   style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
                   title="Comment on this block — drag or shift-click for a range"
                   className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
-                    anchored || selecting ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+                    anchored || selecting || focused ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
                   }`}
                 >
                   <span data-review-line={block.line} className="group-hover/gut:opacity-0">
@@ -1806,7 +1845,7 @@ const MarkdownPreview = observer(function MarkdownPreview({
                   onCancel={close}
                 />
               )}
-              {threads?.map((comment) => (
+              {showThreads && threads?.map((comment) => (
                 <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
               ))}
             </Fragment>
@@ -2275,6 +2314,8 @@ const Source = observer(function Source({
   commentsProxy,
   draftScope,
   readOnly = false,
+  showThreads = true,
+  focusedComment = null,
 }: {
   lines: string[]
   tokens: ThemedToken[][] | null
@@ -2283,6 +2324,8 @@ const Source = observer(function Source({
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
   readOnly?: boolean
+  showThreads?: boolean
+  focusedComment?: Comment | null
 }) {
   const rows = tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])
   const count = rows.length
@@ -2425,11 +2468,15 @@ const Source = observer(function Source({
         const anchored = anchoredLines.has(lineNo)
         const active = drag ? { start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) } : draft
         const selecting = active && lineNo >= active.start && lineNo <= active.end
+        const focused =
+          focusedComment?.anchor?.type === "line_range" &&
+          lineNo >= focusedComment.anchor.start_line &&
+          lineNo <= focusedComment.anchor.end_line
         return (
           <Fragment key={index}>
             <div
               data-review-line={lineNo}
-              className={`flex scroll-mt-2 ${anchored || selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}
+              className={`flex scroll-mt-2 ${anchored || selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}
             >
               <button
                 type="button"
@@ -2443,7 +2490,7 @@ const Source = observer(function Source({
                 style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
                 title="Comment on this line — drag or shift-click for a range"
                 className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
-                  anchored || selecting
+                  anchored || selecting || focused
                     ? "bg-accent-soft font-semibold text-accent-bright"
                     : "bg-editor text-faint hover:text-accent-bright"
                 }`}
@@ -2477,7 +2524,7 @@ const Source = observer(function Source({
                 onCancel={close}
               />
             )}
-            {threads?.map((comment) => (
+            {showThreads && threads?.map((comment) => (
               <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
             ))}
           </Fragment>
@@ -3072,18 +3119,161 @@ function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "w
   )
 }
 
+function SideRail({
+  comments,
+  focusedId,
+  onFocus,
+}: {
+  comments: Comment[]
+  focusedId: string | null
+  onFocus: (comment: Comment) => void
+}) {
+  const [dense, setDense] = useState(false)
+  const items = useMemo(
+    () =>
+      comments
+        .filter((comment) => comment.scope === "artifact" || comment.scope === "located")
+        .sort((a, b) => commentSortKey(a) - commentSortKey(b)),
+    [comments],
+  )
+
+  return (
+    <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
+      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
+        <MessageSquare size={15} className="text-muted" aria-hidden />
+        <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Comments</h3>
+        <span className="rounded-full bg-soft px-2 py-0.5 text-[10.5px] font-bold text-muted tabular-nums">
+          {items.length}
+        </span>
+        <span className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setDense((value) => !value)}
+          title={dense ? "Show comment previews" : "Collapse cards"}
+          className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+        >
+          <PanelLeft size={14} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => uiStore.setCommentDisplay("inline")}
+          title="Switch to inline comments"
+          className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+        >
+          <MessageSquarePlus size={14} aria-hidden />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-2">
+        {items.length === 0 ? (
+          <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">
+            No comments on this file.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {items.map((comment) => (
+              <SideCommentCard
+                key={comment.id}
+                comment={comment}
+                dense={dense && focusedId !== comment.id}
+                focused={focusedId === comment.id}
+                onFocus={() => {
+                  onFocus(comment)
+                  scrollToCommentAnchor(comment)
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+function SideCommentCard({
+  comment,
+  dense,
+  focused,
+  onFocus,
+}: {
+  comment: Comment
+  dense: boolean
+  focused: boolean
+  onFocus: () => void
+}) {
+  const meta = TYPE_META[comment.critique_type]
+  const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
+  const label = comment.scope === "artifact" ? "File" : line ? `L${line}` : comment.anchor?.type === "element" ? "Element" : "Anchor"
+  const latestReply = comment.replies[comment.replies.length - 1]
+
+  return (
+    <button
+      type="button"
+      onClick={onFocus}
+      className={`w-full overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
+        focused ? "ring-accent-edge" : ""
+      } ${comment.resolved ? "opacity-65" : ""}`}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
+          <meta.Icon size={11} aria-hidden />
+          {dense ? meta.label.replace("_REQUIRED", "").replace("NEEDS_", "") : meta.label}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{dense ? comment.body : label}</span>
+        <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
+      </div>
+      {!dense && (
+        <>
+          <p
+            className={`mt-2 text-[12px] leading-[1.45] text-ink ${focused ? "" : "line-clamp-3"}`}
+          >
+            {comment.body}
+          </p>
+          {latestReply && (
+            <p className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
+              {latestReply.body}
+            </p>
+          )}
+          <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
+            {comment.status === "pending" && <span className="text-amber">Pending</span>}
+            {comment.resolved && <span className="text-approve">Resolved</span>}
+            {comment.replies.length > 0 && (
+              <span className="tabular-nums">{comment.replies.length} replies</span>
+            )}
+            {focused && <span className="ml-auto text-accent-bright">Focused</span>}
+          </div>
+        </>
+      )}
+    </button>
+  )
+}
+
+function commentSortKey(comment: Comment): number {
+  if (comment.scope === "artifact") return 0
+  if (comment.anchor?.type === "line_range") return comment.anchor.start_line
+  return 1_000_000
+}
+
+function scrollToCommentAnchor(comment: Comment) {
+  if (comment.anchor?.type !== "line_range") return
+  document
+    .querySelector(`[data-review-line="${comment.anchor.start_line}"]`)
+    ?.scrollIntoView({ block: "center", behavior: "smooth" })
+}
+
 function StatusBar({
   path,
   connected,
   blockers,
   round,
   readOnly,
+  commentDisplay,
 }: {
   path: string | null
   connected: boolean
   blockers: number
   round: number
   readOnly: boolean
+  commentDisplay: CommentDisplayMode
 }) {
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2.5 border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
@@ -3091,6 +3281,12 @@ function StatusBar({
       <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
       <span>Round {round}</span>
       {readOnly && <span className="font-semibold text-muted">· read-only</span>}
+      {commentDisplay !== "inline" && (
+        <>
+          <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
+          <span>{commentDisplay === "side" ? "side rail" : "comments hidden"}</span>
+        </>
+      )}
       {blockers > 0 && (
         <>
           <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
