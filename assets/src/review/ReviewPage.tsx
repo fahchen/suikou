@@ -662,36 +662,25 @@ const VERDICT_CHIP: Record<
   comment: { icon: MessageSquare, className: "bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]" },
 }
 
-/** G1 per-file verdict chip + G2 file note + G6 dismiss approval. Shows the
- * file's effective verdict (unsent draft if any, else the last published one; an
- * amber dot marks an unsubmitted draft) and opens a panel to pick a verdict and
- * attach an artifact-scope note. An approved file can have its approval dismissed
- * to reopen it. `set_draft_verdict` takes no note, so the note is a separate
- * artifact comment via `add_comment`. */
+/** G1 per-file verdict chip + G6 dismiss approval. Shows the file's effective
+ * verdict (unsent draft if any, else the last published one; an amber dot marks
+ * an unsubmitted draft) and opens a panel to pick one. Verdicts carry no text —
+ * file-level discussion is a separate artifact comment (see ArtifactComments).
+ * An approved file can have its approval dismissed to reopen it. */
 function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) {
   const setVerdict = useMusubiCommand(proxy, "set_draft_verdict")
   const dismiss = useMusubiCommand(proxy, "dismiss_approval")
-  const addComment = useMusubiCommand(proxy, "add_comment")
   const [open, setOpen] = useState(false)
-  const [note, setNote] = useState("")
   const effective = file.draftVerdict ?? file.latestVerdict
   const chip = effective ? VERDICT_CHIP[effective] : null
   const Icon = chip?.icon ?? Circle
-
-  const addNote = () => {
-    const body = note.trim()
-    if (!body) return
-    void addComment
-      .dispatch({ scope: "artifact", critique_type: "note", body, anchor: null })
-      .then(() => setNote(""))
-  }
 
   return (
     <Popover
       open={open}
       onOpenChange={setOpen}
       align="end"
-      className="w-[264px] p-2"
+      className="w-[220px] p-2"
       render={
         <button
           type="button"
@@ -730,32 +719,6 @@ function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) 
           )
         })}
       </div>
-      <div className="my-1.5 h-px bg-hair-strong" />
-      <div className="px-1 pb-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">Note</div>
-      <textarea
-        value={note}
-        onChange={(event) => setNote(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            addNote()
-          }
-        }}
-        rows={2}
-        placeholder="Add a note for this file…"
-        className="block max-h-[160px] min-h-[52px] w-full resize-none rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
-      />
-      <div className="mt-1.5 flex justify-end">
-        <button
-          type="button"
-          disabled={!note.trim() || addComment.isPending}
-          onClick={addNote}
-          className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
-        >
-          Add note
-          <span className="text-[11px] opacity-80">⌘⏎</span>
-        </button>
-      </div>
       {file.approved && (
         <>
           <div className="my-1.5 h-px bg-hair-strong" />
@@ -770,6 +733,79 @@ function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) 
         </>
       )}
     </Popover>
+  )
+}
+
+/** E2 artifact-scope comments: file-level discussion not tied to a line, shown
+ * as a band above the content. Independent of the verdict — a file can carry any
+ * number of these. Reuses the Thread + Composer used by line comments. */
+function ArtifactComments({
+  comments,
+  fileProxy,
+  commentsProxy,
+  draftScope,
+}: {
+  comments: Comment[]
+  fileProxy: FileStoreProxy
+  commentsProxy: CommentsStoreProxy | null
+  draftScope: string
+}) {
+  const addComment = useMusubiCommand(fileProxy, "add_comment")
+  const [composing, setComposing] = useState(false)
+  const items = comments.filter((c) => c.scope === "artifact")
+
+  const submit = (body: string, type: CritiqueType) => {
+    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).catch(() => undefined)
+    setComposing(false)
+  }
+
+  if (items.length === 0 && !composing) {
+    return (
+      <div className="border-b border-hair px-3.5 py-1.5">
+        <button
+          type="button"
+          onClick={() => setComposing(true)}
+          className="inline-flex items-center gap-1.5 rounded-ctrl px-2 py-1 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
+        >
+          <MessageSquare size={13} aria-hidden />
+          Comment on this file
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-b border-hair bg-soft/30 px-3.5 py-2">
+      <div className="flex items-center gap-2 px-1 pb-0.5">
+        <MessageSquare size={13} className="text-muted" aria-hidden />
+        <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
+        {items.length > 0 && <span className="text-[11px] font-semibold text-muted tabular-nums">{items.length}</span>}
+        <span className="flex-1" />
+        {!composing && (
+          <button
+            type="button"
+            onClick={() => setComposing(true)}
+            className="inline-flex items-center gap-1 rounded-ctrl px-2 py-0.5 text-[11.5px] font-medium text-muted hover:bg-soft hover:text-ink"
+          >
+            <Plus size={12} aria-hidden />
+            Add
+          </button>
+        )}
+      </div>
+      {items.map((comment) => (
+        <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="my-1.5" />
+      ))}
+      {composing && (
+        <Composer
+          anchorLabel="whole file"
+          draftKey={`suikou-artifact:${draftScope}`}
+          pending={addComment.isPending}
+          className="my-1.5"
+          onSubmit={submit}
+          onCancel={() => setComposing(false)}
+        />
+      )}
+    </div>
   )
 }
 
@@ -1280,6 +1316,14 @@ function Editor({
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
         {entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
       </div>
+      {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+        <ArtifactComments
+          comments={comments}
+          fileProxy={fileProxy}
+          commentsProxy={commentsProxy}
+          draftScope={`${reviewId}:${entry.path}`}
+        />
+      )}
       {!entry ? (
         <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
       ) : content.kind === "loading" ? (
