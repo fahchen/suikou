@@ -381,7 +381,13 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
           open={popoverOpen}
           onOpenChange={setPopoverOpen}
           className="w-[290px] p-[7px]"
-          render={<SubmitTrigger />}
+          render={
+            <button type="button" className={SUBMIT_BTN}>
+              <Upload size={14} aria-hidden />
+              Submit
+              <ChevronDown size={12} className="opacity-80" aria-hidden />
+            </button>
+          }
         >
           <SubmitPanel
             review={review}
@@ -392,8 +398,10 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
           />
         </Popover>
       </div>
-      <button type="button" onClick={() => setSheetOpen(true)} className="lg:hidden">
-        <SubmitTrigger />
+      <button type="button" onClick={() => setSheetOpen(true)} className={`lg:hidden ${SUBMIT_BTN}`}>
+        <Upload size={14} aria-hidden />
+        Submit
+        <ChevronDown size={12} className="opacity-80" aria-hidden />
       </button>
       <Dialog
         open={sheetOpen}
@@ -430,15 +438,8 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
   )
 }
 
-function SubmitTrigger() {
-  return (
-    <span className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px">
-      <Upload size={14} aria-hidden />
-      Submit
-      <ChevronDown size={12} className="opacity-80" aria-hidden />
-    </span>
-  )
-}
+const SUBMIT_BTN =
+  "inline-flex h-[30px] items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
 
 function SubmitPanel({
   review,
@@ -630,13 +631,38 @@ function verdictSoft(verdict: Verdict): string {
       : "bg-accent-soft"
 }
 
+/** Copy text to the clipboard. `navigator.clipboard` only exists in a secure
+ * context (https or localhost), so over plain http on a LAN/Tailscale host it is
+ * undefined — fall back to a hidden textarea + execCommand there. */
+function copyText(text: string): void {
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
+  } else {
+    execCommandCopy(text)
+  }
+}
+
+function execCommandCopy(text: string): void {
+  const area = document.createElement("textarea")
+  area.value = text
+  area.style.position = "fixed"
+  area.style.opacity = "0"
+  document.body.appendChild(area)
+  area.select()
+  try {
+    document.execCommand("copy")
+  } finally {
+    document.body.removeChild(area)
+  }
+}
+
 /** G7: copy the round's comments to the clipboard as markdown, either the
  * noteworthy subset (fix_required + needs_answer) or all of them. */
 function CopyMenu({ store }: { store: ReviewStore }) {
   const snap = useMusubiSnapshot(store)
   const copy = (filter: "noteworthy" | "all") => {
     const files = snap?.body?.files ?? []
-    void navigator.clipboard.writeText(commentsToMarkdown(files, filter))
+    copyText(commentsToMarkdown(files, filter))
   }
   return (
     <DropdownMenu>
@@ -958,8 +984,7 @@ function FileRow({
   // Prefer the live view (draft verdict, streamed blockers) so the row's ✓ and
   // blocker badge update immediately, falling back to the static entry.
   const blockers = live?.openBlockers ?? 0
-  const approved = live?.approved ?? entry.approved
-  const reviewed = (live ? (live.draftVerdict ?? live.latestVerdict) : entry.verdict) !== null
+  const verdict = (live ? (live.draftVerdict ?? live.latestVerdict) : entry.verdict) as Verdict | null
   return (
     <button
       type="button"
@@ -990,10 +1015,12 @@ function FileRow({
         >
           {blockers}
         </span>
-      ) : approved ? (
-        <Circle size={7} className="shrink-0 fill-approve text-approve" aria-hidden />
-      ) : reviewed ? (
-        <Check size={13} className="shrink-0 text-approve" aria-hidden />
+      ) : verdict === "approve" ? (
+        <Check size={13} className="shrink-0 text-approve" aria-label="Approved" />
+      ) : verdict === "request_changes" ? (
+        <X size={13} className="shrink-0 text-request" aria-label="Request changes" />
+      ) : verdict === "comment" ? (
+        <MessageSquare size={12} className="shrink-0 text-muted" aria-label="Comment" />
       ) : null}
     </button>
   )
