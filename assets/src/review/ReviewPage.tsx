@@ -36,6 +36,8 @@ type CritiqueType = "fix_required" | "needs_answer" | "note"
 type Verdict = "approve" | "request_changes" | "comment"
 type Range = { start: number; end: number }
 type BodyFile = ReviewSnapshot["body"]["files"][number]
+type HighlightRange = Range | null
+type RailGroup = { key: string; line: number | null; comments: Comment[] }
 
 const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
   approve: { label: "Approve", short: "Approved" },
@@ -51,6 +53,11 @@ function isOpenBlocker(comment: Comment): boolean {
 
 const anchorLine = (comment: Comment): number | null =>
   comment.anchor && comment.anchor.type !== "element" ? comment.anchor.start_line : null
+
+const commentRange = (comment: Comment | null): HighlightRange =>
+  comment?.anchor?.type === "line_range"
+    ? { start: comment.anchor.start_line, end: comment.anchor.end_line }
+    : null
 
 /** The review-level verdict rolled up from each file's effective verdict (its
  * unpublished draft if set, else its last published verdict): any request wins,
@@ -205,6 +212,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
+  const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
 
   const isDiff = structure?.kind === "diff"
   const desktopLayout = useDesktopLayout()
@@ -274,6 +282,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   )
   const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
   const focusedComment = comments.find((comment) => comment.id === focusedCommentId) ?? null
+  const highlightedRange = hoveredRange ?? commentRange(focusedComment)
 
   // Multi-round: a past round is read-only — you can read its published threads
   // but new comments and verdicts only land on the latest round.
@@ -348,14 +357,18 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           selectedRound={selectedRound}
           compare={compareOpen ? compare : null}
           commentDisplay={commentDisplay}
-          focusedComment={focusedComment}
+          focusedCommentId={focusedCommentId}
+          highlightedRange={highlightedRange}
+          onFocusComment={setFocusedCommentId}
+          onClearFocus={() => setFocusedCommentId(null)}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
         {commentDisplay === "side" && (
           <SideRail
             comments={comments}
             commentsProxy={commentsProxy}
-            focusedId={focusedCommentId}
+            onHoverRange={setHoveredRange}
+            onClearFocus={() => setFocusedCommentId(null)}
             onFocus={(comment) => setFocusedCommentId(comment.id)}
           />
         )}
@@ -1303,7 +1316,10 @@ function Editor({
   selectedRound,
   compare,
   commentDisplay,
-  focusedComment,
+  focusedCommentId,
+  highlightedRange,
+  onFocusComment,
+  onClearFocus,
   onOpenFiles,
 }: {
   reviewId: string
@@ -1316,7 +1332,10 @@ function Editor({
   selectedRound: number
   compare: RoundCompare | null
   commentDisplay: CommentDisplayMode
-  focusedComment: Comment | null
+  focusedCommentId: string | null
+  highlightedRange: HighlightRange
+  onFocusComment: (commentId: string | null) => void
+  onClearFocus: () => void
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -1574,7 +1593,14 @@ function Editor({
           draftScope={`${reviewId}:${entry.path}`}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto" data-review-scroll>
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-auto"
+          data-review-scroll
+          onPointerDownCapture={(event) => {
+            if ((event.target as Element).closest("[data-thread-card]")) return
+            onClearFocus()
+          }}
+        >
           {commentDisplay === "inline" && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
             <ArtifactComments
               comments={comments}
@@ -1611,7 +1637,9 @@ function Editor({
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
               showThreads={commentDisplay === "inline"}
-              focusedComment={focusedComment}
+              focusedCommentId={focusedCommentId}
+              highlightedRange={highlightedRange}
+              onFocusComment={onFocusComment}
             />
           ) : (
             <Source
@@ -1623,7 +1651,9 @@ function Editor({
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
               showThreads={commentDisplay === "inline"}
-              focusedComment={focusedComment}
+              focusedCommentId={focusedCommentId}
+              highlightedRange={highlightedRange}
+              onFocusComment={onFocusComment}
             />
           )}
         </div>
@@ -1694,7 +1724,9 @@ const MarkdownPreview = observer(function MarkdownPreview({
   draftScope,
   readOnly = false,
   showThreads = true,
-  focusedComment = null,
+  focusedCommentId = null,
+  highlightedRange = null,
+  onFocusComment,
 }: {
   source: string
   comments: Comment[]
@@ -1703,7 +1735,9 @@ const MarkdownPreview = observer(function MarkdownPreview({
   draftScope: string
   readOnly?: boolean
   showThreads?: boolean
-  focusedComment?: Comment | null
+  focusedCommentId?: string | null
+  highlightedRange?: HighlightRange
+  onFocusComment?: (commentId: string | null) => void
 }) {
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   // Match the source view's gutter: a narrow left column sized to the digit
@@ -1714,9 +1748,8 @@ const MarkdownPreview = observer(function MarkdownPreview({
   // Bucket each located comment to the block it belongs to: the block whose
   // source range contains the anchor's start line, else the last block that
   // begins at or before it (a comment can predate a re-rendered doc's blocks).
-  const { threadsByBlock, anchoredBlocks } = useMemo(() => {
+  const threadsByBlock = useMemo(() => {
     const map = new Map<number, Comment[]>()
-    const anchored = new Set<number>()
     for (const comment of comments) {
       if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
       const start = comment.anchor.start_line
@@ -1725,12 +1758,11 @@ const MarkdownPreview = observer(function MarkdownPreview({
         idx = 0
         for (let i = 0; i < blocks.length; i++) if (blocks[i].line <= start) idx = i
       }
-      anchored.add(idx)
       const bucket = map.get(idx)
       if (bucket) bucket.push(comment)
       else map.set(idx, [comment])
     }
-    return { threadsByBlock: map, anchoredBlocks: anchored }
+    return map
   }, [comments, blocks])
 
   const [draft, setDraft] = useState<Range | null>(null)
@@ -1842,22 +1874,21 @@ const MarkdownPreview = observer(function MarkdownPreview({
       <div className="md-doc py-4">
         {blocks.map((block, index) => {
           const threads = threadsByBlock.get(index)
-          const anchored = anchoredBlocks.has(index)
           // A block is highlighted while it's in the live drag, or (once a range
           // is committed) while it falls within the open composer's line span.
           const inDrag = drag !== null && index >= dragLo && index <= dragHi
           const inDraft = draft !== null && block.line >= draft.start && block.endLine <= draft.end
           const selecting = inDrag || inDraft
           const focused =
-            focusedComment?.anchor?.type === "line_range" &&
-            focusedComment.anchor.start_line >= block.line &&
-            focusedComment.anchor.start_line <= block.endLine
+            highlightedRange !== null &&
+            highlightedRange.start >= block.line &&
+            highlightedRange.start <= block.endLine
           // The composer renders once, after the last block of the committed span.
           const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
           const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
           return (
             <Fragment key={index}>
-              <div className={`flex ${anchored || selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+              <div className={`flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 <button
                   type="button"
                   data-review-block={index}
@@ -1871,7 +1902,7 @@ const MarkdownPreview = observer(function MarkdownPreview({
                   style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
                   title="Comment on this block — drag or shift-click for a range"
                   className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
-                    anchored || selecting || focused ? "font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+                    selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
                   }`}
                 >
                   <span data-review-line={block.line} className="group-hover/gut:opacity-0">
@@ -1901,7 +1932,13 @@ const MarkdownPreview = observer(function MarkdownPreview({
                 />
               )}
               {showThreads && threads?.map((comment) => (
-                <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
+                <Thread
+                  key={comment.id}
+                  comment={comment}
+                  commentsProxy={commentsProxy}
+                  focused={focusedCommentId === comment.id}
+                  onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
+                />
               ))}
             </Fragment>
           )
@@ -2370,7 +2407,9 @@ const Source = observer(function Source({
   draftScope,
   readOnly = false,
   showThreads = true,
-  focusedComment = null,
+  focusedCommentId = null,
+  highlightedRange = null,
+  onFocusComment,
 }: {
   lines: string[]
   tokens: ThemedToken[][] | null
@@ -2380,7 +2419,9 @@ const Source = observer(function Source({
   draftScope: string
   readOnly?: boolean
   showThreads?: boolean
-  focusedComment?: Comment | null
+  focusedCommentId?: string | null
+  highlightedRange?: HighlightRange
+  onFocusComment?: (commentId: string | null) => void
 }) {
   const rows = tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])
   const count = rows.length
@@ -2396,20 +2437,18 @@ const Source = observer(function Source({
   // range); `anchoredLines` carries the full span so a multi-line range
   // highlights whole. Pending comments (the author's own unsent drafts) render
   // alongside published ones so they can be seen and edited before submit.
-  const { threadsByLine, anchoredLines } = useMemo(() => {
+  const threadsByLine = useMemo(() => {
     const map = new Map<number, Comment[]>()
-    const spanned = new Set<number>()
     const last = count || 1
     for (const comment of comments) {
       if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
       const start = Math.min(Math.max(comment.anchor.start_line, 1), last)
       const end = Math.min(Math.max(comment.anchor.end_line, start), last)
-      for (let line = start; line <= end; line++) spanned.add(line)
       const bucket = map.get(end)
       if (bucket) bucket.push(comment)
       else map.set(end, [comment])
     }
-    return { threadsByLine: map, anchoredLines: spanned }
+    return map
   }, [comments, count])
 
   // The line range whose new-comment composer is open (null = none). `drag` is
@@ -2520,18 +2559,17 @@ const Source = observer(function Source({
       {rows.map((lineTokens, index) => {
         const lineNo = index + 1
         const threads = threadsByLine.get(lineNo)
-        const anchored = anchoredLines.has(lineNo)
         const active = drag ? { start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) } : draft
         const selecting = active && lineNo >= active.start && lineNo <= active.end
         const focused =
-          focusedComment?.anchor?.type === "line_range" &&
-          lineNo >= focusedComment.anchor.start_line &&
-          lineNo <= focusedComment.anchor.end_line
+          highlightedRange !== null &&
+          lineNo >= highlightedRange.start &&
+          lineNo <= highlightedRange.end
         return (
           <Fragment key={index}>
             <div
               data-review-line={lineNo}
-              className={`flex scroll-mt-2 ${anchored || selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}
+              className={`flex scroll-mt-2 ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}
             >
               <button
                 type="button"
@@ -2545,7 +2583,7 @@ const Source = observer(function Source({
                 style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
                 title="Comment on this line — drag or shift-click for a range"
                 className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
-                  anchored || selecting || focused
+                  selecting || focused
                     ? "bg-accent-soft font-semibold text-accent-bright"
                     : "bg-editor text-faint hover:text-accent-bright"
                 }`}
@@ -2580,7 +2618,13 @@ const Source = observer(function Source({
               />
             )}
             {showThreads && threads?.map((comment) => (
-              <Thread key={comment.id} comment={comment} commentsProxy={commentsProxy} />
+              <Thread
+                key={comment.id}
+                comment={comment}
+                commentsProxy={commentsProxy}
+                focused={focusedCommentId === comment.id}
+                onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
+              />
             ))}
           </Fragment>
         )
@@ -2616,11 +2660,15 @@ function Thread({
   commentsProxy,
   className = "my-1.5 ml-14 mr-3.5",
   compact = false,
+  focused = false,
+  onFocus,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
   className?: string
   compact?: boolean
+  focused?: boolean
+  onFocus?: () => void
 }) {
   const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
@@ -2661,9 +2709,23 @@ function Thread({
 
   return (
     <div
+      data-thread-card={comment.id}
+      role={onFocus ? "button" : undefined}
+      tabIndex={onFocus ? 0 : undefined}
+      onClick={onFocus}
+      onKeyDown={
+        onFocus
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                onFocus()
+              }
+            }
+          : undefined
+      }
       className={`${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
-        comment.resolved ? "opacity-65" : ""
-      }`}
+        focused ? "ring-2 ring-accent-edge" : ""
+      } ${comment.resolved ? "opacity-65" : ""}`}
     >
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
         <span className={`inline-flex h-[19px] items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
@@ -2740,7 +2802,10 @@ function ThreadAction({ icon: Icon, label, onClick }: { icon: typeof Pencil; lab
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick()
+      }}
       className="inline-flex h-[26px] items-center gap-1.5 rounded-ctrl px-2 text-[11.5px] font-medium text-muted hover:bg-soft hover:text-ink"
     >
       <Icon size={13} aria-hidden />
@@ -3177,32 +3242,72 @@ function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "w
 function SideRail({
   comments,
   commentsProxy,
-  focusedId,
+  onHoverRange,
+  onClearFocus,
   onFocus,
 }: {
   comments: Comment[]
   commentsProxy: CommentsStoreProxy | null
-  focusedId: string | null
+  onHoverRange: (range: HighlightRange) => void
+  onClearFocus: () => void
   onFocus: (comment: Comment) => void
 }) {
-  const [oneLine, setOneLine] = useState(false)
   const railBodyRef = useRef<HTMLDivElement | null>(null)
-  const [cardTops, setCardTops] = useState<Map<string, number>>(() => new Map())
-  const items = useMemo(
-    () =>
-      comments
-        .filter((comment) => comment.scope === "artifact" || comment.scope === "located")
-        .sort((a, b) => commentSortKey(a) - commentSortKey(b)),
-    [comments],
-  )
-  const fallbackTopFor = (comment: Comment) => {
-    const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
+  const [groupTops, setGroupTops] = useState<Map<string, number>>(() => new Map())
+  const [hoveredGroupKey, setHoveredGroupKey] = useState<string | null>(null)
+  const [pinnedGroupKey, setPinnedGroupKey] = useState<string | null>(null)
+  const groups = useMemo<RailGroup[]>(() => {
+    const located = comments
+      .filter((comment) => comment.scope === "located" && comment.anchor?.type === "line_range")
+      .sort((a, b) => commentSortKey(a) - commentSortKey(b))
+    const artifacts = comments
+      .filter((comment) => comment.scope === "artifact")
+      .map((comment) => ({ key: `artifact:${comment.id}`, line: null, comments: [comment] }) satisfies RailGroup)
+    const groupedLocated: RailGroup[] = []
+
+    let current: { line: number; end: number; comments: Comment[] } | null = null
+    for (const comment of located) {
+      const anchor = comment.anchor
+      if (!anchor || anchor.type !== "line_range") continue
+      if (current && anchor.start_line <= current.end) {
+        current.comments.push(comment)
+        current.end = Math.max(current.end, anchor.end_line)
+        continue
+      }
+      if (current) {
+        groupedLocated.push({
+          key: `line:${current.line}`,
+          line: current.line,
+          comments: current.comments,
+        })
+      }
+      current = { line: anchor.start_line, end: anchor.end_line, comments: [comment] }
+    }
+    if (current) {
+      groupedLocated.push({
+        key: `line:${current.line}`,
+        line: current.line,
+        comments: current.comments,
+      })
+    }
+
+    return [...groupedLocated, ...artifacts]
+  }, [comments])
+  const fallbackTopFor = (group: RailGroup) => {
+    const line = group.line
     return line === null ? 8 : Math.max(8, (line - 1) * parseFloat(MONO_PX[uiStore.monoSize]) * 1.55 + 8)
   }
-  const heightFor = (comment: Comment) => {
-    if (oneLine && focusedId !== comment.id) return 46
-    if (focusedId === comment.id) return 280
-    return comment.replies.length > 0 ? 150 : 116
+  const groupExpanded = (group: RailGroup) => pinnedGroupKey === group.key
+  const groupPreviewing = (group: RailGroup) => hoveredGroupKey === group.key && pinnedGroupKey !== group.key
+  const clearTransientHover = () => {
+    if (pinnedGroupKey !== null) return
+    setHoveredGroupKey(null)
+    onHoverRange(null)
+  }
+  const heightForComment = (comment: Comment) => (comment.replies.length > 0 ? 150 : 116)
+  const heightForGroup = (group: RailGroup) => {
+    if (!groupExpanded(group)) return groupPreviewing(group) ? 64 : 38
+    return group.comments.reduce((sum, comment) => sum + heightForComment(comment), 0) + (group.comments.length - 1) * 8
   }
 
   useLayoutEffect(() => {
@@ -3211,73 +3316,63 @@ function SideRail({
 
     const measure = () => {
       const next = new Map<string, number>()
-      const locatedComments: Comment[] = []
-      const artifactComments: Comment[] = []
+      const locatedGroups = groups.filter((group) => group.line !== null)
+      const artifactGroups = groups.filter((group) => group.line === null)
 
-      for (const comment of items) {
-        const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
-        if (line === null) {
-          artifactComments.push(comment)
-        } else {
-          locatedComments.push(comment)
-        }
-      }
-
-      const rawTopFor = (comment: Comment) => {
-        const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
-        if (line === null) return fallbackTopFor(comment)
-        const lineEl = document.querySelector(`[data-review-line="${line}"]`) as HTMLElement | null
+      const rawTopFor = (group: RailGroup) => {
+        if (group.line === null) return fallbackTopFor(group)
+        const lineEl = document.querySelector(`[data-review-line="${group.line}"]`) as HTMLElement | null
         return (
           lineEl && editor
             ? lineEl.getBoundingClientRect().top - editor.getBoundingClientRect().top + editor.scrollTop
-            : fallbackTopFor(comment)
+            : fallbackTopFor(group)
         )
       }
-      const measuredHeightFor = (comment: Comment) => {
-        const card = document.querySelector(`[data-side-comment-id="${comment.id}"]`) as HTMLElement | null
-        return card?.getBoundingClientRect().height || heightFor(comment)
+      const measuredHeightFor = (group: RailGroup) => {
+        const box = document.querySelector(`[data-side-group-id="${group.key}"]`) as HTMLElement | null
+        return box?.getBoundingClientRect().height || heightForGroup(group)
       }
 
-      const focusedIndex = locatedComments.findIndex((comment) => comment.id === focusedId)
+      const focusedIndex = pinnedGroupKey ? locatedGroups.findIndex((group) => group.key === pinnedGroupKey) : -1
       if (focusedIndex >= 0) {
-        const focused = locatedComments[focusedIndex]
+        const focused = locatedGroups[focusedIndex]
         const focusedTop = Math.max(8, rawTopFor(focused))
-        next.set(focused.id, focusedTop)
+        next.set(focused.key, focusedTop)
 
         let beforeBottom = focusedTop - 8
         for (let index = focusedIndex - 1; index >= 0; index -= 1) {
-          const comment = locatedComments[index]
-          const height = measuredHeightFor(comment)
-          const top = Math.max(8, Math.min(rawTopFor(comment), beforeBottom - height))
-          next.set(comment.id, top)
+          const group = locatedGroups[index]
+          const height = measuredHeightFor(group)
+          const top = Math.max(8, Math.min(rawTopFor(group), beforeBottom - height))
+          next.set(group.key, top)
           beforeBottom = top - 8
         }
 
         let afterTop = focusedTop + measuredHeightFor(focused) + 8
-        for (let index = focusedIndex + 1; index < locatedComments.length; index += 1) {
-          const comment = locatedComments[index]
-          const top = Math.max(rawTopFor(comment), afterTop)
-          next.set(comment.id, top)
-          afterTop = top + measuredHeightFor(comment) + 8
+        for (let index = focusedIndex + 1; index < locatedGroups.length; index += 1) {
+          const group = locatedGroups[index]
+          const top = Math.max(rawTopFor(group), afterTop)
+          next.set(group.key, top)
+          afterTop = top + measuredHeightFor(group) + 8
         }
       } else {
         let nextLocatedTop = 8
-        for (const comment of locatedComments) {
-          const top = Math.max(8, rawTopFor(comment), nextLocatedTop)
-          next.set(comment.id, top)
-          nextLocatedTop = top + measuredHeightFor(comment) + 8
+        for (const group of locatedGroups) {
+          const top = Math.max(8, rawTopFor(group), nextLocatedTop)
+          next.set(group.key, top)
+          nextLocatedTop = top + measuredHeightFor(group) + 8
         }
       }
 
-      const locatedBottoms = locatedComments.map((comment) => (next.get(comment.id) ?? fallbackTopFor(comment)) + measuredHeightFor(comment))
+      const locatedBottoms = locatedGroups.map((group) => (next.get(group.key) ?? fallbackTopFor(group)) + measuredHeightFor(group))
       let nextArtifactTop = Math.max(8, locatedBottoms.length ? Math.max(...locatedBottoms) + 8 : 8)
-      for (const comment of artifactComments) {
-        next.set(comment.id, nextArtifactTop)
-        nextArtifactTop += measuredHeightFor(comment) + 8
+      for (const group of artifactGroups) {
+        next.set(group.key, nextArtifactTop)
+        nextArtifactTop += measuredHeightFor(group) + 8
       }
 
       if (rail && editor && rail.scrollTop !== editor.scrollTop) rail.scrollTop = editor.scrollTop
-      setCardTops(next)
+      setGroupTops(next)
     }
 
     measure()
@@ -3288,30 +3383,41 @@ function SideRail({
       window.removeEventListener("resize", measure)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, oneLine, focusedId, uiStore.monoSize])
+  }, [groups, hoveredGroupKey, pinnedGroupKey, uiStore.monoSize])
+
+  useEffect(() => {
+    if (pinnedGroupKey === null) return
+    const clearPinned = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const rail = railBodyRef.current
+      if (rail?.contains(target)) return
+      setPinnedGroupKey(null)
+      setHoveredGroupKey(null)
+      onHoverRange(null)
+      onClearFocus()
+    }
+    window.addEventListener("pointerdown", clearPinned)
+    return () => window.removeEventListener("pointerdown", clearPinned)
+  }, [onClearFocus, onHoverRange, pinnedGroupKey])
 
   const railHeight =
-    items.length === 0
+    groups.length === 0
       ? "100%"
-      : Math.max(...items.map((comment) => (cardTops.get(comment.id) ?? fallbackTopFor(comment)) + heightFor(comment))) + 8
+      : Math.max(...groups.map((group) => (groupTops.get(group.key) ?? fallbackTopFor(group)) + heightForGroup(group))) + 8
 
   return (
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
-      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
+      <div
+        className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3"
+        onPointerEnter={clearTransientHover}
+      >
         <MessageSquare size={15} className="text-muted" aria-hidden />
         <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Comments</h3>
         <span className="rounded-full bg-soft px-2 py-0.5 text-[10.5px] font-bold text-muted tabular-nums">
-          {items.length}
+          {comments.length}
         </span>
         <span className="flex-1" />
-        <button
-          type="button"
-          onClick={() => setOneLine((value) => !value)}
-          title={oneLine ? "Show comment previews" : "Collapse all to one line"}
-          className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-        >
-          <ListTree size={14} aria-hidden />
-        </button>
         <button
           type="button"
           onClick={() => uiStore.setCommentDisplay("inline")}
@@ -3321,26 +3427,64 @@ function SideRail({
           <MessageSquarePlus size={14} aria-hidden />
         </button>
       </div>
-      <div ref={railBodyRef} className="min-h-0 flex-1 overflow-auto p-2">
-        {items.length === 0 ? (
+      <div
+        ref={railBodyRef}
+        className="min-h-0 flex-1 overflow-auto p-2"
+        onPointerMove={(event) => {
+          if (pinnedGroupKey !== null) return
+          if ((event.target as Element).closest("[data-side-group-id]")) return
+          clearTransientHover()
+        }}
+      >
+        {groups.length === 0 ? (
           <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">
             No comments on this file.
           </div>
         ) : (
           <div className="relative min-h-full" style={{ minHeight: railHeight }}>
-            {items.map((comment) => (
-              <SideCommentCard
-                key={comment.id}
-                comment={comment}
-                commentsProxy={commentsProxy}
-                oneLine={oneLine && focusedId !== comment.id}
-                focused={focusedId === comment.id}
-                top={cardTops.get(comment.id) ?? fallbackTopFor(comment)}
-                onFocus={() => {
-                  onFocus(comment)
-                  scrollToCommentAnchor(comment)
+            {groups.map((group) => (
+              <div
+                key={group.key}
+                data-side-group-id={group.key}
+                style={{ top: groupTops.get(group.key) ?? fallbackTopFor(group) }}
+                className="absolute left-0 right-0"
+                onPointerEnter={() => {
+                  setHoveredGroupKey(group.key)
+                  if (!groupExpanded(group)) onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
                 }}
-              />
+                onPointerLeave={() => {
+                  if (pinnedGroupKey !== group.key) setHoveredGroupKey((current) => (current === group.key ? null : current))
+                  clearTransientHover()
+                }}
+              >
+                {!groupExpanded(group) ? (
+                  <SideGroupSummary
+                    group={group}
+                    preview={groupPreviewing(group)}
+                    onFocus={() => {
+                      const comment = group.comments[0]
+                      setPinnedGroupKey(group.key)
+                      setHoveredGroupKey(group.key)
+                      onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
+                      onFocus(comment)
+                      scrollToCommentAnchor(comment)
+                    }}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {group.comments.map((comment) => (
+                      <SideCommentCard
+                        key={comment.id}
+                        comment={comment}
+                        commentsProxy={commentsProxy}
+                        onHover={() => onHoverRange(commentRange(comment))}
+                        onLeave={() => onHoverRange(group.line === null ? null : { start: group.line, end: group.line })}
+                        onFocus={() => scrollToCommentAnchor(comment)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -3349,24 +3493,69 @@ function SideRail({
   )
 }
 
+function SideGroupSummary({
+  group,
+  preview,
+  onFocus,
+}: {
+  group: RailGroup
+  preview: boolean
+  onFocus: () => void
+}) {
+  const first = group.comments[0]
+  const line = group.line
+  const count = group.comments.length
+  const pendingCount = group.comments.filter((comment) => comment.status === "pending").length
+  const typeLabels = [...new Set(group.comments.map((comment) => TYPE_META[comment.critique_type].label.replace("_REQUIRED", "").replace("NEEDS_", "")))]
+
+  return (
+    <button
+      type="button"
+      onClick={onFocus}
+      className="w-full overflow-hidden rounded-panel bg-canvas px-3 py-2 text-left shadow-sm ring-1 ring-inset ring-hair-strong hover:ring-accent-edge"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-soft px-2 text-[10px] font-bold normal-case text-muted">
+          {count}
+        </span>
+        {pendingCount > 0 && (
+          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-amber-soft px-2 text-[10px] font-bold normal-case text-amber ring-1 ring-inset ring-amber-edge">
+            {pendingCount} pending
+          </span>
+        )}
+        {line !== null && <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">L{line}</span>}
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">{typeLabels.join(" / ")}</span>
+        <span className={`min-w-0 flex-1 text-[12px] leading-[1.45] text-ink ${preview ? "line-clamp-2 whitespace-normal" : "truncate"}`}>
+          {first.body}
+        </span>
+      </div>
+    </button>
+  )
+}
+
 function SideCommentCard({
   comment,
   commentsProxy,
-  oneLine,
-  focused,
-  top,
+  onHover,
+  onLeave,
   onFocus,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
-  oneLine: boolean
-  focused: boolean
-  top: number
+  onHover: () => void
+  onLeave: () => void
   onFocus: () => void
 }) {
   const meta = TYPE_META[comment.critique_type]
-  const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
-  const label = comment.scope === "artifact" ? "File" : line ? `L${line}` : comment.anchor?.type === "element" ? "Element" : "Anchor"
+  const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
+  const label =
+    comment.scope === "artifact"
+      ? "File"
+      : anchor
+        ? `L${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}`
+        : comment.anchor?.type === "element"
+          ? "Element"
+          : "Anchor"
   const latestReply = comment.replies[comment.replies.length - 1]
   const pending = comment.status === "pending"
   const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
@@ -3379,7 +3568,7 @@ function SideCommentCard({
 
   if (editing) {
     return (
-      <div data-side-comment-id={comment.id} style={{ top }} className="absolute left-0 right-0 z-10">
+      <div data-side-comment-id={comment.id} className="z-10">
         <Composer
           anchorLabel={label}
           initialType={comment.critique_type}
@@ -3403,117 +3592,118 @@ function SideCommentCard({
       tabIndex={0}
       data-side-comment-id={comment.id}
       onClick={onFocus}
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           onFocus()
         }
       }}
-      style={{ top }}
-      className={`absolute left-0 right-0 cursor-pointer overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
-        focused ? "ring-2 ring-accent-edge" : ""
-      } ${comment.resolved ? "opacity-65" : ""}`}
+      className={`cursor-pointer overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${comment.resolved ? "opacity-65" : ""}`}
     >
       <div className="flex min-w-0 items-center gap-2">
         <span className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
           <meta.Icon size={11} aria-hidden />
-          {oneLine ? meta.label.replace("_REQUIRED", "").replace("NEEDS_", "") : meta.label}
+          {meta.label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{oneLine ? comment.body : label}</span>
+        {pending && (
+          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-amber-soft px-2 text-[10px] font-bold text-amber ring-1 ring-inset ring-amber-edge">
+            Pending
+          </span>
+        )}
+        {comment.resolved && (
+          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-approve-soft px-2 text-[10px] font-bold text-approve ring-1 ring-inset ring-approve-edge">
+            Resolved
+          </span>
+        )}
+        <span className="flex-1" />
         <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
       </div>
-      {!oneLine && (
-        <>
-          <div
-            className={`md-body mt-2 text-[12px] leading-[1.45] text-ink ${focused ? "" : "line-clamp-3"}`}
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: bodyHtml }}
-          />
-          {focused ? (
-            comment.replies.length > 0 && (
-              <div className="mt-2 flex flex-col gap-2">
-                {comment.replies.map((reply) => (
-                  <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
-                ))}
-              </div>
-            )
-          ) : latestReply ? (
-            <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
-              {latestReply.body}
-            </div>
-          ) : null}
-          {focused && replying && (
-            <Composer
-              anchorLabel={null}
-              submitLabel="Reply"
-              draftKey={`suikou-reply:${comment.id}`}
-              className="mt-2 mb-0 ml-0 mr-0"
-              pending={replyCmd.isPending}
-              onSubmit={(body) => {
-                if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
-                setReplying(false)
-              }}
-              onCancel={() => setReplying(false)}
-            />
-          )}
-          <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
-            {comment.status === "pending" && <span className="text-amber">Pending</span>}
-            {comment.resolved && <span className="text-approve">Resolved</span>}
-            {comment.replies.length > 0 && (
-              <span className="tabular-nums">{comment.replies.length} replies</span>
-            )}
-            <span className="flex-1" />
-            {focused && pending && (
-              <>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setEditing(true)
-                  }}
-                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-                  }}
-                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-                >
-                  Delete
-                </button>
-              </>
-            )}
-            {focused && !pending && !comment.resolved && !replying && (
-              <>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setReplying(true)
-                  }}
-                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-                >
-                  Reply
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-                  }}
-                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-approve hover:bg-soft"
-                >
-                  Resolve
-                </button>
-              </>
-            )}
-          </div>
-        </>
+      <div
+        className="md-body mt-2 text-[12px] leading-[1.45] text-ink"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: bodyHtml }}
+      />
+      {comment.replies.length > 0 ? (
+        <div className="mt-2 flex flex-col gap-2">
+          {comment.replies.map((reply) => (
+            <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
+          ))}
+        </div>
+      ) : latestReply ? (
+        <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
+          {latestReply.body}
+        </div>
+      ) : null}
+      {replying && (
+        <Composer
+          anchorLabel={null}
+          submitLabel="Reply"
+          draftKey={`suikou-reply:${comment.id}`}
+          className="mt-2 mb-0 ml-0 mr-0"
+          pending={replyCmd.isPending}
+          onSubmit={(body) => {
+            if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+            setReplying(false)
+          }}
+          onCancel={() => setReplying(false)}
+        />
       )}
+      <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
+        {comment.replies.length > 0 && (
+          <span className="tabular-nums">{comment.replies.length} replies</span>
+        )}
+        <span className="flex-1" />
+        {pending && (
+          <>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                setEditing(true)
+              }}
+              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+              }}
+              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+            >
+              Delete
+            </button>
+          </>
+        )}
+        {!pending && !comment.resolved && !replying && (
+          <>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                setReplying(true)
+              }}
+              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+            >
+              Reply
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+              }}
+              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-approve hover:bg-soft"
+            >
+              Resolve
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
