@@ -354,6 +354,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         {commentDisplay === "side" && (
           <SideRail
             comments={comments}
+            commentsProxy={commentsProxy}
             focusedId={focusedCommentId}
             onFocus={(comment) => setFocusedCommentId(comment.id)}
           />
@@ -1573,7 +1574,7 @@ function Editor({
           draftScope={`${reviewId}:${entry.path}`}
         />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto" data-review-scroll>
           {commentDisplay === "inline" && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
             <ArtifactComments
               comments={comments}
@@ -3175,14 +3176,18 @@ function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "w
 
 function SideRail({
   comments,
+  commentsProxy,
   focusedId,
   onFocus,
 }: {
   comments: Comment[]
+  commentsProxy: CommentsStoreProxy | null
   focusedId: string | null
   onFocus: (comment: Comment) => void
 }) {
   const [oneLine, setOneLine] = useState(false)
+  const railBodyRef = useRef<HTMLDivElement | null>(null)
+  const [cardTops, setCardTops] = useState<Map<string, number>>(() => new Map())
   const items = useMemo(
     () =>
       comments
@@ -3190,31 +3195,105 @@ function SideRail({
         .sort((a, b) => commentSortKey(a) - commentSortKey(b)),
     [comments],
   )
-  const lineHeight = parseFloat(MONO_PX[uiStore.monoSize]) * 1.55
-  const topFor = (comment: Comment) => {
+  const fallbackTopFor = (comment: Comment) => {
     const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
-    return line === null ? 8 : Math.max(8, (line - 1) * lineHeight + 8)
+    return line === null ? 8 : Math.max(8, (line - 1) * parseFloat(MONO_PX[uiStore.monoSize]) * 1.55 + 8)
   }
   const heightFor = (comment: Comment) => {
     if (oneLine && focusedId !== comment.id) return 46
-    if (focusedId === comment.id) return 210
+    if (focusedId === comment.id) return 280
     return comment.replies.length > 0 ? 150 : 116
   }
-  const cardTops = useMemo(() => {
-    let nextTop = 8
-    const map = new Map<string, number>()
-    for (const comment of items) {
-      const top = Math.max(topFor(comment), nextTop)
-      map.set(comment.id, top)
-      nextTop = top + heightFor(comment) + 8
+
+  useLayoutEffect(() => {
+    const rail = railBodyRef.current
+    const editor = document.querySelector("[data-review-scroll]") as HTMLElement | null
+
+    const measure = () => {
+      const next = new Map<string, number>()
+      const locatedComments: Comment[] = []
+      const artifactComments: Comment[] = []
+
+      for (const comment of items) {
+        const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
+        if (line === null) {
+          artifactComments.push(comment)
+        } else {
+          locatedComments.push(comment)
+        }
+      }
+
+      const rawTopFor = (comment: Comment) => {
+        const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
+        if (line === null) return fallbackTopFor(comment)
+        const lineEl = document.querySelector(`[data-review-line="${line}"]`) as HTMLElement | null
+        return (
+          lineEl && editor
+            ? lineEl.getBoundingClientRect().top - editor.getBoundingClientRect().top + editor.scrollTop
+            : fallbackTopFor(comment)
+        )
+      }
+      const measuredHeightFor = (comment: Comment) => {
+        const card = document.querySelector(`[data-side-comment-id="${comment.id}"]`) as HTMLElement | null
+        return card?.getBoundingClientRect().height || heightFor(comment)
+      }
+
+      const focusedIndex = locatedComments.findIndex((comment) => comment.id === focusedId)
+      if (focusedIndex >= 0) {
+        const focused = locatedComments[focusedIndex]
+        const focusedTop = Math.max(8, rawTopFor(focused))
+        next.set(focused.id, focusedTop)
+
+        let beforeBottom = focusedTop - 8
+        for (let index = focusedIndex - 1; index >= 0; index -= 1) {
+          const comment = locatedComments[index]
+          const height = measuredHeightFor(comment)
+          const top = Math.max(8, Math.min(rawTopFor(comment), beforeBottom - height))
+          next.set(comment.id, top)
+          beforeBottom = top - 8
+        }
+
+        let afterTop = focusedTop + measuredHeightFor(focused) + 8
+        for (let index = focusedIndex + 1; index < locatedComments.length; index += 1) {
+          const comment = locatedComments[index]
+          const top = Math.max(rawTopFor(comment), afterTop)
+          next.set(comment.id, top)
+          afterTop = top + measuredHeightFor(comment) + 8
+        }
+      } else {
+        let nextLocatedTop = 8
+        for (const comment of locatedComments) {
+          const top = Math.max(8, rawTopFor(comment), nextLocatedTop)
+          next.set(comment.id, top)
+          nextLocatedTop = top + measuredHeightFor(comment) + 8
+        }
+      }
+
+      const locatedBottoms = locatedComments.map((comment) => (next.get(comment.id) ?? fallbackTopFor(comment)) + measuredHeightFor(comment))
+      let nextArtifactTop = Math.max(8, locatedBottoms.length ? Math.max(...locatedBottoms) + 8 : 8)
+      for (const comment of artifactComments) {
+        next.set(comment.id, nextArtifactTop)
+        nextArtifactTop += measuredHeightFor(comment) + 8
+      }
+
+      if (rail && editor && rail.scrollTop !== editor.scrollTop) rail.scrollTop = editor.scrollTop
+      setCardTops(next)
     }
-    return map
+
+    measure()
+    editor?.addEventListener("scroll", measure, { passive: true })
+    window.addEventListener("resize", measure)
+    return () => {
+      editor?.removeEventListener("scroll", measure)
+      window.removeEventListener("resize", measure)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, oneLine, focusedId, lineHeight])
+  }, [items, oneLine, focusedId, uiStore.monoSize])
+
   const railHeight =
     items.length === 0
       ? "100%"
-      : Math.max(...items.map((comment) => (cardTops.get(comment.id) ?? topFor(comment)) + heightFor(comment))) + 8
+      : Math.max(...items.map((comment) => (cardTops.get(comment.id) ?? fallbackTopFor(comment)) + heightFor(comment))) + 8
 
   return (
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
@@ -3242,7 +3321,7 @@ function SideRail({
           <MessageSquarePlus size={14} aria-hidden />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-2">
+      <div ref={railBodyRef} className="min-h-0 flex-1 overflow-auto p-2">
         {items.length === 0 ? (
           <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">
             No comments on this file.
@@ -3253,9 +3332,10 @@ function SideRail({
               <SideCommentCard
                 key={comment.id}
                 comment={comment}
+                commentsProxy={commentsProxy}
                 oneLine={oneLine && focusedId !== comment.id}
                 focused={focusedId === comment.id}
-                top={cardTops.get(comment.id) ?? topFor(comment)}
+                top={cardTops.get(comment.id) ?? fallbackTopFor(comment)}
                 onFocus={() => {
                   onFocus(comment)
                   scrollToCommentAnchor(comment)
@@ -3271,12 +3351,14 @@ function SideRail({
 
 function SideCommentCard({
   comment,
+  commentsProxy,
   oneLine,
   focused,
   top,
   onFocus,
 }: {
   comment: Comment
+  commentsProxy: CommentsStoreProxy | null
   oneLine: boolean
   focused: boolean
   top: number
@@ -3286,13 +3368,49 @@ function SideCommentCard({
   const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
   const label = comment.scope === "artifact" ? "File" : line ? `L${line}` : comment.anchor?.type === "element" ? "Element" : "Anchor"
   const latestReply = comment.replies[comment.replies.length - 1]
+  const pending = comment.status === "pending"
+  const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
+  const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_comment")
+  const deleteCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "delete_comment")
+  const resolveCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "resolve_comment")
+  const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
+  const [editing, setEditing] = useState(false)
+  const [replying, setReplying] = useState(false)
+
+  if (editing) {
+    return (
+      <div data-side-comment-id={comment.id} style={{ top }} className="absolute left-0 right-0 z-10">
+        <Composer
+          anchorLabel={label}
+          initialType={comment.critique_type}
+          initialBody={comment.body}
+          submitLabel="Save"
+          pending={editCmd.isPending}
+          className="m-0"
+          onSubmit={(body, type) => {
+            if (commentsProxy) editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).catch(() => undefined)
+            setEditing(false)
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    )
+  }
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      data-side-comment-id={comment.id}
       onClick={onFocus}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onFocus()
+        }
+      }}
       style={{ top }}
-      className={`absolute left-0 right-0 overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
+      className={`absolute left-0 right-0 cursor-pointer overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
         focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
@@ -3306,15 +3424,37 @@ function SideCommentCard({
       </div>
       {!oneLine && (
         <>
-          <p
-            className={`mt-2 text-[12px] leading-[1.45] text-ink ${focused ? "" : "line-clamp-3"}`}
-          >
-            {comment.body}
-          </p>
-          {latestReply && (
-            <p className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
+          <div
+            className={`md-body mt-2 text-[12px] leading-[1.45] text-ink ${focused ? "" : "line-clamp-3"}`}
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          />
+          {focused ? (
+            comment.replies.length > 0 && (
+              <div className="mt-2 flex flex-col gap-2">
+                {comment.replies.map((reply) => (
+                  <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
+                ))}
+              </div>
+            )
+          ) : latestReply ? (
+            <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
               {latestReply.body}
-            </p>
+            </div>
+          ) : null}
+          {focused && replying && (
+            <Composer
+              anchorLabel={null}
+              submitLabel="Reply"
+              draftKey={`suikou-reply:${comment.id}`}
+              className="mt-2 mb-0 ml-0 mr-0"
+              pending={replyCmd.isPending}
+              onSubmit={(body) => {
+                if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+                setReplying(false)
+              }}
+              onCancel={() => setReplying(false)}
+            />
           )}
           <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
             {comment.status === "pending" && <span className="text-amber">Pending</span>}
@@ -3322,10 +3462,59 @@ function SideCommentCard({
             {comment.replies.length > 0 && (
               <span className="tabular-nums">{comment.replies.length} replies</span>
             )}
+            <span className="flex-1" />
+            {focused && pending && (
+              <>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setEditing(true)
+                  }}
+                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                  }}
+                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+                >
+                  Delete
+                </button>
+              </>
+            )}
+            {focused && !pending && !comment.resolved && !replying && (
+              <>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setReplying(true)
+                  }}
+                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+                >
+                  Reply
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                  }}
+                  className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-approve hover:bg-soft"
+                >
+                  Resolve
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
-    </button>
+    </div>
   )
 }
 
