@@ -256,6 +256,13 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   )
   const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
 
+  // Multi-round: a past round is read-only — you can read its published threads
+  // but new comments and verdicts only land on the latest round.
+  const roundSummaries = snap?.body?.round_summaries ?? []
+  const latestRound = snap?.body?.latest_round ?? 0
+  const selectedRound = snap?.body?.selected_round ?? latestRound
+  const readOnly = selectedRound < latestRound
+
   if (structure && !structure.exists) {
     return <Centered>Review not found.</Centered>
   }
@@ -274,6 +281,9 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
         connected={connected}
         store={store}
         review={review}
+        roundSummaries={roundSummaries}
+        selectedRound={selectedRound}
+        latestRound={latestRound}
       />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr_300px]">
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
@@ -287,11 +297,13 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           fileProxy={fileProxy}
           commentsProxy={commentsProxy}
           verdict={selectedLive}
+          readOnly={readOnly}
+          selectedRound={selectedRound}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
         <Inspector review={review} />
       </div>
-      <StatusBar path={selectedPath} connected={connected} blockers={review.blockers.length} />
+      <StatusBar path={selectedPath} connected={connected} blockers={review.blockers.length} round={selectedRound} readOnly={readOnly} />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
@@ -310,18 +322,26 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   )
 }
 
+type RoundSummary = { number: number; comment_count: number; unresolved_count: number }
+
 function Toolbar({
   name,
   isDiff,
   connected,
   store,
   review,
+  roundSummaries,
+  selectedRound,
+  latestRound,
 }: {
   name: string
   isDiff: boolean
   connected: boolean
   store: ReviewStore
   review: ReviewSummary
+  roundSummaries: RoundSummary[]
+  selectedRound: number
+  latestRound: number
 }) {
   return (
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
@@ -348,6 +368,14 @@ function Toolbar({
         )}
       </div>
       <span className="flex-1" />
+      {roundSummaries.length > 0 && (
+        <RoundSelector
+          store={store}
+          rounds={roundSummaries}
+          selectedRound={selectedRound}
+          latestRound={latestRound}
+        />
+      )}
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -357,6 +385,58 @@ function Toolbar({
       </button>
       <SubmitButton store={store} review={review} />
     </div>
+  )
+}
+
+/** A4/A5/A6: the round selector. Shows the selected round and switches rounds via
+ * select_round; picking a past round makes the workspace read-only. */
+function RoundSelector({
+  store,
+  rounds,
+  selectedRound,
+  latestRound,
+}: {
+  store: ReviewStore
+  rounds: RoundSummary[]
+  selectedRound: number
+  latestRound: number
+}) {
+  const select = useMusubiCommand(store, "select_round")
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            title="Round selector"
+            className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft"
+          >
+            <GitCompare size={14} className="text-muted" aria-hidden />
+            Round {selectedRound}
+            {selectedRound < latestRound && (
+              <span className="text-[11px] font-semibold text-muted">· read-only</span>
+            )}
+            <ChevronDown size={12} className="text-faint" aria-hidden />
+          </button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        {[...rounds]
+          .sort((a, b) => b.number - a.number)
+          .map((round) => (
+            <DropdownMenuItem key={round.number} onClick={() => void select.dispatch({ number: round.number })}>
+              <span className={`flex-1 font-medium ${round.number === selectedRound ? "text-accent-bright" : "text-ink"}`}>
+                Round {round.number}
+                {round.number === latestRound && <span className="ml-1.5 text-[11px] font-normal text-muted">latest</span>}
+              </span>
+              {round.unresolved_count > 0 && (
+                <span className="text-[11px] font-semibold text-request tabular-nums">{round.unresolved_count} open</span>
+              )}
+              {round.number === selectedRound && <Check size={13} className="ml-1.5 text-approve" aria-hidden />}
+            </DropdownMenuItem>
+          ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -1093,6 +1173,8 @@ function Editor({
   fileProxy,
   commentsProxy,
   verdict,
+  readOnly,
+  selectedRound,
   onOpenFiles,
 }: {
   reviewId: string
@@ -1101,6 +1183,8 @@ function Editor({
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   verdict: PerFile | null
+  readOnly: boolean
+  selectedRound: number
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -1320,7 +1404,7 @@ function Editor({
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
-        {entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+        {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
           <button
             type="button"
             onClick={() => setArtifactComposing(true)}
@@ -1331,8 +1415,17 @@ function Editor({
             <MessageSquarePlus size={16} aria-hidden />
           </button>
         )}
-        {entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
+        {!readOnly && entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
       </div>
+      {readOnly && entry && (
+        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-[11.5px] leading-[1.45] text-muted">
+          <Lock size={15} className="shrink-0 text-muted" aria-hidden />
+          <span>
+            Round {selectedRound} is superseded and read-only. You can read its comments, but new comments
+            and verdicts only go on the latest round.
+          </span>
+        </div>
+      )}
       {entry && htmlFile && htmlMode !== "source" && content.kind === "text" ? (
         <HtmlView
           key={entry.path}
@@ -1353,7 +1446,7 @@ function Editor({
               fileProxy={fileProxy}
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
-              composing={artifactComposing}
+              composing={!readOnly && artifactComposing}
               onClose={() => setArtifactComposing(false)}
             />
           )}
@@ -1381,6 +1474,7 @@ function Editor({
               fileProxy={fileProxy}
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
+              readOnly={readOnly}
             />
           ) : (
             <Source
@@ -1390,6 +1484,7 @@ function Editor({
               fileProxy={fileProxy}
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
+              readOnly={readOnly}
             />
           )}
         </div>
@@ -1408,12 +1503,14 @@ const MarkdownPreview = observer(function MarkdownPreview({
   fileProxy,
   commentsProxy,
   draftScope,
+  readOnly = false,
 }: {
   source: string
   comments: Comment[]
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
+  readOnly?: boolean
 }) {
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   // Match the source view's gutter: a narrow left column sized to the digit
@@ -1468,6 +1565,7 @@ const MarkdownPreview = observer(function MarkdownPreview({
   }
   // Opening a block with a dirty composer already open elsewhere confirms first.
   const requestOpen = (range: Range) => {
+    if (readOnly) return
     const current = draftRef.current
     if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
     else open(range)
@@ -2073,6 +2171,7 @@ const Source = observer(function Source({
   fileProxy,
   commentsProxy,
   draftScope,
+  readOnly = false,
 }: {
   lines: string[]
   tokens: ThemedToken[][] | null
@@ -2080,6 +2179,7 @@ const Source = observer(function Source({
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
+  readOnly?: boolean
 }) {
   const rows = tokens ?? lines.map((line) => [{ content: line, color: "" } as ThemedToken])
   const count = rows.length
@@ -2160,6 +2260,7 @@ const Source = observer(function Source({
   // Open a range, but if a different composer is open with unsaved text, stash
   // the target behind a discard confirm first.
   const requestOpen = (range: Range) => {
+    if (readOnly) return
     const current = draftRef.current
     if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
     else open(range)
@@ -2851,14 +2952,21 @@ function StatusBar({
   path,
   connected,
   blockers,
+  round,
+  readOnly,
 }: {
   path: string | null
   connected: boolean
   blockers: number
+  round: number
+  readOnly: boolean
 }) {
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2.5 border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
       <span className="truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
+      <span>Round {round}</span>
+      {readOnly && <span className="font-semibold text-muted">· read-only</span>}
       {blockers > 0 && (
         <>
           <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
