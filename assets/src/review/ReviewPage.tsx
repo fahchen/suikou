@@ -365,7 +365,6 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
   const [sheetOpen, setSheetOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const [chosen, setChosen] = useState<Verdict>("comment")
-  const nothing = !review.hasUnpublished && review.pendingComments === 0 && review.draftVerdicts === 0
 
   const openPanel = (set: (open: boolean) => void) => (open: boolean) => {
     if (open) setChosen(review.verdict ?? "comment")
@@ -400,7 +399,6 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
             heading
             chosen={chosen}
             onChoose={setChosen}
-            nothing={nothing}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
@@ -429,7 +427,6 @@ function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSum
             review={review}
             chosen={chosen}
             onChoose={setChosen}
-            nothing={nothing}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
@@ -461,7 +458,6 @@ function SubmitPanel({
   heading = false,
   chosen,
   onChoose,
-  nothing,
   submitting,
   onSubmit,
 }: {
@@ -469,11 +465,15 @@ function SubmitPanel({
   heading?: boolean
   chosen: Verdict
   onChoose: (verdict: Verdict) => void
-  nothing: boolean
   submitting: boolean
   onSubmit: () => void
 }) {
   const softGate = chosen === "approve" && review.blockers.length > 0
+  // Approving can finalize a clean review at any time; Comment / Request changes
+  // only make sense with something unpublished to carry (a comment, reply, or
+  // draft verdict).
+  const hasContent = review.hasUnpublished || review.pendingComments > 0 || review.draftVerdicts > 0
+  const canSubmit = chosen === "approve" || hasContent
   return (
     <>
       {heading && (
@@ -517,11 +517,11 @@ function SubmitPanel({
       <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
         <button
           type="button"
-          disabled={nothing || submitting}
+          disabled={!canSubmit || submitting}
           onClick={onSubmit}
           className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-[13px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
         >
-          {nothing ? "Nothing to submit" : "Submit review"}
+          {canSubmit ? "Submit review" : "Nothing to submit"}
         </button>
       </div>
     </>
