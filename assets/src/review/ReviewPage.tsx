@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { AlertTriangle, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Code2, CornerDownRight, File, FileText, Folder, GitCompare, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
+import { AlertTriangle, ArrowRight, Binary, Bot, Check, ChevronDown, ChevronRight, Circle, CircleCheck, Code2, CornerDownRight, File, FileText, Folder, GitCompare, GitCompareArrows, HelpCircle, Info, ListTree, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, StickyNote, Trash2, Upload, User, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type MonoSize } from "../stores/ui-store"
@@ -71,6 +71,7 @@ type PerFile = {
   pending: number
 }
 type Blocker = { path: string; line: number | null }
+type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number; verdict: Verdict | null }
 type ReviewSummary = {
   perFile: PerFile[]
   verdict: Verdict | null
@@ -263,6 +264,26 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
   const selectedRound = snap?.body?.selected_round ?? latestRound
   const readOnly = selectedRound < latestRound
 
+  // A7 round compare: what changed between the prior round and the selected one,
+  // computed from the published comments' authored/resolved rounds.
+  const [compareOpen, setCompareOpen] = useState(false)
+  const compare = useMemo<RoundCompare | null>(() => {
+    if (selectedRound < 1) return null
+    let resolved = 0
+    let added = 0
+    let open = 0
+    for (const f of bodyFiles) {
+      for (const c of f.comments.items) {
+        if (c.status !== "published") continue
+        if (c.resolved_round === selectedRound) resolved += 1
+        if (c.authored_round === selectedRound) added += 1
+        else if (!c.resolved) open += 1
+      }
+    }
+    return { from: selectedRound - 1, to: selectedRound, resolved, added, open, verdict: review.verdict }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap, selectedRound, review.verdict])
+
   if (structure && !structure.exists) {
     return <Centered>Review not found.</Centered>
   }
@@ -284,6 +305,9 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
         roundSummaries={roundSummaries}
         selectedRound={selectedRound}
         latestRound={latestRound}
+        canCompare={compare !== null}
+        compareOpen={compareOpen}
+        onToggleCompare={() => setCompareOpen((open) => !open)}
       />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[236px_1fr_300px]">
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
@@ -299,6 +323,7 @@ function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string
           verdict={selectedLive}
           readOnly={readOnly}
           selectedRound={selectedRound}
+          compare={compareOpen ? compare : null}
           onOpenFiles={() => setFilesSheetOpen(true)}
         />
         <Inspector review={review} />
@@ -333,6 +358,9 @@ function Toolbar({
   roundSummaries,
   selectedRound,
   latestRound,
+  canCompare,
+  compareOpen,
+  onToggleCompare,
 }: {
   name: string
   isDiff: boolean
@@ -342,6 +370,9 @@ function Toolbar({
   roundSummaries: RoundSummary[]
   selectedRound: number
   latestRound: number
+  canCompare: boolean
+  compareOpen: boolean
+  onToggleCompare: () => void
 }) {
   return (
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
@@ -368,6 +399,21 @@ function Toolbar({
         )}
       </div>
       <span className="flex-1" />
+      {canCompare && (
+        <button
+          type="button"
+          onClick={onToggleCompare}
+          title="Compare with the previous round"
+          className={`inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border px-2.5 text-[12.5px] font-medium ${
+            compareOpen
+              ? "border-accent-edge bg-accent-soft text-accent-bright"
+              : "border-hair-strong bg-canvas text-ink hover:bg-soft"
+          }`}
+        >
+          <GitCompareArrows size={14} className={compareOpen ? "text-accent-bright" : "text-muted"} aria-hidden />
+          Compare
+        </button>
+      )}
       {roundSummaries.length > 0 && (
         <RoundSelector
           store={store}
@@ -1175,6 +1221,7 @@ function Editor({
   verdict,
   readOnly,
   selectedRound,
+  compare,
   onOpenFiles,
 }: {
   reviewId: string
@@ -1185,6 +1232,7 @@ function Editor({
   verdict: PerFile | null
   readOnly: boolean
   selectedRound: number
+  compare: RoundCompare | null
   onOpenFiles: () => void
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
@@ -1417,6 +1465,7 @@ function Editor({
         )}
         {!readOnly && entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
       </div>
+      {compare && <CompareBar compare={compare} />}
       {readOnly && entry && (
         <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-[11.5px] leading-[1.45] text-muted">
           <Lock size={15} className="shrink-0 text-muted" aria-hidden />
@@ -1490,6 +1539,56 @@ function Editor({
         </div>
       )}
     </div>
+  )
+}
+
+/** A7: what changed between the prior round and the selected one — resolved,
+ * new, and still-open comment counts, plus the round's verdict. */
+function CompareBar({ compare }: { compare: RoundCompare }) {
+  return (
+    <div className="shrink-0 border-b border-hair-strong bg-surface">
+      <div className="flex items-center gap-2 border-b border-hair bg-soft/40 px-4 py-2">
+        <span className="rounded-full bg-soft px-2 py-0.5 text-[11px] font-bold text-text">Round {compare.from}</span>
+        <ArrowRight size={13} className="text-muted" aria-hidden />
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+          Round {compare.to}
+        </span>
+        <span className="ml-1 text-[12px] text-muted">what changed this round</span>
+      </div>
+      <div className="flex items-center gap-4 px-4 py-2.5 text-[12px]">
+        <CompareStat n={compare.resolved} label="resolved" tone="approve" />
+        <CompareStat n={compare.added} label="new" tone="accent" />
+        <CompareStat n={compare.open} label="still open" tone="amber" />
+        {compare.verdict && (
+          <>
+            <span className="flex-1" />
+            <span className="text-[10px] font-bold uppercase tracking-wide text-faint">Verdict</span>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${verdictSoft(compare.verdict)} ${verdictText(compare.verdict)}`}
+            >
+              {VERDICT_META[compare.verdict].label}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CompareStat({ n, label, tone }: { n: number; label: string; tone: "approve" | "accent" | "amber" }) {
+  const chip =
+    tone === "approve"
+      ? "bg-approve-soft text-approve"
+      : tone === "accent"
+        ? "bg-accent-soft text-accent-bright"
+        : "bg-amber-soft text-amber"
+  return (
+    <span className="inline-flex items-center gap-1.5 text-text">
+      <span className={`grid size-[18px] place-items-center rounded-[5px] text-[10px] font-extrabold tabular-nums ${chip}`}>
+        {n}
+      </span>
+      {label}
+    </span>
   )
 }
 
