@@ -318,6 +318,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         name={structure?.name ?? "…"}
         isDiff={isDiff}
         connected={connected}
+        commentDisplay={commentDisplay}
         store={store}
         review={review}
         roundSummaries={roundSummaries}
@@ -390,6 +391,7 @@ function Toolbar({
   name,
   isDiff,
   connected,
+  commentDisplay,
   store,
   review,
   roundSummaries,
@@ -402,6 +404,7 @@ function Toolbar({
   name: string
   isDiff: boolean
   connected: boolean
+  commentDisplay: CommentDisplayMode
   store: ReviewStore
   review: ReviewSummary
   roundSummaries: RoundSummary[]
@@ -462,6 +465,7 @@ function Toolbar({
           latestRound={latestRound}
         />
       )}
+      <DisplayButton value={commentDisplay} />
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -471,6 +475,39 @@ function Toolbar({
       </button>
       <SubmitButton store={store} review={review} />
     </div>
+  )
+}
+
+function DisplayButton({ value }: { value: CommentDisplayMode }) {
+  return (
+    <span className="hidden sm:inline-flex">
+      <Popover
+        align="end"
+        className="w-[214px] p-2"
+        render={
+          <button
+            type="button"
+            title="Display options"
+            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          >
+            <MessageSquare size={15} aria-hidden />
+          </button>
+        }
+      >
+        <div className="px-1 pt-1 pb-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+          Comments
+        </div>
+        <Segmented<CommentDisplayMode>
+          value={value}
+          onChange={(next) => uiStore.setCommentDisplay(next)}
+          options={[
+            ["inline", "Inline"],
+            ["side", "Side"],
+            ["hidden", "Hidden"],
+          ]}
+        />
+      </Popover>
+    </span>
   )
 }
 
@@ -1509,7 +1546,9 @@ function Editor({
             <MessageSquarePlus size={16} aria-hidden />
           </button>
         )}
-        {!readOnly && entry && fileProxy && verdict && <VerdictChip file={verdict} proxy={fileProxy} />}
+        {!readOnly && entry && fileProxy && verdict && commentDisplay !== "side" && (
+          <VerdictChip file={verdict} proxy={fileProxy} />
+        )}
       </div>
       {compare && <CompareBar compare={compare} />}
       {readOnly && entry && (
@@ -3143,7 +3182,7 @@ function SideRail({
   focusedId: string | null
   onFocus: (comment: Comment) => void
 }) {
-  const [dense, setDense] = useState(false)
+  const [oneLine, setOneLine] = useState(false)
   const items = useMemo(
     () =>
       comments
@@ -3151,6 +3190,31 @@ function SideRail({
         .sort((a, b) => commentSortKey(a) - commentSortKey(b)),
     [comments],
   )
+  const lineHeight = parseFloat(MONO_PX[uiStore.monoSize]) * 1.55
+  const topFor = (comment: Comment) => {
+    const line = comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
+    return line === null ? 8 : Math.max(8, (line - 1) * lineHeight + 8)
+  }
+  const heightFor = (comment: Comment) => {
+    if (oneLine && focusedId !== comment.id) return 46
+    if (focusedId === comment.id) return 210
+    return comment.replies.length > 0 ? 150 : 116
+  }
+  const cardTops = useMemo(() => {
+    let nextTop = 8
+    const map = new Map<string, number>()
+    for (const comment of items) {
+      const top = Math.max(topFor(comment), nextTop)
+      map.set(comment.id, top)
+      nextTop = top + heightFor(comment) + 8
+    }
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, oneLine, focusedId, lineHeight])
+  const railHeight =
+    items.length === 0
+      ? "100%"
+      : Math.max(...items.map((comment) => (cardTops.get(comment.id) ?? topFor(comment)) + heightFor(comment))) + 8
 
   return (
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
@@ -3163,16 +3227,16 @@ function SideRail({
         <span className="flex-1" />
         <button
           type="button"
-          onClick={() => setDense((value) => !value)}
-          title={dense ? "Show comment previews" : "Collapse cards"}
+          onClick={() => setOneLine((value) => !value)}
+          title={oneLine ? "Show comment previews" : "Collapse all to one line"}
           className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
         >
-          <PanelLeft size={14} aria-hidden />
+          <ListTree size={14} aria-hidden />
         </button>
         <button
           type="button"
           onClick={() => uiStore.setCommentDisplay("inline")}
-          title="Switch to inline comments"
+          title="Switch to inline layout"
           className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
         >
           <MessageSquarePlus size={14} aria-hidden />
@@ -3184,13 +3248,14 @@ function SideRail({
             No comments on this file.
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="relative min-h-full" style={{ minHeight: railHeight }}>
             {items.map((comment) => (
               <SideCommentCard
                 key={comment.id}
                 comment={comment}
-                dense={dense && focusedId !== comment.id}
+                oneLine={oneLine && focusedId !== comment.id}
                 focused={focusedId === comment.id}
+                top={cardTops.get(comment.id) ?? topFor(comment)}
                 onFocus={() => {
                   onFocus(comment)
                   scrollToCommentAnchor(comment)
@@ -3206,13 +3271,15 @@ function SideRail({
 
 function SideCommentCard({
   comment,
-  dense,
+  oneLine,
   focused,
+  top,
   onFocus,
 }: {
   comment: Comment
-  dense: boolean
+  oneLine: boolean
   focused: boolean
+  top: number
   onFocus: () => void
 }) {
   const meta = TYPE_META[comment.critique_type]
@@ -3224,19 +3291,20 @@ function SideCommentCard({
     <button
       type="button"
       onClick={onFocus}
-      className={`w-full overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
-        focused ? "ring-accent-edge" : ""
+      style={{ top }}
+      className={`absolute left-0 right-0 overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${
+        focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
       <div className="flex min-w-0 items-center gap-2">
         <span className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
           <meta.Icon size={11} aria-hidden />
-          {dense ? meta.label.replace("_REQUIRED", "").replace("NEEDS_", "") : meta.label}
+          {oneLine ? meta.label.replace("_REQUIRED", "").replace("NEEDS_", "") : meta.label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{dense ? comment.body : label}</span>
+        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{oneLine ? comment.body : label}</span>
         <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
       </div>
-      {!dense && (
+      {!oneLine && (
         <>
           <p
             className={`mt-2 text-[12px] leading-[1.45] text-ink ${focused ? "" : "line-clamp-3"}`}
@@ -3254,7 +3322,6 @@ function SideCommentCard({
             {comment.replies.length > 0 && (
               <span className="tabular-nums">{comment.replies.length} replies</span>
             )}
-            {focused && <span className="ml-auto text-accent-bright">Focused</span>}
           </div>
         </>
       )}
