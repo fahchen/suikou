@@ -2673,7 +2673,6 @@ function Thread({
   focused?: boolean
   onFocus?: () => void
 }) {
-  const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
   const pending = comment.status === "pending"
   const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
@@ -2718,11 +2717,130 @@ function Thread({
   }
 
   return (
+    <CommentCard
+      comment={comment}
+      className={className}
+      headerClassName="gap-1.5 px-3 py-2"
+      compact={compact}
+      focused={focused}
+      collapsible={!compact}
+      collapsed={collapsed}
+      onToggleCollapse={() => setCollapsed((value) => !value)}
+      onFocus={onFocus}
+      metaLine={
+        anchorLabel ? (
+          <span className="inline-flex items-center font-mono text-[11px] text-muted">
+            {anchorLabel}
+            {pending ? "" : ` · R${comment.authored_round}`}
+          </span>
+        ) : undefined
+      }
+      summaryText={comment.body}
+      body={
+        <div
+          className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
+        />
+      }
+      replies={
+        comment.replies.length > 0 ? (
+          <div className="mx-3 mb-2.5 flex flex-col gap-2">
+            {comment.replies.map((reply) => (
+              <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
+            ))}
+          </div>
+        ) : undefined
+      }
+      actions={
+        <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
+          {pending ? (
+            <>
+              <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
+              <ThreadAction
+                icon={Trash2}
+                label="Delete"
+                onClick={() => {
+                  if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                }}
+              />
+            </>
+          ) : (
+            !replying && <ThreadAction icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
+          )}
+        </div>
+      }
+      composer={
+        replying ? (
+          <Composer
+            anchorLabel={null}
+            submitLabel="Reply"
+            draftKey={`suikou-reply:${comment.id}`}
+            className="mx-2.5 mb-2.5"
+            pending={replyCmd.isPending}
+            onSubmit={(body) => {
+              if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+              setReplying(false)
+            }}
+            onCancel={() => setReplying(false)}
+          />
+        ) : undefined
+      }
+    />
+  )
+}
+
+function CommentCard({
+  comment,
+  className,
+  headerClassName = "gap-1.5 px-3 py-2",
+  focused = false,
+  compact = false,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapse,
+  onFocus,
+  onHover,
+  onLeave,
+  metaLine,
+  rightLabel,
+  summaryText,
+  body,
+  replies,
+  actions,
+  composer,
+}: {
+  comment: Comment
+  className: string
+  headerClassName?: string
+  focused?: boolean
+  compact?: boolean
+  collapsible?: boolean
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+  onFocus?: () => void
+  onHover?: () => void
+  onLeave?: () => void
+  metaLine?: ReactNode
+  rightLabel?: ReactNode
+  summaryText?: string
+  body: ReactNode
+  replies?: ReactNode
+  actions?: ReactNode
+  composer?: ReactNode
+}) {
+  const meta = TYPE_META[comment.critique_type]
+  const pending = comment.status === "pending"
+
+  return (
     <div
       data-thread-card={comment.id}
+      data-side-comment-id={comment.id}
       role={onFocus ? "button" : undefined}
       tabIndex={onFocus ? 0 : undefined}
       onClick={onFocus}
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
       onKeyDown={
         onFocus
           ? (event) => {
@@ -2737,8 +2855,8 @@ function Thread({
         focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
-        {!compact && (
+      <div className={`flex items-center ${headerClassName}`}>
+        {collapsible && !compact && onToggleCollapse && (
           <button
             type="button"
             aria-label={collapsed ? "Expand comment" : "Collapse comment"}
@@ -2746,9 +2864,9 @@ function Thread({
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              setCollapsed((value) => !value)
+              onToggleCollapse()
             }}
-            className="-m-1 grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
+            className="-m-1 grid size-6 shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
           >
             <span
               className={`grid place-items-center transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? "rotate-0" : "rotate-90"}`}
@@ -2762,16 +2880,11 @@ function Thread({
           {meta.label}
           {pending && <span className="size-1.5 shrink-0 rounded-full bg-amber" title="Pending" aria-label="Pending" />}
         </span>
-        {anchorLabel && (
-          <span className="font-mono text-[11px] text-muted">
-            {anchorLabel}
-            {pending ? "" : ` · R${comment.authored_round}`}
-          </span>
-        )}
-        {comment.outdated && <span className="font-mono text-[11px] text-amber">· outdated</span>}
-        {collapsed && (
-          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[1.4] text-ink">
-            {comment.body}
+        {metaLine}
+        {comment.outdated && <span className="inline-flex items-center font-mono text-[11px] text-amber">· outdated</span>}
+        {collapsed && summaryText && (
+          <span className="min-w-0 flex-1 truncate self-center text-[12px] leading-none text-muted">
+            {summaryText}
           </span>
         )}
         {!collapsed && <span className="flex-1" />}
@@ -2780,54 +2893,18 @@ function Thread({
             <CircleCheck size={12} aria-hidden />
             Resolved
           </span>
-        ) : null}
+        ) : (
+          rightLabel
+        )}
       </div>
       <div
         className={`grid transition-[grid-template-rows,opacity] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
       >
         <div className="min-h-0 overflow-hidden">
-            <div
-              className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
-              // eslint-disable-next-line react/no-danger
-              dangerouslySetInnerHTML={{ __html: bodyHtml }}
-            />
-            {comment.replies.length > 0 && (
-              <div className="mx-3 mb-2.5 flex flex-col gap-2">
-                {comment.replies.map((reply) => (
-                  <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
-                ))}
-              </div>
-            )}
-            <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
-              {pending ? (
-                <>
-                  <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
-                  <ThreadAction
-                    icon={Trash2}
-                    label="Delete"
-                    onClick={() => {
-                      if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-                    }}
-                  />
-                </>
-              ) : (
-                !replying && <ThreadAction icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
-              )}
-            </div>
-            {replying && (
-              <Composer
-                anchorLabel={null}
-                submitLabel="Reply"
-                draftKey={`suikou-reply:${comment.id}`}
-                className="mx-2.5 mb-2.5"
-                pending={replyCmd.isPending}
-                onSubmit={(body) => {
-                  if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
-                  setReplying(false)
-                }}
-                onCancel={() => setReplying(false)}
-              />
-            )}
+          {body}
+          {replies}
+          {actions}
+          {composer}
         </div>
       </div>
     </div>
@@ -3581,13 +3658,11 @@ function SideGroupSummary({
         <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-soft px-2 text-[10px] font-bold normal-case text-muted">
           {count}
         </span>
-        {pendingCount > 0 && (
-          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-amber-soft px-2 text-[10px] font-bold normal-case text-amber ring-1 ring-inset ring-amber-edge">
-            {pendingCount} pending
-          </span>
-        )}
         {line !== null && <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">L{line}</span>}
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">{typeLabels.join(" / ")}</span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">
+          {typeLabels.join(" / ")}
+          {pendingCount > 0 && <span className="size-1.5 shrink-0 rounded-full bg-amber" title="Pending" aria-label="Pending" />}
+        </span>
         <span className={`min-w-0 flex-1 text-[12px] leading-[1.45] text-ink ${preview ? "line-clamp-2 whitespace-normal" : "truncate"}`}>
           {first.body}
         </span>
@@ -3609,7 +3684,6 @@ function SideCommentCard({
   onLeave: () => void
   onFocus: () => void
 }) {
-  const meta = TYPE_META[comment.critique_type]
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
   const label =
     comment.scope === "artifact"
@@ -3650,124 +3724,105 @@ function SideCommentCard({
   }
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      data-side-comment-id={comment.id}
-      onClick={onFocus}
-      onPointerEnter={onHover}
-      onPointerLeave={onLeave}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          onFocus()
-        }
-      }}
-      className={`cursor-pointer overflow-hidden rounded-panel p-2.5 text-left shadow-sm ring-1 ring-inset ${meta.card} ${comment.resolved ? "opacity-65" : ""}`}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <span className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
-          <meta.Icon size={11} aria-hidden />
-          {meta.label}
-        </span>
-        {pending && (
-          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-amber-soft px-2 text-[10px] font-bold text-amber ring-1 ring-inset ring-amber-edge">
-            Pending
-          </span>
-        )}
-        {comment.resolved && (
-          <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-approve-soft px-2 text-[10px] font-bold text-approve ring-1 ring-inset ring-approve-edge">
-            Resolved
-          </span>
-        )}
-        <span className="flex-1" />
-        <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
-      </div>
-      <div
-        className="md-body mt-2 text-[12px] leading-[1.45] text-ink"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: bodyHtml }}
-      />
-      {comment.replies.length > 0 ? (
-        <div className="mt-2 flex flex-col gap-2">
-          {comment.replies.map((reply) => (
-            <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
-          ))}
-        </div>
-      ) : latestReply ? (
-        <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
-          {latestReply.body}
-        </div>
-      ) : null}
-      {replying && (
-        <Composer
-          anchorLabel={null}
-          submitLabel="Reply"
-          draftKey={`suikou-reply:${comment.id}`}
-          className="mt-2 mb-0 ml-0 mr-0"
-          pending={replyCmd.isPending}
-          onSubmit={(body) => {
-            if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
-            setReplying(false)
-          }}
-          onCancel={() => setReplying(false)}
+    <CommentCard
+      comment={comment}
+      className="cursor-pointer p-2.5 text-left"
+      headerClassName="gap-1.5 pt-0 pb-0"
+      onFocus={onFocus}
+      onHover={onHover}
+      onLeave={onLeave}
+      rightLabel={<span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>}
+      body={
+        <div
+          className="md-body mt-2 text-[12px] leading-[1.45] text-ink"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />
-      )}
-      <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
-        {comment.replies.length > 0 && (
-          <span className="tabular-nums">{comment.replies.length} replies</span>
-        )}
-        <span className="flex-1" />
-        {pending && (
-          <>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                setEditing(true)
-              }}
-              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-              }}
-              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-            >
-              Delete
-            </button>
-          </>
-        )}
-        {!pending && !comment.resolved && !replying && (
-          <>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                setReplying(true)
-              }}
-              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
-            >
-              Reply
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-              }}
-              className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-approve hover:bg-soft"
-            >
-              Resolve
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+      }
+      replies={
+        comment.replies.length > 0 ? (
+          <div className="mt-2 flex flex-col gap-2">
+            {comment.replies.map((reply) => (
+              <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
+            ))}
+          </div>
+        ) : latestReply ? (
+          <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
+            {latestReply.body}
+          </div>
+        ) : undefined
+      }
+      actions={
+        <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
+          {comment.replies.length > 0 && <span className="tabular-nums">{comment.replies.length} replies</span>}
+          <span className="flex-1" />
+          {pending && (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setEditing(true)
+                }}
+                className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                }}
+                className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+              >
+                Delete
+              </button>
+            </>
+          )}
+          {!pending && !comment.resolved && !replying && (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setReplying(true)
+                }}
+                className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+              >
+                Reply
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                }}
+                className="inline-flex h-[24px] items-center rounded-ctrl px-2 text-[11px] text-approve hover:bg-soft"
+              >
+                Resolve
+              </button>
+            </>
+          )}
+        </div>
+      }
+      composer={
+        replying ? (
+          <Composer
+            anchorLabel={null}
+            submitLabel="Reply"
+            draftKey={`suikou-reply:${comment.id}`}
+            className="mt-2 mb-0 ml-0 mr-0"
+            pending={replyCmd.isPending}
+            onSubmit={(body) => {
+              if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+              setReplying(false)
+            }}
+            onCancel={() => setReplying(false)}
+          />
+        ) : undefined
+      }
+    />
   )
 }
 
