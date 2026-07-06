@@ -2,6 +2,29 @@
 
 ## Session 2026-07-05
 
+### P4 diff work started
+- Committed the refactor as `6a0cb53` (`refactor: split review and board components`).
+- Updated `task_plan.md` so P4 is now the current selected feature task after
+  the refactor goal.
+- Started the backend contract read for D6/D7 / J1-J8:
+  - confirmed git-diff review content is generated live by `DiffSource.read/1`
+    through `Suikou.Git.file_diff(base...head, path)`
+  - confirmed `Artifacts.content_source/1` and
+    `AssetController.file_content/2` already expose `text/x-diff`
+  - confirmed `ReviewStore.load_review_structure` already reports `kind: :diff`
+    and ref/SHA metadata
+- Initial P4 direction: do not add a backend endpoint for the first diff-renderer
+  pass; route existing `text/x-diff` responses in the frontend into
+  `@pierre/diffs`.
+- Checked current `assets/package.json`: `@pierre/diffs` is not installed yet.
+- Checked Context7 docs for the diff renderer:
+  - `PatchDiff` from `@pierre/diffs/react` can render directly from a patch
+    string
+  - `parsePatchFiles` exists for later metadata-oriented work
+- Next implementation step: add `@pierre/diffs`, introduce a small diff content
+  branch for `text/x-diff`, and render it with `PatchDiff` before adding custom
+  anchor mapping.
+
 ### Refactor completed and verified
 - Completed the frontend component extraction goal and marked the thread goal
   complete.

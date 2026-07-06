@@ -194,3 +194,31 @@ html, body {
   - map `diff_hunk` / line-level comment anchors onto the rendered diff structure
 - Do not write a parallel diff parser unless the backend shape makes `@pierre/diffs` impossible. The default plan is
   adaptation, not reinvention.
+
+## P4 backend contract findings (2026-07-07)
+- The backend already exposes the raw unified patch text needed by `@pierre/diffs`.
+- For a git-diff review, `Suikou.Artifacts.DiffSource.read/1` reruns
+  `Suikou.Git.file_diff(project.path, base_ref, head_ref, artifact.file_path)`
+  and returns the live per-file unified diff text. The diff text itself is not
+  stored; only snapshot/hash data is persisted.
+- `Suikou.Artifacts.content_source/1` dispatches git-diff artifacts to
+  `{:inline, diff_text, "text/x-diff"}`.
+- `SuikouWeb.AssetController.file_content/2` already exposes the same shape by
+  review path through `/api/review/:review_id/files/content?path=...`.
+- `ReviewStore.load_review_structure` already marks git-diff reviews with
+  `kind: :diff` and includes `refs` metadata for base/head labels, pinned SHAs,
+  current SHAs, and `refs_moved`.
+- Practical frontend path: keep the current fetch path in `ReviewPage`, detect
+  `text/x-diff`, and route that content to an `@pierre/diffs` renderer. No new
+  backend endpoint is needed for the first D6/D7 pass.
+- Context7 docs for the relevant package surface (`/websites/diffs`) confirm:
+  - `parsePatchFiles(patchContent, cacheKeyPrefix?, throwOnError?)` parses unified
+    patch text into file diff metadata
+  - React components are imported from `@pierre/diffs/react`
+  - `PatchDiff` renders directly from a patch string
+  - `FileDiff` renders pre-parsed metadata
+  - `MultiFileDiff` is available for multi-file rendering
+- Since Suikou currently fetches one reviewed path at a time and git-diff
+  content is already per-file unified patch text, the lazy first frontend pass
+  should prefer `PatchDiff` over a pre-parse layer. Add parsing only when anchor
+  mapping or custom row behavior needs metadata.
