@@ -143,6 +143,8 @@ function useDesktopLayout(): boolean {
 }
 
 const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
+const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
+const sideRailExpandedKey = (scope: string): string => `suikou-side-group:${scope}`
 
 /** Whether a persisted file-comment composer draft holds unsent text, so a
  * reload reopens it just like a line composer. */
@@ -367,6 +369,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           <SideRail
             comments={comments}
             commentsProxy={commentsProxy}
+            storageKey={selected ? sideRailExpandedKey(`${reviewId}:${selected.path}`) : null}
             onHoverRange={setHoveredRange}
             onClearFocus={() => setFocusedCommentId(null)}
             onFocus={(comment) => setFocusedCommentId(comment.id)}
@@ -2683,10 +2686,17 @@ function Thread({
   const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(inlineThreadCollapsedKey(comment.id)) === "1")
+
+  useEffect(() => {
+    if (compact) return
+    localStorage.setItem(inlineThreadCollapsedKey(comment.id), collapsed ? "1" : "0")
+  }, [collapsed, comment.id, compact])
 
   const range = anchor
     ? `line ${anchor.start_line}${anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}`
     : "comment"
+  const anchorLabel = anchor ? `${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}L` : null
 
   if (editing) {
     return (
@@ -2728,24 +2738,44 @@ function Thread({
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+        {!compact && (
+          <button
+            type="button"
+            aria-label={collapsed ? "Expand comment" : "Collapse comment"}
+            title={collapsed ? "Expand comment" : "Collapse comment"}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setCollapsed((value) => !value)
+            }}
+            className="-m-1 grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
+          >
+            <span
+              className={`grid place-items-center transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? "rotate-0" : "rotate-90"}`}
+            >
+              <ChevronRight size={15} aria-hidden />
+            </span>
+          </button>
+        )}
         <span className={`inline-flex h-[19px] items-center gap-1 rounded-full px-2 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}>
           <meta.Icon size={11} aria-hidden />
           {meta.label}
+          {pending && <span className="size-1.5 shrink-0 rounded-full bg-amber" title="Pending" aria-label="Pending" />}
         </span>
-        {anchor && (
+        {anchorLabel && (
           <span className="font-mono text-[11px] text-muted">
-            on line {anchor.start_line}
-            {anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}
-            {pending ? "" : ` · Round ${comment.authored_round}`}
+            {anchorLabel}
+            {pending ? "" : ` · R${comment.authored_round}`}
           </span>
         )}
         {comment.outdated && <span className="font-mono text-[11px] text-amber">· outdated</span>}
-        <span className="flex-1" />
-        {pending ? (
-          <span className="inline-flex items-center rounded-full bg-amber-soft px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
-            PENDING
+        {collapsed && (
+          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[1.4] text-ink">
+            {comment.body}
           </span>
-        ) : comment.resolved ? (
+        )}
+        {!collapsed && <span className="flex-1" />}
+        {!pending && comment.resolved ? (
           <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-approve">
             <CircleCheck size={12} aria-hidden />
             Resolved
@@ -2753,47 +2783,53 @@ function Thread({
         ) : null}
       </div>
       <div
-        className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: bodyHtml }}
-      />
-      {comment.replies.length > 0 && (
-        <div className="mx-3 mb-2.5 flex flex-col gap-2">
-          {comment.replies.map((reply) => (
-            <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
-          ))}
-        </div>
-      )}
-      <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
-        {pending ? (
-          <>
-            <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
-            <ThreadAction
-              icon={Trash2}
-              label="Delete"
-              onClick={() => {
-                if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
-              }}
+        className={`grid transition-[grid-template-rows,opacity] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
+      >
+        <div className="min-h-0 overflow-hidden">
+            <div
+              className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: bodyHtml }}
             />
-          </>
-        ) : (
-          !replying && <ThreadAction icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
-        )}
+            {comment.replies.length > 0 && (
+              <div className="mx-3 mb-2.5 flex flex-col gap-2">
+                {comment.replies.map((reply) => (
+                  <Reply key={reply.id} reply={reply} commentsProxy={commentsProxy} />
+                ))}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
+              {pending ? (
+                <>
+                  <ThreadAction icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
+                  <ThreadAction
+                    icon={Trash2}
+                    label="Delete"
+                    onClick={() => {
+                      if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                    }}
+                  />
+                </>
+              ) : (
+                !replying && <ThreadAction icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
+              )}
+            </div>
+            {replying && (
+              <Composer
+                anchorLabel={null}
+                submitLabel="Reply"
+                draftKey={`suikou-reply:${comment.id}`}
+                className="mx-2.5 mb-2.5"
+                pending={replyCmd.isPending}
+                onSubmit={(body) => {
+                  if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
+                  setReplying(false)
+                }}
+                onCancel={() => setReplying(false)}
+              />
+            )}
+        </div>
       </div>
-      {replying && (
-        <Composer
-          anchorLabel={null}
-          submitLabel="Reply"
-          draftKey={`suikou-reply:${comment.id}`}
-          className="mx-2.5 mb-2.5"
-          pending={replyCmd.isPending}
-          onSubmit={(body) => {
-            if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
-            setReplying(false)
-          }}
-          onCancel={() => setReplying(false)}
-        />
-      )}
     </div>
   )
 }
@@ -3242,12 +3278,14 @@ function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "w
 function SideRail({
   comments,
   commentsProxy,
+  storageKey,
   onHoverRange,
   onClearFocus,
   onFocus,
 }: {
   comments: Comment[]
   commentsProxy: CommentsStoreProxy | null
+  storageKey: string | null
   onHoverRange: (range: HighlightRange) => void
   onClearFocus: () => void
   onFocus: (comment: Comment) => void
@@ -3255,7 +3293,7 @@ function SideRail({
   const railBodyRef = useRef<HTMLDivElement | null>(null)
   const [groupTops, setGroupTops] = useState<Map<string, number>>(() => new Map())
   const [hoveredGroupKey, setHoveredGroupKey] = useState<string | null>(null)
-  const [pinnedGroupKey, setPinnedGroupKey] = useState<string | null>(null)
+  const [pinnedGroupKey, setPinnedGroupKey] = useState<string | null>(() => (storageKey ? localStorage.getItem(storageKey) : null))
   const groups = useMemo<RailGroup[]>(() => {
     const located = comments
       .filter((comment) => comment.scope === "located" && comment.anchor?.type === "line_range")
@@ -3293,12 +3331,39 @@ function SideRail({
 
     return [...groupedLocated, ...artifacts]
   }, [comments])
+
+  useLayoutEffect(() => {
+    setPinnedGroupKey(storageKey ? localStorage.getItem(storageKey) : null)
+  }, [storageKey])
+
+  useEffect(() => {
+    if (storageKey === null) return
+    if (pinnedGroupKey === null) {
+      localStorage.removeItem(storageKey)
+      return
+    }
+    localStorage.setItem(storageKey, pinnedGroupKey)
+  }, [storageKey, pinnedGroupKey])
+
+  useEffect(() => {
+    if (pinnedGroupKey !== null && !groups.some((group) => group.key === pinnedGroupKey)) {
+      setPinnedGroupKey(null)
+    }
+  }, [groups, pinnedGroupKey])
   const fallbackTopFor = (group: RailGroup) => {
     const line = group.line
     return line === null ? 8 : Math.max(8, (line - 1) * parseFloat(MONO_PX[uiStore.monoSize]) * 1.55 + 8)
   }
   const groupExpanded = (group: RailGroup) => pinnedGroupKey === group.key
   const groupPreviewing = (group: RailGroup) => hoveredGroupKey === group.key && pinnedGroupKey !== group.key
+  const focusGroup = (group: RailGroup) => {
+    const comment = group.comments[0]
+    setPinnedGroupKey(group.key)
+    setHoveredGroupKey(group.key)
+    onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
+    onFocus(comment)
+    scrollToCommentAnchor(comment)
+  }
   const clearTransientHover = () => {
     if (pinnedGroupKey !== null) return
     setHoveredGroupKey(null)
@@ -3447,7 +3512,11 @@ function SideRail({
                 key={group.key}
                 data-side-group-id={group.key}
                 style={{ top: groupTops.get(group.key) ?? fallbackTopFor(group) }}
-                className="absolute left-0 right-0"
+                className={`absolute left-0 right-0 ${groupExpanded(group) ? "z-0" : "z-10"}`}
+                onPointerDownCapture={(event) => {
+                  if (groupExpanded(group)) return
+                  if ((event.target as Element).closest("[data-side-group-summary]")) focusGroup(group)
+                }}
                 onPointerEnter={() => {
                   setHoveredGroupKey(group.key)
                   if (!groupExpanded(group)) onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
@@ -3461,14 +3530,7 @@ function SideRail({
                   <SideGroupSummary
                     group={group}
                     preview={groupPreviewing(group)}
-                    onFocus={() => {
-                      const comment = group.comments[0]
-                      setPinnedGroupKey(group.key)
-                      setHoveredGroupKey(group.key)
-                      onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
-                      onFocus(comment)
-                      scrollToCommentAnchor(comment)
-                    }}
+                    onFocus={() => focusGroup(group)}
                   />
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -3511,6 +3573,7 @@ function SideGroupSummary({
   return (
     <button
       type="button"
+      data-side-group-summary
       onClick={onFocus}
       className="w-full overflow-hidden rounded-panel bg-canvas px-3 py-2 text-left shadow-sm ring-1 ring-inset ring-hair-strong hover:ring-accent-edge"
     >
