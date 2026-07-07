@@ -101,6 +101,21 @@ html, body {
 - Per-file verdict = `.fh-verdict` 36px icon-button in `.file-head` (states `.pending`/`.approve`/`.request`); `.vchip` CSS exists but is UNUSED on mobile. Verdict note (G2) = `.fnote-row` under the file head.
 - Navigator = bottom `.sheet` (same system). Sheet classes to mirror: `.sheet-scrim/.sheet/.sheet-grip/.sheet-head/.hico/.sh-meta/.sh-close/.sheet-body`. No `.fab`/`.bottombar` — FAB-equivalent is `.ab-icon` in the app bar.
 
+## Mobile file switching finding (2026-07-07)
+- Current mobile review has only one file-switching path: the file-head "Open file list" button opens a bottom Dialog containing the existing `FileList`, then selecting a file closes the sheet.
+- This is correct as a fallback for search/tree navigation, but it is too interruptive for sequential review because every next-file move leaves the reading surface.
+- The smallest useful improvement is not a new mobile navigator. Add previous/next file controls to the mobile file head or status bar, derived from the current `entries` order and existing `select(path)` behavior.
+- Keep the existing Files sheet as the full list/search fallback. Do not replace it with a carousel or a second file-list implementation.
+- The chosen layout separates navigation from context: previous button, clickable `N/M` position button, next button,
+  then a non-clickable current file label.
+- Implemented first slice in `assets/src/review/ReviewPage.tsx`: `Shell` computes selected-file position from
+  `entries`, passes previous/next paths to `Editor`, and the mobile file head renders previous/current/next controls.
+  The `N/M` position button opens the existing Files dialog. Desktop keeps the left file navigator and normal path
+  header.
+- Visual refinement: avoid making `N/M` a bordered pill. A ghost text button with a small chevron keeps it in the same
+  visual layer as the previous/next arrows. On mobile, view-mode segmented controls should collapse to a dropdown;
+  desktop keeps segmented controls.
+
 ## Comment side-panel / display modes (E14 / H1-H4 / I) — spec
 - **Display mode = 3-way mutually exclusive: inline (default) / side / hidden.** spec.md §145-150.
 - Overview (verdict rollup/blockers/round stats) + Submit are NOT a persistent column — they're TOOLBAR POPOVERS.

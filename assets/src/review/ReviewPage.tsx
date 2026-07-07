@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ArrowRight, Check, ChevronDown, FileText, GitCompare, Info, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, X } from "lucide-react"
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Info, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type MonoSize } from "../stores/ui-store"
@@ -42,6 +42,7 @@ type Verdict = "approve" | "request_changes" | "comment"
 type Range = { start: number; end: number }
 type BodyFile = ReviewSnapshot["body"]["files"][number]
 type HighlightRange = Range | null
+type FilePosition = { index: number; total: number; previousPath: string | null; nextPath: string | null }
 
 const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
   approve: { label: "Approve", short: "Approved" },
@@ -196,6 +197,16 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
       ? remembered
       : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
+  const selectedIndex = entries.findIndex((e) => e.path === selectedPath)
+  const filePosition: FilePosition | null =
+    selectedIndex >= 0
+      ? {
+          index: selectedIndex,
+          total: entries.length,
+          previousPath: selectedIndex > 0 ? (entries[selectedIndex - 1]?.path ?? null) : null,
+          nextPath: selectedIndex < entries.length - 1 ? (entries[selectedIndex + 1]?.path ?? null) : null,
+        }
+      : null
   useEffect(() => {
     if (!selectedPath || file === selectedPath) return
     localStorage.setItem(fileKey, selectedPath)
@@ -335,6 +346,8 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           onFocusComment={setFocusedCommentId}
           onClearFocus={() => setFocusedCommentId(null)}
           onOpenFiles={() => setFilesSheetOpen(true)}
+          onSelectFile={select}
+          filePosition={filePosition}
         />
         {commentDisplay === "side" && (
           <SideRail
@@ -482,6 +495,8 @@ function Editor({
   onFocusComment,
   onClearFocus,
   onOpenFiles,
+  onSelectFile,
+  filePosition,
 }: {
   reviewId: string
   entry: FileEntry | null
@@ -499,6 +514,8 @@ function Editor({
   onFocusComment: (commentId: string | null) => void
   onClearFocus: () => void
   onOpenFiles: () => void
+  onSelectFile: (path: string) => void
+  filePosition: FilePosition | null
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
@@ -612,68 +629,175 @@ function Editor({
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-4">
-        <button
-          type="button"
-          onClick={onOpenFiles}
-          className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink lg:hidden"
-          title="Files"
-          aria-label="Open file list"
-        >
-          <PanelLeft size={17} aria-hidden />
-        </button>
+        {entry && filePosition ? (
+          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
+            <button
+              type="button"
+              onClick={() => filePosition.previousPath && onSelectFile(filePosition.previousPath)}
+              disabled={!filePosition.previousPath}
+              className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink disabled:pointer-events-none disabled:opacity-35"
+              title="Previous file"
+              aria-label="Previous file"
+            >
+              <ChevronLeft size={16} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenFiles}
+              className="inline-flex h-[30px] shrink-0 items-center gap-0.5 rounded-ctrl px-2 font-mono text-[11px] font-semibold tabular-nums text-muted hover:bg-soft hover:text-ink"
+              title="Files"
+              aria-label={`Open file list, current file ${filePosition.index + 1} of ${filePosition.total}`}
+            >
+              {filePosition.index + 1}/{filePosition.total}
+              <ChevronDown size={12} aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => filePosition.nextPath && onSelectFile(filePosition.nextPath)}
+              disabled={!filePosition.nextPath}
+              className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink disabled:pointer-events-none disabled:opacity-35"
+              title="Next file"
+              aria-label="Next file"
+            >
+              <ChevronRight size={16} aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenFiles}
+            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink lg:hidden"
+            title="Files"
+            aria-label="Open file list"
+          >
+            <PanelLeft size={17} aria-hidden />
+          </button>
+        )}
         {entry ? (
           <>
-            <FileIcon name={name} size={14} />
-            <span className="truncate font-mono text-[12.5px] text-ink">
-              <span className="text-faint">{dir}</span>
-              {name}
-            </span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:hidden">
+              <FileIcon name={name} size={13} />
+              <span className="truncate font-mono text-[12px] text-ink" title={entry.path}>
+                {name}
+              </span>
+            </div>
+            <div className="hidden min-w-0 items-center gap-2 lg:flex">
+              <FileIcon name={name} size={14} />
+              <span className="truncate font-mono text-[12.5px] text-ink">
+                <span className="text-faint">{dir}</span>
+                {name}
+              </span>
+            </div>
           </>
         ) : (
-          <span className="text-[12.5px] text-faint">No file selected</span>
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-faint lg:flex-none">No file selected</span>
         )}
-        <span className="flex-1" />
+        <span className="hidden flex-1 lg:block" />
         {previewable && content.kind === "text" && (
-          <Segmented<"source" | "preview">
-            value={view}
-            onChange={chooseView}
-            options={[
-              ["source", "Source"],
-              ["preview", "Preview"],
-            ]}
-          />
+          <>
+            <div className="lg:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-[12px] font-semibold text-muted hover:bg-soft hover:text-ink"
+                      aria-label="Choose view mode"
+                      title="View mode"
+                    >
+                      {view === "source" ? "Source" : "Preview"}
+                      <ChevronDown size={13} aria-hidden />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => chooseView("source")}>
+                    {view === "source" && <Check size={13} aria-hidden />}
+                    Source
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => chooseView("preview")}>
+                    {view === "preview" && <Check size={13} aria-hidden />}
+                    Preview
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="hidden lg:block">
+              <Segmented<"source" | "preview">
+                value={view}
+                onChange={chooseView}
+                options={[
+                  ["source", "Source"],
+                  ["preview", "Preview"],
+                ]}
+              />
+            </div>
+          </>
         )}
         {htmlFile && content.kind === "text" && (
           <>
-            <Segmented<"source" | "comment" | "interactive">
-              value={htmlMode}
-              onChange={chooseHtmlMode}
-              options={[
-                ["source", "Source"],
-                ["comment", "Comment"],
-                [
-                  "interactive",
-                  <span className="inline-flex items-center gap-1.5">
+            <div className="lg:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-[12px] font-semibold text-muted hover:bg-soft hover:text-ink"
+                      aria-label="Choose view mode"
+                      title="View mode"
+                    >
+                      {htmlMode === "source" ? "Source" : htmlMode === "comment" ? "Comment" : "Interactive"}
+                      <ChevronDown size={13} aria-hidden />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => chooseHtmlMode("source")}>
+                    {htmlMode === "source" && <Check size={13} aria-hidden />}
+                    Source
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => chooseHtmlMode("comment")}>
+                    {htmlMode === "comment" && <Check size={13} aria-hidden />}
+                    Comment
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => chooseHtmlMode("interactive")}>
+                    {htmlMode === "interactive" && <Check size={13} aria-hidden />}
                     Interactive
-                    <Tooltip
-                      side="bottom"
-                      content={
-                        <>
-                          <b className="font-semibold text-ink">Interactive mode</b> makes links, hovers, and form
-                          controls live. Comment anchoring is paused so the page is not intercepted; switch back to
-                          Comment to anchor.
-                        </>
-                      }
-                      render={
-                        <span aria-label="About interactive mode" className="grid place-items-center">
-                          <Info size={12} aria-hidden />
-                        </span>
-                      }
-                    />
-                  </span>,
-                ],
-              ]}
-            />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="hidden lg:block">
+              <Segmented<"source" | "comment" | "interactive">
+                value={htmlMode}
+                onChange={chooseHtmlMode}
+                options={[
+                  ["source", "Source"],
+                  ["comment", "Comment"],
+                  [
+                    "interactive",
+                    <span className="inline-flex items-center gap-1.5">
+                      Interactive
+                      <Tooltip
+                        side="bottom"
+                        content={
+                          <>
+                            <b className="font-semibold text-ink">Interactive mode</b> makes links, hovers, and form
+                            controls live. Comment anchoring is paused so the page is not intercepted; switch back to
+                            Comment to anchor.
+                          </>
+                        }
+                        render={
+                          <span aria-label="About interactive mode" className="grid place-items-center">
+                            <Info size={12} aria-hidden />
+                          </span>
+                        }
+                      />
+                    </span>,
+                  ],
+                ]}
+              />
+            </div>
             {htmlMode !== "source" && (
               <>
                 <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">

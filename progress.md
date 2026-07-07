@@ -1,5 +1,37 @@
 # Progress Log
 
+## Session 2026-07-07
+
+### Mobile file switching planning
+- Investigated the current mobile review navigation path.
+- Current implementation:
+  - desktop file tree is hidden below `lg`
+  - mobile uses the editor header "Open file list" button
+  - that opens the existing Files bottom Dialog with `FileList`
+  - selecting a file closes the sheet and navigates through the existing `select(path)` route update
+- Planning decision:
+  - keep the Files sheet as the full search/tree fallback
+  - add low-friction previous/next file controls for sequential mobile review before doing the full #25/#31 app-bar rewrite
+  - record this as a new prioritized backlog item ahead of the larger mobile shell pass
+- No implementation changes were made in this planning pass.
+
+### Mobile file switching first slice implemented
+- Added mobile-only previous/current/next controls to the review file head in `ReviewPage.tsx`.
+- The `N/M` position button opens the existing Files sheet; previous/next reuse `Shell.select(path)` so route state
+  and `suikou-file:<reviewId>` persistence stay centralized. The file label is display-only and truncates separately.
+- Refined the mobile header after visual review: the `N/M` control is now a ghost text button with a chevron instead
+  of a bordered pill, and mobile view modes use a dropdown while desktop keeps the existing segmented controls.
+- Verified with `agent-browser` at `390x844` on
+  `/reviews/019f2f9f-490c-7a72-bc03-6914211c08c9`: first file shows Previous disabled, chip `1/14`, Next enabled;
+  clicking Next updates the chip to `2/14`; clicking the chip opens the Files sheet.
+- Verified desktop at `1440x900`: the left file navigator remains visible and the mobile previous/current/next controls
+  are hidden.
+- Browser errors: none captured by `agent-browser errors --clear`.
+- Static checks: `git diff --check` passed. `pnpm typecheck` and `bun run typecheck` are blocked by the current local
+  dependency install state: TypeScript cannot resolve `vite/client`, `vite-plugin-pwa/client`, `vitest/globals`, and
+  `@testing-library/jest-dom` type entries. `pnpm build` is also blocked because the local `vite` binary is missing
+  from `node_modules/.bin`.
+
 ## Session 2026-07-05
 
 ### P4 diff work started

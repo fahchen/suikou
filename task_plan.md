@@ -49,19 +49,21 @@ Cross-cutting implementation decisions now recorded for later tasks:
 ## Prioritized Backlog (2026-07-07)
 1. Ecomplete comment lifecycle depth: open/resolved, outdated, drifted, stranded; reactions stay last unless
    product need changes.
-2. P-mobile #25/#31: finish the mobile app bar and bottom-sheet submit/overview shell, keeping comment actions
+2. [x] P-mobile file switching first slice: mobile file head now has previous/next file controls and a
+   current-file chip that opens the existing Files sheet. The sheet remains the search/tree fallback.
+3. P-mobile #25/#31: finish the mobile app bar and bottom-sheet submit/overview shell, keeping comment actions
    usable without hover.
-3. P3-D11 stacked-all-files mode, including comment grouping and interaction with the per-file verdict chip.
-4. P4-J diff comment anchoring: map `diff_hunk` comments onto rendered diff lines using the shared comment
+4. P3-D11 stacked-all-files mode, including comment grouping and interaction with the per-file verdict chip.
+5. P4-J diff comment anchoring: map `diff_hunk` comments onto rendered diff lines using the shared comment
    components; introduce `parsePatchFiles` only if rendered-line metadata is actually needed.
-5. P4-D6: render `git_diff` reviews with `@pierre/diffs` `PatchDiff` from the existing unified patch payload.
+6. P4-D6: render `git_diff` reviews with `@pierre/diffs` `PatchDiff` from the existing unified patch payload.
    Keep this as the smallest useful diff viewer before adding custom anchor logic.
-6. P4-D7: add unified / side-by-side display switching on the same diff payload. If the library path is not
+7. P4-D7: add unified / side-by-side display switching on the same diff payload. If the library path is not
    straightforward, defer split view instead of building a second renderer.
-7. P4-J refs/status states: surface refs moved / branch deleted / unavailable diff states from the existing review
+8. P4-J refs/status states: surface refs moved / branch deleted / unavailable diff states from the existing review
    metadata.
-8. P4-J cross-round diff behavior and diff submit edge cases after the renderer and anchors are stable.
-9. Small maintenance: add the overscroll CSS rule; use `fs_notify` only when starting file-change-driven work.
+9. P4-J cross-round diff behavior and diff submit edge cases after the renderer and anchors are stable.
+10. Small maintenance: add the overscroll CSS rule; use `fs_notify` only when starting file-change-driven work.
 
 ### E14/H1-H4 Implementation Plan
 - [x] Phase 1 — display-mode state + settings control
