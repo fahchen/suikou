@@ -46,6 +46,23 @@ Cross-cutting implementation decisions now recorded for later tasks:
 - P4 diff rendering uses `@pierre/diffs`
 - filesystem change watching uses `fs_notify` (`https://github.com/fahchen/fs_notify`)
 
+## Prioritized Backlog (2026-07-07)
+1. Ecomplete comment lifecycle depth: open/resolved, outdated, drifted, stranded; reactions stay last unless
+   product need changes.
+2. P-mobile #25/#31: finish the mobile app bar and bottom-sheet submit/overview shell, keeping comment actions
+   usable without hover.
+3. P3-D11 stacked-all-files mode, including comment grouping and interaction with the per-file verdict chip.
+4. P4-J diff comment anchoring: map `diff_hunk` comments onto rendered diff lines using the shared comment
+   components; introduce `parsePatchFiles` only if rendered-line metadata is actually needed.
+5. P4-D6: render `git_diff` reviews with `@pierre/diffs` `PatchDiff` from the existing unified patch payload.
+   Keep this as the smallest useful diff viewer before adding custom anchor logic.
+6. P4-D7: add unified / side-by-side display switching on the same diff payload. If the library path is not
+   straightforward, defer split view instead of building a second renderer.
+7. P4-J refs/status states: surface refs moved / branch deleted / unavailable diff states from the existing review
+   metadata.
+8. P4-J cross-round diff behavior and diff submit edge cases after the renderer and anchors are stable.
+9. Small maintenance: add the overscroll CSS rule; use `fs_notify` only when starting file-change-driven work.
+
 ### E14/H1-H4 Implementation Plan
 - [x] Phase 1 — display-mode state + settings control
   - Add `CommentDisplayMode = "inline" | "side" | "hidden"` in the review shell.
@@ -197,7 +214,7 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 - **Status:** D2/D8/D9/D10/D11-empty done. Remaining: D3/D4/D5 html (task #22), D11-stacked (#26).
 
 ### Phase P4: Multi-round + git_diff
-- [ ] A5–A7 latest / history (superseded, read-only) / round compare
+- [x] A5–A7 latest / history (superseded, read-only) / round compare
 - [ ] D6/D7 diff unified / side-by-side
 - [ ] J1–J8 git_diff-only states (diff_hunk anchors, refs moved, branch deleted,
       cross-round line diff, diff submit)
@@ -226,7 +243,8 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 - [ ] E5/E6 open/resolved · E7 outdated · E8 drifted · E12 reactions
 - [~] E14 side/inspector layout · H1–H4 display modes/collapse — implementation substantially complete;
       verified end-to-end; shared `CommentCard` cleanup committed in `451bcd8`; only pixel-level polish remains
-- [ ] E15 html element dot · E16 stranded
+- [x] E15 html element dot
+- [ ] E16 stranded
 - **Status:** pending
 
 ### Phase Frest: Remaining composer

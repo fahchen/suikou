@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 import { Popover } from "../../components/ui/popover"
-import { Segmented } from "../../components/ui/segmented"
 import { ReviewButton, SubmitButton, type ReviewSummary, VERDICT_META, verdictText, type Verdict } from "./ReviewPanels"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
@@ -38,7 +37,6 @@ export function Toolbar({
   name,
   isDiff,
   connected,
-  commentDisplay,
   store,
   review,
   roundSummaries,
@@ -51,7 +49,6 @@ export function Toolbar({
   name: string
   isDiff: boolean
   connected: boolean
-  commentDisplay: CommentDisplayMode
   store: ReviewStore
   review: ReviewSummary
   roundSummaries: RoundSummary[]
@@ -112,7 +109,6 @@ export function Toolbar({
           latestRound={latestRound}
         />
       )}
-      <DisplayButton value={commentDisplay} />
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -236,39 +232,6 @@ export function StatusBar({
         {connected ? "connected" : "reconnecting…"}
       </span>
     </div>
-  )
-}
-
-function DisplayButton({ value }: { value: CommentDisplayMode }) {
-  return (
-    <span className="hidden sm:inline-flex">
-      <Popover
-        align="end"
-        className="w-[214px] p-2"
-        render={
-          <button
-            type="button"
-            title="Display options"
-            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-          >
-            <MessageSquare size={15} aria-hidden />
-          </button>
-        }
-      >
-        <div className="px-1 pt-1 pb-2 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
-          Comments
-        </div>
-        <Segmented<CommentDisplayMode>
-          value={value}
-          onChange={(next) => uiStore.setCommentDisplay(next)}
-          options={[
-            ["inline", "Inline"],
-            ["side", "Side"],
-            ["hidden", "Hidden"],
-          ]}
-        />
-      </Popover>
-    </span>
   )
 }
 

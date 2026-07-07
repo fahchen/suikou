@@ -7,6 +7,7 @@ import { Plus } from "lucide-react"
 import { useMusubiCommand } from "../../musubi"
 import { uiStore, type MonoSize } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
+import { Popover } from "../../components/ui/popover"
 import { renderMarkdownBlocks } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
@@ -15,6 +16,7 @@ import { CommentThread } from "./comments/CommentThread"
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type Range = { start: number; end: number }
 type HighlightRange = Range | null
+type ComposerMode = "inline" | "popover"
 
 const MONO_PX: Record<MonoSize, string> = { small: "11.5px", default: "12.5px", large: "14px" }
 
@@ -26,6 +28,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   draftScope,
   readOnly = false,
   showThreads = true,
+  composerMode = "inline",
   focusedCommentId = null,
   highlightedRange = null,
   onFocusComment,
@@ -37,6 +40,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   draftScope: string
   readOnly?: boolean
   showThreads?: boolean
+  composerMode?: ComposerMode
   focusedCommentId?: string | null
   highlightedRange?: HighlightRange
   onFocusComment?: (commentId: string | null) => void
@@ -163,41 +167,75 @@ export const MarkdownPreview = observer(function MarkdownPreview({
           const focused = highlightedRange !== null && highlightedRange.start >= block.line && highlightedRange.start <= block.endLine
           const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
           const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
+          const composerOpen = composerHere && draft !== null
+          const gutterButton = (
+            <button
+              type="button"
+              data-review-block={index}
+              onPointerDown={(event) => {
+                if (event.shiftKey && draft) open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
+                else setDrag({ from: index, to: index })
+              }}
+              onClick={(event) => {
+                if (event.shiftKey) return
+                requestOpen({ start: block.line, end: block.endLine })
+              }}
+              style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
+              title="Comment on this block — drag or shift-click for a range"
+              className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
+                selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+              }`}
+            >
+              <span data-review-line={block.line} className="group-hover/gut:opacity-0">
+                {block.line}
+              </span>
+              {block.endLine > block.line && (
+                <>
+                  <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong group-hover/gut:opacity-0" />
+                  <span className="group-hover/gut:opacity-0">{block.endLine}</span>
+                </>
+              )}
+              <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
+            </button>
+          )
 
           return (
             <Fragment key={index}>
               <div className={`flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
-                <button
-                  type="button"
-                  data-review-block={index}
-                  onPointerDown={(event) => {
-                    if (event.shiftKey && draft) open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
-                    else setDrag({ from: index, to: index })
-                  }}
-                  style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
-                  title="Comment on this block — drag or shift-click for a range"
-                  className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
-                    selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
-                  }`}
-                >
-                  <span data-review-line={block.line} className="group-hover/gut:opacity-0">
-                    {block.line}
-                  </span>
-                  {block.endLine > block.line && (
-                    <>
-                      <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong group-hover/gut:opacity-0" />
-                      <span className="group-hover/gut:opacity-0">{block.endLine}</span>
-                    </>
-                  )}
-                  <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
-                </button>
+                {composerMode === "popover" ? (
+                  <Popover
+                    open={composerOpen}
+                    onOpenChange={(next) => {
+                      if (next) requestOpen({ start: block.line, end: block.endLine })
+                      else if (composerOpen) close()
+                    }}
+                    side="right"
+                    align="start"
+                    chrome={false}
+                    className="w-[330px] p-0"
+                    render={gutterButton}
+                  >
+                    {composerOpen && draft && (
+                      <Composer
+                        anchorLabel={label}
+                        draftKey={draftBodyKey(draftScope, draft)}
+                        pending={addComment.isPending}
+                        className="m-0"
+                        onSubmit={submitNew}
+                        onCancel={close}
+                      />
+                    )}
+                  </Popover>
+                ) : (
+                  gutterButton
+                )}
                 <div
                   className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: block.html }}
                 />
               </div>
-              {composerHere && draft && (
+              {composerMode === "inline" && composerHere && draft && (
                 <Composer
                   anchorLabel={label}
                   draftKey={draftBodyKey(draftScope, draft)}
@@ -244,6 +282,7 @@ export const Source = observer(function Source({
   draftScope,
   readOnly = false,
   showThreads = true,
+  composerMode = "inline",
   focusedCommentId = null,
   highlightedRange = null,
   onFocusComment,
@@ -256,6 +295,7 @@ export const Source = observer(function Source({
   draftScope: string
   readOnly?: boolean
   showThreads?: boolean
+  composerMode?: ComposerMode
   focusedCommentId?: string | null
   highlightedRange?: HighlightRange
   onFocusComment?: (commentId: string | null) => void
@@ -371,27 +411,62 @@ export const Source = observer(function Source({
         const active = drag ? { start: Math.min(drag.from, drag.to), end: Math.max(drag.from, drag.to) } : draft
         const selecting = active && lineNo >= active.start && lineNo <= active.end
         const focused = highlightedRange !== null && lineNo >= highlightedRange.start && lineNo <= highlightedRange.end
+        const composerOpen = draft !== null && draft.end === lineNo
+        const gutterButton = (
+          <button
+            type="button"
+            onPointerDown={(event) => {
+              if (event.shiftKey && draft) open({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
+              else setDrag({ from: lineNo, to: lineNo })
+            }}
+            onClick={(event) => {
+              if (event.shiftKey) return
+              requestOpen({ start: lineNo, end: lineNo })
+            }}
+            style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
+            title="Comment on this line — drag or shift-click for a range"
+            className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
+              selecting || focused
+                ? "bg-accent-soft font-semibold text-accent-bright"
+                : "bg-editor text-faint hover:text-accent-bright"
+            }`}
+          >
+            <span className="group-hover/gut:opacity-0">{lineNo}</span>
+            <Plus size={12} aria-hidden className="absolute inset-y-0 right-2.5 my-auto hidden group-hover/gut:block" />
+          </button>
+        )
 
         return (
           <Fragment key={index}>
             <div data-review-line={lineNo} className={`flex scroll-mt-2 ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
-              <button
-                type="button"
-                onPointerDown={(event) => {
-                  if (event.shiftKey && draft) open({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
-                  else setDrag({ from: lineNo, to: lineNo })
-                }}
-                style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
-                title="Comment on this line — drag or shift-click for a range"
-                className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
-                  selecting || focused
-                    ? "bg-accent-soft font-semibold text-accent-bright"
-                    : "bg-editor text-faint hover:text-accent-bright"
-                }`}
-              >
-                <span className="group-hover/gut:opacity-0">{lineNo}</span>
-                <Plus size={12} aria-hidden className="absolute inset-y-0 right-2.5 my-auto hidden group-hover/gut:block" />
-              </button>
+              {composerMode === "popover" ? (
+                <Popover
+                  open={composerOpen}
+                  onOpenChange={(next) => {
+                    if (next) requestOpen({ start: lineNo, end: lineNo })
+                    else if (composerOpen) close()
+                  }}
+                  side="right"
+                  align="start"
+                  chrome={false}
+                  className="w-[330px] p-0"
+                  render={gutterButton}
+                >
+                  {composerOpen && draft && (
+                    <Composer
+                      anchorLabel={`line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}`}
+                      draftKey={draftBodyKey(draftScope, draft)}
+                      pending={addComment.isPending}
+                      suggestSeed={lines.slice(draft.start - 1, draft.end).join("\n")}
+                      className="m-0"
+                      onSubmit={submitNew}
+                      onCancel={close}
+                    />
+                  )}
+                </Popover>
+              ) : (
+                gutterButton
+              )}
               <code className={`pr-6 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
                 {lineTokens.length === 0 ? " " : lineTokens.map((token, tokenIndex) => (
                   <span key={tokenIndex} style={token.color ? { color: token.color } : undefined}>
@@ -400,7 +475,7 @@ export const Source = observer(function Source({
                 ))}
               </code>
             </div>
-            {draft && draft.end === lineNo && (
+            {composerMode === "inline" && draft && draft.end === lineNo && (
               <Composer
                 anchorLabel={`line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}`}
                 draftKey={draftBodyKey(draftScope, draft)}

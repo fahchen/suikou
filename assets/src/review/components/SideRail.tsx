@@ -1,260 +1,130 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { MessageSquare, MessageSquarePlus } from "lucide-react"
+import type { StoreProxy } from "@musubi/react"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowDownUp, Check, MessageSquare, MessageSquarePlus } from "lucide-react"
 
-import { uiStore, type MonoSize } from "../../stores/ui-store"
+import { useMusubiCommand } from "../../musubi"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu"
+import { Composer } from "./comments/Composer"
 import { SideCommentCard } from "./comments/SideCommentCard"
-import { compactCritiqueLabel, type Comment, type CommentsStoreProxy } from "./comments/shared"
+import { safeDraft, type Comment, type CommentsStoreProxy, type CritiqueType } from "./comments/shared"
 
 type HighlightRange = { start: number; end: number } | null
-type RailGroup = { key: string; line: number | null; comments: Comment[] }
+type SortOrder = "newest" | "oldest"
+type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 
-const MONO_PX: Record<MonoSize, string> = { small: "11.5px", default: "12.5px", large: "14px" }
+const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+]
 
 export function SideRail({
   comments,
   commentsProxy,
+  fileProxy,
+  fileCommentDraftKey,
   storageKey,
   onHoverRange,
-  onClearFocus,
   onFocus,
 }: {
   comments: Comment[]
   commentsProxy: CommentsStoreProxy | null
+  fileProxy: FileStoreProxy | null
+  fileCommentDraftKey: string | null
   storageKey: string | null
   onHoverRange: (range: HighlightRange) => void
-  onClearFocus: () => void
   onFocus: (comment: Comment) => void
 }) {
-  const railBodyRef = useRef<HTMLDivElement | null>(null)
-  const [groupTops, setGroupTops] = useState<Map<string, number>>(() => new Map())
-  const [hoveredGroupKey, setHoveredGroupKey] = useState<string | null>(null)
-  const [pinnedGroupKey, setPinnedGroupKey] = useState<string | null>(() => (storageKey ? localStorage.getItem(storageKey) : null))
-  const groups = useMemo<RailGroup[]>(() => {
-    const located = comments
-      .filter((comment) => comment.scope === "located" && comment.anchor?.type === "line_range")
-      .sort((a, b) => commentSortKey(a) - commentSortKey(b))
-    const artifacts = comments
-      .filter((comment) => comment.scope === "artifact")
-      .map((comment) => ({ key: `artifact:${comment.id}`, line: null, comments: [comment] }) satisfies RailGroup)
-    const groupedLocated: RailGroup[] = []
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => readSortOrder(storageKey))
+  const [fileComposing, setFileComposing] = useState(() => hasDraftBody(fileCommentDraftKey))
+  const sortedComments = useMemo(() => {
+    const direction = sortOrder === "newest" ? -1 : 1
+    return [...comments].sort((a, b) => direction * (commentTime(a) - commentTime(b)))
+  }, [comments, sortOrder])
 
-    let current: { line: number; end: number; comments: Comment[] } | null = null
-    for (const comment of located) {
-      const anchor = comment.anchor
-      if (!anchor || anchor.type !== "line_range") continue
-      if (current && anchor.start_line <= current.end) {
-        current.comments.push(comment)
-        current.end = Math.max(current.end, anchor.end_line)
-        continue
-      }
-      if (current) groupedLocated.push({ key: `line:${current.line}`, line: current.line, comments: current.comments })
-      current = { line: anchor.start_line, end: anchor.end_line, comments: [comment] }
-    }
-    if (current) groupedLocated.push({ key: `line:${current.line}`, line: current.line, comments: current.comments })
-
-    return [...groupedLocated, ...artifacts]
-  }, [comments])
-
-  useLayoutEffect(() => {
-    setPinnedGroupKey(storageKey ? localStorage.getItem(storageKey) : null)
+  useEffect(() => {
+    setSortOrder(readSortOrder(storageKey))
   }, [storageKey])
 
   useEffect(() => {
-    if (storageKey === null) return
-    if (pinnedGroupKey === null) {
-      localStorage.removeItem(storageKey)
-      return
-    }
-    localStorage.setItem(storageKey, pinnedGroupKey)
-  }, [storageKey, pinnedGroupKey])
+    setFileComposing(hasDraftBody(fileCommentDraftKey))
+  }, [fileCommentDraftKey])
 
   useEffect(() => {
-    if (pinnedGroupKey !== null && !groups.some((group) => group.key === pinnedGroupKey)) setPinnedGroupKey(null)
-  }, [groups, pinnedGroupKey])
+    if (storageKey === null) return
+    localStorage.setItem(storageKey, sortOrder)
+  }, [storageKey, sortOrder])
 
-  const fallbackTopFor = (group: RailGroup) => {
-    const line = group.line
-    return line === null ? 8 : Math.max(8, (line - 1) * parseFloat(MONO_PX[uiStore.monoSize]) * 1.55 + 8)
-  }
-  const groupExpanded = (group: RailGroup) => pinnedGroupKey === group.key
-  const groupPreviewing = (group: RailGroup) => hoveredGroupKey === group.key && pinnedGroupKey !== group.key
-  const focusGroup = (group: RailGroup) => {
-    const comment = group.comments[0]
-    setPinnedGroupKey(group.key)
-    setHoveredGroupKey(group.key)
-    onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
+  const focusLine = (comment: Comment) => {
+    onHoverRange(commentRange(comment))
     onFocus(comment)
     scrollToCommentAnchor(comment)
   }
-  const clearTransientHover = () => {
-    if (pinnedGroupKey !== null) return
-    setHoveredGroupKey(null)
-    onHoverRange(null)
-  }
-  const heightForComment = (comment: Comment) => (comment.replies.length > 0 ? 150 : 116)
-  const heightForGroup = (group: RailGroup) => {
-    if (!groupExpanded(group)) return groupPreviewing(group) ? 64 : 38
-    return group.comments.reduce((sum, comment) => sum + heightForComment(comment), 0) + (group.comments.length - 1) * 8
-  }
-
-  useLayoutEffect(() => {
-    const rail = railBodyRef.current
-    const editor = document.querySelector("[data-review-scroll]") as HTMLElement | null
-
-    const measure = () => {
-      const next = new Map<string, number>()
-      const locatedGroups = groups.filter((group) => group.line !== null)
-      const artifactGroups = groups.filter((group) => group.line === null)
-
-      const rawTopFor = (group: RailGroup) => {
-        if (group.line === null) return fallbackTopFor(group)
-        const lineEl = document.querySelector(`[data-review-line="${group.line}"]`) as HTMLElement | null
-        return lineEl && editor
-          ? lineEl.getBoundingClientRect().top - editor.getBoundingClientRect().top + editor.scrollTop
-          : fallbackTopFor(group)
-      }
-      const measuredHeightFor = (group: RailGroup) => {
-        const box = document.querySelector(`[data-side-group-id="${group.key}"]`) as HTMLElement | null
-        return box?.getBoundingClientRect().height || heightForGroup(group)
-      }
-
-      const focusedIndex = pinnedGroupKey ? locatedGroups.findIndex((group) => group.key === pinnedGroupKey) : -1
-      if (focusedIndex >= 0) {
-        const focused = locatedGroups[focusedIndex]
-        const focusedTop = Math.max(8, rawTopFor(focused))
-        next.set(focused.key, focusedTop)
-
-        let beforeBottom = focusedTop - 8
-        for (let index = focusedIndex - 1; index >= 0; index -= 1) {
-          const group = locatedGroups[index]
-          const height = measuredHeightFor(group)
-          const top = Math.max(8, Math.min(rawTopFor(group), beforeBottom - height))
-          next.set(group.key, top)
-          beforeBottom = top - 8
-        }
-
-        let afterTop = focusedTop + measuredHeightFor(focused) + 8
-        for (let index = focusedIndex + 1; index < locatedGroups.length; index += 1) {
-          const group = locatedGroups[index]
-          const top = Math.max(rawTopFor(group), afterTop)
-          next.set(group.key, top)
-          afterTop = top + measuredHeightFor(group) + 8
-        }
-      } else {
-        let nextLocatedTop = 8
-        for (const group of locatedGroups) {
-          const top = Math.max(8, rawTopFor(group), nextLocatedTop)
-          next.set(group.key, top)
-          nextLocatedTop = top + measuredHeightFor(group) + 8
-        }
-      }
-
-      const locatedBottoms = locatedGroups.map((group) => (next.get(group.key) ?? fallbackTopFor(group)) + measuredHeightFor(group))
-      let nextArtifactTop = Math.max(8, locatedBottoms.length ? Math.max(...locatedBottoms) + 8 : 8)
-      for (const group of artifactGroups) {
-        next.set(group.key, nextArtifactTop)
-        nextArtifactTop += measuredHeightFor(group) + 8
-      }
-
-      if (rail && editor && rail.scrollTop !== editor.scrollTop) rail.scrollTop = editor.scrollTop
-      setGroupTops(next)
-    }
-
-    measure()
-    editor?.addEventListener("scroll", measure, { passive: true })
-    window.addEventListener("resize", measure)
-    return () => {
-      editor?.removeEventListener("scroll", measure)
-      window.removeEventListener("resize", measure)
-    }
-  }, [groups, hoveredGroupKey, pinnedGroupKey])
-
-  useEffect(() => {
-    if (pinnedGroupKey === null) return
-    const clearPinned = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      const rail = railBodyRef.current
-      if (rail?.contains(target)) return
-      setPinnedGroupKey(null)
-      setHoveredGroupKey(null)
-      onHoverRange(null)
-      onClearFocus()
-    }
-    window.addEventListener("pointerdown", clearPinned)
-    return () => window.removeEventListener("pointerdown", clearPinned)
-  }, [onClearFocus, onHoverRange, pinnedGroupKey])
-
-  const railHeight =
-    groups.length === 0
-      ? "100%"
-      : Math.max(...groups.map((group) => (groupTops.get(group.key) ?? fallbackTopFor(group)) + heightForGroup(group))) + 8
+  const selectedSortLabel = SORT_OPTIONS.find((option) => option.value === sortOrder)?.label ?? "Newest first"
 
   return (
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
-      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3" onPointerEnter={clearTransientHover}>
+      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
         <MessageSquare size={15} className="text-muted" aria-hidden />
         <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Comments</h3>
         <span className="rounded-full bg-soft px-2 py-0.5 text-[10.5px] font-bold text-muted tabular-nums">{comments.length}</span>
         <span className="flex-1" />
-        <button
-          type="button"
-          onClick={() => uiStore.setCommentDisplay("inline")}
-          title="Switch to inline layout"
-          className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
-        >
-          <MessageSquarePlus size={14} aria-hidden />
-        </button>
+        {fileProxy && fileCommentDraftKey && (
+          <button
+            type="button"
+            onClick={() => setFileComposing(true)}
+            title="Comment on this file"
+            className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          >
+            <MessageSquarePlus size={14} aria-hidden />
+          </button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                title={`Sort: ${selectedSortLabel}`}
+                aria-label={`Sort comments: ${selectedSortLabel}`}
+                className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink focus:ring-2 focus:ring-accent-edge focus:outline-none"
+              >
+                <ArrowDownUp size={14} aria-hidden />
+              </button>
+            }
+          />
+          <DropdownMenuContent align="end">
+            {SORT_OPTIONS.map((option) => (
+              <DropdownMenuItem key={option.value} onClick={() => setSortOrder(option.value)}>
+                <Check size={13} className={option.value === sortOrder ? "text-accent-bright" : "opacity-0"} aria-hidden />
+                <span>{option.label}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      {fileComposing && fileProxy && fileCommentDraftKey && (
+        <div className="shrink-0 border-b border-hair p-2">
+          <RailFileCommentComposer
+            fileProxy={fileProxy}
+            draftKey={fileCommentDraftKey}
+            onClose={() => setFileComposing(false)}
+          />
+        </div>
+      )}
       <div
-        ref={railBodyRef}
         className="min-h-0 flex-1 overflow-auto p-2"
-        onPointerMove={(event) => {
-          if (pinnedGroupKey !== null) return
-          if ((event.target as Element).closest("[data-side-group-id]")) return
-          clearTransientHover()
-        }}
+        aria-label={`Comments sorted by ${selectedSortLabel.toLowerCase()}`}
       >
-        {groups.length === 0 ? (
+        {sortedComments.length === 0 ? (
           <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">No comments on this file.</div>
         ) : (
-          <div className="relative min-h-full" style={{ minHeight: railHeight }}>
-            {groups.map((group) => (
-              <div
-                key={group.key}
-                data-side-group-id={group.key}
-                style={{ top: groupTops.get(group.key) ?? fallbackTopFor(group) }}
-                className={`absolute left-0 right-0 ${groupExpanded(group) ? "z-0" : "z-10"}`}
-                onPointerDownCapture={(event) => {
-                  if (groupExpanded(group)) return
-                  if ((event.target as Element).closest("[data-side-group-summary]")) focusGroup(group)
-                }}
-                onPointerEnter={() => {
-                  setHoveredGroupKey(group.key)
-                  if (!groupExpanded(group)) onHoverRange(group.line === null ? null : { start: group.line, end: group.line })
-                }}
-                onPointerLeave={() => {
-                  if (pinnedGroupKey !== group.key) setHoveredGroupKey((current) => (current === group.key ? null : current))
-                  clearTransientHover()
-                }}
-              >
-                {!groupExpanded(group) ? (
-                  <SideGroupSummary group={group} preview={groupPreviewing(group)} onFocus={() => focusGroup(group)} />
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {group.comments.map((comment) => (
-                      <SideCommentCard
-                        key={comment.id}
-                        comment={comment}
-                        commentsProxy={commentsProxy}
-                        onHover={() => onHoverRange(commentRange(comment))}
-                        onLeave={() => onHoverRange(group.line === null ? null : { start: group.line, end: group.line })}
-                        onFocus={() => scrollToCommentAnchor(comment)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+          <div className="flex flex-col gap-2">
+            {sortedComments.map((comment) => (
+              <SideCommentCard
+                key={comment.id}
+                comment={comment}
+                commentsProxy={commentsProxy}
+                onFocusLine={() => focusLine(comment)}
+              />
             ))}
           </div>
         )}
@@ -263,42 +133,31 @@ export function SideRail({
   )
 }
 
-function SideGroupSummary({
-  group,
-  preview,
-  onFocus,
+function RailFileCommentComposer({
+  fileProxy,
+  draftKey,
+  onClose,
 }: {
-  group: RailGroup
-  preview: boolean
-  onFocus: () => void
+  fileProxy: FileStoreProxy
+  draftKey: string
+  onClose: () => void
 }) {
-  const first = group.comments[0]
-  const line = group.line
-  const count = group.comments.length
-  const pendingCount = group.comments.filter((comment) => comment.status === "pending").length
-  const typeLabels = [...new Set(group.comments.map((comment) => compactCritiqueLabel(comment.critique_type)))]
+  const addComment = useMusubiCommand(fileProxy, "add_comment")
+
+  const submit = (body: string, type: CritiqueType) => {
+    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).catch(() => undefined)
+    onClose()
+  }
 
   return (
-    <button
-      type="button"
-      data-side-group-summary
-      onClick={onFocus}
-      className="w-full overflow-hidden rounded-panel bg-canvas px-3 py-2 text-left shadow-sm ring-1 ring-inset ring-hair-strong hover:ring-accent-edge"
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-soft px-2 text-[10px] font-bold normal-case text-muted">
-          {count}
-        </span>
-        {line !== null && <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">L{line}</span>}
-        <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.04em] text-faint">
-          {typeLabels.join(" / ")}
-          {pendingCount > 0 && <span className="size-1.5 shrink-0 rounded-full bg-amber" title="Pending" aria-label="Pending" />}
-        </span>
-        <span className={`min-w-0 flex-1 text-[12px] leading-[1.45] text-ink ${preview ? "line-clamp-2 whitespace-normal" : "truncate"}`}>
-          {first.body}
-        </span>
-      </div>
-    </button>
+    <Composer
+      anchorLabel="whole file"
+      draftKey={draftKey}
+      pending={addComment.isPending}
+      className="m-0"
+      onSubmit={submit}
+      onCancel={onClose}
+    />
   )
 }
 
@@ -308,10 +167,17 @@ function commentRange(comment: Comment | null): HighlightRange {
     : null
 }
 
-function commentSortKey(comment: Comment): number {
-  if (comment.scope === "artifact") return 0
-  if (comment.anchor?.type === "line_range") return comment.anchor.start_line
-  return 1_000_000
+function readSortOrder(storageKey: string | null): SortOrder {
+  if (!storageKey) return "newest"
+  return localStorage.getItem(storageKey) === "oldest" ? "oldest" : "newest"
+}
+
+function hasDraftBody(draftKey: string | null): boolean {
+  return safeDraft(draftKey ? localStorage.getItem(draftKey) : null)?.body.trim().length ? true : false
+}
+
+function commentTime(comment: Comment): number {
+  return Date.parse(comment.inserted_at) || 0
 }
 
 function scrollToCommentAnchor(comment: Comment) {

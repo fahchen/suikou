@@ -12,15 +12,11 @@ import type { Comment, CommentsStoreProxy } from "./shared"
 export function SideCommentCard({
   comment,
   commentsProxy,
-  onHover,
-  onLeave,
-  onFocus,
+  onFocusLine,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
-  onHover: () => void
-  onLeave: () => void
-  onFocus: () => void
+  onFocusLine: () => void
 }) {
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
   const label =
@@ -64,12 +60,21 @@ export function SideCommentCard({
   return (
     <CommentCard
       comment={comment}
-      className="cursor-pointer p-2.5 text-left"
+      className="p-2.5 text-left"
       headerClassName="gap-1.5 pt-0 pb-0"
-      onFocus={onFocus}
-      onHover={onHover}
-      onLeave={onLeave}
-      rightLabel={<span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>}
+      rightLabel={
+        anchor ? (
+          <button
+            type="button"
+            onClick={onFocusLine}
+            className="shrink-0 rounded-ctrl px-1.5 py-0.5 font-mono text-[11px] font-semibold text-muted hover:bg-soft hover:text-accent-bright"
+          >
+            {label}
+          </button>
+        ) : (
+          <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
+        )
+      }
       body={
         <div
           className="md-body mt-2 text-[12px] leading-[1.45] text-ink"

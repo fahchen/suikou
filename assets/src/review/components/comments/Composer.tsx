@@ -12,7 +12,7 @@ export function Composer({
   draftKey,
   submitLabel = "Add",
   pending,
-  className = "my-1.5 ml-14 mr-3.5",
+  className = "my-1.5 ml-14 mr-3.5 max-w-[720px]",
   chrome = true,
   suggestSeed,
   onSubmit,
@@ -39,6 +39,7 @@ export function Composer({
   )
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const areaRef = useRef<HTMLTextAreaElement>(null)
+  const activeDraftKey = useRef(draftKey)
 
   useEffect(() => {
     const el = areaRef.current
@@ -55,10 +56,17 @@ export function Composer({
   }, [body])
 
   useEffect(() => {
+    if (activeDraftKey.current !== draftKey) {
+      activeDraftKey.current = draftKey
+      const draft = draftKey ? safeDraft(localStorage.getItem(draftKey)) : null
+      setType(draft?.type ?? initialType)
+      setBody(draft?.body ?? initialBody)
+      return
+    }
     if (!draftKey) return
     if (body.trim()) localStorage.setItem(draftKey, JSON.stringify({ type, body }))
     else localStorage.removeItem(draftKey)
-  }, [type, body, draftKey])
+  }, [type, body, draftKey, initialType, initialBody])
 
   const hasText = body.trim().length > 0
 

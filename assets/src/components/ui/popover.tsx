@@ -12,6 +12,7 @@ export function Popover({
   onOpenChange,
   align = "end",
   side = "bottom",
+  chrome = true,
   className,
 }: {
   render: ReactElement
@@ -20,15 +21,20 @@ export function Popover({
   onOpenChange?: (open: boolean) => void
   align?: "start" | "center" | "end"
   side?: "top" | "bottom" | "left" | "right"
+  chrome?: boolean
   className?: string
 }) {
+  const chromeClass = chrome
+    ? "rounded-panel border border-hair-strong bg-surface p-[7px] shadow-[0_12px_30px_oklch(0%_0_0/0.3)]"
+    : ""
+
   return (
     <BasePopover.Root open={open} onOpenChange={onOpenChange}>
       <BasePopover.Trigger render={render} />
       <BasePopover.Portal>
         <BasePopover.Positioner side={side} align={align} sideOffset={6} className="z-50">
           <BasePopover.Popup
-            className={`rounded-panel border border-hair-strong bg-surface p-[7px] shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${className ?? ""}`}
+            className={`${chromeClass} outline-none ${className ?? ""}`}
           >
             {children}
           </BasePopover.Popup>

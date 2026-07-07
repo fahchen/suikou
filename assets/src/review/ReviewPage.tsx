@@ -42,7 +42,6 @@ type Verdict = "approve" | "request_changes" | "comment"
 type Range = { start: number; end: number }
 type BodyFile = ReviewSnapshot["body"]["files"][number]
 type HighlightRange = Range | null
-type RailGroup = { key: string; line: number | null; comments: Comment[] }
 
 const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
   approve: { label: "Approve", short: "Approved" },
@@ -111,7 +110,7 @@ function useDesktopLayout(): boolean {
 }
 
 const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
-const sideRailExpandedKey = (scope: string): string => `suikou-side-group:${scope}`
+const sideRailSortKey = (scope: string): string => `suikou-side-sort:${scope}`
 
 /** Whether a persisted file-comment composer draft holds unsent text, so a
  * reload reopens it just like a line composer. */
@@ -197,6 +196,11 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
       ? remembered
       : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
+  useEffect(() => {
+    if (!selectedPath || file === selectedPath) return
+    localStorage.setItem(fileKey, selectedPath)
+    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: selectedPath }, replace: true })
+  }, [file, fileKey, navigate, reviewId, selectedPath])
   // Comment threads stream on the live snapshot; the structure (chrome, file
   // list) rides the command reply. Join them by path here.
   const fileIndex = snap?.body?.files.findIndex((f) => f.path === selectedPath) ?? -1
@@ -296,7 +300,6 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         name={structure?.name ?? "…"}
         isDiff={isDiff}
         connected={connected}
-        commentDisplay={commentDisplay}
         store={store}
         review={review}
         roundSummaries={roundSummaries}
@@ -318,6 +321,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         <Editor
           reviewId={reviewId}
           entry={selected}
+          filesLoaded={structure !== null}
           comments={comments}
           fileProxy={fileProxy}
           commentsProxy={commentsProxy}
@@ -336,9 +340,10 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           <SideRail
             comments={comments}
             commentsProxy={commentsProxy}
-            storageKey={selected ? sideRailExpandedKey(`${reviewId}:${selected.path}`) : null}
+            fileProxy={fileProxy}
+            fileCommentDraftKey={selected ? artifactDraftKey(`${reviewId}:${selected.path}`) : null}
+            storageKey={selected ? sideRailSortKey(`${reviewId}:${selected.path}`) : null}
             onHoverRange={setHoveredRange}
-            onClearFocus={() => setFocusedCommentId(null)}
             onFocus={(comment) => setFocusedCommentId(comment.id)}
           />
         )}
@@ -422,7 +427,7 @@ function ArtifactComments({
             anchorLabel="whole file"
             draftKey={artifactDraftKey(draftScope)}
             pending={addComment.isPending}
-            className="my-1.5"
+            className="my-1.5 max-w-[720px]"
             onSubmit={submit}
             onCancel={onClose}
           />
@@ -463,6 +468,7 @@ function readHtmlZoom(): number {
 function Editor({
   reviewId,
   entry,
+  filesLoaded,
   comments,
   fileProxy,
   commentsProxy,
@@ -479,6 +485,7 @@ function Editor({
 }: {
   reviewId: string
   entry: FileEntry | null
+  filesLoaded: boolean
   comments: Comment[]
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
@@ -710,7 +717,7 @@ function Editor({
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
-        {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+        {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && commentDisplay !== "side" && (
           <button
             type="button"
             onClick={() => setArtifactComposing(true)}
@@ -721,7 +728,7 @@ function Editor({
             <MessageSquarePlus size={16} aria-hidden />
           </button>
         )}
-        {!readOnly && entry && fileProxy && verdict && commentDisplay !== "side" && (
+        {!readOnly && entry && fileProxy && verdict && (
           <VerdictChip file={verdict} proxy={fileProxy} />
         )}
       </div>
@@ -767,7 +774,9 @@ function Editor({
             />
           )}
           {!entry ? (
-            <div className="grid flex-1 place-items-center text-[13px] text-faint">Select a file to review.</div>
+            <div className="grid flex-1 place-items-center text-[13px] text-faint">
+              {filesLoaded ? "No files in this review." : "Loading…"}
+            </div>
           ) : content.kind === "loading" ? (
             <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
           ) : content.kind === "error" ? (
@@ -786,6 +795,7 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
+              composerMode={commentDisplay === "side" ? "popover" : "inline"}
               showThreads={commentDisplay === "inline"}
               focusedCommentId={focusedCommentId}
               highlightedRange={highlightedRange}
@@ -800,6 +810,7 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
+              composerMode={commentDisplay === "side" ? "popover" : "inline"}
               showThreads={commentDisplay === "inline"}
               focusedCommentId={focusedCommentId}
               highlightedRange={highlightedRange}
