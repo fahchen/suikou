@@ -97,6 +97,7 @@ export function CommentCard({
         </span>
         {metaLine}
         {comment.outdated && <span className="inline-flex items-center font-mono text-[11px] text-amber">· outdated</span>}
+        {comment.drifted && <span className="inline-flex items-center font-mono text-[11px] text-amber">· drifted</span>}
         {collapsed && summaryText && (
           <span className="min-w-0 flex-1 truncate self-center text-[12px] leading-none text-muted">
             {summaryText}

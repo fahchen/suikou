@@ -168,7 +168,7 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
             >
               <meta.icon size={14} className={verdictText(verdict)} aria-hidden />
               <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>{VERDICT_META[verdict].label}</span>
-              {on && <Check size={13} className="ml-auto text-approve" aria-hidden />}
+              <span className={`ml-auto size-1.5 shrink-0 rounded-full bg-accent ${on ? "" : "opacity-0"}`} aria-hidden />
             </button>
           )
         })}
@@ -268,19 +268,22 @@ function RoundSelector({
           </button>
         }
       />
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-[220px]">
         {[...rounds]
           .sort((a, b) => b.number - a.number)
           .map((round) => (
-            <DropdownMenuItem key={round.number} onClick={() => void select.dispatch({ number: round.number })}>
+            <DropdownMenuItem
+              key={round.number}
+              selected={round.number === selectedRound}
+              onClick={() => void select.dispatch({ number: round.number })}
+            >
               <span className={`flex-1 font-medium ${round.number === selectedRound ? "text-accent-bright" : "text-ink"}`}>
                 Round {round.number}
                 {round.number === latestRound && <span className="ml-1.5 text-[11px] font-normal text-muted">latest</span>}
               </span>
               {round.unresolved_count > 0 && (
-                <span className="text-[11px] font-semibold text-request tabular-nums">{round.unresolved_count} open</span>
+                <span className="shrink-0 text-[11px] font-semibold text-request tabular-nums">{round.unresolved_count} open</span>
               )}
-              {round.number === selectedRound && <Check size={13} className="ml-1.5 text-approve" aria-hidden />}
             </DropdownMenuItem>
           ))}
       </DropdownMenuContent>

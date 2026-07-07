@@ -1,10 +1,9 @@
 import { Select as BaseSelect } from "@base-ui/react/select"
-import { Check, ChevronDown } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 
 export type SelectGroup = { label: string; options: { value: string; label: string }[] }
 
-/** Themed single-select over the Base UI Select primitive, with grouped
- * options and a checkmark on the current value. */
+/** Themed single-select over the Base UI Select primitive. */
 export function Select({
   value,
   onValueChange,
@@ -46,12 +45,14 @@ export function Select({
                   <BaseSelect.Item
                     key={option.value}
                     value={option.value}
-                    className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 text-[12.5px] text-text outline-none data-[highlighted]:bg-soft data-[selected]:text-accent-bright"
+                    className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 text-[12.5px] text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
                   >
                     <BaseSelect.ItemText className="flex-1">{option.label}</BaseSelect.ItemText>
-                    <BaseSelect.ItemIndicator>
-                      <Check size={13} aria-hidden />
-                    </BaseSelect.ItemIndicator>
+                    <span className="grid size-1.5 shrink-0 place-items-center">
+                      <BaseSelect.ItemIndicator>
+                        <span className="block size-1.5 rounded-full bg-accent" aria-hidden />
+                      </BaseSelect.ItemIndicator>
+                    </span>
                   </BaseSelect.Item>
                 ))}
               </BaseSelect.Group>

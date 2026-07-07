@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { CornerDownRight, Pencil, Trash2 } from "lucide-react"
+import { Check, CornerDownRight, Pencil, Trash2 } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
@@ -29,6 +29,7 @@ export function CommentThread({
   const bodyHtml = useMemo(() => renderMarkdown(comment.body), [comment.body])
   const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_comment")
   const deleteCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "delete_comment")
+  const resolveCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "resolve_comment")
   const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
@@ -112,8 +113,20 @@ export function CommentThread({
                 }}
               />
             </>
+          ) : !comment.resolved && !replying ? (
+            <>
+              <CommentActionButton icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
+              <CommentActionButton
+                icon={Check}
+                label="Resolve"
+                tone="approve"
+                onClick={() => {
+                  if (commentsProxy) resolveCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+                }}
+              />
+            </>
           ) : (
-            !replying && <CommentActionButton icon={CornerDownRight} label="Reply" onClick={() => setReplying(true)} />
+            null
           )}
         </div>
       }

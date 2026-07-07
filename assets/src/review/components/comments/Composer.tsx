@@ -130,7 +130,7 @@ export function Composer({
             />
             <DropdownMenuContent>
               {TYPE_OPTIONS.map((option) => (
-                <DropdownMenuItem key={option.value} onClick={() => setType(option.value)}>
+                <DropdownMenuItem key={option.value} selected={option.value === type} onClick={() => setType(option.value)}>
                   <span className={`size-2 shrink-0 rounded-full ${option.dot}`} aria-hidden />
                   <option.Icon size={13} className="shrink-0 text-muted" aria-hidden />
                   <span className="flex-1">{option.label}</span>

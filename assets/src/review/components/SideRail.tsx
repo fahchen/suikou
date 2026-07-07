@@ -1,6 +1,6 @@
 import type { StoreProxy } from "@musubi/react"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowDownUp, Check, MessageSquare, MessageSquarePlus } from "lucide-react"
+import { ArrowDownUp, MessageSquare, MessageSquarePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu"
@@ -93,9 +93,12 @@ export function SideRail({
           />
           <DropdownMenuContent align="end">
             {SORT_OPTIONS.map((option) => (
-              <DropdownMenuItem key={option.value} onClick={() => setSortOrder(option.value)}>
-                <Check size={13} className={option.value === sortOrder ? "text-accent-bright" : "opacity-0"} aria-hidden />
-                <span>{option.label}</span>
+              <DropdownMenuItem
+                key={option.value}
+                selected={option.value === sortOrder}
+                onClick={() => setSortOrder(option.value)}
+              >
+                {option.label}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

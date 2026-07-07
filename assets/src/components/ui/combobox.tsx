@@ -1,5 +1,5 @@
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox"
-import { Check, ChevronDown } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 
 /** Themed searchable single-select over the Base UI Combobox primitive: type
  * to filter the options, click or enter to pick. */
@@ -40,14 +40,14 @@ export function Combobox({
                 <BaseCombobox.Item
                   key={option}
                   value={option}
-                  className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl pr-2 pl-1.5 font-mono text-[12px] text-text outline-none data-[highlighted]:bg-soft"
+                  className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 font-mono text-[12px] text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
                 >
-                  <span className="flex size-3.5 shrink-0 items-center justify-center text-accent">
+                  <span className="min-w-0 flex-1 truncate">{option}</span>
+                  <span className="grid size-1.5 shrink-0 place-items-center">
                     <BaseCombobox.ItemIndicator>
-                      <Check size={13} strokeWidth={2.5} aria-hidden />
+                      <span className="block size-1.5 rounded-full bg-accent" aria-hidden />
                     </BaseCombobox.ItemIndicator>
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{option}</span>
                 </BaseCombobox.Item>
               )}
             </BaseCombobox.List>

@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Info, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, X } from "lucide-react"
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Info, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, X } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type MonoSize } from "../stores/ui-store"
@@ -711,12 +711,10 @@ function Editor({
                   }
                 />
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => chooseView("source")}>
-                    {view === "source" && <Check size={13} aria-hidden />}
+                  <DropdownMenuItem selected={view === "source"} onClick={() => chooseView("source")}>
                     Source
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => chooseView("preview")}>
-                    {view === "preview" && <Check size={13} aria-hidden />}
+                  <DropdownMenuItem selected={view === "preview"} onClick={() => chooseView("preview")}>
                     Preview
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -752,16 +750,13 @@ function Editor({
                   }
                 />
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => chooseHtmlMode("source")}>
-                    {htmlMode === "source" && <Check size={13} aria-hidden />}
+                  <DropdownMenuItem selected={htmlMode === "source"} onClick={() => chooseHtmlMode("source")}>
                     Source
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => chooseHtmlMode("comment")}>
-                    {htmlMode === "comment" && <Check size={13} aria-hidden />}
+                  <DropdownMenuItem selected={htmlMode === "comment"} onClick={() => chooseHtmlMode("comment")}>
                     Comment
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => chooseHtmlMode("interactive")}>
-                    {htmlMode === "interactive" && <Check size={13} aria-hidden />}
+                  <DropdownMenuItem selected={htmlMode === "interactive"} onClick={() => chooseHtmlMode("interactive")}>
                     Interactive
                   </DropdownMenuItem>
                 </DropdownMenuContent>
