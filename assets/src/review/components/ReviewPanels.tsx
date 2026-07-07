@@ -2,13 +2,10 @@ import { type ReactNode, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
 import {
   AlertTriangle,
-  Check,
   ChevronDown,
   FileText,
-  ListTree,
   MessageSquare,
   Upload,
-  X,
 } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
@@ -130,28 +127,6 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
         onConfirm={run}
       />
     </>
-  )
-}
-
-export function ReviewButton({ review }: { review: ReviewSummary }) {
-  return (
-    <Popover
-      align="end"
-      className="w-[290px] p-3"
-      render={
-        <button
-          type="button"
-          title="Review summary"
-          className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft"
-        >
-          <ListTree size={14} className="text-muted" aria-hidden />
-          Review
-          <ChevronDown size={12} className="text-faint" aria-hidden />
-        </button>
-      }
-    >
-      <ReviewOverview review={review} />
-    </Popover>
   )
 }
 
@@ -338,89 +313,6 @@ function ConfirmLine({ icon: Icon, children }: { icon: typeof MessageSquare; chi
     <div className="flex items-start gap-2">
       <Icon size={14} className="mt-px shrink-0 text-muted" aria-hidden />
       <span className="leading-[1.45]">{children}</span>
-    </div>
-  )
-}
-
-function ReviewOverview({ review }: { review: ReviewSummary }) {
-  const total = review.perFile.length
-
-  return (
-    <div className="flex flex-col gap-3">
-      <VerdictSummary verdict={review.verdict} allApproved={review.allApproved} />
-      <div>
-        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
-        {review.blockers.length === 0 ? (
-          <div className="flex items-center justify-center gap-1.5 rounded-[7px] border border-approve-edge bg-approve-soft py-2 text-[12px] font-medium text-approve">
-            <Check size={14} aria-hidden />
-            No open blockers
-          </div>
-        ) : (
-          <BlockerList blockers={review.blockers} />
-        )}
-      </div>
-      <div>
-        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">This round</p>
-        <div className="grid grid-cols-3 gap-[7px]">
-          <IoStat n={total} label="files" />
-          <IoStat n={review.unresolved} label="unresolved" tone={review.unresolved > 0 ? "warn" : undefined} />
-          <IoStat n={review.reviewed} label="reviewed" tone={review.reviewed === total && total > 0 ? "ok" : undefined} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function VerdictSummary({ verdict, allApproved }: { verdict: Verdict | null; allApproved: boolean }) {
-  if (allApproved) {
-    return (
-      <div className="flex items-center gap-2.5 rounded-[9px] bg-approve-soft px-[11px] py-2.5 shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
-        <span className="grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-approve-soft">
-          <Check size={15} className="text-approve" aria-hidden />
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-faint">Verdict</span>
-          <span className="text-[13px] font-semibold text-approve">Review approved</span>
-        </span>
-      </div>
-    )
-  }
-
-  const bad = verdict === "request_changes"
-  const tint = bad
-    ? "bg-request-soft shadow-[inset_0_0_0_0.5px_var(--request-edge)]"
-    : verdict === "approve"
-      ? "bg-approve-soft shadow-[inset_0_0_0_0.5px_var(--approve-edge)]"
-      : "bg-soft shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
-
-  return (
-    <div className={`flex items-center gap-2.5 rounded-[9px] px-[11px] py-2.5 ${tint}`}>
-      <span className="grid size-[26px] shrink-0 place-items-center rounded-[7px] bg-canvas/40">
-        {bad ? (
-          <X size={15} className="text-request" aria-hidden />
-        ) : verdict === "approve" ? (
-          <Check size={15} className="text-approve" aria-hidden />
-        ) : (
-          <MessageSquare size={15} className="text-accent-bright" aria-hidden />
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="text-[9.5px] font-bold uppercase tracking-[0.1em] text-faint">Draft verdict</span>
-        <span className={`text-[13px] font-semibold ${verdict ? verdictText(verdict) : "text-muted"}`}>
-          {verdict ? `${VERDICT_META[verdict].label} (draft)` : "No verdict yet"}
-        </span>
-      </span>
-    </div>
-  )
-}
-
-function IoStat({ n, label, tone }: { n: number; label: string; tone?: "ok" | "warn" }) {
-  const color = tone === "ok" ? "text-approve" : tone === "warn" ? "text-request" : "text-ink"
-
-  return (
-    <div className="flex flex-col items-center gap-0.5 rounded-lg border border-hair-strong bg-canvas py-2">
-      <span className={`text-[18px] font-bold tabular-nums ${color}`}>{n}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.02em] text-muted">{label}</span>
     </div>
   )
 }

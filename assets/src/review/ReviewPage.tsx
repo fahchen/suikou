@@ -50,6 +50,18 @@ const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
   comment: { label: "Comment", short: "Comment" },
 }
 
+function verdictText(verdict: Verdict): string {
+  return verdict === "request_changes" ? "text-request" : verdict === "approve" ? "text-approve" : "text-accent-bright"
+}
+
+function verdictSoft(verdict: Verdict): string {
+  return verdict === "request_changes"
+    ? "bg-request-soft"
+    : verdict === "approve"
+      ? "bg-approve-soft"
+      : "bg-accent-soft"
+}
+
 /** An open blocker is a published fix_required comment that has not been
  * resolved — the review's hard "needs work" signal. */
 function isOpenBlocker(comment: Comment): boolean {
@@ -364,7 +376,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
       <StatusBar
         path={selectedPath}
         connected={connected}
-        blockers={review.blockers.length}
+        review={review}
         round={selectedRound}
         readOnly={readOnly}
         commentDisplay={commentDisplay}

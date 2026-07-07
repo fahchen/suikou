@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 import { Popover } from "../../components/ui/popover"
-import { ReviewButton, SubmitButton, type ReviewSummary, VERDICT_META, verdictText, type Verdict } from "./ReviewPanels"
+import { SubmitButton, type ReviewSummary, VERDICT_META, verdictText, type Verdict } from "./ReviewPanels"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
@@ -83,9 +83,6 @@ export function Toolbar({
         )}
       </div>
       <span className="flex-1" />
-      <span className="hidden sm:inline-flex">
-        <ReviewButton review={review} />
-      </span>
       {canCompare && (
         <button
           type="button"
@@ -193,46 +190,88 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
 export function StatusBar({
   path,
   connected,
-  blockers,
+  review,
   round,
   readOnly,
   commentDisplay,
 }: {
   path: string | null
   connected: boolean
-  blockers: number
+  review: ReviewSummary
   round: number
   readOnly: boolean
   commentDisplay: CommentDisplayMode
 }) {
+  const total = review.perFile.length
+  const verdict = review.verdict
+  const verdictShort = verdict === "request_changes" ? "Req" : verdict === "approve" ? "Ok" : verdict === "comment" ? "Cmt" : "None"
+  const verdictLabel = verdict ? VERDICT_META[verdict].short : "No verdict"
+  const hasDraft = review.draftVerdicts > 0 || review.pendingComments > 0
+
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2.5 border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
-      <span className="truncate font-mono text-faint">{path ?? "No file selected"}</span>
-      <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
-      <span>Round {round}</span>
+    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
+      <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      <StatusDot />
+      <span className="shrink-0 tabular-nums">
+        <span className="hidden sm:inline">Round {round}</span>
+        <span className="sm:hidden">R{round}</span>
+      </span>
       {readOnly && <span className="font-semibold text-muted">· read-only</span>}
       {commentDisplay !== "inline" && (
         <>
-          <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
-          <span>{commentDisplay === "side" ? "side rail" : "comments hidden"}</span>
+          <StatusDot />
+          <span className="shrink-0">
+            <span className="hidden sm:inline">{commentDisplay === "side" ? "side rail" : "comments hidden"}</span>
+            <span className="sm:hidden">{commentDisplay === "side" ? "side" : "hidden"}</span>
+          </span>
         </>
       )}
-      {blockers > 0 && (
+      <StatusDot />
+      <span
+        className={`inline-flex shrink-0 items-center gap-1 font-semibold ${verdict ? verdictText(verdict) : "text-muted"}`}
+        title={`${verdictLabel}${hasDraft ? " draft" : ""}`}
+      >
+        {hasDraft && <span className="size-1.5 rounded-full bg-amber" aria-hidden />}
+        <span className="hidden sm:inline">{verdictLabel}{hasDraft ? " draft" : ""}</span>
+        <span className="sm:hidden">{verdictShort}</span>
+      </span>
+      {review.blockers.length > 0 && (
         <>
-          <span className="size-[2.5px] rounded-full bg-faint" aria-hidden />
-          <span className="font-semibold text-request">{blockers} unresolved</span>
+          <StatusDot />
+          <span className="shrink-0 font-semibold text-request tabular-nums">
+            {review.blockers.length}
+            <span className="hidden sm:inline"> blocker{review.blockers.length === 1 ? "" : "s"}</span>
+            <span className="sm:hidden"> blk</span>
+          </span>
         </>
       )}
-      <span className="flex-1" />
-      <span className="inline-flex items-center gap-1.5">
+      <StatusDot />
+      <span className="shrink-0 tabular-nums">
+        {review.reviewed}/{total}
+        <span className="hidden md:inline"> reviewed</span>
+      </span>
+      {review.unresolved > 0 && (
+        <>
+          <StatusDot />
+          <span className="shrink-0 font-semibold text-request tabular-nums">
+            {review.unresolved}
+            <span> open</span>
+          </span>
+        </>
+      )}
+      <span className="inline-flex shrink-0 items-center gap-1.5">
         <span
           className={`size-[7px] rounded-full ${connected ? "bg-approve shadow-[0_0_0_2.5px_var(--approve-soft)]" : "bg-amber shadow-[0_0_0_2.5px_var(--amber-soft)]"}`}
           aria-hidden
         />
-        {connected ? "connected" : "reconnecting…"}
+        <span className="hidden sm:inline">{connected ? "connected" : "reconnecting…"}</span>
       </span>
     </div>
   )
+}
+
+function StatusDot() {
+  return <span className="size-[2.5px] shrink-0 rounded-full bg-faint" aria-hidden />
 }
 
 function RoundSelector({
