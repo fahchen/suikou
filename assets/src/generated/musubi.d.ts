@@ -124,6 +124,12 @@ declare namespace Musubi {
           }
           reply: never
         }
+        unresolve_comment: {
+          payload: {
+            comment_id: string
+          }
+          reply: never
+        }
         reply: {
           payload: {
             comment_id: string

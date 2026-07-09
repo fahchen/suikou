@@ -239,6 +239,24 @@ defmodule Suikou.Critique.CommentsTest do
 
       assert {:error, :not_open} = Critique.resolve_comment(comment.id)
     end
+
+    test "unresolving a resolved comment reopens it" do
+      round = insert(:round)
+      artifact = round.artifact
+      comment = published_comment(round.id)
+      advance(artifact.id, "changed\n")
+      {:ok, _comment} = Critique.resolve_comment(comment.id)
+
+      assert {:ok, reopened} = Critique.unresolve_comment(comment.id)
+      assert %{resolved_round: nil} = reopened
+    end
+
+    test "unresolving an open comment is rejected" do
+      round = insert(:round)
+      comment = published_comment(round.id)
+
+      assert {:error, :not_resolved} = Critique.unresolve_comment(comment.id)
+    end
   end
 
   describe "missing targets" do

@@ -3,7 +3,7 @@ import type { StoreProxy } from "@musubi/react"
 import { Check, ChevronDown, Circle, GitCompare, GitCompareArrows, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
-import { uiStore, type CommentDisplayMode } from "../../stores/ui-store"
+import { uiStore } from "../../stores/ui-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -193,20 +193,15 @@ export function StatusBar({
   review,
   round,
   readOnly,
-  commentDisplay,
 }: {
   path: string | null
   connected: boolean
   review: ReviewSummary
   round: number
   readOnly: boolean
-  commentDisplay: CommentDisplayMode
 }) {
   const total = review.perFile.length
-  const verdict = review.verdict
-  const verdictShort = verdict === "request_changes" ? "Req" : verdict === "approve" ? "Ok" : verdict === "comment" ? "Cmt" : "None"
-  const verdictLabel = verdict ? VERDICT_META[verdict].short : "No verdict"
-  const hasDraft = review.draftVerdicts > 0 || review.pendingComments > 0
+  const blockers = review.blockers.length
 
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
@@ -217,34 +212,6 @@ export function StatusBar({
         <span className="sm:hidden">R{round}</span>
       </span>
       {readOnly && <span className="font-semibold text-muted">· read-only</span>}
-      {commentDisplay !== "inline" && (
-        <>
-          <StatusDot />
-          <span className="shrink-0">
-            <span className="hidden sm:inline">{commentDisplay === "side" ? "side rail" : "comments hidden"}</span>
-            <span className="sm:hidden">{commentDisplay === "side" ? "side" : "hidden"}</span>
-          </span>
-        </>
-      )}
-      <StatusDot />
-      <span
-        className={`inline-flex shrink-0 items-center gap-1 font-semibold ${verdict ? verdictText(verdict) : "text-muted"}`}
-        title={`${verdictLabel}${hasDraft ? " draft" : ""}`}
-      >
-        {hasDraft && <span className="size-1.5 rounded-full bg-amber" aria-hidden />}
-        <span className="hidden sm:inline">{verdictLabel}{hasDraft ? " draft" : ""}</span>
-        <span className="sm:hidden">{verdictShort}</span>
-      </span>
-      {review.blockers.length > 0 && (
-        <>
-          <StatusDot />
-          <span className="shrink-0 font-semibold text-request tabular-nums">
-            {review.blockers.length}
-            <span className="hidden sm:inline"> blocker{review.blockers.length === 1 ? "" : "s"}</span>
-            <span className="sm:hidden"> blk</span>
-          </span>
-        </>
-      )}
       <StatusDot />
       <span className="shrink-0 tabular-nums">
         {review.reviewed}/{total}
@@ -255,7 +222,12 @@ export function StatusBar({
           <StatusDot />
           <span className="shrink-0 font-semibold text-request tabular-nums">
             {review.unresolved}
-            <span> open</span>
+            <span className="hidden sm:inline">
+              {" "}open{blockers > 0 ? `, ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+            </span>
+            <span className="sm:hidden">
+              {" "}open{blockers > 0 ? `/${blockers} blk` : ""}
+            </span>
           </span>
         </>
       )}

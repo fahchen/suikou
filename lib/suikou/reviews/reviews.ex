@@ -479,14 +479,15 @@ defmodule Suikou.Reviews do
            soft_removed: boolean()
          }
 
-  defp file_entry(path, nil, content_hash, change_status, stats) do
+  defp file_entry(path, artifact, content_hash, change_status, stats) do
+    {artifact_id, approved, verdict} = artifact_review_state(artifact)
     {added, deleted} = split_stats(stats)
 
     %{
       path: path,
-      artifact_id: nil,
-      approved: false,
-      verdict: nil,
+      artifact_id: artifact_id,
+      approved: approved,
+      verdict: verdict,
       content_hash: content_hash,
       change_status: change_status,
       added: added,
@@ -495,34 +496,16 @@ defmodule Suikou.Reviews do
     }
   end
 
-  defp file_entry(path, %Artifact{} = artifact, content_hash, change_status, stats) do
-    {added, deleted} = split_stats(stats)
+  defp artifact_review_state(nil), do: {nil, false, nil}
 
-    %{
-      path: path,
-      artifact_id: artifact.id,
-      approved: not is_nil(artifact.approved_round),
-      verdict: file_verdict(artifact),
-      content_hash: content_hash,
-      change_status: change_status,
-      added: added,
-      deleted: deleted,
-      soft_removed: false
-    }
+  defp artifact_review_state(%Artifact{} = artifact) do
+    {artifact.id, not is_nil(artifact.approved_round), file_verdict(artifact)}
   end
 
   defp soft_removed_entry(%Artifact{} = artifact) do
-    %{
-      path: artifact.file_path,
-      artifact_id: artifact.id,
-      approved: not is_nil(artifact.approved_round),
-      verdict: file_verdict(artifact),
-      content_hash: nil,
-      change_status: nil,
-      added: nil,
-      deleted: nil,
-      soft_removed: true
-    }
+    artifact.file_path
+    |> file_entry(artifact, nil, nil, nil)
+    |> Map.put(:soft_removed, true)
   end
 
   defp split_stats(nil), do: {nil, nil}

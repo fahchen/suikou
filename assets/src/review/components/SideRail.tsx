@@ -73,7 +73,7 @@ export function SideRail({
             type="button"
             onClick={() => setFileComposing(true)}
             title="Comment on this file"
-            className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+            className="grid size-[26px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
           >
             <MessageSquarePlus size={14} aria-hidden />
           </button>
@@ -85,7 +85,7 @@ export function SideRail({
                 type="button"
                 title={`Sort: ${selectedSortLabel}`}
                 aria-label={`Sort comments: ${selectedSortLabel}`}
-                className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink focus:ring-2 focus:ring-accent-edge focus:outline-none"
+                className="grid size-[26px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink focus:ring-2 focus:ring-accent-edge focus:outline-none"
               >
                 <ArrowDownUp size={14} aria-hidden />
               </button>

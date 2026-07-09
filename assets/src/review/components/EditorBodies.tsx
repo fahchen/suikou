@@ -53,11 +53,11 @@ export const MarkdownPreview = observer(function MarkdownPreview({
     const map = new Map<number, Comment[]>()
     for (const comment of comments) {
       if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
-      const start = comment.anchor.start_line
-      let idx = blocks.findIndex((block) => start >= block.line && start <= block.endLine)
+      const end = comment.anchor.end_line
+      let idx = blocks.findIndex((block) => end >= block.line && end <= block.endLine)
       if (idx === -1) {
         idx = 0
-        for (let i = 0; i < blocks.length; i += 1) if (blocks[i].line <= start) idx = i
+        for (let i = 0; i < blocks.length; i += 1) if (blocks[i].line <= end) idx = i
       }
       const bucket = map.get(idx)
       if (bucket) bucket.push(comment)
@@ -133,11 +133,22 @@ export const MarkdownPreview = observer(function MarkdownPreview({
     }
     const move = (event: PointerEvent) => {
       const idx = blockAt(event.clientX, event.clientY)
-      if (idx != null) setDrag((current) => (current && current.to !== idx ? { ...current, to: idx } : current))
+      if (idx != null) {
+        setDrag((current) => {
+          const next = current && current.to !== idx ? { ...current, to: idx } : current
+          dragRef.current = next
+          return next
+        })
+      }
     }
-    const up = () => {
-      const current = dragRef.current
+    const cancel = () => {
+      dragRef.current = null
       setDrag(null)
+    }
+    const up = (event: PointerEvent) => {
+      const current = dragRef.current
+      cancel()
+      if (event.button !== 0) return
       if (current) {
         const lo = Math.min(current.from, current.to)
         const hi = Math.max(current.from, current.to)
@@ -146,9 +157,11 @@ export const MarkdownPreview = observer(function MarkdownPreview({
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", cancel)
     return () => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", cancel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging])
@@ -173,11 +186,23 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               type="button"
               data-review-block={index}
               onPointerDown={(event) => {
+                if (event.button !== 0) return
                 if (event.shiftKey && draft) open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
-                else setDrag({ from: index, to: index })
+                else {
+                  const next = { from: index, to: index }
+                  dragRef.current = next
+                  setDrag(next)
+                }
+              }}
+              onPointerUp={(event) => {
+                const current = dragRef.current
+                if (event.button !== 0 || event.shiftKey || !current || current.from !== current.to) return
+                dragRef.current = null
+                setDrag(null)
+                if (composerMode === "inline") requestOpen({ start: block.line, end: block.endLine })
               }}
               onClick={(event) => {
-                if (event.shiftKey) return
+                if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
                 requestOpen({ start: block.line, end: block.endLine })
               }}
               style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
@@ -374,18 +399,31 @@ export const Source = observer(function Source({
     }
     const move = (event: PointerEvent) => {
       const line = lineAt(event.clientX, event.clientY)
-      if (line != null) setDrag((current) => (current && current.to !== line ? { ...current, to: line } : current))
+      if (line != null) {
+        setDrag((current) => {
+          const next = current && current.to !== line ? { ...current, to: line } : current
+          dragRef.current = next
+          return next
+        })
+      }
     }
-    const up = () => {
-      const current = dragRef.current
+    const cancel = () => {
+      dragRef.current = null
       setDrag(null)
+    }
+    const up = (event: PointerEvent) => {
+      const current = dragRef.current
+      cancel()
+      if (event.button !== 0) return
       if (current) requestOpen({ start: Math.min(current.from, current.to), end: Math.max(current.from, current.to) })
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", cancel)
     return () => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", cancel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging])
@@ -416,11 +454,23 @@ export const Source = observer(function Source({
           <button
             type="button"
             onPointerDown={(event) => {
+              if (event.button !== 0) return
               if (event.shiftKey && draft) open({ start: Math.min(draft.start, lineNo), end: Math.max(draft.start, lineNo) })
-              else setDrag({ from: lineNo, to: lineNo })
+              else {
+                const next = { from: lineNo, to: lineNo }
+                dragRef.current = next
+                setDrag(next)
+              }
+            }}
+            onPointerUp={(event) => {
+              const current = dragRef.current
+              if (event.button !== 0 || event.shiftKey || !current || current.from !== current.to) return
+              dragRef.current = null
+              setDrag(null)
+              if (composerMode === "inline") requestOpen({ start: lineNo, end: lineNo })
             }}
             onClick={(event) => {
-              if (event.shiftKey) return
+              if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
               requestOpen({ start: lineNo, end: lineNo })
             }}
             style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}

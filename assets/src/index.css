@@ -880,6 +880,28 @@
   margin: 0.35em 0;
   padding-left: 1.3em;
 }
+.md-body ul {
+  list-style: outside;
+}
+.md-body ol {
+  list-style: decimal;
+}
+/* Per-item mini-lists: collapse spacing so items stack naturally. */
+.md-list-item {
+  margin: 0.15em 0;
+  padding-left: 1.3em;
+}
+/* Reduce block spacing for list items so they read as a continuous list. */
+.md-doc .flex:has(.md-list-item) > button:first-child {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.md-doc .flex:has(.md-list-item) > .md-body {
+  padding-bottom: 0;
+}
+.md-doc .flex:has(.md-table-block) > .md-body {
+  padding-bottom: 0;
+}
 .md-body li {
   margin: 0.15em 0;
 }
@@ -944,11 +966,24 @@
   margin: 0.5em 0;
   font-size: 0.95em;
 }
+
+/* Per-row table blocks keep columns aligned via a hidden header copy. */
+.md-doc .md-body .md-table-block {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.95em;
+}
 .md-doc .md-body th,
 .md-doc .md-body td {
   border: 1px solid var(--hair-strong);
   padding: 4px 10px;
   text-align: left;
+}
+/* Data-row mini-tables: remove top border so adjacent rows don't double up. */
+.md-table-row td {
+  border-top: none;
 }
 .md-doc .md-body th {
   background: color-mix(in oklab, var(--ink-3) 8%, transparent);

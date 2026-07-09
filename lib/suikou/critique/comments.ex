@@ -6,8 +6,8 @@ defmodule Suikou.Critique.Comments do
   A comment is Draft while pending, Open once published, and Resolved once a
   `resolved_round` is set. Editing is confined to the Draft stage, while
   deletion remains available after publish. Resolving requires an Open comment;
-  reopening happens only as a side effect of a human reply (see
-  `Suikou.Critique.Discussion`).
+  reopening clears the resolution round explicitly or as a side effect of a
+  human reply (see `Suikou.Critique.Discussion`).
   """
 
   alias Suikou.Artifacts
@@ -132,6 +132,40 @@ defmodule Suikou.Critique.Comments do
 
     comment
     |> Comment.resolve_changeset(resolved_round)
+    |> Repo.update()
+  end
+
+  @doc """
+  Reopens a Resolved comment by clearing its resolution round.
+
+  ## Examples
+
+      Suikou.Critique.Comments.unresolve(resolved_comment.id)
+      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: nil}}
+
+      Suikou.Critique.Comments.unresolve(open_comment.id)
+      #=> {:error, :not_resolved}
+
+  """
+  @spec unresolve(Ecto.UUID.t()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_resolved}
+  def unresolve(comment_id) do
+    case Repo.get(Comment, comment_id) do
+      nil ->
+        {:error, :comment_not_found}
+
+      %Comment{status: :published, resolved_round: resolved_round} = comment
+      when is_integer(resolved_round) ->
+        reopen(comment)
+
+      %Comment{} ->
+        {:error, :not_resolved}
+    end
+  end
+
+  defp reopen(comment) do
+    comment
+    |> Comment.reopen_changeset()
     |> Repo.update()
   end
 
