@@ -180,7 +180,7 @@ defmodule Suikou.Critique do
 
   ## Examples
 
-      Suikou.Critique.react_as_human(comment.id, "thumbs_up")
+      Suikou.Critique.react_as_human(comment.id, "agree")
       #=> {:ok, comment.id}
 
   """
@@ -195,7 +195,7 @@ defmodule Suikou.Critique do
 
   ## Examples
 
-      Suikou.Critique.unreact_as_human(comment.id, "thumbs_up")
+      Suikou.Critique.unreact_as_human(comment.id, "agree")
       #=> {:ok, comment.id}
 
   """
@@ -205,12 +205,42 @@ defmodule Suikou.Critique do
     do: comment_id |> Reactions.unreact_as_human(emoji) |> broadcast_reaction_change()
 
   @doc """
+  Adds an agent emoji reaction to a comment, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.react_as_agent/2`.
+
+  ## Examples
+
+      Suikou.Critique.react_as_agent(comment.id, "eyes")
+      #=> {:ok, comment.id}
+
+  """
+  @spec react_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :comment_not_found | Ecto.Changeset.t()}
+  def react_as_agent(comment_id, emoji),
+    do: comment_id |> Reactions.react_as_agent(emoji) |> broadcast_reaction_change()
+
+  @doc """
+  Removes an agent emoji reaction from a comment, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.unreact_as_agent/2`.
+
+  ## Examples
+
+      Suikou.Critique.unreact_as_agent(comment.id, "eyes")
+      #=> {:ok, comment.id}
+
+  """
+  @spec unreact_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :comment_not_found}
+  def unreact_as_agent(comment_id, emoji),
+    do: comment_id |> Reactions.unreact_as_agent(emoji) |> broadcast_reaction_change()
+
+  @doc """
   Adds a human emoji reaction to a reply, keyed by `emoji`. See
   `Suikou.Critique.Reactions.react_reply_as_human/2`.
 
   ## Examples
 
-      Suikou.Critique.react_reply_as_human(reply.id, "thumbs_up")
+      Suikou.Critique.react_reply_as_human(reply.id, "agree")
       #=> {:ok, reply.comment_id}
 
   """
@@ -225,7 +255,7 @@ defmodule Suikou.Critique do
 
   ## Examples
 
-      Suikou.Critique.unreact_reply_as_human(reply.id, "thumbs_up")
+      Suikou.Critique.unreact_reply_as_human(reply.id, "agree")
       #=> {:ok, reply.comment_id}
 
   """

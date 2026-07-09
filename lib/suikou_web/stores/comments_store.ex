@@ -85,28 +85,44 @@ defmodule SuikouWeb.Stores.CommentsStore do
   command :add_reaction do
     payload do
       field(:comment_id, String.t())
-      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+
+      field(
+        :emoji,
+        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+      )
     end
   end
 
   command :remove_reaction do
     payload do
       field(:comment_id, String.t())
-      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+
+      field(
+        :emoji,
+        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+      )
     end
   end
 
   command :add_reply_reaction do
     payload do
       field(:reply_id, String.t())
-      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+
+      field(
+        :emoji,
+        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+      )
     end
   end
 
   command :remove_reply_reaction do
     payload do
       field(:reply_id, String.t())
-      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+
+      field(
+        :emoji,
+        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+      )
     end
   end
 

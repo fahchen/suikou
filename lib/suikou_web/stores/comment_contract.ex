@@ -70,14 +70,28 @@ defmodule SuikouWeb.Stores.CommentContract do
             inserted_at: String.t(),
             reactions:
               list(%{
-                emoji: :thumbs_up | :check | :eyes | :tada | :heart | :pray,
+                emoji:
+                  :strong_agree
+                  | :agree
+                  | :disagree
+                  | :strong_disagree
+                  | :eyes
+                  | :thinking
+                  | :check,
                 count: integer(),
                 mine: boolean()
               })
           }),
         reactions:
           list(%{
-            emoji: :thumbs_up | :check | :eyes | :tada | :heart | :pray,
+            emoji:
+              :strong_agree
+              | :agree
+              | :disagree
+              | :strong_disagree
+              | :eyes
+              | :thinking
+              | :check,
             count: integer(),
             mine: boolean()
           })
