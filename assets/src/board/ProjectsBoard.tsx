@@ -27,6 +27,7 @@ type BoardReview = BoardProject["reviews"][number]
 // shape version; bump it when the load_board contract changes.
 const BOARD_CACHE_KEY = "suikou-board"
 const BOARD_CACHE_BUSTER = "v1"
+const BOARD_SELECTED_PROJECT_KEY = "suikou-board-selected-project"
 
 function readBoardCache(): LoadBoardReply | null {
   try {
@@ -45,6 +46,15 @@ function writeBoardCache(data: LoadBoardReply): void {
   } catch {
     // Quota or serialization failure: skip the cache; the command still revalidates.
   }
+}
+
+function readSelectedProjectId(): string | null {
+  return localStorage.getItem(BOARD_SELECTED_PROJECT_KEY)
+}
+
+function writeSelectedProjectId(projectId: string | null): void {
+  if (projectId) localStorage.setItem(BOARD_SELECTED_PROJECT_KEY, projectId)
+  else localStorage.removeItem(BOARD_SELECTED_PROJECT_KEY)
 }
 
 /** Projects launcher: a project sidebar and the selected project's review list,
@@ -72,7 +82,7 @@ function Board({ store }: { store: BoardStore }) {
   const loadBoard = useMusubiCommand(store, "load_board")
   const connected = useSocketConnected()
   const [board, setBoard] = useState<LoadBoardReply | null>(() => readBoardCache())
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => readSelectedProjectId())
   const boardRef = useRef<LoadBoardReply | null>(null)
   boardRef.current = board
 
@@ -83,9 +93,15 @@ function Board({ store }: { store: BoardStore }) {
       return
     }
     if (selectedId === null || !board.projects.some((p) => p.id === selectedId)) {
-      setSelectedId(board.projects[0].id)
+      const remembered = readSelectedProjectId()
+      const fallback = remembered && board.projects.some((project) => project.id === remembered) ? remembered : board.projects[0].id
+      setSelectedId(fallback)
     }
   }, [board, selectedId])
+
+  useEffect(() => {
+    writeSelectedProjectId(selectedId)
+  }, [selectedId])
 
   useEffect(() => {
     if (!connected) return
