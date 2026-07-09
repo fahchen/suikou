@@ -835,6 +835,8 @@
   html,
   body {
     min-height: 100%;
+    /* App shell, not a document: suppress the vertical rubber-band / bounce. */
+    overscroll-behavior-y: none;
   }
   body {
     margin: 0;
