@@ -284,13 +284,15 @@ function DirNode({
             key={entry.path}
             type="button"
             onClick={() => onToggle(entry.path, false)}
-            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 pl-[30px] text-left text-[12.5px] text-text hover:bg-soft"
+            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 text-left text-[12.5px] text-text hover:bg-soft"
           >
             <span className="pointer-events-none flex">
               <Checkbox checked={isCovered} onCheckedChange={() => onToggle(entry.path, false)} />
             </span>
-            <FileIcon name={name} size={13} />
-            <span className="min-w-0 flex-1 truncate">{name}</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 pl-[19px]">
+              <FileIcon name={name} size={13} />
+              <span className="min-w-0 flex-1 truncate">{name}</span>
+            </span>
           </button>
         )
       })}
