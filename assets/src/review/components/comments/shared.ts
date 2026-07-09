@@ -11,16 +11,23 @@ export type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Mu
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
 
 /** Canonical reaction order (matches the backend `Reaction.emojis/0`). */
-export const REACTION_ORDER: ReactionEmoji[] = ["thumbs_up", "check", "eyes", "tada", "heart", "pray"]
+export const REACTION_ORDER: ReactionEmoji[] = ["strong_agree", "agree", "disagree", "strong_disagree", "eyes", "thinking", "check"]
 
 export const REACTION_EMOJI: Record<ReactionEmoji, string> = {
-  thumbs_up: "\u{1F44D}",
-  check: "✅",
+  strong_agree: "\u{1F4AF}",
+  agree: "\u{1F44D}",
+  disagree: "\u{1F44E}",
+  strong_disagree: "❌",
   eyes: "\u{1F440}",
-  tada: "\u{1F389}",
-  heart: "❤️",
-  pray: "\u{1F64F}",
+  thinking: "\u{1F914}",
+  check: "✅",
 }
+
+/** Humans express an approval/opposition scale; agents signal work status. The
+ * two sets are disjoint, so an agent-set emoji chip always came from an agent
+ * (drives the bot-avatar treatment) and the human picker only offers its own. */
+export const HUMAN_REACTIONS: ReactionEmoji[] = ["strong_agree", "agree", "disagree", "strong_disagree"]
+export const AGENT_REACTIONS: ReactionEmoji[] = ["eyes", "thinking", "check"]
 
 export const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
 export const INLINE_COMMENT_MAX_WIDTH_CLASS = "max-w-[760px]"

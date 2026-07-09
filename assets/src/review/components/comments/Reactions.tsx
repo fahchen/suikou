@@ -1,15 +1,23 @@
 import { useState, type MouseEvent } from "react"
-import { SmilePlus } from "lucide-react"
+import { Bot, SmilePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { Popover } from "../../../components/ui/popover"
-import { REACTION_EMOJI, REACTION_ORDER, type CommentReaction, type CommentsStoreProxy, type ReactionEmoji } from "./shared"
+import {
+  AGENT_REACTIONS,
+  HUMAN_REACTIONS,
+  REACTION_EMOJI,
+  type CommentReaction,
+  type CommentsStoreProxy,
+  type ReactionEmoji,
+} from "./shared"
 
 type Target = "comment" | "reply"
 
-/** E12 reactions on a comment or a reply: applied emoji chips (with counts,
- * self-highlighted) plus an add button that opens the six-emoji picker in a
- * popover. Toggling dispatches the matching add/remove reaction command. */
+/** Reactions on a comment or reply. Humans pick from an approval/opposition
+ * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
+ * Agent work-status reactions (`AGENT_REACTIONS`) render as read-only chips
+ * badged with a bot avatar — the human can't add or remove them. */
 export function Reactions({
   reactions,
   targetId,
@@ -44,22 +52,33 @@ export function Reactions({
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      {reactions.map((reaction) => (
-        <button
-          key={reaction.emoji}
-          type="button"
-          aria-pressed={reaction.mine}
-          onClick={(event) => toggle(reaction.emoji, event)}
-          className={`inline-flex h-[22px] items-center gap-1 rounded-full px-2 text-[11px] tabular-nums ring-1 ring-inset transition-colors ${
-            reaction.mine
-              ? "bg-accent-soft text-accent-bright ring-accent-edge"
-              : "bg-soft text-muted ring-hair-strong hover:text-ink"
-          }`}
-        >
-          <span className="text-[11px] leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
-          {reaction.count}
-        </button>
-      ))}
+      {reactions.map((reaction) =>
+        AGENT_REACTIONS.includes(reaction.emoji) ? (
+          <span
+            key={reaction.emoji}
+            title="Agent reaction"
+            className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-[11px] ring-1 ring-inset ring-accent-edge"
+          >
+            <span className="text-[11px] leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
+            <Bot size={11} className="text-accent-bright" aria-hidden />
+            {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
+          </span>
+        ) : (
+          <button
+            key={reaction.emoji}
+            type="button"
+            aria-pressed={reaction.mine}
+            onClick={(event) => toggle(reaction.emoji, event)}
+            className={`inline-flex h-[22px] items-center rounded-full px-2 text-[11px] leading-none ring-1 ring-inset transition-colors ${
+              reaction.mine
+                ? "bg-accent-soft text-accent-bright ring-accent-edge"
+                : "bg-soft text-muted ring-hair-strong hover:text-ink"
+            }`}
+          >
+            {REACTION_EMOJI[reaction.emoji]}
+          </button>
+        ),
+      )}
       <Popover
         open={open}
         onOpenChange={setOpen}
@@ -80,7 +99,7 @@ export function Reactions({
         }
       >
         <div className="inline-flex items-center gap-0.5 rounded-full bg-surface p-1 shadow-[0_8px_24px_oklch(0%_0_0/0.25)] ring-1 ring-inset ring-hair-strong">
-          {REACTION_ORDER.map((emoji) => (
+          {HUMAN_REACTIONS.map((emoji) => (
             <button
               key={emoji}
               type="button"
