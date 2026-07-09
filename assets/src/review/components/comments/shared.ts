@@ -9,11 +9,12 @@ export type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Mu
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
 
 export const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
+export const INLINE_COMMENT_MAX_WIDTH_CLASS = "max-w-[760px]"
 
 export const TYPE_META = {
-  fix_required: { label: "FIX_REQUIRED", Icon: AlertTriangle, card: "bg-type-fix-soft ring-type-fix-edge", pill: "bg-type-fix-soft text-type-fix ring-type-fix-edge" },
-  needs_answer: { label: "NEEDS_ANSWER", Icon: HelpCircle, card: "bg-type-ask-soft ring-type-ask-edge", pill: "bg-type-ask-soft text-type-ask ring-type-ask-edge" },
-  note: { label: "NOTE", Icon: StickyNote, card: "bg-type-note-soft ring-type-note-edge", pill: "bg-type-note-soft text-muted ring-type-note-edge" },
+  fix_required: { label: "FIX_REQUIRED", title: "Fix required", Icon: AlertTriangle, card: "bg-type-fix-soft ring-type-fix-edge", pill: "bg-type-fix-soft text-type-fix ring-type-fix-edge" },
+  needs_answer: { label: "NEEDS_ANSWER", title: "Needs answer", Icon: HelpCircle, card: "bg-type-ask-soft ring-type-ask-edge", pill: "bg-type-ask-soft text-type-ask ring-type-ask-edge" },
+  note: { label: "NOTE", title: "Note", Icon: StickyNote, card: "bg-type-note-soft ring-type-note-edge", pill: "bg-type-note-soft text-muted ring-type-note-edge" },
 } as const
 
 export const TYPE_OPTIONS: { value: CritiqueType; label: string; Icon: typeof AlertTriangle; dot: string }[] = [

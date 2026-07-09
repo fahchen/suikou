@@ -3,7 +3,7 @@ import { ChevronDown, Code2, CornerDownRight } from "lucide-react"
 
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu"
-import { TYPE_OPTIONS, safeDraft, type CritiqueType } from "./shared"
+import { INLINE_COMMENT_MAX_WIDTH_CLASS, TYPE_OPTIONS, safeDraft, type CritiqueType } from "./shared"
 
 export function Composer({
   anchorLabel,
@@ -12,7 +12,7 @@ export function Composer({
   draftKey,
   submitLabel = "Add",
   pending,
-  className = "my-1.5 ml-14 mr-3.5 max-w-[720px]",
+  className = `my-1.5 ml-14 mr-3.5 ${INLINE_COMMENT_MAX_WIDTH_CLASS}`,
   chrome = true,
   suggestSeed,
   onSubmit,
@@ -164,7 +164,7 @@ export function Composer({
               type="button"
               onClick={insertSuggestion}
               title="Insert a code suggestion"
-              className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12px] font-medium text-text hover:bg-soft"
+              className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12px] font-medium text-text hover:bg-soft"
             >
               <Code2 size={13} className="text-muted" aria-hidden />
               Suggest
@@ -174,7 +174,7 @@ export function Composer({
           <button
             type="button"
             onClick={cancelNow}
-            className="h-[28px] rounded-ctrl px-3 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
+            className="h-[28px] cursor-pointer rounded-ctrl px-3 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
           >
             Cancel
           </button>
@@ -182,7 +182,7 @@ export function Composer({
             type="button"
             onClick={submit}
             disabled={!body.trim() || pending}
-            className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:opacity-50"
+            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitLabel}
             <span className="text-[11px] opacity-80">⌘⏎</span>

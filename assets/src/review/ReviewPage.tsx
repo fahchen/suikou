@@ -1,12 +1,12 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileText, GitCompare, Info, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, X } from "lucide-react"
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileText, Info, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
-import { uiStore, type CommentDisplayMode, type MonoSize } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode } from "../stores/ui-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
-import { ConfirmDialog } from "../components/ui/confirm-dialog"
 import { Segmented } from "../components/ui/segmented"
 import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
@@ -25,10 +24,11 @@ import { FileList, NavHeader } from "./components/FileNavigator"
 import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
+import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
 import { SideRail } from "./components/SideRail"
 import { highlightLines } from "./highlight"
-import { markdownToc, renderMarkdown } from "./markdown"
-import { langForPath, outline } from "../treesitter/outline"
+import { markdownToc } from "./markdown"
+import { langForPath, outline, type OutlineItem } from "../treesitter/outline"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_structure", Musubi.Stores>
@@ -379,7 +379,6 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         review={review}
         round={selectedRound}
         readOnly={readOnly}
-        commentDisplay={commentDisplay}
       />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
@@ -452,7 +451,7 @@ function ArtifactComments({
             anchorLabel="whole file"
             draftKey={artifactDraftKey(draftScope)}
             pending={addComment.isPending}
-            className="my-1.5 max-w-[720px]"
+            className={`my-1.5 ${INLINE_COMMENT_MAX_WIDTH_CLASS}`}
             onSubmit={submit}
             onCancel={onClose}
           />
