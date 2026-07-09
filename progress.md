@@ -641,3 +641,19 @@
   selector-based browser clicks (`line:14` → `line:28` collapsed group switches directly).
 - No code changes were needed in this pass; this was a verification/cleanup closure before moving
   on to P4 diff / git_diff research.
+
+## Session 2026-07-09
+
+### Toolchain repair + board persistence
+- **TOOLING-BLOCKED RESOLVED**: prior sessions reported typecheck/build blocked by an offline `.ignored/` /
+  broken-pnpm node_modules state. Fixed this session with `bun install` (90 packages). `bun run typecheck` and
+  `bun run build` both pass now. All earlier "tooling blocked / environment-blocked" notes are stale — gates are green.
+- Removed repo-root pnpm cruft (`node_modules/`, `.pnpm-store/` at the worktree root, which has no package.json;
+  only `assets/node_modules` is the real one and is gitignored).
+- `assets/bun.lock` is left MODIFIED (uncommitted): `bun install` re-resolved the local `file:../deps/` musubi/phoenix
+  transitive trees (~152 lines). Tooling side-effect, not a feature change — user to decide keep vs `git checkout`.
+- Committed the in-flight board change as `01fe48d` (Remember the selected project on the board across reloads):
+  persist `suikou-board-selected-project` in localStorage, restore on load, fall back to the first project. Verified
+  the persistence key is written on the live dev board.
+- NEXT: P4 diff (D6 `text/x-diff` → @pierre/diffs PatchDiff) is fully teed up (backend contract confirmed in findings.md,
+  no new endpoint needed).
