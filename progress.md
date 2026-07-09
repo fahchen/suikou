@@ -742,3 +742,23 @@
   commands; replies render `reactions` in the snapshot. Frontend: `Reactions` generalized to target comment|reply,
   shown under published replies only. Backend 15 reaction tests pass. Verified LIVE on 019f2f9f round 3: ❤️ add/remove
   on a published reply, DB clean after.
+
+### Reaction redesign: human/agent vocab + single-select + agent CLI verb (2026-07-10)
+- **Vocabulary reworked** (many design iterations, see task_plan Decisions). Disjoint sets: Human = approval/opposition
+  scale `💯 strong_agree · 👍 agree · 👎 disagree · ❌ strong_disagree`; Agent = work status `👀 eyes · 🤔 thinking ·
+  ✅ check`. Dropped tada/heart/pray; renamed thumbs_up→agree. Actor-scoped validation (each actor may only use its
+  own set — enforced in the changeset). Backend `emojis/0`/`human_emojis/0`/`agent_emojis/0`. 445 tests pass.
+- **Single-select** (`reactions_one_per_actor` migration): unique index changed from `(target, emoji, actor)` to
+  `(target, actor)`; `react_*` now `on_conflict: {:replace, [:emoji, :updated_at]}` so a new emoji REPLACES the old;
+  `unreact_*` deletes by `(target, actor)`. 37 reaction tests pass. Verified LIVE: picking 👍 over 💯 replaces it.
+- **Frontend**: `shared.ts` new emoji map + `HUMAN_REACTIONS`/`AGENT_REACTIONS`. `Reactions.tsx` — human picker lists
+  only the 4 approval emoji; agent-set chips render read-only with a `Bot` avatar (frontend derives "agent" from the
+  emoji set, since sets are disjoint — no snapshot flag). Human chips are emoji-only (count dropped — single reviewer).
+- **Agent reaction path** (`react_as_agent`/`unreact_as_agent` facade + `AgentCLI.Comments.react`/`unreact` +
+  `packaging/launcher.ts` `comment react`/`unreact` verbs). Verified E2E via `mise run cli -- comment react <id>
+  --emoji thinking` → chip flips 👀→🤔 in the board; `--emoji agree` (human key) rejected ("emoji not allowed for
+  this actor"); `unreact` clears. Skill updated in BOTH `~/.claude/skills/suikou/SKILL.md` and the repo's
+  `packaging/embed/skill.md` (they must be hand-synced — see memory `suikou-skill-two-copies`).
+- **Acceptance fixture**: dev-board review "Reaction demo" `019f4908-1fd6-736e-8b0a-bd1b51d3b334` (mix.exs) — 3
+  comment types, agent+human replies, one human + one agent reaction per comment, plus a reply reaction. Seeded via
+  `/tmp/reaction_demo.exs` (idempotent).
