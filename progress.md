@@ -723,3 +723,22 @@
   orchestrator exited 143). The dev env needs a clean **`mise run dev` restart** (the reactions migration is
   already applied to `suikou_dev.db`, so no re-migrate). After restart, live-verify: reactions render + toggle
   (count/mine update server-authoritatively) AND the E7/E8 re-anchor + E16 stranded flows on an outdated comment.
+
+### Dev restart + reactions live-verified + 3 follow-up tweaks (2026-07-10)
+- Restarted `mise run dev` (killed the orphaned OTP28 node holding :4710, fresh clean boot on the pinned OTP29).
+  **Reactions E2E verified LIVE** on 019f2f9f: add 👍 → chip count/mine, persists across reload (server-authoritative),
+  toggle off removes it. Dev-DB reactions table returns to 0 rows after cleanup.
+- **Reaction picker → popover** (`ac0e873`): moved the six-emoji tray from an inline in-flow div into the shared
+  Base UI `Popover` (anchored, floats, dismiss on outside/Escape). Verified: picker portals outside the card, pick
+  toggles + closes.
+- **File picker alignment** (`35c1778`): `NewReviewDialog` file rows indented the whole button by `pl-[30px]`,
+  pushing file checkboxes right of folder checkboxes. Now the checkbox stays in the shared left column and only the
+  file icon is indented by the chevron width. Verified: dir+file checkboxes both at x=392, file icons under folder
+  icons, nesting still indents.
+- **Reply reactions (full-stack)** (`f2ee365` backend, `47dc475` frontend): user pick — each reply can also carry
+  reactions. Reshaped `reactions` to be polymorphic (nullable comment_id/reply_id, DB check exactly-one, two partial
+  unique indexes; SQLite needed the check inlined as a column CHECK and `on_conflict` as an unsafe_fragment with the
+  index's WHERE). Added `react_reply_as_human`/`unreact_reply_as_human` + `add_reply_reaction`/`remove_reply_reaction`
+  commands; replies render `reactions` in the snapshot. Frontend: `Reactions` generalized to target comment|reply,
+  shown under published replies only. Backend 15 reaction tests pass. Verified LIVE on 019f2f9f round 3: ❤️ add/remove
+  on a published reply, DB clean after.
