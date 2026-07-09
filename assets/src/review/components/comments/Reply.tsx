@@ -5,7 +5,6 @@ import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { Composer } from "./Composer"
-import { Reactions } from "./Reactions"
 import type { CommentReply, CommentsStoreProxy } from "./shared"
 import { TimeAgo } from "./TimeAgo"
 
@@ -76,9 +75,6 @@ export function Reply({
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />
-        {!pending && (
-          <Reactions reactions={reply.reactions} targetId={reply.id} target="reply" commentsProxy={commentsProxy} className="pt-1.5" />
-        )}
         {pending && (
           <div className="mt-1.5 flex justify-end">
             <CommentActionButton icon={Pencil} label="Edit" reveal="reply-hover" onClick={() => setEditing(true)} />
