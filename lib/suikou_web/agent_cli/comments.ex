@@ -1,10 +1,11 @@
 defmodule SuikouWeb.AgentCLI.Comments do
   @moduledoc """
-  Agent CLI command for the `comment` group: reply to a comment thread. The
-  agent may only reply, never author top-level comments or submit (BDR-0018).
-  Reads its JSON payload from stdin and emits a JSON result to stdout (see
-  `SuikouWeb.AgentCLI`). `Suikou.Critique` emits the review change event on a
-  successful reply, so an open human thread shows the reply live.
+  Agent CLI commands for the `comment` group: reply to a comment thread, and
+  set/clear the agent's work-status reaction on a comment. The agent may reply
+  and react, but never author top-level comments or submit (BDR-0018). Each
+  command reads its JSON payload from stdin and emits a JSON result to stdout
+  (see `SuikouWeb.AgentCLI`). `Suikou.Critique` emits the review change event on
+  success, so an open human thread reflects it live.
   """
 
   alias Suikou.Critique
@@ -37,5 +38,57 @@ defmodule SuikouWeb.AgentCLI.Comments do
       end
 
     AgentCLI.emit(reply)
+  end
+
+  @doc """
+  Sets the agent's work-status reaction on a comment from `%{"comment_id",
+  "emoji"}` and emits `%{comment_id}` or `%{error}`. The agent holds at most one
+  reaction per comment, so a new emoji replaces the previous one. `emoji` must be
+  an agent-vocabulary key (`eyes` / `thinking` / `check`); a human-vocabulary key
+  is rejected. `Suikou.Critique.react_as_agent/2` emits the review change event.
+
+  ## Examples
+
+      # stdin: {"comment_id": "0192…", "emoji": "eyes"}
+      SuikouWeb.AgentCLI.Comments.react()
+      #=> :ok  # emits {"comment_id":"0192…","error":null}
+
+  """
+  @spec react() :: :ok
+  def react do
+    payload = AgentCLI.read_payload()
+
+    result =
+      case Critique.react_as_agent(payload["comment_id"], payload["emoji"]) do
+        {:ok, comment_id} -> %{comment_id: comment_id, error: nil}
+        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+      end
+
+    AgentCLI.emit(result)
+  end
+
+  @doc """
+  Clears the agent's reaction on a comment from `%{"comment_id"}` and emits
+  `%{comment_id}` or `%{error}`. Removing is a no-op when the agent has no
+  reaction there.
+
+  ## Examples
+
+      # stdin: {"comment_id": "0192…"}
+      SuikouWeb.AgentCLI.Comments.unreact()
+      #=> :ok  # emits {"comment_id":"0192…","error":null}
+
+  """
+  @spec unreact() :: :ok
+  def unreact do
+    payload = AgentCLI.read_payload()
+
+    result =
+      case Critique.unreact_as_agent(payload["comment_id"], payload["emoji"]) do
+        {:ok, comment_id} -> %{comment_id: comment_id, error: nil}
+        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+      end
+
+    AgentCLI.emit(result)
   end
 end

@@ -271,6 +271,21 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       id: { name: "comment-id", required: true },
       payload: ({ id }) => ({ comment_id: id }), // body resolved asynchronously in runGroupVerb
       summary: "reply to a comment (<comment-id> --body | --body-file | stdin)"
+    },
+    react: {
+      expr: "SuikouWeb.AgentCLI.Comments.react()",
+      options: { emoji: { type: "string" } },
+      id: { name: "comment-id", required: true },
+      required: ["emoji"],
+      payload: ({ id, values }) => ({ comment_id: id, emoji: values.emoji }),
+      summary: "set your work-status reaction on a comment (<comment-id> --emoji eyes|thinking|check)"
+    },
+    unreact: {
+      expr: "SuikouWeb.AgentCLI.Comments.unreact()",
+      options: {},
+      id: { name: "comment-id", required: true },
+      payload: ({ id }) => ({ comment_id: id }),
+      summary: "clear your reaction on a comment (<comment-id>)"
     }
   }
 }

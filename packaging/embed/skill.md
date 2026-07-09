@@ -35,6 +35,8 @@ suikou review  delete      <review-id>
 suikou review  export      <review-id> [--rounds <a-b>] [--all]
 suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
+suikou comment react       <comment-id> --emoji <eyes|thinking|check>
+suikou comment unreact     <comment-id>
 suikou wait  <review-id> [...]          # alias for `review wait`
 suikou open                             # open the board root in the browser
 ```
@@ -177,3 +179,28 @@ The agent's sole authoring verb is `comment reply` on an **existing** comment. T
 Those are **human-only**. If a task asks you to "leave a review comment" or "approve", that is out of scope — surface it to the human; do not try to fake it through another command.
 
 `review url`, `review open`, and top-level `open` are **read-only navigation** (they print or open a URL, never author), so they're fine to use — but only open the browser when the human asks.
+
+## Reactions (emoji vocabulary)
+
+A **reaction** is a single emoji an actor puts on a comment or reply — a lightweight signal, not a reply. Humans and agents use **disjoint** vocabularies, and each actor holds **at most one** reaction per comment/reply (picking a new one replaces the old; picking the same one clears it).
+
+**Human** — approval / opposition strength (you only *read* these, never set them):
+
+| emoji | key | meaning |
+|-------|-----|---------|
+| 💯 | `strong_agree` | strongly agree |
+| 👍 | `agree` | agree |
+| 👎 | `disagree` | disagree |
+| ❌ | `strong_disagree` | strongly oppose |
+
+**Agent** — your work-status signal on a human's comment:
+
+| emoji | key | meaning |
+|-------|-----|---------|
+| 👀 | `eyes` | seen it, working on it now |
+| 🤔 | `thinking` | investigating / unsure |
+| ✅ | `check` | handled |
+
+Set your reaction with `suikou comment react <comment-id> --emoji <eyes|thinking|check>` and clear it with `suikou comment unreact <comment-id>`. Both emit `{"comment_id":"0192…","error":null}` (or an `error` string — e.g. a human-vocabulary emoji, or a missing comment).
+
+Intended agent flow: when you pick up a comment, `react --emoji eyes` so the human sees you're on it; switch to `--emoji thinking` while investigating; `--emoji check` when done (usually alongside your `comment reply`). One reaction per comment — a new `--emoji` **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.
