@@ -6,17 +6,19 @@ state by state, against the server-authoritative Musubi runtime — breadth firs
 (all states present), then depth.
 
 ## Current Phase
-Resumed 2026-07-05: finished the interrupted task to remove the persistent
-desktop right-side review overview rail and expose the H2 overview through the
-toolbar Review popover instead. Scope is intentionally narrow; E14 side-comment
-mode remains future work. Frontend typecheck/build and browser/eval verification
-passed. `mix precommit` was attempted and failed on an unrelated backend
-smell-check finding in `lib/suikou/reviews/reviews.ex`.
+2026-07-09/10: **Phase Ecomplete (comment lifecycle depth) is DONE.** Shipped E7/E8
+re-anchor (Source + markdown preview, `relocate_comment`), E16 stranded band, and E12
+reactions — the last grew into a full reaction redesign: disjoint vocabularies (human
+approval scale `💯👍👎❌` / agent work status `👀🤔✅`), actor-scoped validation,
+single-select per `(target, actor)` with replace-on-conflict, agent-avatar read-only
+chips, and the `suikou comment react`/`unreact` agent CLI verbs. Committed (`91a1ae7`,
+`2bfce48`, `bcbf2df`, `2b563d9`, `f2ee365`, `47dc475`, `0493d87`, `9008f33`, `b6c2ad7`);
+backend 445 tests pass, frontend typecheck/build green, all live-verified on the dev
+board ("Reaction demo" fixture `019f4908-1fd6-736e-8b0a-bd1b51d3b334`). **Not pushed.**
 
-Current selected feature task: **Phase P4 — D6/D7 diff + J1–J8 git_diff implementation planning**.
-The side-comment display-mode work is verified end-to-end on desktop and mobile,
-and the component refactor track is complete. Resume P4 on top of the smaller
-page containers.
+Current selected feature task: **none active** — awaiting user pick. Next per backlog:
+P4 D6/D7 diff + J1–J8 git_diff (renderer = `@pierre/diffs`), or P3-D11 stacked all-files
+mode.
 
 Parallel maintenance track complete: **frontend business-component extraction**
 inside `assets/src/review/` so the remaining feature work lands on smaller modules.
@@ -47,8 +49,8 @@ Cross-cutting implementation decisions now recorded for later tasks:
 - filesystem change watching uses `fs_notify` (`https://github.com/fahchen/fs_notify`)
 
 ## Prioritized Backlog (2026-07-07)
-1. Ecomplete comment lifecycle depth: open/resolved, outdated, drifted, stranded; reactions stay last unless
-   product need changes.
+1. [x] Ecomplete comment lifecycle depth: open/resolved, outdated, drifted, stranded, reactions — DONE
+   (E7/E8 re-anchor, E16 stranded, E12 reaction redesign + agent CLI verb). See Phase Ecomplete below.
 2. [x] P-mobile file switching first slice: mobile file head now has previous/next file controls and a
    current-file chip that opens the existing Files sheet. The sheet remains the search/tree fallback.
 3. P-mobile #25/#31: finish the mobile app bar and bottom-sheet submit/overview shell, keeping comment actions
@@ -242,12 +244,18 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
       verdict/submit are human UI actions, agent CLI never authors them.
 
 ### Phase Ecomplete: Comment lifecycle depth
-- [ ] E5/E6 open/resolved · E7 outdated · E8 drifted · E12 reactions
+- [x] E5/E6 open/resolved (resolve/unresolve committed earlier) · E7 outdated · E8 drifted — E7/E8 re-anchor
+      flow: outdated/drifted comments carry a Re-anchor action that arms a gutter/block pick dispatching
+      `relocate_comment` (Source `91a1ae7`, markdown preview + stranded `2bfce48`)
+- [x] E12 reactions — full redesign: human approval scale `💯👍👎❌` / agent work status `👀🤔✅` (disjoint,
+      actor-scoped), single-select per `(target, actor)`, agent-avatar read-only chips, reply reactions, and the
+      `suikou comment react`/`unreact` agent CLI verbs. Backend `bcbf2df`/`f2ee365`/`0493d87`/`b6c2ad7`,
+      frontend `2b563d9`/`47dc475`/`9008f33`. 445 backend tests; live-verified on the "Reaction demo" fixture
 - [~] E14 side/inspector layout · H1–H4 display modes/collapse — implementation substantially complete;
       verified end-to-end; shared `CommentCard` cleanup committed in `451bcd8`; only pixel-level polish remains
 - [x] E15 html element dot
-- [ ] E16 stranded
-- **Status:** pending
+- [x] E16 stranded — comments whose anchor line no longer exists surface in a top band with re-anchor (`2bfce48`)
+- **Status:** complete (E14 pixel polish is the only optional remainder)
 
 ### Phase Frest: Remaining composer
 - [x] F3 html element composer (done in #27)
