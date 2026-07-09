@@ -145,7 +145,7 @@ export function CommentThread({
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         }
-        reactions={<Reactions comment={comment} commentsProxy={commentsProxy} />}
+        reactions={<Reactions reactions={comment.reactions} targetId={comment.id} target="comment" commentsProxy={commentsProxy} />}
         replies={
           comment.replies.length > 0 ? (
             <div className="mx-3 mb-2.5 flex flex-col gap-2">
