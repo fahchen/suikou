@@ -13,6 +13,7 @@ defmodule Suikou.Reads do
   alias Suikou.ReviewScope
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
 
@@ -143,7 +144,7 @@ defmodule Suikou.Reads do
     round
     |> visible_comments()
     |> order_by([comment: c], asc: c.id)
-    |> preload(replies: ^thread_order())
+    |> preload(replies: ^thread_order(), reactions: ^reaction_order())
     |> Repo.all()
   end
 
@@ -285,11 +286,15 @@ defmodule Suikou.Reads do
   @spec get_comment(Ecto.UUID.t()) :: Comment.t() | nil
   def get_comment(comment_id) do
     Comment
-    |> preload(replies: ^thread_order())
+    |> preload(replies: ^thread_order(), reactions: ^reaction_order())
     |> Repo.get(comment_id)
   end
 
   defp thread_order do
     order_by(from(r in Reply, as: :reply), [reply: r], asc: r.id)
+  end
+
+  defp reaction_order do
+    order_by(from(r in Reaction, as: :reaction), [reaction: r], asc: r.id)
   end
 end

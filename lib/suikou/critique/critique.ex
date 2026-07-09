@@ -11,6 +11,7 @@ defmodule Suikou.Critique do
   alias Suikou.Critique.Anchor
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
+  alias Suikou.Critique.Reactions
   alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Schemas.Comment
@@ -174,6 +175,36 @@ defmodule Suikou.Critique do
     do: reply_id |> Discussion.delete_reply() |> broadcast_reply_change()
 
   @doc """
+  Adds a human emoji reaction to a comment, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.react_as_human/2`.
+
+  ## Examples
+
+      Suikou.Critique.react_as_human(comment.id, "thumbs_up")
+      #=> {:ok, comment.id}
+
+  """
+  @spec react_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :comment_not_found | Ecto.Changeset.t()}
+  def react_as_human(comment_id, emoji),
+    do: comment_id |> Reactions.react_as_human(emoji) |> broadcast_reaction_change()
+
+  @doc """
+  Removes a human emoji reaction from a comment, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.unreact_as_human/2`.
+
+  ## Examples
+
+      Suikou.Critique.unreact_as_human(comment.id, "thumbs_up")
+      #=> {:ok, comment.id}
+
+  """
+  @spec unreact_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :comment_not_found}
+  def unreact_as_human(comment_id, emoji),
+    do: comment_id |> Reactions.unreact_as_human(emoji) |> broadcast_reaction_change()
+
+  @doc """
   Resolves a stored line anchor against the live file's `content_lines`,
   returning its current view and a freshness status (`:current`, `:drifted`, or
   `:outdated`). See `Suikou.Critique.Anchor.resolve/2`.
@@ -201,4 +232,12 @@ defmodule Suikou.Critique do
   end
 
   defp broadcast_reply_change(result), do: result
+
+  defp broadcast_reaction_change({:ok, comment_id} = result) when is_binary(comment_id) do
+    {review_id, artifact_id} = Reads.scope_for_comment(comment_id)
+    Events.review_changed(review_id, artifact_id)
+    result
+  end
+
+  defp broadcast_reaction_change(result), do: result
 end

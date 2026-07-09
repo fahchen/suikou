@@ -17,6 +17,7 @@ defmodule Suikou.Schemas.Comment do
   alias Suikou.Schemas.Anchor.DiffHunk
   alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
+  alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
 
@@ -47,6 +48,7 @@ defmodule Suikou.Schemas.Comment do
 
     belongs_to :round, Round
     has_many :replies, Reply
+    has_many :reactions, Reaction
 
     timestamps()
   end

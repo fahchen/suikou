@@ -101,7 +101,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.CommentsStore": StoreDef<
       "SuikouWeb.Stores.CommentsStore",
       {
-        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string }> }>
+        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string }>; reactions: Array<{ emoji: "thumbs_up" | "check" | "eyes" | "tada" | "heart" | "pray"; count: number; mine: boolean }> }>
       },
       {
         edit_comment: {
@@ -154,6 +154,20 @@ declare namespace Musubi {
           payload: {
             comment_id: string
             anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string }
+          }
+          reply: never
+        }
+        add_reaction: {
+          payload: {
+            comment_id: string
+            emoji: "thumbs_up" | "check" | "eyes" | "tada" | "heart" | "pray"
+          }
+          reply: never
+        }
+        remove_reaction: {
+          payload: {
+            comment_id: string
+            emoji: "thumbs_up" | "check" | "eyes" | "tada" | "heart" | "pray"
           }
           reply: never
         }

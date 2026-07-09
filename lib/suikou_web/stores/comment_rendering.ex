@@ -16,6 +16,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
   alias Suikou.Schemas.Anchor.Element
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
   alias SuikouWeb.Iso8601
 
@@ -83,7 +84,8 @@ defmodule SuikouWeb.Stores.CommentRendering do
       authored_round: comment.authored_round,
       inserted_at: Iso8601.utc(comment.inserted_at),
       anchor: tagged_anchor(comment.anchor, anchor),
-      replies: Enum.map(comment.replies, &render_reply/1)
+      replies: Enum.map(comment.replies, &render_reply/1),
+      reactions: render_reactions(comment.reactions)
     }
   end
 
@@ -112,5 +114,17 @@ defmodule SuikouWeb.Stores.CommentRendering do
       body: reply.body,
       inserted_at: Iso8601.utc(reply.inserted_at)
     }
+  end
+
+  # Aggregate a comment's reactions into per-emoji chips: the count across every
+  # actor and whether the human is among them (drives the "mine" toggle state),
+  # ordered by the canonical emoji order so chips stay stable across renders.
+  defp render_reactions(reactions) do
+    reactions
+    |> Enum.group_by(& &1.emoji)
+    |> Enum.map(fn {emoji, group} ->
+      %{emoji: emoji, count: length(group), mine: Enum.any?(group, &(&1.actor == :human))}
+    end)
+    |> Enum.sort_by(&Enum.find_index(Reaction.emojis(), fn e -> e == &1.emoji end))
   end
 end

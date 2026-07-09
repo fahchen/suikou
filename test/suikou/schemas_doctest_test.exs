@@ -7,4 +7,5 @@ defmodule Suikou.SchemasDoctestTest do
   doctest Suikou.Schemas.Review
   doctest Suikou.Schemas.Submission
   doctest Suikou.Schemas.Reply
+  doctest Suikou.Schemas.Reaction
 end
