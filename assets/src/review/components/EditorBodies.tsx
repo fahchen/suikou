@@ -48,6 +48,21 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
+  const relocateCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "relocate_comment")
+  // E7/E8: the comment being re-anchored. While set, a block pick relocates it
+  // (relocate_comment) instead of opening a new composer.
+  const [relocating, setRelocating] = useState<string | null>(null)
+  const relocatingRef = useRef<string | null>(null)
+  relocatingRef.current = relocating
+
+  useEffect(() => {
+    if (!relocating) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRelocating(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [relocating])
 
   const threadsByBlock = useMemo(() => {
     const map = new Map<number, Comment[]>()
@@ -90,6 +105,19 @@ export const MarkdownPreview = observer(function MarkdownPreview({
     const current = draftRef.current
     if (current && !sameRange(current, range) && hasDraftBody(draftScope, current)) setSwitchTo(range)
     else open(range)
+  }
+  // A block pick either re-anchors the pending comment (E7/E8) or opens a new
+  // composer, depending on whether re-anchor mode is armed.
+  const commitRange = (range: Range) => {
+    const rid = relocatingRef.current
+    if (rid) {
+      relocateCmd
+        .dispatch({ comment_id: rid, anchor: { type: "line_range", start_line: range.start, end_line: range.end } })
+        .catch(() => undefined)
+      setRelocating(null)
+      return
+    }
+    requestOpen(range)
   }
 
   useEffect(() => {
@@ -152,7 +180,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
       if (current) {
         const lo = Math.min(current.from, current.to)
         const hi = Math.max(current.from, current.to)
-        requestOpen({ start: blocks[lo].line, end: blocks[hi].endLine })
+        commitRange({ start: blocks[lo].line, end: blocks[hi].endLine })
       }
     }
     window.addEventListener("pointermove", move)
@@ -171,6 +199,19 @@ export const MarkdownPreview = observer(function MarkdownPreview({
 
   return (
     <div className="shrink-0">
+      {relocating && (
+        <div className="sticky top-0 z-30 mx-4 mt-3 flex items-center gap-2 rounded-ctrl border border-accent-edge bg-accent-soft px-3 py-2 text-[12.5px] text-ink">
+          <Crosshair size={14} className="shrink-0 text-accent" />
+          <span>Click a block to re-anchor this comment.</span>
+          <button
+            type="button"
+            className="ml-auto rounded-ctrl px-2 py-0.5 text-muted transition-colors hover:bg-soft hover:text-ink"
+            onClick={() => setRelocating(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="md-doc py-4">
         {blocks.map((block, index) => {
           const threads = threadsByBlock.get(index)
@@ -199,11 +240,11 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 if (event.button !== 0 || event.shiftKey || !current || current.from !== current.to) return
                 dragRef.current = null
                 setDrag(null)
-                if (composerMode === "inline") requestOpen({ start: block.line, end: block.endLine })
+                if (composerMode === "inline" || relocating) commitRange({ start: block.line, end: block.endLine })
               }}
               onClick={(event) => {
-                if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
-                requestOpen({ start: block.line, end: block.endLine })
+                if (event.shiftKey || (composerMode === "popover" && !relocating) || event.detail !== 0) return
+                commitRange({ start: block.line, end: block.endLine })
               }}
               style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
               title="Comment on this block — drag or shift-click for a range"
@@ -276,6 +317,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                   commentsProxy={commentsProxy}
                   focused={focusedCommentId === comment.id}
                   onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
+                  onReanchor={!readOnly && commentsProxy ? () => setRelocating(comment.id) : undefined}
                 />
               ))}
             </Fragment>
@@ -346,18 +388,27 @@ export const Source = observer(function Source({
     return () => window.removeEventListener("keydown", onKey)
   }, [relocating])
 
-  const threadsByLine = useMemo(() => {
+  // E16: a located comment whose start line no longer exists in the file (the
+  // file shrank past its anchor) is stranded — it can't render inline, so it
+  // surfaces at the top for re-anchoring instead of silently clamping to the
+  // last line.
+  const { threadsByLine, strandedComments } = useMemo(() => {
     const map = new Map<number, Comment[]>()
+    const stranded: Comment[] = []
     const last = count || 1
     for (const comment of comments) {
       if (comment.scope !== "located" || comment.anchor?.type !== "line_range") continue
+      if (comment.anchor.start_line > last) {
+        stranded.push(comment)
+        continue
+      }
       const start = Math.min(Math.max(comment.anchor.start_line, 1), last)
       const end = Math.min(Math.max(comment.anchor.end_line, start), last)
       const bucket = map.get(end)
       if (bucket) bucket.push(comment)
       else map.set(end, [comment])
     }
-    return map
+    return { threadsByLine: map, strandedComments: stranded }
   }, [comments, count])
 
   const [draft, setDraft] = useState<Range | null>(null)
@@ -482,6 +533,26 @@ export const Source = observer(function Source({
           >
             Cancel
           </button>
+        </div>
+      )}
+      {showThreads && strandedComments.length > 0 && (
+        <div className="mx-3 mb-2 rounded-panel border border-hair-strong bg-soft/40 p-2 font-sans">
+          <div className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <Crosshair size={12} className="text-accent" />
+            Stranded {strandedComments.length === 1 ? "comment" : "comments"}
+            <span className="font-normal normal-case tracking-normal text-faint">· anchor line no longer exists</span>
+          </div>
+          {strandedComments.map((comment) => (
+            <CommentThread
+              key={comment.id}
+              comment={comment}
+              commentsProxy={commentsProxy}
+              className="my-1"
+              focused={focusedCommentId === comment.id}
+              onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
+              onReanchor={!readOnly && commentsProxy ? () => setRelocating(comment.id) : undefined}
+            />
+          ))}
         </div>
       )}
       {rows.map((lineTokens, index) => {
