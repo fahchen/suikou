@@ -67,7 +67,13 @@ defmodule SuikouWeb.Stores.CommentContract do
             author: :human | :agent,
             status: :pending | :published,
             body: String.t(),
-            inserted_at: String.t()
+            inserted_at: String.t(),
+            reactions:
+              list(%{
+                emoji: :thumbs_up | :check | :eyes | :tada | :heart | :pray,
+                count: integer(),
+                mine: boolean()
+              })
           }),
         reactions:
           list(%{

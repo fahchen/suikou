@@ -11,6 +11,7 @@ defmodule Suikou.Schemas.Reply do
   use Suikou.Schema
 
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reaction
 
   @authors [:human, :agent]
   @statuses [:pending, :published]
@@ -24,6 +25,7 @@ defmodule Suikou.Schemas.Reply do
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
 
     belongs_to :comment, Comment
+    has_many :reactions, Reaction
 
     timestamps()
   end

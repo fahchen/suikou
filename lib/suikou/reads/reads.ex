@@ -144,7 +144,7 @@ defmodule Suikou.Reads do
     round
     |> visible_comments()
     |> order_by([comment: c], asc: c.id)
-    |> preload(replies: ^thread_order(), reactions: ^reaction_order())
+    |> preload(^comment_thread_preload())
     |> Repo.all()
   end
 
@@ -286,8 +286,17 @@ defmodule Suikou.Reads do
   @spec get_comment(Ecto.UUID.t()) :: Comment.t() | nil
   def get_comment(comment_id) do
     Comment
-    |> preload(replies: ^thread_order(), reactions: ^reaction_order())
+    |> preload(^comment_thread_preload())
     |> Repo.get(comment_id)
+  end
+
+  # A comment's full thread: replies in insertion order, each with their
+  # reactions, plus the comment's own reactions — all deterministically ordered.
+  # Built as a runtime value and interpolated with `^` because the reply preload
+  # pairs an ordering query with a further nested preload, a shape the compile-
+  # time `preload/2` macro rejects but the runtime form accepts.
+  defp comment_thread_preload do
+    [replies: {thread_order(), reactions: reaction_order()}, reactions: reaction_order()]
   end
 
   defp thread_order do

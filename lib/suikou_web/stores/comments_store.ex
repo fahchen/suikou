@@ -96,6 +96,20 @@ defmodule SuikouWeb.Stores.CommentsStore do
     end
   end
 
+  command :add_reply_reaction do
+    payload do
+      field(:reply_id, String.t())
+      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+    end
+  end
+
+  command :remove_reply_reaction do
+    payload do
+      field(:reply_id, String.t())
+      field(:emoji, :thumbs_up | :check | :eyes | :tada | :heart | :pray)
+    end
+  end
+
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
   def init(socket), do: {:ok, reload(socket)}
@@ -163,6 +177,16 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
   def handle_command(:remove_reaction, payload, socket) do
     Critique.unreact_as_human(payload["comment_id"], payload["emoji"])
+    {:noreply, socket}
+  end
+
+  def handle_command(:add_reply_reaction, payload, socket) do
+    Critique.react_reply_as_human(payload["reply_id"], payload["emoji"])
+    {:noreply, socket}
+  end
+
+  def handle_command(:remove_reply_reaction, payload, socket) do
+    Critique.unreact_reply_as_human(payload["reply_id"], payload["emoji"])
     {:noreply, socket}
   end
 

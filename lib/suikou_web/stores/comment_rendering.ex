@@ -112,7 +112,8 @@ defmodule SuikouWeb.Stores.CommentRendering do
       author: reply.author,
       status: reply.status,
       body: reply.body,
-      inserted_at: Iso8601.utc(reply.inserted_at)
+      inserted_at: Iso8601.utc(reply.inserted_at),
+      reactions: render_reactions(reply.reactions)
     }
   end
 

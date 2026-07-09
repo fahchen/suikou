@@ -205,6 +205,36 @@ defmodule Suikou.Critique do
     do: comment_id |> Reactions.unreact_as_human(emoji) |> broadcast_reaction_change()
 
   @doc """
+  Adds a human emoji reaction to a reply, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.react_reply_as_human/2`.
+
+  ## Examples
+
+      Suikou.Critique.react_reply_as_human(reply.id, "thumbs_up")
+      #=> {:ok, reply.comment_id}
+
+  """
+  @spec react_reply_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :reply_not_found | Ecto.Changeset.t()}
+  def react_reply_as_human(reply_id, emoji),
+    do: reply_id |> Reactions.react_reply_as_human(emoji) |> broadcast_reaction_change()
+
+  @doc """
+  Removes a human emoji reaction from a reply, keyed by `emoji`. See
+  `Suikou.Critique.Reactions.unreact_reply_as_human/2`.
+
+  ## Examples
+
+      Suikou.Critique.unreact_reply_as_human(reply.id, "thumbs_up")
+      #=> {:ok, reply.comment_id}
+
+  """
+  @spec unreact_reply_as_human(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :reply_not_found}
+  def unreact_reply_as_human(reply_id, emoji),
+    do: reply_id |> Reactions.unreact_reply_as_human(emoji) |> broadcast_reaction_change()
+
+  @doc """
   Resolves a stored line anchor against the live file's `content_lines`,
   returning its current view and a freshness status (`:current`, `:drifted`, or
   `:outdated`). See `Suikou.Critique.Anchor.resolve/2`.
