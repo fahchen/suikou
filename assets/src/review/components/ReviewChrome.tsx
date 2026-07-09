@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, Circle, GitCompare, GitCompareArrows, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, GitCompareArrows, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -62,11 +62,13 @@ export function Toolbar({
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
       <a
         href="/"
-        className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl px-2 hover:bg-soft"
+        className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl px-1 hover:bg-soft lg:px-2"
         title={connected ? "Back to projects" : "Reconnecting…"}
+        aria-label="Back to projects"
       >
+        <ChevronLeft size={20} className="text-muted lg:hidden" aria-hidden />
         <span
-          className={`grid size-6 place-items-center rounded-[7px] bg-accent text-[13px] font-black text-on-accent ${
+          className={`hidden size-6 place-items-center rounded-[7px] bg-accent text-[13px] font-black text-on-accent lg:grid ${
             connected ? "" : "animate-pulse"
           }`}
         >
@@ -266,7 +268,7 @@ function RoundSelector({
           <button
             type="button"
             title={`Round ${selectedRound}${selectedRound < latestRound ? " (read-only)" : ""}`}
-            className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border border-hair-strong bg-canvas px-2 text-[12.5px] font-medium text-ink hover:bg-soft sm:px-2.5"
+            className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft sm:rounded-ctrl sm:px-2.5"
           >
             <GitCompare size={14} className="text-muted" aria-hidden />
             <span className="hidden sm:inline">Round </span>
