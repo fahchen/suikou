@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, GitCompareArrows, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, Circle, FileText, GitCompare, GitCompareArrows, MessageSquare, MoreVertical, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -59,7 +59,7 @@ export function Toolbar({
   onToggleCompare: () => void
 }) {
   return (
-    <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
+    <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-2 lg:h-[50px] lg:px-3">
       <a
         href="/"
         className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl px-1 hover:bg-soft lg:px-2"
@@ -75,22 +75,25 @@ export function Toolbar({
           S
         </span>
       </a>
-      <div className="inline-flex h-[30px] min-w-0 items-center gap-2 px-1">
-        <span className="truncate text-[13px] font-semibold tracking-[-0.015em] text-ink">{name}</span>
+      <div className="flex min-w-0 flex-1 flex-col justify-center px-1 lg:h-[30px] lg:flex-row lg:items-center lg:gap-2">
+        <span className="truncate text-[14px] font-semibold tracking-[-0.015em] text-ink lg:text-[13px]">{name}</span>
+        <span className="flex items-center gap-1 truncate text-[11px] leading-tight text-muted lg:hidden">
+          {isDiff ? <GitCompare size={11} aria-hidden /> : <FileText size={11} aria-hidden />}
+          {isDiff ? "Diff" : "Files"}
+        </span>
         {isDiff && (
-          <span className="ml-1 inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full bg-accent-soft pr-2 pl-1.5 text-[11px] font-semibold text-accent-bright">
+          <span className="ml-1 hidden h-[19px] shrink-0 items-center gap-1 rounded-full bg-accent-soft pr-2 pl-1.5 text-[11px] font-semibold text-accent-bright lg:inline-flex">
             <GitCompare size={12} aria-hidden />
             Diff
           </span>
         )}
       </div>
-      <span className="flex-1" />
       {canCompare && (
         <button
           type="button"
           onClick={onToggleCompare}
           title="Compare with the previous round"
-          className={`hidden h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border px-2.5 text-[12.5px] font-medium sm:inline-flex ${
+          className={`hidden h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border px-2.5 text-[12.5px] font-medium lg:inline-flex ${
             compareOpen
               ? "border-accent-edge bg-accent-soft text-accent-bright"
               : "border-hair-strong bg-canvas text-ink hover:bg-soft"
@@ -110,12 +113,37 @@ export function Toolbar({
       )}
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
-        className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+        className="hidden size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink lg:grid"
         title="Settings"
       >
         <SlidersHorizontal size={16} aria-hidden />
       </button>
       <SubmitButton store={store} review={review} />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              title="More"
+              className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink lg:hidden"
+            >
+              <MoreVertical size={18} aria-hidden />
+            </button>
+          }
+        />
+        <DropdownMenuContent align="end">
+          {canCompare && (
+            <DropdownMenuItem onClick={onToggleCompare}>
+              <GitCompareArrows size={14} className={compareOpen ? "text-accent-bright" : "text-muted"} aria-hidden />
+              {compareOpen ? "Hide compare" : "Compare rounds"}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => uiStore.setSettingsOpen(true)}>
+            <SlidersHorizontal size={14} className="text-muted" aria-hidden />
+            Settings
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
