@@ -5,8 +5,22 @@ type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Store
 
 export type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][number]
 export type CommentReply = Comment["replies"][number]
+export type CommentReaction = Comment["reactions"][number]
+export type ReactionEmoji = CommentReaction["emoji"]
 export type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
+
+/** Canonical reaction order (matches the backend `Reaction.emojis/0`). */
+export const REACTION_ORDER: ReactionEmoji[] = ["thumbs_up", "check", "eyes", "tada", "heart", "pray"]
+
+export const REACTION_EMOJI: Record<ReactionEmoji, string> = {
+  thumbs_up: "\u{1F44D}",
+  check: "✅",
+  eyes: "\u{1F440}",
+  tada: "\u{1F389}",
+  heart: "❤️",
+  pray: "\u{1F64F}",
+}
 
 export const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
 export const INLINE_COMMENT_MAX_WIDTH_CLASS = "max-w-[760px]"

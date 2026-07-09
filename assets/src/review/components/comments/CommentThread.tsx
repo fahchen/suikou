@@ -6,6 +6,7 @@ import { renderMarkdown } from "../../markdown"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { CommentCard } from "./CommentCard"
 import { Composer } from "./Composer"
+import { Reactions } from "./Reactions"
 import { Reply } from "./Reply"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS, inlineThreadCollapsedKey, type Comment, type CommentsStoreProxy } from "./shared"
 
@@ -144,6 +145,7 @@ export function CommentThread({
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         }
+        reactions={<Reactions comment={comment} commentsProxy={commentsProxy} />}
         replies={
           comment.replies.length > 0 ? (
             <div className="mx-3 mb-2.5 flex flex-col gap-2">
