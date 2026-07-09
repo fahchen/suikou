@@ -3,28 +3,48 @@ import { SmilePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { Popover } from "../../../components/ui/popover"
-import { REACTION_EMOJI, REACTION_ORDER, type Comment, type CommentsStoreProxy, type ReactionEmoji } from "./shared"
+import { REACTION_EMOJI, REACTION_ORDER, type CommentReaction, type CommentsStoreProxy, type ReactionEmoji } from "./shared"
 
-/** E12 reactions: applied emoji chips (with counts, self-highlighted) plus an
- * add button that opens the six-emoji picker in a popover. Toggling dispatches
- * add/remove_reaction on the comment's store. */
-export function Reactions({ comment, commentsProxy }: { comment: Comment; commentsProxy: CommentsStoreProxy | null }) {
-  const addCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "add_reaction")
-  const removeCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "remove_reaction")
+type Target = "comment" | "reply"
+
+/** E12 reactions on a comment or a reply: applied emoji chips (with counts,
+ * self-highlighted) plus an add button that opens the six-emoji picker in a
+ * popover. Toggling dispatches the matching add/remove reaction command. */
+export function Reactions({
+  reactions,
+  targetId,
+  target,
+  commentsProxy,
+  className = "px-3 pb-2",
+}: {
+  reactions: CommentReaction[]
+  targetId: string
+  target: Target
+  commentsProxy: CommentsStoreProxy | null
+  className?: string
+}) {
+  const addComment = useMusubiCommand(commentsProxy as CommentsStoreProxy, "add_reaction")
+  const removeComment = useMusubiCommand(commentsProxy as CommentsStoreProxy, "remove_reaction")
+  const addReply = useMusubiCommand(commentsProxy as CommentsStoreProxy, "add_reply_reaction")
+  const removeReply = useMusubiCommand(commentsProxy as CommentsStoreProxy, "remove_reply_reaction")
   const [open, setOpen] = useState(false)
-  const applied = comment.reactions
-  const mine = new Map(applied.map((reaction) => [reaction.emoji, reaction.mine]))
+  const mine = new Map(reactions.map((reaction) => [reaction.emoji, reaction.mine]))
 
   const toggle = (emoji: ReactionEmoji, event: MouseEvent) => {
     event.stopPropagation()
     if (!commentsProxy) return
-    const cmd = mine.get(emoji) ? removeCmd : addCmd
-    cmd.dispatch({ comment_id: comment.id, emoji }).catch(() => undefined)
+    if (target === "reply") {
+      const cmd = mine.get(emoji) ? removeReply : addReply
+      cmd.dispatch({ reply_id: targetId, emoji }).catch(() => undefined)
+    } else {
+      const cmd = mine.get(emoji) ? removeComment : addComment
+      cmd.dispatch({ comment_id: targetId, emoji }).catch(() => undefined)
+    }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2">
-      {applied.map((reaction) => (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      {reactions.map((reaction) => (
         <button
           key={reaction.emoji}
           type="button"
@@ -52,7 +72,7 @@ export function Reactions({ comment, commentsProxy }: { comment: Comment; commen
             aria-label="Add reaction"
             onClick={(event) => event.stopPropagation()}
             className={`grid size-[22px] shrink-0 place-items-center rounded-full text-muted ring-1 ring-inset ring-hair-strong transition-colors hover:bg-soft hover:text-ink ${
-              applied.length === 0 && !open ? "opacity-100 md:opacity-0 md:group-hover/comment:opacity-100" : ""
+              reactions.length === 0 && !open ? "opacity-100 md:opacity-0 md:group-hover/comment:opacity-100 md:group-hover/reply:opacity-100" : ""
             }`}
           >
             <SmilePlus size={13} aria-hidden />
