@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Check, CornerDownRight, Pencil, RotateCcw } from "lucide-react"
+import { Check, CornerDownRight, Crosshair, Pencil, RotateCcw } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
@@ -16,6 +16,7 @@ export function CommentThread({
   compact = false,
   focused = false,
   onFocus,
+  onReanchor,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
@@ -23,6 +24,7 @@ export function CommentThread({
   compact?: boolean
   focused?: boolean
   onFocus?: () => void
+  onReanchor?: () => void
 }) {
   const anchor = comment.anchor?.type === "line_range" ? comment.anchor : null
   const pending = comment.status === "pending"
@@ -153,6 +155,9 @@ export function CommentThread({
         }
         actions={
           <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
+            {onReanchor && (comment.outdated || comment.drifted) && (
+              <CommentActionButton icon={Crosshair} label="Re-anchor" reveal="comment-hover" onClick={onReanchor} />
+            )}
             {pending ? (
               <CommentActionButton icon={Pencil} label="Edit" reveal="comment-hover" onClick={() => setEditing(true)} />
             ) : canReply && !replying ? (
