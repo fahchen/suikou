@@ -657,3 +657,16 @@
   the persistence key is written on the live dev board.
 - NEXT: P4 diff (D6 `text/x-diff` → @pierre/diffs PatchDiff) is fully teed up (backend contract confirmed in findings.md,
   no new endpoint needed).
+
+### Mobile app bar (#7 / P-mobile) — done
+- Overscroll baseline: `overscroll-behavior-y: none` on html/body (`221b852`).
+- Toolbar reshaped into the mockup mobile app bar below `lg` (commits `e3c34bd`, `054a3cc`):
+  - brand badge → back chevron; round selector → full pill.
+  - two-line title: review name over a Files/Diff kind line.
+  - one overflow `⋯` menu holds Compare + Settings; the standalone Settings button is desktop-only.
+  - Submit intentionally kept as a visible button (not buried in the overflow), per user pick (option a).
+  - desktop (`lg+`) toolbar unchanged: explicit Compare / Round / Settings / Submit + S badge.
+- Confirmed already-done mobile bits: comment actions are `opacity-100` on mobile (only `md:group-hover`
+  gates desktop) so touch works without hover; submit/files/statusbar are bottom sheets; file prev/next exists.
+- Verified via eval at 390px (bar 52px, two-line title, ⋯ = Compare+Settings) and 1280px (S badge, flat toolbar).
+- Not done (deliberate): project-name crumb in the title, and folding Submit into the overflow — left as options.
