@@ -670,3 +670,56 @@
   gates desktop) so touch works without hover; submit/files/statusbar are bottom sheets; file prev/next exists.
 - Verified via eval at 390px (bar 52px, two-line title, ⋯ = Compare+Settings) and 1280px (S badge, flat toolbar).
 - Not done (deliberate): project-name crumb in the title, and folding Submit into the overflow — left as options.
+
+### E7/E8 Re-anchor flow (Source) — done (`91a1ae7`)
+- `CommentThread` gains an `onReanchor?` prop; when a comment is `outdated || drifted` it renders a Crosshair
+  "Re-anchor" action next to Edit/Reply.
+- `Source` (EditorBodies.tsx) arms a `relocating` comment id on Re-anchor: a sticky banner ("Click a line to
+  re-anchor this comment · Cancel") shows; Escape or Cancel disarms. The next gutter pick (single line, drag
+  range, or shift-range) routes through a new `commitRange` that dispatches `relocate_comment`
+  ({comment_id, anchor:{type:"line_range",start_line,end_line}}) instead of opening a new composer.
+- Dispatch shape verified against the generated client + backend `relocate_comment` contract (exact match).
+- No-regression check: `commitRange` falls through to the original `requestOpen` when not relocating; the
+  shift-click range-extend path was reverted to its original `open()` (it needs an existing draft, never
+  reachable during relocation). Verified LIVE on review 019f253e/config.exs: a real pointerdown/up on a line
+  gutter still opens the composer (normal authoring unbroken).
+- Gates: typecheck ✓, build ✓. No console errors on load.
+- VERIFICATION GAP (honest): the relocate happy-path was NOT clicked through on a live outdated comment.
+  Dev fixtures are broken (many reviews 404 their files: "Approved review" etc.), and no pre-existing
+  outdated *code-file* comment exists to exercise it. Manufacturing one (create review over a temp file +
+  edit to break the quote) hit repeated agent-browser friction (React-controlled checkbox not registering
+  eval `.click()`, stale snapshot refs, lazy-mint DB lag). Two throwaway reviews created during the attempt
+  were deleted from `suikou_dev.db` (cascade); temp file removed. Left for a manual click-through or a
+  seeded outdated fixture.
+- NEXT (Ecomplete continues): MarkdownPreview re-anchor parity (2nd requestOpen in EditorBodies), E16 stranded
+  (threadsByLine clamps out-of-range anchors to the last line — should surface at top w/ re-anchor), then
+  full-stack E12 reactions (schema + migration + add/remove_reaction commands + recompile client + picker UI).
+
+### MarkdownPreview re-anchor + E16 stranded — done (`2bfce48`)
+- Extended the same `relocating`/`commitRange`/banner/Escape flow into `MarkdownPreview` so block comments can
+  be re-anchored by picking a new block; `CommentThread` there now gets `onReanchor`.
+- E16: `threadsByLine` now separates comments whose `start_line > count` (file shrank past the anchor) into a
+  `strandedComments` list rendered as a top band ("Stranded comments · anchor line no longer exists"), each with
+  re-anchor, instead of clamping them onto the last line.
+- Gates: typecheck ✓, build ✓. Verified LIVE (no-regression): a block-gutter pointer pick still opens the
+  markdown composer; no console errors.
+
+### E12 reactions (full-stack) — code-complete (`bcbf2df` backend, `2b563d9` frontend)
+- Product decision (user pick 2026-07-09): human **and** agent can react; reactions carry an `actor` and counts
+  can exceed 1 — deliberately extends BDR-0018. Only the human path is wired now (UI store command); schema +
+  rendering already support `:agent`. See task_plan Decisions.
+- Backend (via elixir subagent, reviewed): `Suikou.Schemas.Reaction` (emoji enum thumbs_up/check/eyes/tada/heart/
+  pray + actor enum, unique `(comment_id,emoji,actor)`), migration `20260709142805_create_reactions.exs` (already
+  migrated into the worktree dev DB), `Suikou.Critique.Reactions` (react_as_human idempotent `on_conflict: :nothing`,
+  unreact_as_human `delete_all`), facade `react_as_human`/`unreact_as_human` + `broadcast_reaction_change`, reads
+  preload `:reactions`, `render_reactions/1` (group→{emoji,count,mine}, canonical order), contract field, store
+  `add_reaction`/`remove_reaction` commands. Backend tests: 34 passed (incl. human+agent 👍 → count:2/mine:true).
+  Musubi client regenerated (`reactions: Array<{emoji,count,mine}>` + both commands).
+- Frontend: `Reactions.tsx` (chips w/ counts, self-reacted highlighted, add button reveals 6-emoji tray; toggles
+  add/remove_reaction), new `reactions` slot on `CommentCard` (after body), wired in `CommentThread`. Gates:
+  typecheck ✓, build ✓.
+- **BLOCKER — live E2E not done**: the running dev node (`:4710`) went to HTTP 500 / "Loading…" after the
+  subagent recompiled under the pinned OTP29 toolchain while the live node runs Erlang 28 (`mise run dev`'s
+  orchestrator exited 143). The dev env needs a clean **`mise run dev` restart** (the reactions migration is
+  already applied to `suikou_dev.db`, so no re-migrate). After restart, live-verify: reactions render + toggle
+  (count/mine update server-authoritatively) AND the E7/E8 re-anchor + E16 stranded flows on an outdated comment.

@@ -272,6 +272,7 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 | Ignore mockup window frames / phone bezels | Real app is full-viewport; frames are storyboard layout only |
 | Gates before push = typecheck + build | Frontend has no vitest suite yet (test reports no files) |
 | Agent may only reply to existing comments (BDR-0018) | No authoring top-level comments / verdicts; verdict/submit UI is human-only |
+| E12 reactions: human + agent both react | User pick (2026-07-09). Reactions carry an `actor` (`:human`/`:agent`) and counts can exceed 1 — deliberately extends the BDR-0018 "agent may only reply" boundary. Human reacts via the UI now; the agent reaction path (CLI verb) is a later deliverable, but the schema/rendering already support `:agent` |
 | P4 diff renderer = `@pierre/diffs` | Avoid building a custom diff parser/viewer; adapt backend patch data into an existing React diff surface |
 | Filesystem watch = `fs_notify` | Reuse the existing Elixir-native watcher instead of inventing another file-change notification path |
 | (future #29) Integrate Motion with Base UI | Polish pass — animate Base UI primitives (dialog/menu/tooltip/popover/segmented) + html comment overlay via motion.dev/docs/base-ui |
