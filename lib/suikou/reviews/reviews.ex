@@ -395,6 +395,42 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Returns the unified diff `sha` introduces vs. its first parent (root commits
+  diff against the empty tree), scoped to a diff review's project. Answers
+  `{:inline, diff_text, "text/x-diff"}` so the controller can serve it with the
+  same shape as `fetch_content_by_path/2`.
+
+  Powers the future commit-by-commit navigation axis for diff reviews (see
+  Phase P4 diff-review requirements in `task_plan.md`) — the frontend fetches
+  one commit's whole patch and `@pierre/diffs` splits it per file.
+
+  Returns `{:error, :not_a_diff_review}` for a file-selection review; other
+  errors mirror `Git.commit_diff/2`.
+
+  ## Examples
+
+      Suikou.Reviews.fetch_commit_diff(diff_review, "0a1b2c3")
+      #=> {:ok, {:inline, "diff --git a/lib/app.ex b/lib/app.ex\\n...", "text/x-diff"}}
+
+      Suikou.Reviews.fetch_commit_diff(file_review, "0a1b2c3")
+      #=> {:error, :not_a_diff_review}
+
+  """
+  @spec fetch_commit_diff(Review.t(), String.t()) ::
+          {:ok, content_source()}
+          | {:error, :not_a_diff_review | Git.commit_diff_error()}
+  def fetch_commit_diff(%Review{source: %FileSelection{}}, _sha),
+    do: {:error, :not_a_diff_review}
+
+  def fetch_commit_diff(%Review{source: %GitDiff{}, project: %Project{} = project}, sha)
+      when is_binary(sha) do
+    case Git.commit_diff(project.path, sha) do
+      {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
   Fetches a review by id with its project and active (not soft-removed) files
   preloaded, or `nil` when none exists.
 

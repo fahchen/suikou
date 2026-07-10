@@ -652,6 +652,51 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "fetch_commit_diff/2" do
+    @tag :tmp_dir
+    test "returns the unified diff a single commit introduces vs. its parent", %{tmp_dir: dir} do
+      init_repo!(dir)
+
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      {:ok, [%{sha: sha, subject: "add a"}]} =
+        Reviews.list_diff_commits(Reviews.get_review(review.id))
+
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_commit_diff(Reviews.get_review(review.id), sha)
+
+      assert diff =~ "a.txt"
+      assert diff =~ "+one"
+    end
+
+    test "errors for a file-selection review" do
+      review = insert(:review)
+      assert {:error, :not_a_diff_review} = Reviews.fetch_commit_diff(review, "deadbeef")
+    end
+
+    @tag :tmp_dir
+    test "errors when the sha is unknown", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:error, :ref_not_found} =
+               Reviews.fetch_commit_diff(
+                 Reviews.get_review(review.id),
+                 "0000000000000000000000000000000000000000"
+               )
+    end
+  end
+
   defp diff_review_with(dir, base, head) do
     project = insert(:project, path: dir)
 

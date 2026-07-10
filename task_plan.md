@@ -399,6 +399,20 @@ per-commit `?scope=commit:<sha>` overlay. Tests cover happy path (edit
 commit), root commit (empty tree base), unknown sha, invalid ref, non-repo.
 `mix test test/suikou/git_test.exs` = 56 pass.
 
+##### Slice 2026-07-10f — `Reviews.fetch_commit_diff/2`
+Wired `Git.commit_diff/2` into the review layer. New
+`Suikou.Reviews.fetch_commit_diff/2` returns `{:ok, {:inline, diff_text,
+"text/x-diff"}}` for a diff review + sha, matching the shape of
+`fetch_content_by_path/2` so the same `AssetController.serve_content/2`
+branch can render it. Returns `{:error, :not_a_diff_review}` for a
+file-selection review; other errors mirror `Git.commit_diff/2`
+(`:ref_not_found`, `:invalid_ref`, `:not_a_repo`, `:git_error`). Not yet
+routed over HTTP — the next slice adds
+`GET /api/review/:review_id/commits/:sha/diff` and only then a frontend
+consumer. Tests cover happy path (per-commit diff mentions the added
+file), file-selection error, and unknown sha. `mix test
+test/suikou/reviews_test.exs` = 49 pass.
+
 ##### Slice 2026-07-10d — Frontend consumer for `/commits`
 Read-only commit-range visibility. New in `ReviewChrome.tsx`:
 - `useDiffCommits(reviewId, enabled)` hook — fetches
