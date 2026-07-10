@@ -20,7 +20,7 @@ import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
 import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView } from "./components/EditorSurface"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
-import { FileList, NavHeader } from "./components/FileNavigator"
+import { FileList, HideReviewedToggle, NavHeader } from "./components/FileNavigator"
 import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
@@ -280,6 +280,15 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
     () => new Map(review.perFile.map((f) => [f.path, f])),
     [review],
   )
+  // "Hide reviewed" drops files that carry a verdict with no open blockers —
+  // the same test the stacked view uses — from the navigator list.
+  const navEntries = useMemo(() => {
+    if (!hideReviewed) return entries
+    return entries.filter((e) => {
+      const s = statusByPath.get(e.path)
+      return !(s != null && (s.draftVerdict ?? s.latestVerdict) !== null && s.openBlockers === 0)
+    })
+  }, [entries, statusByPath, hideReviewed])
   // D11 stacked view data: each file's static entry joined with its live proxy,
   // streamed comments, and rolled-up verdict — the whole review at once.
   const stackedFiles = useMemo<StackedFileDatum[]>(() => {
@@ -365,9 +374,6 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         roundSummaries={roundSummaries}
         selectedRound={selectedRound}
         latestRound={latestRound}
-        stacked={stacked}
-        hideReviewed={hideReviewed}
-        onToggleHideReviewed={() => setHideReviewed((on) => !on)}
       />
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
@@ -375,8 +381,13 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         }`}
       >
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
-          <NavHeader entries={entries} reviewed={review.reviewed} />
-          <FileList entries={entries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
+          <NavHeader
+            entries={entries}
+            reviewed={review.reviewed}
+            hideReviewed={hideReviewed}
+            onToggleHideReviewed={() => setHideReviewed((on) => !on)}
+          />
+          <FileList entries={navEntries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
         </aside>
         {stacked ? (
           <StackedFiles
@@ -452,9 +463,10 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           <span className="text-[12px] font-semibold text-muted tabular-nums">
             {review.reviewed}/{entries.length}
           </span>
+          <HideReviewedToggle hideReviewed={hideReviewed} onToggle={() => setHideReviewed((on) => !on)} />
         </div>
         <div className="flex min-h-0 flex-col overflow-hidden pt-2">
-          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
+          <FileList entries={navEntries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
         </div>
       </Dialog>
       <SettingsModal />

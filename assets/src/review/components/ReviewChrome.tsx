@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, ChevronLeft, Circle, EyeOff, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -41,9 +41,6 @@ export function Toolbar({
   roundSummaries,
   selectedRound,
   latestRound,
-  stacked,
-  hideReviewed,
-  onToggleHideReviewed,
 }: {
   name: string
   connected: boolean
@@ -52,9 +49,6 @@ export function Toolbar({
   roundSummaries: RoundSummary[]
   selectedRound: number
   latestRound: number
-  stacked: boolean
-  hideReviewed: boolean
-  onToggleHideReviewed: () => void
 }) {
   return (
     <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-2 lg:h-[50px] lg:px-3">
@@ -83,22 +77,6 @@ export function Toolbar({
           selectedRound={selectedRound}
           latestRound={latestRound}
         />
-      )}
-      {stacked && (
-        <button
-          type="button"
-          onClick={onToggleHideReviewed}
-          title="Hide files that already have a verdict"
-          aria-pressed={hideReviewed}
-          className={`hidden h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border px-2.5 text-[12.5px] font-medium lg:inline-flex ${
-            hideReviewed
-              ? "border-accent-edge bg-accent-soft text-accent-bright"
-              : "border-hair-strong bg-canvas text-ink hover:bg-soft"
-          }`}
-        >
-          <EyeOff size={14} className={hideReviewed ? "text-accent-bright" : "text-muted"} aria-hidden />
-          Hide reviewed
-        </button>
       )}
       <button
         onClick={() => uiStore.setSettingsOpen(true)}

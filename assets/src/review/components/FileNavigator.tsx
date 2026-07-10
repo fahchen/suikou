@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Check, ChevronRight, FileText, Folder, MessageSquare, Search, X } from "lucide-react"
+import { Check, ChevronRight, Eye, EyeOff, FileText, Folder, MessageSquare, Search, X } from "lucide-react"
 
 import { FileIcon } from "../../board/FileIcon"
 
@@ -37,7 +37,17 @@ type TreeNode =
 
 const EMPTY_SET: Set<string> = new Set()
 
-export function NavHeader({ entries, reviewed }: { entries: ReviewFileEntry[]; reviewed: number }) {
+export function NavHeader({
+  entries,
+  reviewed,
+  hideReviewed,
+  onToggleHideReviewed,
+}: {
+  entries: ReviewFileEntry[]
+  reviewed: number
+  hideReviewed: boolean
+  onToggleHideReviewed: () => void
+}) {
   return (
     <div className="flex items-center gap-[7px] px-3 pb-2">
       <FileText size={15} className="text-muted" aria-hidden />
@@ -46,7 +56,26 @@ export function NavHeader({ entries, reviewed }: { entries: ReviewFileEntry[]; r
       <span className="text-[11px] font-semibold text-muted tabular-nums">
         {reviewed}/{entries.length}
       </span>
+      <HideReviewedToggle hideReviewed={hideReviewed} onToggle={onToggleHideReviewed} />
     </div>
+  )
+}
+
+/** Eye toggle that hides files already carrying a verdict from the navigator.
+ * Lives in both the desktop nav header and the mobile files sheet header. */
+export function HideReviewedToggle({ hideReviewed, onToggle }: { hideReviewed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={hideReviewed}
+      title={hideReviewed ? "Show reviewed files" : "Hide reviewed files"}
+      className={`grid size-[22px] shrink-0 place-items-center rounded-ctrl transition-colors ${
+        hideReviewed ? "bg-accent-soft text-accent-bright" : "text-muted hover:bg-soft hover:text-ink"
+      }`}
+    >
+      {hideReviewed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+    </button>
   )
 }
 
