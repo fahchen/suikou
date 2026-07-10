@@ -25,6 +25,7 @@ defmodule Suikou.Git do
           :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type diff_stats_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type list_commits_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type commit_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
   @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
   @type commit_entry() :: %{sha: String.t(), subject: String.t()}
@@ -413,6 +414,29 @@ defmodule Suikou.Git do
              base <> "..." <> head
            ]) do
       {:ok, parse_commit_log(out)}
+    end
+  end
+
+  @doc """
+  Returns the unified diff text introduced by a single `sha` (commit vs. its
+  first parent). Root commits diff against the empty tree, so their full
+  contents show up as additions. Powers the future per-commit navigation
+  axis for diff reviews, where the reviewer walks one commit at a time
+  instead of the whole `base...head` range.
+
+  ## Examples
+
+      Suikou.Git.commit_diff("/projects/app", "0a1b2c3")
+      #=> {:ok, "diff --git a/lib/app.ex b/lib/app.ex\\n..."}
+
+  """
+  @spec commit_diff(repo_dir(), ref()) ::
+          {:ok, String.t()} | {:error, commit_diff_error()}
+  def commit_diff(dir, sha) do
+    with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, sha) do
+      run(dir, ["show", "--format=", "--patch", sha, "--"])
     end
   end
 

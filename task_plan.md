@@ -388,6 +388,17 @@ No frontend consumer yet — that's the next slice (RoundSelector-analog commit
 picker in `ReviewChrome.tsx`). `mix test test/suikou/reviews_test.exs
 test/suikou_web/controllers/asset_controller_test.exs` = 71 pass.
 
+##### Slice 2026-07-10e — `Git.commit_diff/2` primitive
+Added `Suikou.Git.commit_diff/2` (`lib/suikou/git.ex`): `git show --format=
+--patch <sha> --` returns the unified diff a single commit introduces vs. its
+first parent, and diffs a root commit against the empty tree. Errors follow
+the existing pattern (`:invalid_ref`/`:ref_not_found`/`:not_a_repo`/
+`:git_error`). Not yet wired into `Suikou.Reviews` or any endpoint — this is
+the second building block (alongside `list_commits/3`) for the future
+per-commit `?scope=commit:<sha>` overlay. Tests cover happy path (edit
+commit), root commit (empty tree base), unknown sha, invalid ref, non-repo.
+`mix test test/suikou/git_test.exs` = 56 pass.
+
 ##### Slice 2026-07-10d — Frontend consumer for `/commits`
 Read-only commit-range visibility. New in `ReviewChrome.tsx`:
 - `useDiffCommits(reviewId, enabled)` hook — fetches

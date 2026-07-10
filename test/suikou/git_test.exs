@@ -372,6 +372,53 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "commit_diff/2" do
+    @tag :tmp_dir
+    test "returns the unified diff introduced by a single commit", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "first\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "seed a")
+      File.write!(Path.join(dir, "a.txt"), "second\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "edit a")
+
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, diff} = Git.commit_diff(dir, sha)
+      assert diff =~ "-first"
+      assert diff =~ "+second"
+    end
+
+    @tag :tmp_dir
+    test "diffs a root commit against the empty tree", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, diff} = Git.commit_diff(dir, sha)
+      assert diff =~ "+seed"
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown sha", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.commit_diff(dir, "deadbeef")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.commit_diff(dir, "--evil")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.commit_diff(dir, "HEAD")
+    end
+  end
+
   describe "diff_stats/3" do
     @tag :tmp_dir
     test "counts added and deleted lines per file", %{tmp_dir: dir} do
