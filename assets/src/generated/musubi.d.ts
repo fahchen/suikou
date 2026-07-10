@@ -233,6 +233,10 @@ declare namespace Musubi {
           payload: {}
           reply: never
         }
+        request_content: {
+          payload: {}
+          reply: never
+        }
       }
     >
 

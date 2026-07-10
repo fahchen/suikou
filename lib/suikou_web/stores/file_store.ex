@@ -66,6 +66,13 @@ defmodule SuikouWeb.Stores.FileStore do
   command :dismiss_approval do
   end
 
+  # The client fires this when it opens/requests this file's content. It kicks
+  # off a background re-anchor of every comment against the current file text so
+  # drifted anchors follow the moved lines; the resulting review-changed event
+  # pushes the updated comments back for the client to re-render.
+  command :request_content do
+  end
+
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
   def init(socket), do: {:ok, reload(socket)}
@@ -131,6 +138,22 @@ defmodule SuikouWeb.Stores.FileStore do
     {:noreply, socket}
   end
 
+  def handle_command(:request_content, _payload, socket) do
+    # Bind the id to a local so the async fun captures the string, not `socket`
+    # (Musubi's compile-time socket-capture lint, and killing a socket-bound task
+    # mid-DB-call would tear down the connection).
+    socket =
+      case socket.assigns[:artifact_id] do
+        artifact_id when is_binary(artifact_id) ->
+          start_async(socket, :reanchor, fn -> Critique.reanchor_artifact(artifact_id) end)
+
+        _absent ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
   def handle_command(:add_comment, payload, socket) do
     socket =
       case ensure_artifact(socket) do
@@ -158,6 +181,12 @@ defmodule SuikouWeb.Stores.FileStore do
 
     {:noreply, socket}
   end
+
+  @impl Musubi.Store
+  # The re-anchor task persists moved anchors and emits a review-changed event
+  # that fans back to the comment thread and pushes the new anchors, so there is
+  # nothing to apply to this store's state when the task finishes.
+  def handle_async(:reanchor, _result, socket), do: {:noreply, socket}
 
   defp comments_child(socket) do
     Child.child(CommentsStore,

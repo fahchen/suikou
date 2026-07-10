@@ -117,6 +117,30 @@ defmodule Suikou.Critique do
     do: comment_id |> Comments.relocate(anchor_params) |> broadcast_comment_change()
 
   @doc """
+  Re-anchors every located comment on an artifact's latest round against the
+  current file content, relocating those whose quoted lines drifted. Broadcasts
+  a single review-changed event when any comment moved so subscribed clients
+  re-render at the new anchors. See `Suikou.Critique.Comments.reanchor_artifact/1`.
+
+  ## Examples
+
+      Suikou.Critique.reanchor_artifact(artifact.id)
+      #=> {:ok, 2}
+
+  """
+  @spec reanchor_artifact(Ecto.UUID.t()) :: {:ok, non_neg_integer()} | {:error, :artifact_not_found}
+  def reanchor_artifact(artifact_id) do
+    case Comments.reanchor_artifact(artifact_id) do
+      {:ok, moved} = result ->
+        if moved > 0, do: broadcast_artifact_change(artifact_id)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
   Appends a human reply to an Open or Resolved comment, auto-reopening a Resolved
   one. See `Suikou.Critique.Discussion.reply_as_human/2`.
 
@@ -300,4 +324,14 @@ defmodule Suikou.Critique do
   end
 
   defp broadcast_reaction_change(result), do: result
+
+  defp broadcast_artifact_change(artifact_id) do
+    case Reads.get_artifact(artifact_id) do
+      %{review_id: review_id} when is_binary(review_id) ->
+        Events.review_changed(review_id, artifact_id)
+
+      _absent ->
+        :ok
+    end
+  end
 end

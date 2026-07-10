@@ -12,9 +12,12 @@ defmodule Suikou.Critique.Comments do
 
   alias Suikou.Artifacts
   alias Suikou.Critique.Anchor
+  alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.Rounds
+  alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Round
 
   @doc """
   Adds a pending critique to the latest round. A `:located` comment carries a
@@ -210,6 +213,87 @@ defmodule Suikou.Critique.Comments do
 
       %Comment{} ->
         {:error, :not_located}
+    end
+  end
+
+  @doc """
+  Re-anchors every located line-range comment on an artifact's latest round
+  against the current file content. A comment whose quoted lines have drifted to
+  a nearby location is relocated in place (its stored anchor and quote are
+  re-captured); an exact-match or unfindable comment is left untouched. Returns
+  the number of comments moved. Used by the automatic re-anchor task the file
+  store kicks off when a file's content is requested.
+
+  ## Examples
+
+      Suikou.Critique.Comments.reanchor_artifact(artifact.id)
+      #=> {:ok, 2}
+
+      Suikou.Critique.Comments.reanchor_artifact("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
+      #=> {:error, :artifact_not_found}
+
+  """
+  @spec reanchor_artifact(Ecto.UUID.t()) :: {:ok, non_neg_integer()} | {:error, :artifact_not_found}
+  def reanchor_artifact(artifact_id) do
+    case Rounds.latest(artifact_id) do
+      %Round{} = round ->
+        {:ok, reanchor_round(round, artifact_id)}
+
+      nil ->
+        {:error, :artifact_not_found}
+    end
+  end
+
+  defp reanchor_round(round, artifact_id) do
+    case content_lines(artifact_id) do
+      nil ->
+        0
+
+      lines ->
+        round
+        |> located_line_range_comments()
+        |> Enum.count(&(reanchor_one(&1, lines) == :relocated))
+    end
+  end
+
+  defp content_lines(artifact_id) do
+    case Artifacts.read_content(artifact_id) do
+      {:ok, content} -> String.split(content, "\n")
+      {:error, _reason} -> nil
+    end
+  end
+
+  # The round's live thread, which carries prior rounds' open comments forward —
+  # so re-anchoring must read it the way the client does, not a raw round query.
+  defp located_line_range_comments(round) do
+    round
+    |> Reads.list_comments()
+    |> Enum.filter(&(&1.scope == :located and match?(%LineRange{}, &1.anchor)))
+  end
+
+  # Re-pin a comment to wherever its quote now sits: relocate when the quote
+  # drifted to a similar-but-changed line (re-capturing the new text) or when an
+  # exact match simply moved to different line numbers. A quote that no longer
+  # exists (:outdated) is left stranded, and one that never moved is untouched.
+  defp reanchor_one(%Comment{anchor: %LineRange{} = anchor} = comment, lines) do
+    case Anchor.resolve(anchor, lines) do
+      {%{start_line: start_line, end_line: end_line}, status}
+      when status in [:current, :drifted] ->
+        if status == :drifted or start_line != anchor.start_line or end_line != anchor.end_line do
+          relocate_to(comment.id, start_line, end_line)
+        else
+          :unchanged
+        end
+
+      {_view, :outdated} ->
+        :unchanged
+    end
+  end
+
+  defp relocate_to(comment_id, start_line, end_line) do
+    case relocate(comment_id, %{type: "line_range", start_line: start_line, end_line: end_line}) do
+      {:ok, _comment} -> :relocated
+      {:error, _reason} -> :unchanged
     end
   end
 
