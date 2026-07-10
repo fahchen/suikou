@@ -1,4 +1,5 @@
 import { useState, type MouseEvent } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { Bot, SmilePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
@@ -13,6 +14,10 @@ import {
 } from "./shared"
 
 type Target = "comment" | "reply"
+
+const CHIP_ENTER = { scale: 0.6, opacity: 0 }
+const CHIP_SHOWN = { scale: 1, opacity: 1 }
+const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
 
 /** Reactions on a comment or reply. Humans pick from an approval/opposition
  * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
@@ -52,33 +57,47 @@ export function Reactions({
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      {reactions.map((reaction) =>
-        AGENT_REACTIONS.includes(reaction.emoji) ? (
-          <span
-            key={reaction.emoji}
-            title="Agent reaction"
-            className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-[11px] ring-1 ring-inset ring-accent-edge"
-          >
-            <span className="text-[11px] leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
-            <Bot size={11} className="text-accent-bright" aria-hidden />
-            {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
-          </span>
-        ) : (
-          <button
-            key={reaction.emoji}
-            type="button"
-            aria-pressed={reaction.mine}
-            onClick={(event) => toggle(reaction.emoji, event)}
-            className={`inline-flex h-[22px] items-center rounded-full px-2 text-[11px] leading-none ring-1 ring-inset transition-colors ${
-              reaction.mine
-                ? "bg-accent-soft text-accent-bright ring-accent-edge"
-                : "bg-soft text-muted ring-hair-strong hover:text-ink"
-            }`}
-          >
-            {REACTION_EMOJI[reaction.emoji]}
-          </button>
-        ),
-      )}
+      {/* initial={false} so chips present on first render don't pop; only chips
+          added or removed later animate, with layout easing neighbours over. */}
+      <AnimatePresence initial={false}>
+        {reactions.map((reaction) =>
+          AGENT_REACTIONS.includes(reaction.emoji) ? (
+            <motion.span
+              key={reaction.emoji}
+              layout
+              initial={CHIP_ENTER}
+              animate={CHIP_SHOWN}
+              exit={CHIP_ENTER}
+              transition={CHIP_TRANSITION}
+              title="Agent reaction"
+              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-[11px] ring-1 ring-inset ring-accent-edge"
+            >
+              <span className="text-[11px] leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
+              <Bot size={11} className="text-accent-bright" aria-hidden />
+              {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
+            </motion.span>
+          ) : (
+            <motion.button
+              key={reaction.emoji}
+              layout
+              initial={CHIP_ENTER}
+              animate={CHIP_SHOWN}
+              exit={CHIP_ENTER}
+              transition={CHIP_TRANSITION}
+              type="button"
+              aria-pressed={reaction.mine}
+              onClick={(event) => toggle(reaction.emoji, event)}
+              className={`inline-flex h-[22px] items-center rounded-full px-2 text-[11px] leading-none ring-1 ring-inset transition-colors ${
+                reaction.mine
+                  ? "bg-accent-soft text-accent-bright ring-accent-edge"
+                  : "bg-soft text-muted ring-hair-strong hover:text-ink"
+              }`}
+            >
+              {REACTION_EMOJI[reaction.emoji]}
+            </motion.button>
+          ),
+        )}
+      </AnimatePresence>
       <Popover
         open={open}
         onOpenChange={setOpen}
