@@ -6,6 +6,7 @@ export type Density = "compact" | "comfortable" | "loose"
 export type MonoSize = "small" | "default" | "large"
 export type CommentDisplayMode = "inline" | "side" | "hidden"
 export type FileRange = "single" | "stacked"
+export type DiffStyle = "unified" | "split"
 
 const THEME_KEY = "suikou-theme"
 const DENSITY_KEY = "suikou-density"
@@ -13,6 +14,7 @@ const MONO_KEY = "suikou-mono-size"
 const WRAP_KEY = "suikou-code-wrap"
 const COMMENT_DISPLAY_KEY = "suikou-comment-display"
 const FILE_RANGE_KEY = "suikou-file-range"
+const DIFF_STYLE_KEY = "suikou-diff-style"
 
 /** App-wide UI preferences (theme, reading density, code wrap) plus the
  * settings modal's open flag. Persisted to localStorage and applied to the
@@ -24,6 +26,7 @@ class UiStore {
   codeWrap = false
   commentDisplay: CommentDisplayMode = "inline"
   fileRange: FileRange = "single"
+  diffStyle: DiffStyle = "unified"
   settingsOpen = false
 
   constructor() {
@@ -62,6 +65,11 @@ class UiStore {
     localStorage.setItem(FILE_RANGE_KEY, range)
   }
 
+  setDiffStyle(style: DiffStyle) {
+    this.diffStyle = style
+    localStorage.setItem(DIFF_STYLE_KEY, style)
+  }
+
   setSettingsOpen(open: boolean) {
     this.settingsOpen = open
   }
@@ -82,6 +90,8 @@ class UiStore {
     }
     const fileRange = localStorage.getItem(FILE_RANGE_KEY)
     if (fileRange === "single" || fileRange === "stacked") this.fileRange = fileRange
+    const diffStyle = localStorage.getItem(DIFF_STYLE_KEY)
+    if (diffStyle === "unified" || diffStyle === "split") this.diffStyle = diffStyle
     this.applyTheme()
   }
 

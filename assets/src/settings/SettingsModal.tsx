@@ -6,7 +6,7 @@ import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { Segmented } from "../components/ui/segmented"
 import { Select } from "../components/ui/select"
 import { Switch } from "../components/ui/switch"
-import { uiStore, type CommentDisplayMode, type Density, type FileRange, type MonoSize } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type Density, type DiffStyle, type FileRange, type MonoSize } from "../stores/ui-store"
 import { THEME_CODE, THEME_LABELS, THEMES, type ThemeName } from "../themes"
 
 const THEME_GROUPS = [
@@ -170,6 +170,16 @@ const ReviewDefaultsPane = observer(function ReviewDefaultsPane() {
             ["inline", "Inline"],
             ["side", "Side"],
             ["hidden", "Hidden"],
+          ]}
+        />
+      </Row>
+      <Row title="Diff view" sub="Unified stacks additions under deletions; split shows old and new side by side.">
+        <Segmented<DiffStyle>
+          value={uiStore.diffStyle}
+          onChange={(v) => uiStore.setDiffStyle(v)}
+          options={[
+            ["unified", "Unified"],
+            ["split", "Split"],
           ]}
         />
       </Row>

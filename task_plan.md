@@ -227,9 +227,14 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 - [x] A5–A7 latest / history (superseded, read-only) / round compare
 - [~] D6 diff unified — baseline `@pierre/diffs` `PatchDiff` wired for
       `structure.kind === "diff"` files. Skipped: library theming (uses default
-      shiki bundle), custom header, split view, `diff_hunk` anchor overlay.
-      Follow-ups: D6 polish (theme + header), D7 split, J anchors.
-- [ ] D7 diff side-by-side
+      shiki bundle), custom header, `diff_hunk` anchor overlay.
+      Follow-ups: D6 polish (theme + header), J anchors.
+- [x] D7 diff side-by-side — `uiStore.diffStyle: "unified" | "split"` (persisted
+      as `suikou-diff-style`), read by `DiffView` (now an `observer`) and forwarded
+      to `PatchDiff` as `options.diffStyle`. Toggle lives in Settings > Review
+      defaults ("Diff view", Unified/Split). Same payload, no second pipeline.
+      Toolbar-level popover deferred until the user asks (mirrors D10 code-wrap
+      approach). `bun run typecheck` + `bun run build` green.
 - [ ] J1–J8 git_diff-only states (diff_hunk anchors, refs moved, branch deleted,
       cross-round line diff, diff submit)
 
