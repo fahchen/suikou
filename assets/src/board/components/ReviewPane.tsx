@@ -181,6 +181,15 @@ function ReviewRow({
             {review.name}
           </span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-[11.5px] text-muted">
+            <span
+              className={`inline-flex h-[17px] items-center rounded-full px-[7px] text-[10px] font-bold uppercase tracking-[0.04em] ${
+                isDiff
+                  ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
+                  : "bg-soft text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
+              }`}
+            >
+              {isDiff ? "Diff" : "Files"}
+            </span>
             {isDiff && review.base_ref && (
               <>
                 <span className="font-mono">
