@@ -388,6 +388,22 @@ No frontend consumer yet — that's the next slice (RoundSelector-analog commit
 picker in `ReviewChrome.tsx`). `mix test test/suikou/reviews_test.exs
 test/suikou_web/controllers/asset_controller_test.exs` = 71 pass.
 
+##### Slice 2026-07-10d — Frontend consumer for `/commits`
+Read-only commit-range visibility. New in `ReviewChrome.tsx`:
+- `useDiffCommits(reviewId, enabled)` hook — fetches
+  `GET /api/review/:id/commits` on mount when `enabled` (`isDiff`); returns
+  `DiffCommit[]` (empty on non-diff / loading / error, since this is
+  reference-only, not control-path).
+- `CommitsPopover({ commits })` — Popover trigger showing `<GitBranch> N
+  commits`, panel lists `<short-sha> <subject>` newest first. Renders nothing
+  for an empty range.
+- `ReviewPage.tsx` mounts it in a thin sub-bar under the refs banners, diff
+  reviews only, when there is at least one commit.
+Deferred: clicking a commit does not yet re-scope the diff — per-commit
+navigation is a future slice that first needs the `?scope=commit:<sha>`
+backend overlay (still requires a superseding BDR for the immutable-ref
+decision). `bun run typecheck` + `bun run build` green.
+
 ### Phase G: Verdict / submit
 - [x] G1 per-file verdict chip (VerdictChip, set_draft_verdict) · G3 submit panel (SubmitButton +
       Popover, rollup verdict, pending/draft counts) · G4 soft gate (amber, approve+open fix)

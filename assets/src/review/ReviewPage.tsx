@@ -22,7 +22,7 @@ import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocV
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { FileList, HideReviewedToggle, NavHeader } from "./components/FileNavigator"
-import { BranchDeletedBanner, RefsMovedBanner, StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
+import { BranchDeletedBanner, CommitsPopover, RefsMovedBanner, StatusBar, Toolbar, useDiffCommits, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
@@ -197,6 +197,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   const [hideReviewed, setHideReviewed] = useState(false)
 
   const isDiff = structure?.kind === "diff"
+  const diffCommits = useDiffCommits(reviewId, isDiff)
   const desktopLayout = useDesktopLayout()
   // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
   const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
@@ -395,6 +396,11 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           creationBaseSha={structure.refs.creation_base_sha}
           creationHeadSha={structure.refs.creation_head_sha}
         />
+      )}
+      {isDiff && diffCommits.length > 0 && (
+        <div className="flex h-[34px] shrink-0 items-center justify-end gap-2 border-b border-hair-strong bg-surface px-3">
+          <CommitsPopover commits={diffCommits} />
+        </div>
       )}
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${

@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, Circle, GitBranch, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -325,6 +325,77 @@ export function RefsMovedBanner({
         . The diff still compares the SHAs pinned at review creation.
       </span>
     </div>
+  )
+}
+
+export type DiffCommit = { sha: string; subject: string }
+
+/** Fetches the diff review's commit range (`base_ref...head_ref`, newest first)
+ * from `GET /api/review/:id/commits`. Returns `[]` while idle/loading or on
+ * error — this is a read-only reference display, not a control-path fetch, so
+ * failures collapse to "no commits shown" rather than surfacing an error. */
+export function useDiffCommits(reviewId: string, enabled: boolean): DiffCommit[] {
+  const [commits, setCommits] = useState<DiffCommit[]>([])
+  useEffect(() => {
+    if (!enabled) {
+      setCommits([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/review/${reviewId}/commits`)
+      .then((response) => (response.ok ? response.json() : { commits: [] }))
+      .then((body: { commits?: DiffCommit[] }) => {
+        if (!cancelled) setCommits(body.commits ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setCommits([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reviewId, enabled])
+  return commits
+}
+
+/** Displays the commit range covered by a diff review as a popover list
+ * (newest first). Read-only reference for now — clicking a commit does not
+ * yet re-scope the diff; per-commit navigation is a future backend slice.
+ * Renders nothing when the range is empty (base == head) or still loading. */
+export function CommitsPopover({ commits }: { commits: DiffCommit[] }) {
+  if (commits.length === 0) return null
+  return (
+    <Popover
+      align="end"
+      className="w-[320px] p-0"
+      render={
+        <button
+          type="button"
+          title={`${commits.length} commit${commits.length === 1 ? "" : "s"} in this diff`}
+          className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft sm:rounded-ctrl"
+        >
+          <GitBranch size={14} className="text-muted" aria-hidden />
+          <span className="tabular-nums">{commits.length}</span>
+          <span className="hidden sm:inline">commit{commits.length === 1 ? "" : "s"}</span>
+          <ChevronDown size={12} className="text-faint" aria-hidden />
+        </button>
+      }
+    >
+      <div className="px-2.5 pt-2 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+        Commits in diff
+      </div>
+      <ul className="max-h-[50vh] overflow-auto py-0.5">
+        {commits.map((commit) => (
+          <li key={commit.sha} className="flex items-start gap-2 px-2.5 py-1.5 hover:bg-soft/60">
+            <code className="mt-px shrink-0 rounded bg-control px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-muted">
+              {commit.sha.slice(0, 7)}
+            </code>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink" title={commit.subject}>
+              {commit.subject}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Popover>
   )
 }
 
