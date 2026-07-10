@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -279,5 +279,51 @@ function RoundSelector({
           ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** J1: base/head refs' current SHAs have drifted from the SHAs pinned at review
+ * creation. The diff still renders against the pinned SHAs (BDR-0020 immutable
+ * refs); this banner just tells the reviewer the branch tip moved so they know
+ * why comments may already be outdated/stranded. */
+export function RefsMovedBanner({
+  baseRef,
+  headRef,
+  baseSha,
+  headSha,
+  creationBaseSha,
+  creationHeadSha,
+}: {
+  baseRef: string | null
+  headRef: string | null
+  baseSha: string | null
+  headSha: string | null
+  creationBaseSha: string | null
+  creationHeadSha: string | null
+}) {
+  const sides = [
+    { ref: baseRef, at: creationBaseSha, now: baseSha, label: "base" },
+    { ref: headRef, at: creationHeadSha, now: headSha, label: "head" },
+  ].filter((s) => s.at && s.now && s.at !== s.now)
+  if (sides.length === 0) return null
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2 border-b border-amber-edge bg-amber-soft px-4 py-2 text-[12px] leading-[1.45] text-amber-deep"
+    >
+      <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
+      <span>
+        <b className="font-bold">Refs moved.</b>{" "}
+        {sides.map((s, i) => (
+          <span key={s.label}>
+            {i > 0 && "; "}
+            <code className="font-mono">{s.ref ?? s.label}</code> was{" "}
+            <code className="font-mono">{s.at!.slice(0, 7)}</code>, now{" "}
+            <code className="font-mono">{s.now!.slice(0, 7)}</code>
+          </span>
+        ))}
+        . The diff still compares the SHAs pinned at review creation.
+      </span>
+    </div>
   )
 }

@@ -22,7 +22,7 @@ import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocV
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { FileList, HideReviewedToggle, NavHeader } from "./components/FileNavigator"
-import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
+import { RefsMovedBanner, StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
@@ -376,6 +376,16 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         selectedRound={selectedRound}
         latestRound={latestRound}
       />
+      {isDiff && structure?.refs?.refs_moved && (
+        <RefsMovedBanner
+          baseRef={structure.refs.base_ref}
+          headRef={structure.refs.head_ref}
+          baseSha={structure.refs.base_sha}
+          headSha={structure.refs.head_sha}
+          creationBaseSha={structure.refs.creation_base_sha}
+          creationHeadSha={structure.refs.creation_head_sha}
+        />
+      )}
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
           (stackedSide || (!stacked && commentDisplay === "side")) ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"

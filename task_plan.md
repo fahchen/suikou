@@ -235,8 +235,13 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
       defaults ("Diff view", Unified/Split). Same payload, no second pipeline.
       Toolbar-level popover deferred until the user asks (mirrors D10 code-wrap
       approach). `bun run typecheck` + `bun run build` green.
-- [ ] J1–J8 git_diff-only states (diff_hunk anchors, refs moved, branch deleted,
-      cross-round line diff, diff submit)
+- [~] J1–J8 git_diff-only states
+      - [x] J1 refs moved — `RefsMovedBanner` in `ReviewChrome.tsx` shows the drift
+            (base/head short SHAs at creation → current) when `structure.refs.refs_moved`
+            is true. Renders under Toolbar for diff reviews only. Reuses the existing
+            amber-soft banner style.
+      - [ ] J2–J8: diff_hunk anchors, branch deleted (null current SHA), unavailable diff,
+            cross-round line diff, diff submit edge cases
 
 #### Diff review requirements (user-defined 2026-07-10) — "全部要做"
 1. **Scope control** for a diff review:
@@ -335,6 +340,15 @@ one picks the smallest useful diff-render slice (probably: install
 `@pierre/diffs`, wire it in the review body switch for `structure.kind ===
 "diff"`, keep the existing three-dot pinned refs — meets D6, defers the
 commit-range/worktree axes for a follow-up backend slice + BDR update).
+
+**Slice progress since:** D6 baseline + D7 unified/split toggle both landed on
+the pinned-refs `GitDiff` (already checked off above). **2026-07-10 J1
+follow-up:** `refs_moved` was already in the reply payload but had no frontend
+surface — added a `RefsMovedBanner` under the toolbar (diff reviews only, uses
+existing amber-soft style) so the reviewer can see when the branch tips
+drifted from the pinned diff. Still no backend changes; the commit-range /
+worktree-state axes remain the next material step and still need a superseding
+BDR before implementation.
 
 ##### `all commits` base ref — decision
 Backend already resolves the default via
