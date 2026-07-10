@@ -240,8 +240,15 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
             (base/head short SHAs at creation → current) when `structure.refs.refs_moved`
             is true. Renders under Toolbar for diff reviews only. Reuses the existing
             amber-soft banner style.
-      - [ ] J2–J8: diff_hunk anchors, branch deleted (null current SHA), unavailable diff,
-            cross-round line diff, diff submit edge cases
+      - [x] J2 branch deleted — `BranchDeletedBanner` in `ReviewChrome.tsx` surfaces the
+            side(s) whose current SHA is `null` but a `creation_*_sha` was pinned. Reuses
+            the amber-banner shape with the `request` (red) color tokens for severity;
+            distinguishable from J1 because backend never flags `refs_moved` for a gone
+            side (see `refs_snapshot` docstring in `reviews.ex`). Renders alongside J1 for
+            diff reviews only. No backend change needed — payload already has the nullable
+            SHAs.
+      - [ ] J3–J8: diff_hunk anchors, unavailable diff, cross-round line diff,
+            diff submit edge cases
 
 #### Diff review requirements (user-defined 2026-07-10) — "全部要做"
 1. **Scope control** for a diff review:

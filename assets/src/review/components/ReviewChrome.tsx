@@ -327,3 +327,48 @@ export function RefsMovedBanner({
     </div>
   )
 }
+
+/** J2: one or both refs no longer resolve (branch deleted or force-purged).
+ * The diff still renders against the SHAs pinned at review creation
+ * (BDR-0020), but the branch tip is gone so future re-anchoring against a
+ * live tip is not possible on the deleted side. */
+export function BranchDeletedBanner({
+  baseRef,
+  headRef,
+  baseSha,
+  headSha,
+  creationBaseSha,
+  creationHeadSha,
+}: {
+  baseRef: string | null
+  headRef: string | null
+  baseSha: string | null
+  headSha: string | null
+  creationBaseSha: string | null
+  creationHeadSha: string | null
+}) {
+  const gone = [
+    { ref: baseRef, at: creationBaseSha, now: baseSha, label: "base" },
+    { ref: headRef, at: creationHeadSha, now: headSha, label: "head" },
+  ].filter((s) => s.at && !s.now)
+  if (gone.length === 0) return null
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2 border-b border-request-edge bg-request-soft px-4 py-2 text-[12px] leading-[1.45] text-request"
+    >
+      <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
+      <span>
+        <b className="font-bold">Branch deleted.</b>{" "}
+        {gone.map((s, i) => (
+          <span key={s.label}>
+            {i > 0 && "; "}
+            <code className="font-mono">{s.ref ?? s.label}</code> no longer
+            resolves (was <code className="font-mono">{s.at!.slice(0, 7)}</code>)
+          </span>
+        ))}
+        . The diff still compares the SHAs pinned at review creation.
+      </span>
+    </div>
+  )
+}
