@@ -133,9 +133,13 @@ Phase P4 (multi-round + git_diff) — **A4–A7 DONE**. RoundSelector + read-onl
 round-compare bar (`eabb803`: Compare toggle → resolved/new/open counts from comments' authored_round/resolved_round
 + verdict). Verified via eval on 019f25a5 (rounds 0/1/2; compare "Round 1→2, 0 resolved/3 new/0 open, Approve").
 **NEXT (P4 remaining): D6/D7 diff (unified/side-by-side) + J1–J8 git_diff-only states** — renderer choice is now fixed:
-use `@pierre/diffs`. The remaining unknown is the backend diff payload shape: whether we can fetch raw unified patch
-content directly, or need to reconstruct a patch string / pre-parsed file metadata from existing review APIs. Do that
-backend contract read first, then adapt the payload into `@pierre/diffs` React components. Frest done (F7 `b997e9e`).
+use `@pierre/diffs`. **Backend contract read + recorded 2026-07-10** in "Diff review backend contract" section below:
+`GET /api/review/:id/files/content?path=…` already returns live unified diff text as `text/x-diff` (three-dot merge-base
+between pinned `base_ref`/`head_ref`, re-run per request); `file_entries` already ships change_status + added/deleted +
+`refs` snapshot; `structure.kind === "diff"` flag already in the client. `diff_hunk` anchor type exists in the schema but
+has no frontend renderer path yet. `@pierre/diffs` is NOT yet installed. Next slice = install `@pierre/diffs`, add a diff
+body renderer in `assets/src/review/components/`, and route `structure.kind === "diff"` to it (D6). D7 split view + J
+states + commit-range/worktree axes follow. Frest done (F7 `b997e9e`).
 Screenshots broken in agent-browser this env (eval works). Phase G below is DONE + accepted.
 
 ## Phase G (done)
@@ -222,6 +226,21 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 - [ ] D6/D7 diff unified / side-by-side
 - [ ] J1–J8 git_diff-only states (diff_hunk anchors, refs moved, branch deleted,
       cross-round line diff, diff submit)
+
+#### Diff review requirements (user-defined 2026-07-10) — "全部要做"
+1. **Scope control** for a diff review:
+   - (a) review by a **single commit** OR by **all commits** (commit range).
+   - (b) a **toggle** to pick the working-tree source: review **staged** content OR **unstaged** content.
+2. **Interaction / navigation**:
+   - (a) walk **commit-by-commit** during review (per-commit navigation).
+   - (b) OR review **all changes at once** (aggregate diff).
+- Resolved decisions (2026-07-10):
+  - **Source model = orthogonal, combinable** — `commit range (single/all)` × `working-tree state (staged/unstaged)` are two independent axes that can combine (e.g. all commits + unstaged).
+  - **Source binding = live switch in-review** — frontend toggles the source; backend re-reads the live git working tree on demand (HTTP fetch). The review is a *live lens* over git state, not a pinned snapshot.
+- Residual boundary edges (proposed defaults, user to confirm):
+  - `single commit` × `working-tree state` has no meaning (a historical commit has no current worktree). Default: working-tree axis only applies to `all commits / HEAD-relative`; disable staged/unstaged in single-commit mode.
+  - Live diff + comment anchoring: switching source / editing worktree mutates the diff, drifting `diff_hunk` anchors (amplifies E7/E8). Default: reuse existing re-anchor + stranded band; stale comments after a source switch fall into the stranded band.
+  - `all commits` base ref still undefined — branch merge-base vs explicit base (resolve after backend-contract read).
 - Implementation path for D6/D7/J:
   1. Read the current backend/store contract for git diff reviews and find the canonical diff source.
   2. Prefer feeding raw unified patch text into `@pierre/diffs` (`PatchDiff` / parsed patch path) instead of
@@ -230,6 +249,87 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
      shared comment components instead of forking a new diff-thread implementation.
   4. Treat split view as a display-mode concern on top of the same diff payload, not a second diff pipeline.
 - **Status:** pending
+
+#### Diff review backend contract (mapped 2026-07-10)
+Read-only snapshot of what exists today so the next slice can build on real ground, not the mockup.
+
+- **Data shape** — `Review.source` = `Suikou.Schemas.ReviewSource.GitDiff`
+  (`lib/suikou/schemas/review_source/git_diff.ex`): `base_ref`, `head_ref`,
+  `base_sha`, `head_sha`. All four are `null: false` at creation; base/head SHAs
+  are the creation-time pin. No commit-range field, no worktree-state field.
+  BDR-0020 explicitly makes refs **immutable in v1** — "changing branches means
+  a new review".
+- **Diff semantics** — three-dot merge-base only (`git diff base...head`,
+  `Suikou.Git.file_diff/4` at `lib/suikou/git.ex:193`). No staged/unstaged path,
+  no per-commit walk, no `HEAD`-relative lens.
+- **Live re-read on every request** — content is NOT snapshotted. Every fetch
+  reshells out to git (`Suikou.Reviews.fetch_content_by_path/2` at
+  `lib/suikou/reviews/reviews.ex:565` → `Git.file_diff/4`); minted artifacts
+  store only a SHA-256 hash of the diff text via
+  `Suikou.Artifacts.DiffSource.read/1` (`lib/suikou/artifacts/diff_source.ex:65`).
+- **File list** — `Reviews.list_files/1` for a `GitDiff` review calls
+  `Git.changed_files_with_status/3` + `Git.diff_stats/3` + `Git.blob_ids/3`
+  (`reviews.ex:444`). Each entry carries `path`, `change_status`
+  (`:added`/`:modified`/`:deleted`/`:renamed`/`:copied`/`:type_changed`), and
+  `added`/`deleted` line counts.
+- **Frontend payload** — `SuikouWeb.Stores.ReviewStore.load_review_structure`
+  reply (`lib/suikou_web/stores/review_store.ex:46`) carries `kind: :diff`,
+  `file_entries` (with per-file change_status + added/deleted), and a `refs`
+  block (`base_ref`, `head_ref`, pinned + current SHAs, `refs_moved` boolean
+  driven by `Reviews.refs_snapshot/1`). Client already reads `structure.kind
+  === "diff"` in `ReviewPage.tsx:198` to feed `isDiff` into `FileList`.
+- **Content delivery to browser** — HTTP GET
+  `/api/review/:review_id/files/content?path=<rel>` (`AssetController.file_content/2`
+  at `lib/suikou_web/controllers/asset_controller.ex:79`) → returns the unified
+  diff text as `text/x-diff`, whitelisted against `list_files/1`. Consumed by
+  `useFileContent` in `assets/src/review/components/EditorSurface.tsx:36`.
+  Right now that fetch classifies `text/x-diff` as plain text and renders it
+  through the Source/Shiki path with no diff-specific structure.
+- **CLI creation** — `suikou review create-diff` verb via
+  `SuikouWeb.AgentCLI.Reviews.create_diff/0`
+  (`lib/suikou_web/agent_cli/reviews.ex:92`) → `Reviews.create_diff_review/2`
+  requires `base_ref` + `head_ref`, defaults `base_ref` to
+  `Git.default_branch/1` (origin/HEAD → main → master → current HEAD).
+- **Comment anchoring** — `diff_hunk` anchor exists in the generated schema
+  (`assets/src/generated/musubi.d.ts` lines 156/228): `{ type: "diff_hunk",
+  side: "old" | "new", start_line, end_line }`, plus `quote` for re-anchoring.
+  Backend re-locates by quote on re-snapshot (BDR-0020 §5), reusing the E7/E8
+  outdated/stranded flow. NO frontend renderer maps hunk lines to anchors yet.
+- **Renderer** — `@pierre/diffs` is NOT in `assets/package.json` (checked
+  `bun.lock`, 0 hits). Install is Phase P4's first frontend slice.
+- **Where diff render will land** — a new `assets/src/review/components/`
+  module (parallel to `EditorBodies.tsx` / `HtmlSurface.tsx`), routed inside
+  `ReviewPage.tsx`'s file-body switch. Diff-side comments should hang off the
+  existing `components/comments/` stack (per D11 requirements).
+
+##### Gap vs the 2026-07-10 user requirements
+The user's "commit-range × working-tree-state, live-switchable" model is
+**not** in the current backend and is **at odds with BDR-0020's immutable-ref
+decision**. Delivering it means one of:
+
+1. **Extend `Suikou.Git`** with commit-range walkers and worktree readers:
+   `list_commits/3` (range enumerate), `staged_diff/2`, `unstaged_diff/2`,
+   per-commit `commit_diff/2`; plus route them through `Reviews.list_files` /
+   `fetch_content_by_path` under new source variants OR a live-lens overlay on
+   `GitDiff`. Retire BDR-0020 §3 or write a superseding BDR.
+2. **Layer the axes on top of the existing `GitDiff`** — treat the stored
+   `(base_ref, head_ref)` as the "all commits" default and add a client-driven
+   overlay (`?scope=commit:<sha>` / `?worktree=staged|unstaged`) that
+   `AssetController.file_content` and `Reviews.list_files` re-interpret at
+   request time. Cheaper diff, still requires new git commands + a live-lens
+   contract.
+
+Neither is one iteration. This iteration only records the contract; the next
+one picks the smallest useful diff-render slice (probably: install
+`@pierre/diffs`, wire it in the review body switch for `structure.kind ===
+"diff"`, keep the existing three-dot pinned refs — meets D6, defers the
+commit-range/worktree axes for a follow-up backend slice + BDR update).
+
+##### `all commits` base ref — decision
+Backend already resolves the default via
+`Git.default_branch/1`'s fallback chain (origin/HEAD → main → master →
+current HEAD, `lib/suikou/git.ex:65`). Reuse it as the base when the future
+"all commits" mode is added; do NOT invent a merge-base picker.
 
 ### Phase G: Verdict / submit
 - [x] G1 per-file verdict chip (VerdictChip, set_draft_verdict) · G3 submit panel (SubmitButton +
