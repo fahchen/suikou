@@ -374,6 +374,20 @@ overlay. Tests cover happy path (2 commits newest first), empty range
 (base == head), unknown ref, invalid ref, non-repo. `mix test
 test/suikou/git_test.exs` = 51 pass.
 
+##### Slice 2026-07-10c — `GET /api/review/:review_id/commits`
+Wired the `list_commits/3` primitive to the frontend. New
+`Suikou.Reviews.list_diff_commits/1` returns `{:ok, [%{sha, subject}]}` for a
+diff review's `base_ref...head_ref` range (three-dot, newest first) and
+`{:error, :not_a_diff_review}` for a file-selection review. New
+`AssetController.commits/2` action maps that to JSON
+`{"commits": [{"sha", "subject"}]}`, 404 on any error (file-selection, unknown
+review, git error). Route added under the same `:asset` pipeline as the other
+review-scoped reads. Kept in `AssetController` to avoid a new one-action
+module; refs-moved/branch-deleted continue to render off `refs_snapshot/1`.
+No frontend consumer yet — that's the next slice (RoundSelector-analog commit
+picker in `ReviewChrome.tsx`). `mix test test/suikou/reviews_test.exs
+test/suikou_web/controllers/asset_controller_test.exs` = 71 pass.
+
 ### Phase G: Verdict / submit
 - [x] G1 per-file verdict chip (VerdictChip, set_draft_verdict) · G3 submit panel (SubmitButton +
       Popover, rollup verdict, pending/draft counts) · G4 soft gate (amber, approve+open fix)

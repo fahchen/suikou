@@ -623,6 +623,35 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "list_diff_commits/1" do
+    @tag :tmp_dir
+    test "lists commits reachable from head but not base, newest first", %{tmp_dir: dir} do
+      init_repo!(dir)
+
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "first"])
+      File.write!(Path.join(dir, "b.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "second"])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:ok, [%{sha: sha2, subject: "second"}, %{sha: sha1, subject: "first"}]} =
+               Reviews.list_diff_commits(Reviews.get_review(review.id))
+
+      assert String.match?(sha1, ~r/^[0-9a-f]{40}$/)
+      assert String.match?(sha2, ~r/^[0-9a-f]{40}$/)
+      assert sha1 != sha2
+    end
+
+    test "errors for a file-selection review" do
+      review = insert(:review)
+      assert {:error, :not_a_diff_review} = Reviews.list_diff_commits(review)
+    end
+  end
+
   defp diff_review_with(dir, base, head) do
     project = insert(:project, path: dir)
 

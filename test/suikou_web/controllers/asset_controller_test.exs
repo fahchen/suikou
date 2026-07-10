@@ -283,6 +283,56 @@ defmodule SuikouWeb.AssetControllerTest do
     end
   end
 
+  describe "GET /api/review/:review_id/commits" do
+    @tag :tmp_dir
+    test "lists a diff review's commit range as JSON, newest first",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "first"])
+      File.write!(Path.join(dir, "b.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "second"])
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn = get(conn, "/api/review/#{review.id}/commits")
+
+      assert %{"commits" => [%{"sha" => sha2, "subject" => "second"}, %{"sha" => _sha1, "subject" => "first"}]} =
+               json_response(conn, 200)
+
+      assert String.match?(sha2, ~r/^[0-9a-f]{40}$/)
+    end
+
+    @tag :tmp_dir
+    test "404 for a file-selection review", %{conn: conn, tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      conn = get(conn, "/api/review/#{review.id}/commits")
+
+      assert response(conn, 404)
+    end
+
+    test "404 for an unknown review", %{conn: conn} do
+      conn = get(conn, "/api/review/#{Ecto.UUID.generate()}/commits")
+
+      assert response(conn, 404)
+    end
+  end
+
   defp init_repo!(dir) do
     File.mkdir_p!(dir)
     git!(dir, ["init", "-q", "-b", "main", "."])

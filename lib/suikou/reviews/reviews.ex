@@ -366,6 +366,35 @@ defmodule Suikou.Reviews do
   defp side_moved?(_creation, _current), do: false
 
   @doc """
+  Lists the commits reachable from a diff review's `head_ref` but not from its
+  `base_ref` (three-dot semantics), newest first. Each entry carries the full
+  SHA and the commit subject. Powers the future commit-by-commit navigation
+  axis for diff reviews (see Phase P4 diff-review requirements 2026-07-10);
+  the axis stays orthogonal to the working-tree state axis (staged/unstaged),
+  which lives on `head_ref` (worktree) and is not exposed here.
+
+  Returns `{:error, :not_a_diff_review}` for a file-selection review, so the
+  caller can 404 without pattern-branching on the source type.
+
+  ## Examples
+
+      Suikou.Reviews.list_diff_commits(diff_review)
+      #=> {:ok, [%{sha: "0a1b...", subject: "second"}, %{sha: "9f8e...", subject: "first"}]}
+
+      Suikou.Reviews.list_diff_commits(file_review)
+      #=> {:error, :not_a_diff_review}
+
+  """
+  @spec list_diff_commits(Review.t()) ::
+          {:ok, [Git.commit_entry()]}
+          | {:error, :not_a_diff_review | Git.list_commits_error()}
+  def list_diff_commits(%Review{source: %FileSelection{}}), do: {:error, :not_a_diff_review}
+
+  def list_diff_commits(%Review{source: %GitDiff{} = git_diff, project: %Project{} = project}) do
+    Git.list_commits(project.path, git_diff.base_ref, git_diff.head_ref)
+  end
+
+  @doc """
   Fetches a review by id with its project and active (not soft-removed) files
   preloaded, or `nil` when none exists.
 

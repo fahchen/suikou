@@ -6,6 +6,10 @@ defmodule SuikouWeb.AssetController do
   `Suikou.Artifacts`; anything that can't be resolved answers 404. A
   file-selection artifact streams its source file with its own media type; a
   git-diff artifact streams the live unified diff inline as `text/x-diff`.
+
+  Also lists a diff review's commit range as JSON so the frontend can drive
+  commit-by-commit navigation without a store round-trip (batch data — see the
+  Phase P4 "commit range × working-tree state" requirements in `task_plan.md`).
   """
 
   use SuikouWeb, :controller
@@ -115,6 +119,33 @@ defmodule SuikouWeb.AssetController do
   end
 
   def file_raw(conn, _params), do: send_resp(conn, 404, "")
+
+  @doc """
+  Lists a diff review's commit range (three-dot `base_ref...head_ref`), newest
+  first, as JSON `{"commits": [{"sha", "subject"}]}`. Answers 404 for a
+  file-selection review, an unknown review, or a git error (deleted ref,
+  invalid ref, non-repo project) — the review chrome already surfaces the
+  refs-moved/branch-deleted states via `refs_snapshot/1`, so this endpoint
+  stays a plain read.
+
+  ## Examples
+
+      get(conn, "/api/review/0192.../commits")
+      #=> 200, {"commits": [{"sha": "0a1b...", "subject": "second"}]}
+
+      get(conn, "/api/review/<file-selection-review>/commits")
+      #=> 404
+
+  """
+  @spec commits(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def commits(conn, %{"review_id" => review_id}) do
+    with %Review{} = review <- Reviews.get_review(review_id),
+         {:ok, entries} <- Reviews.list_diff_commits(review) do
+      json(conn, %{commits: entries})
+    else
+      _error -> send_resp(conn, 404, "")
+    end
+  end
 
   defp serve_review_path(conn, %Review{} = review, path) do
     case Reviews.fetch_content_by_path(review, path) do
