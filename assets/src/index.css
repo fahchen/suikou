@@ -923,6 +923,50 @@
   font-weight: 700;
 }
 
+/* Leading YAML frontmatter, lifted out of the prose into a metadata card. */
+.md-frontmatter {
+  margin: 0.1em 0 1em;
+  border: 1px solid var(--hair-strong);
+  border-radius: 11px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--ink-3) 4%, transparent);
+}
+.md-fm-label {
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--hair);
+}
+.md-fm-list {
+  margin: 0;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 16px;
+}
+.md-fm-row {
+  display: contents;
+}
+.md-fm-key {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.md-fm-val {
+  font-size: 12.5px;
+  color: var(--ink-0);
+  overflow-wrap: anywhere;
+}
+.md-fm-empty {
+  color: var(--ink-3);
+  opacity: 0.7;
+}
+
 /* Document-level prose, scoped so it never bleeds into comment bodies. */
 .md-doc .md-body h1 {
   font-size: 1.55em;

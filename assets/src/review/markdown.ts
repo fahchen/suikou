@@ -1,4 +1,5 @@
 import { markdown } from "./markdown/engine"
+import { parseFrontmatter } from "./markdown/frontmatter"
 
 export { renderMarkdownBlocks } from "./markdown/blocks"
 export type { MarkdownBlock } from "./markdown/types"
@@ -12,7 +13,10 @@ export function renderMarkdown(source: string): string {
 export function markdownToc(
   source: string,
 ): { level: number; text: string; line: number }[] {
-  const tokens = markdown.parse(source, {})
+  // Blank a leading frontmatter fence so its `key:` lines are not read as a
+  // setext heading and leaked into the outline.
+  const front = parseFrontmatter(source)
+  const tokens = markdown.parse(front ? front.blanked : source, {})
   const items: { level: number; text: string; line: number }[] = []
 
   for (let index = 0; index < tokens.length; index++) {

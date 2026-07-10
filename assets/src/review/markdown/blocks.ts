@@ -1,4 +1,5 @@
 import { markdown } from "./engine"
+import { parseFrontmatter, renderFrontmatterCard } from "./frontmatter"
 import { renderListBlocks } from "./list-blocks"
 import { renderTableBlocks } from "./table-blocks"
 import { findClose } from "./token-utils"
@@ -8,9 +9,15 @@ export type { MarkdownBlock } from "./types"
 
 /** Split a document into source-mapped blocks used by preview comment gutters. */
 export function renderMarkdownBlocks(source: string): MarkdownBlock[] {
+  // A leading YAML frontmatter fence renders as a metadata card rather than body
+  // prose; blank it out (line count preserved) so the rest keeps its source map.
+  const front = parseFrontmatter(source)
   const env = {}
-  const tokens = markdown.parse(source, env)
+  const tokens = markdown.parse(front ? front.blanked : source, env)
   const blocks: MarkdownBlock[] = []
+  if (front) {
+    blocks.push({ line: 1, endLine: front.endLine, html: renderFrontmatterCard(front.entries) })
+  }
   let depth = 0
   let start = 0
 
