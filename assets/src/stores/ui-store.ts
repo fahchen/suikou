@@ -5,12 +5,14 @@ import { THEMES, type ThemeName } from "../themes"
 export type Density = "compact" | "comfortable" | "loose"
 export type MonoSize = "small" | "default" | "large"
 export type CommentDisplayMode = "inline" | "side" | "hidden"
+export type FileRange = "single" | "stacked"
 
 const THEME_KEY = "suikou-theme"
 const DENSITY_KEY = "suikou-density"
 const MONO_KEY = "suikou-mono-size"
 const WRAP_KEY = "suikou-code-wrap"
 const COMMENT_DISPLAY_KEY = "suikou-comment-display"
+const FILE_RANGE_KEY = "suikou-file-range"
 
 /** App-wide UI preferences (theme, reading density, code wrap) plus the
  * settings modal's open flag. Persisted to localStorage and applied to the
@@ -21,6 +23,7 @@ class UiStore {
   monoSize: MonoSize = "default"
   codeWrap = false
   commentDisplay: CommentDisplayMode = "inline"
+  fileRange: FileRange = "single"
   settingsOpen = false
 
   constructor() {
@@ -54,6 +57,11 @@ class UiStore {
     localStorage.setItem(COMMENT_DISPLAY_KEY, mode)
   }
 
+  setFileRange(range: FileRange) {
+    this.fileRange = range
+    localStorage.setItem(FILE_RANGE_KEY, range)
+  }
+
   setSettingsOpen(open: boolean) {
     this.settingsOpen = open
   }
@@ -72,6 +80,8 @@ class UiStore {
     if (commentDisplay === "inline" || commentDisplay === "side" || commentDisplay === "hidden") {
       this.commentDisplay = commentDisplay
     }
+    const fileRange = localStorage.getItem(FILE_RANGE_KEY)
+    if (fileRange === "single" || fileRange === "stacked") this.fileRange = fileRange
     this.applyTheme()
   }
 

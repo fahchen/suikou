@@ -6,7 +6,7 @@ import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { Segmented } from "../components/ui/segmented"
 import { Select } from "../components/ui/select"
 import { Switch } from "../components/ui/switch"
-import { uiStore, type CommentDisplayMode, type Density, type MonoSize } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type Density, type FileRange, type MonoSize } from "../stores/ui-store"
 import { THEME_CODE, THEME_LABELS, THEMES, type ThemeName } from "../themes"
 
 const THEME_GROUPS = [
@@ -152,6 +152,16 @@ const ReviewDefaultsPane = observer(function ReviewDefaultsPane() {
   return (
     <div className="flex flex-col gap-6">
       <PaneHead title="Review defaults" lede="How new reviews open until you change them per review." />
+      <Row title="File layout" sub="Read one file at a time, or stack every file in one scroll. Desktop only.">
+        <Segmented<FileRange>
+          value={uiStore.fileRange}
+          onChange={(v) => uiStore.setFileRange(v)}
+          options={[
+            ["single", "Single"],
+            ["stacked", "Stacked"],
+          ]}
+        />
+      </Row>
       <Row title="Comments" sub="Default placement for review comments on desktop. Mobile stays inline.">
         <Segmented<CommentDisplayMode>
           value={uiStore.commentDisplay}

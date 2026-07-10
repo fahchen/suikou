@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import type { ThemedToken } from "shiki"
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileText, Info, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
@@ -19,16 +18,14 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, isTextMime, TocMenu } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView } from "./components/EditorSurface"
+import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { FileList, NavHeader } from "./components/FileNavigator"
 import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
 import { SideRail } from "./components/SideRail"
-import { highlightLines } from "./highlight"
-import { markdownToc } from "./markdown"
-import { langForPath, outline, type OutlineItem } from "../treesitter/outline"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 type Structure = CommandReply<"SuikouWeb.Stores.ReviewStore", "load_review_structure", Musubi.Stores>
@@ -194,10 +191,16 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
   const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
+  const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
+  const [stackedScrollTarget, setStackedScrollTarget] = useState<StackedScrollTarget | null>(null)
+  const [hideReviewed, setHideReviewed] = useState(false)
 
   const isDiff = structure?.kind === "diff"
   const desktopLayout = useDesktopLayout()
   const commentDisplay = desktopLayout ? uiStore.commentDisplay : "inline"
+  // D11: the stacked all-files view is a desktop-only display mode; phones keep
+  // one file at a time. Side-rail comments collapse to inline in the stack.
+  const stacked = desktopLayout && uiStore.fileRange === "stacked"
   // The open file lives in the URL (`?file=`), so a reload lands back on it. When
   // the param is absent (opened from the board) or stale, fall back to the file
   // last viewed in this review, then to the first file.
@@ -276,6 +279,30 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
     () => new Map(review.perFile.map((f) => [f.path, f])),
     [review],
   )
+  // D11 stacked view data: each file's static entry joined with its live proxy,
+  // streamed comments, and rolled-up verdict — the whole review at once.
+  const stackedFiles = useMemo<StackedFileDatum[]>(() => {
+    if (!stacked) return []
+    const indexByPath = new Map(bodyFiles.map((f, i) => [f.path, i]))
+    return entries.map((e) => {
+      const bi = indexByPath.get(e.path)
+      const live = bi != null ? bodyFiles[bi] : null
+      const per = statusByPath.get(e.path)
+      const proxy = bi != null && snap?.body ? store.body.files[bi] : null
+      return {
+        path: e.path,
+        changeStatus: e.change_status ?? null,
+        proxy,
+        commentsProxy: proxy?.comments ?? null,
+        comments: live ? live.comments.items : [],
+        draftVerdict: (live?.draft_verdict ?? null) as Verdict | null,
+        latestVerdict: (e.verdict ?? null) as Verdict | null,
+        approved: e.approved,
+        openBlockers: per?.openBlockers ?? 0,
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stacked, entries, snap, statusByPath])
   const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
   const focusedComment = comments.find((comment) => comment.id === focusedCommentId) ?? null
   const highlightedRange = hoveredRange ?? commentRange(focusedComment)
@@ -317,6 +344,17 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
     navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: path } })
   }
 
+  // In the stack, a navigator click asks the stacked view to bring that file into
+  // view (force-mounting it first if it was dropped to a spacer); the scroll-spy
+  // then marks it as current.
+  const scrollToStacked = (path: string) => {
+    setFilesSheetOpen(false)
+    setStackedScrollTarget({ path, line: null })
+  }
+  const navSelected = stacked ? (stackedCurrentPath ?? selectedPath) : selectedPath
+  const navSelect = stacked ? scrollToStacked : select
+  const stackedSide = stacked && commentDisplay === "side"
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       <Toolbar
@@ -331,37 +369,66 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         canCompare={compare !== null}
         compareOpen={compareOpen}
         onToggleCompare={() => setCompareOpen((open) => !open)}
+        stacked={stacked}
+        hideReviewed={hideReviewed}
+        onToggleHideReviewed={() => setHideReviewed((on) => !on)}
       />
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
-          commentDisplay === "side" ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
+          (stackedSide || (!stacked && commentDisplay === "side")) ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
         }`}
       >
         <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
           <NavHeader entries={entries} reviewed={review.reviewed} />
-          <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
+          <FileList entries={entries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
         </aside>
-        <Editor
-          reviewId={reviewId}
-          entry={selected}
-          filesLoaded={structure !== null}
-          comments={comments}
-          fileProxy={fileProxy}
-          commentsProxy={commentsProxy}
-          verdict={selectedLive}
-          readOnly={readOnly}
-          selectedRound={selectedRound}
-          compare={compareOpen ? compare : null}
-          commentDisplay={commentDisplay}
-          focusedCommentId={focusedCommentId}
-          highlightedRange={highlightedRange}
-          onFocusComment={setFocusedCommentId}
-          onClearFocus={() => setFocusedCommentId(null)}
-          onOpenFiles={() => setFilesSheetOpen(true)}
-          onSelectFile={select}
-          filePosition={filePosition}
-        />
-        {commentDisplay === "side" && (
+        {stacked ? (
+          <StackedFiles
+            reviewId={reviewId}
+            files={stackedFiles}
+            readOnly={readOnly}
+            selectedRound={selectedRound}
+            commentDisplay={commentDisplay}
+            hideReviewed={hideReviewed}
+            focusedCommentId={focusedCommentId}
+            onFocusComment={setFocusedCommentId}
+            onClearFocus={() => setFocusedCommentId(null)}
+            onScrolledTo={setStackedCurrentPath}
+            scrollTarget={stackedScrollTarget}
+            onScrollHandled={() => setStackedScrollTarget(null)}
+          />
+        ) : (
+          <Editor
+            reviewId={reviewId}
+            entry={selected}
+            filesLoaded={structure !== null}
+            comments={comments}
+            fileProxy={fileProxy}
+            commentsProxy={commentsProxy}
+            verdict={selectedLive}
+            readOnly={readOnly}
+            selectedRound={selectedRound}
+            compare={compareOpen ? compare : null}
+            commentDisplay={commentDisplay}
+            focusedCommentId={focusedCommentId}
+            highlightedRange={highlightedRange}
+            onFocusComment={setFocusedCommentId}
+            onClearFocus={() => setFocusedCommentId(null)}
+            onOpenFiles={() => setFilesSheetOpen(true)}
+            onSelectFile={select}
+            filePosition={filePosition}
+          />
+        )}
+        {stackedSide && (
+          <StackedSideRail
+            files={stackedFiles}
+            onFocus={(file, comment) => {
+              setFocusedCommentId(comment.id)
+              setStackedScrollTarget({ path: file.path, line: commentStartLine(comment) })
+            }}
+          />
+        )}
+        {!stacked && commentDisplay === "side" && (
           <SideRail
             comments={comments}
             commentsProxy={commentsProxy}
@@ -374,11 +441,12 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         )}
       </div>
       <StatusBar
-        path={selectedPath}
+        path={stacked ? navSelected : selectedPath}
         connected={connected}
         review={review}
         round={selectedRound}
         readOnly={readOnly}
+        stacked={stacked}
       />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
@@ -461,26 +529,6 @@ function ArtifactComments({
   )
 }
 
-type Content =
-  | { kind: "loading" }
-  | { kind: "text"; lines: string[]; tokens: ThemedToken[][] | null }
-  | { kind: "image"; url: string; mime: string; bytes: number | null }
-  | { kind: "binary"; mime: string; bytes: number | null }
-  | { kind: "error"; message: string }
-
-const DOC_VIEW_KEY = "suikou-doc-view"
-
-/** The reader's remembered choice between the raw Source and the rendered view,
- * shared across renderable files (markdown Preview, html Comment) so the choice
- * carries between them and survives a reload. */
-function readDocView(): "source" | "rendered" {
-  return localStorage.getItem(DOC_VIEW_KEY) === "source" ? "source" : "rendered"
-}
-
-function writeDocView(value: "source" | "rendered"): void {
-  localStorage.setItem(DOC_VIEW_KEY, value)
-}
-
 const HTML_ZOOM_KEY = "suikou-html-zoom"
 
 /** The reader's remembered html zoom, kept across files and reloads. */
@@ -530,8 +578,7 @@ function Editor({
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
-  const [content, setContent] = useState<Content>({ kind: "loading" })
-  const [toc, setToc] = useState<OutlineItem[]>([])
+  const { content, toc } = useFileContent(reviewId, entry?.path ?? null)
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => (readDocView() === "source" ? "source" : "preview"))
@@ -541,6 +588,15 @@ function Editor({
   const [htmlZoom, setHtmlZoom] = useState(() => readHtmlZoom())
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
   const [artifactComposing, setArtifactComposing] = useState(false)
+  const requestContent = useMusubiCommand(fileProxy as FileStoreProxy, "request_content")
+
+  // Signal the server that this file's content is being read, so it re-anchors
+  // the file's comments against the current text and pushes any moved anchors
+  // back for a re-render. Fires each time the open file changes.
+  useEffect(() => {
+    if (fileProxy && entry) requestContent.dispatch({}).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.path, fileProxy])
 
   // Every renderable file opens in the reader's remembered Source-vs-rendered
   // choice; a plain file has only Source. html resets its sub-mode to Comment
@@ -575,61 +631,6 @@ function Editor({
     setHtmlMode(next)
     writeDocView(next === "source" ? "source" : "rendered")
   }
-
-  useEffect(() => {
-    if (!entry) return
-    const path = entry.path
-    let cancelled = false
-    setContent({ kind: "loading" })
-    setToc([])
-    fetch(`/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`)
-      .then(async (response) => {
-        if (cancelled) return
-        if (!response.ok) {
-          setContent({ kind: "error", message: `Couldn't load file (${response.status}).` })
-          return
-        }
-        const mime = response.headers.get("content-type") ?? ""
-        if (!isTextMime(mime)) {
-          const type = mime.split(";")[0].trim() || "application/octet-stream"
-          const bytes = Number(response.headers.get("content-length")) || null
-          if (type.startsWith("image/")) {
-            const url = `/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`
-            setContent({ kind: "image", url, mime: type, bytes })
-          } else {
-            setContent({ kind: "binary", mime: type, bytes })
-          }
-          return
-        }
-        const body = (await response.text()).replace(/\n$/, "")
-        if (cancelled) return
-        setContent({ kind: "text", lines: body.split("\n"), tokens: null })
-        const ext = path.slice(path.lastIndexOf(".") + 1)
-        highlightLines(body, ext)
-          .then((tokens) => {
-            if (!cancelled) setContent({ kind: "text", lines: body.split("\n"), tokens })
-          })
-          .catch(() => undefined)
-        if (/\.(md|markdown)$/i.test(path)) {
-          if (!cancelled) setToc(markdownToc(body))
-        } else {
-          const lang = langForPath(path)
-          if (lang) {
-            outline(body, lang)
-              .then((items) => {
-                if (!cancelled) setToc(items)
-              })
-              .catch(() => undefined)
-          }
-        }
-      })
-      .catch((cause: Error) => {
-        if (!cancelled) setContent({ kind: "error", message: cause.message })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [reviewId, entry])
 
   const scrollToLine = (line: number) => {
     document

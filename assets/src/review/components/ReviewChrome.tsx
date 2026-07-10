@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, ChevronLeft, Circle, FileText, GitCompare, GitCompareArrows, MessageSquare, MoreVertical, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, Circle, EyeOff, FileText, GitCompare, GitCompareArrows, MessageSquare, MoreVertical, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
@@ -45,6 +45,9 @@ export function Toolbar({
   canCompare,
   compareOpen,
   onToggleCompare,
+  stacked,
+  hideReviewed,
+  onToggleHideReviewed,
 }: {
   name: string
   isDiff: boolean
@@ -57,6 +60,9 @@ export function Toolbar({
   canCompare: boolean
   compareOpen: boolean
   onToggleCompare: () => void
+  stacked: boolean
+  hideReviewed: boolean
+  onToggleHideReviewed: () => void
 }) {
   return (
     <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-2 lg:h-[50px] lg:px-3">
@@ -110,6 +116,22 @@ export function Toolbar({
           selectedRound={selectedRound}
           latestRound={latestRound}
         />
+      )}
+      {stacked && (
+        <button
+          type="button"
+          onClick={onToggleHideReviewed}
+          title="Hide files that already have a verdict"
+          aria-pressed={hideReviewed}
+          className={`hidden h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ctrl border px-2.5 text-[12.5px] font-medium lg:inline-flex ${
+            hideReviewed
+              ? "border-accent-edge bg-accent-soft text-accent-bright"
+              : "border-hair-strong bg-canvas text-ink hover:bg-soft"
+          }`}
+        >
+          <EyeOff size={14} className={hideReviewed ? "text-accent-bright" : "text-muted"} aria-hidden />
+          Hide reviewed
+        </button>
       )}
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
@@ -223,12 +245,14 @@ export function StatusBar({
   review,
   round,
   readOnly,
+  stacked = false,
 }: {
   path: string | null
   connected: boolean
   review: ReviewSummary
   round: number
   readOnly: boolean
+  stacked?: boolean
 }) {
   const total = review.perFile.length
   const blockers = review.blockers.length
@@ -236,6 +260,12 @@ export function StatusBar({
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
       <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      {stacked && (
+        <>
+          <StatusDot />
+          <span className="shrink-0 font-medium text-muted">stacked</span>
+        </>
+      )}
       <StatusDot />
       <span className="shrink-0 tabular-nums">
         <span className="hidden sm:inline">Round {round}</span>
