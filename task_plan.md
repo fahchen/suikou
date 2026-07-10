@@ -363,6 +363,17 @@ Backend already resolves the default via
 current HEAD, `lib/suikou/git.ex:65`). Reuse it as the base when the future
 "all commits" mode is added; do NOT invent a merge-base picker.
 
+##### Slice 2026-07-10b — `Git.list_commits/3` primitive
+Added `Suikou.Git.list_commits/3` (`lib/suikou/git.ex`): three-dot commit
+walker `git log base...head --format=%H%x00%s -z` returning
+`[%{sha, subject}]` newest first. Errors follow the existing pattern
+(`:invalid_ref`/`:ref_not_found`/`:not_a_repo`/`:git_error`). Not yet wired
+into `Suikou.Reviews` or any endpoint — first frontend-visible use is the
+"commit-by-commit" navigation axis for the future scope×worktree source
+overlay. Tests cover happy path (2 commits newest first), empty range
+(base == head), unknown ref, invalid ref, non-repo. `mix test
+test/suikou/git_test.exs` = 51 pass.
+
 ### Phase G: Verdict / submit
 - [x] G1 per-file verdict chip (VerdictChip, set_draft_verdict) · G3 submit panel (SubmitButton +
       Popover, rollup verdict, pending/draft counts) · G4 soft gate (amber, approve+open fix)

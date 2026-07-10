@@ -24,8 +24,10 @@ defmodule Suikou.Git do
   @type changed_files_with_status_error() ::
           :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type diff_stats_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type list_commits_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
   @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
+  @type commit_entry() :: %{sha: String.t(), subject: String.t()}
 
   @doc """
   Returns `true` when `dir` is the working tree of a git repository.
@@ -381,6 +383,48 @@ defmodule Suikou.Git do
   defp status_atom("R" <> _rest), do: :renamed
   defp status_atom("C" <> _rest), do: :copied
   defp status_atom(_other), do: :modified
+
+  @doc """
+  Lists commits reachable from `head` but not from `base` (three-dot semantics,
+  `git log base...head`), most recent first. Each entry carries the full SHA
+  and the commit subject line. Powers the future commit-by-commit navigation
+  axis for diff reviews (see Phase P4 diff-review requirements 2026-07-10).
+  Returns `{:ok, []}` when `base` and `head` point at the same commit.
+
+  ## Examples
+
+      Suikou.Git.list_commits("/projects/app", "main", "topic")
+      #=> {:ok, [%{sha: "0a1b...", subject: "second"}, %{sha: "9f8e...", subject: "first"}]}
+
+  """
+  @spec list_commits(repo_dir(), ref(), ref()) ::
+          {:ok, [commit_entry()]} | {:error, list_commits_error()}
+  def list_commits(dir, base, head) do
+    with {:ok, base} <- tag_invalid_ref(safe_ref(base)),
+         {:ok, head} <- tag_invalid_ref(safe_ref(head)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, base),
+         :ok <- ensure_ref(dir, head),
+         {:ok, out} <-
+           run(dir, [
+             "log",
+             "--format=%H%x00%s",
+             "-z",
+             base <> "..." <> head
+           ]) do
+      {:ok, parse_commit_log(out)}
+    end
+  end
+
+  # `git log --format=%H%x00%s -z` emits `<sha>\0<subject>\0` per commit. Split
+  # on NUL and pair the tokens; a trailing empty tail from the final NUL is
+  # dropped by `trim: true`.
+  defp parse_commit_log(out) do
+    out
+    |> String.split(<<0>>, trim: true)
+    |> Enum.chunk_every(2, 2, :discard)
+    |> Enum.map(fn [sha, subject] -> %{sha: sha, subject: subject} end)
+  end
 
   @doc """
   Resolves `ref` to its current 40-character commit SHA in `dir`. Used by the

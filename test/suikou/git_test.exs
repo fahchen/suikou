@@ -327,6 +327,51 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "list_commits/3" do
+    @tag :tmp_dir
+    test "returns commits reachable from head but not base, newest first",
+         %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "first topic commit")
+      File.write!(Path.join(dir, "b.txt"), "b\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "second topic commit")
+
+      assert {:ok, [%{sha: sha1, subject: "second topic commit"}, %{sha: sha2, subject: "first topic commit"}]} =
+               Git.list_commits(dir, "main", "topic")
+
+      assert String.length(sha1) == 40
+      assert String.length(sha2) == 40
+      assert sha1 != sha2
+    end
+
+    @tag :tmp_dir
+    test "returns an empty list when base and head match", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:ok, []} = Git.list_commits(dir, "main", "main")
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.list_commits(dir, "main", "nope")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.list_commits(dir, "--evil", "main")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.list_commits(dir, "main", "topic")
+    end
+  end
+
   describe "diff_stats/3" do
     @tag :tmp_dir
     test "counts added and deleted lines per file", %{tmp_dir: dir} do
