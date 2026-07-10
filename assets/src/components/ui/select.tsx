@@ -1,6 +1,8 @@
 import { Select as BaseSelect } from "@base-ui/react/select"
 import { ChevronDown } from "lucide-react"
 
+import { POPUP_MOTION } from "./motion"
+
 export type SelectGroup = { label: string; options: { value: string; label: string }[] }
 
 /** Themed single-select over the Base UI Select primitive. */
@@ -35,7 +37,7 @@ export function Select({
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
         <BaseSelect.Positioner sideOffset={4} align="end" className="z-[70]">
-          <BaseSelect.Popup className="max-h-[260px] w-[200px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none">
+          <BaseSelect.Popup className={`max-h-[260px] w-[200px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION}`}>
             {groups.map((group) => (
               <BaseSelect.Group key={group.label}>
                 <BaseSelect.GroupLabel className="px-2 pt-2 pb-1 text-[9.5px] font-bold tracking-[0.12em] text-faint uppercase">

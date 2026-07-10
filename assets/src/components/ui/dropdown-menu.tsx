@@ -1,6 +1,8 @@
 import { Menu } from "@base-ui/react/menu"
 import type { ReactElement, ReactNode } from "react"
 
+import { POPUP_MOTION } from "./motion"
+
 /** Themed dropdown menu over the Base UI Menu primitive. */
 export function DropdownMenu({ children }: { children: ReactNode }) {
   return <Menu.Root>{children}</Menu.Root>
@@ -23,7 +25,7 @@ export function DropdownMenuContent({
   return (
     <Menu.Portal>
       <Menu.Positioner sideOffset={6} align={align} className="z-50">
-        <Menu.Popup className={`min-w-[180px] rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${className}`}>
+        <Menu.Popup className={`min-w-[180px] rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION} ${className}`}>
           {children}
         </Menu.Popup>
       </Menu.Positioner>

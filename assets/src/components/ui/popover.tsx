@@ -1,6 +1,8 @@
 import { Popover as BasePopover } from "@base-ui/react/popover"
 import type { ReactElement, ReactNode } from "react"
 
+import { POPUP_MOTION } from "./motion"
+
 /** Themed popover over the Base UI Popover primitive: an anchored surface card
  * that stays open while its contents are interacted with (unlike a Menu). Wrap
  * the trigger with `render`; `children` is the panel body. Controlled via
@@ -34,7 +36,7 @@ export function Popover({
       <BasePopover.Portal>
         <BasePopover.Positioner side={side} align={align} sideOffset={6} className="z-50">
           <BasePopover.Popup
-            className={`${chromeClass} outline-none ${className ?? ""}`}
+            className={`${chromeClass} outline-none ${POPUP_MOTION} ${className ?? ""}`}
           >
             {children}
           </BasePopover.Popup>

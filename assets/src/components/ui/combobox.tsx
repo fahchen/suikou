@@ -1,6 +1,8 @@
 import { Combobox as BaseCombobox } from "@base-ui/react/combobox"
 import { ChevronDown } from "lucide-react"
 
+import { POPUP_MOTION } from "./motion"
+
 /** Themed searchable single-select over the Base UI Combobox primitive: type
  * to filter the options, click or enter to pick. */
 export function Combobox({
@@ -31,7 +33,7 @@ export function Combobox({
       </div>
       <BaseCombobox.Portal>
         <BaseCombobox.Positioner sideOffset={4} className="z-[60]">
-          <BaseCombobox.Popup className="max-h-[260px] w-[var(--anchor-width)] min-w-[220px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none">
+          <BaseCombobox.Popup className={`max-h-[260px] w-[var(--anchor-width)] min-w-[220px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION}`}>
             <BaseCombobox.Empty className="text-[12px] text-faint">
               <span className="block px-2 py-2">No branches match.</span>
             </BaseCombobox.Empty>
