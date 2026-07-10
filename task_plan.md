@@ -137,9 +137,11 @@ use `@pierre/diffs`. **Backend contract read + recorded 2026-07-10** in "Diff re
 `GET /api/review/:id/files/content?path=…` already returns live unified diff text as `text/x-diff` (three-dot merge-base
 between pinned `base_ref`/`head_ref`, re-run per request); `file_entries` already ships change_status + added/deleted +
 `refs` snapshot; `structure.kind === "diff"` flag already in the client. `diff_hunk` anchor type exists in the schema but
-has no frontend renderer path yet. `@pierre/diffs` is NOT yet installed. Next slice = install `@pierre/diffs`, add a diff
-body renderer in `assets/src/review/components/`, and route `structure.kind === "diff"` to it (D6). D7 split view + J
-states + commit-range/worktree axes follow. Frest done (F7 `b997e9e`).
+has no frontend renderer path yet. **2026-07-10 slice DONE:** `@pierre/diffs@1.2.12` installed via `bun add`; new
+`assets/src/review/components/DiffView.tsx` wraps `PatchDiff` with the raw per-file unified patch; `ReviewPage.tsx`
+routes `isDiff && content.kind === "text"` to it before the empty/markdown/source branches. `bun run typecheck` +
+`bun run build` green. NOT yet: library theming (default shiki bundle), header/prefix customization, split view,
+`diff_hunk` comment anchor overlay, commit-range/worktree axes. Frest done (F7 `b997e9e`).
 Screenshots broken in agent-browser this env (eval works). Phase G below is DONE + accepted.
 
 ## Phase G (done)
@@ -223,7 +225,11 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 
 ### Phase P4: Multi-round + git_diff
 - [x] A5–A7 latest / history (superseded, read-only) / round compare
-- [ ] D6/D7 diff unified / side-by-side
+- [~] D6 diff unified — baseline `@pierre/diffs` `PatchDiff` wired for
+      `structure.kind === "diff"` files. Skipped: library theming (uses default
+      shiki bundle), custom header, split view, `diff_hunk` anchor overlay.
+      Follow-ups: D6 polish (theme + header), D7 split, J anchors.
+- [ ] D7 diff side-by-side
 - [ ] J1–J8 git_diff-only states (diff_hunk anchors, refs moved, branch deleted,
       cross-round line diff, diff submit)
 

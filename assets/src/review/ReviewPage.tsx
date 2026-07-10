@@ -19,6 +19,7 @@ import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
 import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView } from "./components/EditorSurface"
+import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { FileList, HideReviewedToggle, NavHeader } from "./components/FileNavigator"
 import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
@@ -409,6 +410,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
             reviewId={reviewId}
             entry={selected}
             filesLoaded={structure !== null}
+            isDiff={isDiff}
             comments={comments}
             fileProxy={fileProxy}
             commentsProxy={commentsProxy}
@@ -549,6 +551,7 @@ function Editor({
   reviewId,
   entry,
   filesLoaded,
+  isDiff,
   comments,
   fileProxy,
   commentsProxy,
@@ -568,6 +571,7 @@ function Editor({
   reviewId: string
   entry: FileEntry | null
   filesLoaded: boolean
+  isDiff: boolean
   comments: Comment[]
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
@@ -933,6 +937,8 @@ function Editor({
             <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
           ) : content.kind === "binary" ? (
             <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
+          ) : isDiff && content.kind === "text" ? (
+            <DiffView patch={content.lines.join("\n")} />
           ) : content.lines.length === 1 && content.lines[0] === "" ? (
             <EmptyFileNotice name={name} />
           ) : previewable && view === "preview" ? (
