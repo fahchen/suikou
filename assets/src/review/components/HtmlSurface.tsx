@@ -18,6 +18,7 @@ export const HtmlView = observer(function HtmlView({
   mode,
   zoom,
   frameRef,
+  showComments,
   comments,
   fileProxy,
   commentsProxy,
@@ -27,6 +28,7 @@ export const HtmlView = observer(function HtmlView({
   mode: "comment" | "interactive"
   zoom: number
   frameRef: RefObject<HTMLDivElement | null>
+  showComments: boolean
   comments: Comment[]
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
@@ -61,8 +63,11 @@ export const HtmlView = observer(function HtmlView({
   }
 
   const anchoredSelectors = useMemo(
-    () => comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : [])),
-    [comments],
+    () =>
+      showComments
+        ? comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : []))
+        : [],
+    [comments, showComments],
   )
   const openThreads = useMemo(
     () =>

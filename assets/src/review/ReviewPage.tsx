@@ -197,7 +197,8 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
 
   const isDiff = structure?.kind === "diff"
   const desktopLayout = useDesktopLayout()
-  const commentDisplay = desktopLayout ? uiStore.commentDisplay : "inline"
+  // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
+  const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
   // D11: the stacked all-files view is a desktop-only display mode; phones keep
   // one file at a time. Side-rail comments collapse to inline in the stack.
   const stacked = desktopLayout && uiStore.fileRange === "stacked"
@@ -316,7 +317,6 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
 
   // A7 round compare: what changed between the prior round and the selected one,
   // computed from the published comments' authored/resolved rounds.
-  const [compareOpen, setCompareOpen] = useState(false)
   const compare = useMemo<RoundCompare | null>(() => {
     if (selectedRound < 1) return null
     let resolved = 0
@@ -359,16 +359,12 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       <Toolbar
         name={structure?.name ?? "…"}
-        isDiff={isDiff}
         connected={connected}
         store={store}
         review={review}
         roundSummaries={roundSummaries}
         selectedRound={selectedRound}
         latestRound={latestRound}
-        canCompare={compare !== null}
-        compareOpen={compareOpen}
-        onToggleCompare={() => setCompareOpen((open) => !open)}
         stacked={stacked}
         hideReviewed={hideReviewed}
         onToggleHideReviewed={() => setHideReviewed((on) => !on)}
@@ -408,7 +404,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
             verdict={selectedLive}
             readOnly={readOnly}
             selectedRound={selectedRound}
-            compare={compareOpen ? compare : null}
+            compare={selectedRound < latestRound ? compare : null}
             commentDisplay={commentDisplay}
             focusedCommentId={focusedCommentId}
             highlightedRange={highlightedRange}
@@ -589,6 +585,14 @@ function Editor({
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
   const [artifactComposing, setArtifactComposing] = useState(false)
   const requestContent = useMusubiCommand(fileProxy as FileStoreProxy, "request_content")
+
+  // Single source of truth for how comments surface, so no editor kind can leak.
+  // `showComments`: any anchored surface at all — false only in `hidden`.
+  // `showThreads`: inline thread cards under each anchor — inline mode only (side
+  // routes them to the rail). `composerMode`: where a new comment composes.
+  const showComments = commentDisplay !== "hidden"
+  const showThreads = commentDisplay === "inline"
+  const composerMode = commentDisplay === "side" ? "popover" : "inline"
 
   // Signal the server that this file's content is being read, so it re-anchors
   // the file's comments against the current text and pushes any moved anchors
@@ -848,7 +852,7 @@ function Editor({
           </>
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
-        {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && commentDisplay !== "side" && (
+        {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && showThreads && (
           <button
             type="button"
             onClick={() => setArtifactComposing(true)}
@@ -880,6 +884,7 @@ function Editor({
           mode={htmlMode}
           zoom={htmlZoom}
           frameRef={htmlFrameRef}
+          showComments={showComments}
           comments={comments}
           fileProxy={fileProxy}
           commentsProxy={commentsProxy}
@@ -894,7 +899,7 @@ function Editor({
             onClearFocus()
           }}
         >
-          {commentDisplay === "inline" && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
+          {showThreads && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && (
             <ArtifactComments
               comments={comments}
               fileProxy={fileProxy}
@@ -926,8 +931,8 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
-              composerMode={commentDisplay === "side" ? "popover" : "inline"}
-              showThreads={commentDisplay === "inline"}
+              composerMode={composerMode}
+              showThreads={showThreads}
               focusedCommentId={focusedCommentId}
               highlightedRange={highlightedRange}
               onFocusComment={onFocusComment}
@@ -941,8 +946,8 @@ function Editor({
               commentsProxy={commentsProxy}
               draftScope={`${reviewId}:${entry.path}`}
               readOnly={readOnly}
-              composerMode={commentDisplay === "side" ? "popover" : "inline"}
-              showThreads={commentDisplay === "inline"}
+              composerMode={composerMode}
+              showThreads={showThreads}
               focusedCommentId={focusedCommentId}
               highlightedRange={highlightedRange}
               onFocusComment={onFocusComment}
