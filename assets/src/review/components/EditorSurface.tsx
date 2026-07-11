@@ -142,6 +142,55 @@ export function useFileContent(
   return { content, toc }
 }
 
+/** Warm the file-content cache for a whole review so switching files is
+ * instant. Fetches each not-yet-cached file's bytes (in the given order, a few
+ * at a time so it never starves the file the reader is actually looking at) and
+ * stores the same `{kind:"text"}` payload `useFileContent` writes — tokens and
+ * outline stay lazy, computed on first render. Returns an abort function; call
+ * it when the review or lens changes. Failures are skipped, not cached, so the
+ * on-demand fetch still surfaces a real error if the reader opens that file. */
+export function prefetchReviewFiles(reviewId: string, paths: string[], lens?: DiffLens): () => void {
+  const lensKey = lensQueryString(lens)
+  const controller = new AbortController()
+  const queue = paths
+    .map((path) => ({ path, url: fileContentUrl(reviewId, path, lensKey) }))
+    .filter(({ url }) => !FILE_CONTENT_CACHE.has(url))
+
+  const worker = async () => {
+    while (!controller.signal.aborted) {
+      const item = queue.shift()
+      if (!item) return
+      if (FILE_CONTENT_CACHE.has(item.url)) continue
+      try {
+        const response = await fetch(item.url, { signal: controller.signal })
+        if (!response.ok) continue
+        const mime = response.headers.get("content-type") ?? ""
+        if (!isTextMime(mime)) {
+          const type = mime.split(";")[0].trim() || "application/octet-stream"
+          const bytes = Number(response.headers.get("content-length")) || null
+          await response.body?.cancel()
+          const next: Content = type.startsWith("image/")
+            ? { kind: "image", url: item.url, mime: type, bytes }
+            : { kind: "binary", mime: type, bytes }
+          FILE_CONTENT_CACHE.set(item.url, { content: next, toc: [] })
+          continue
+        }
+        const body = (await response.text()).replace(/\n$/, "")
+        FILE_CONTENT_CACHE.set(item.url, {
+          content: { kind: "text", lines: body.split("\n"), tokens: null },
+          toc: [],
+        })
+      } catch {
+        // Aborted or network error — leave uncached for the on-demand fetch.
+      }
+    }
+  }
+
+  const CONCURRENCY = 4
+  for (let i = 0; i < CONCURRENCY; i++) void worker()
+  return () => controller.abort()
+}
+
 /** Build the file-content URL with an optional lens query string appended.
  * A default lens (undefined or empty) leaves the URL exactly matching the
  * pre-BDR-0024 shape so cache keys and ETags stay stable. */

@@ -18,7 +18,7 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, FileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, FileNotice, HtmlView, ImageView, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, HideReviewedToggle, NavHeader, orderByTree } from "./components/FileNavigator"
@@ -286,6 +286,15 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         worktree: uiStore.diffWorktree,
       }
     : undefined
+  // Warm the whole review's file content in the background once the ordered file
+  // list is known, so switching files is instant. Re-runs (and cancels the prior
+  // pass) when the review, its file set, or the diff lens changes.
+  const entryPaths = useMemo(() => entries.map((e) => e.path).join("\n"), [entries])
+  useEffect(() => {
+    if (entries.length === 0) return
+    return prefetchReviewFiles(reviewId, entries.map((e) => e.path), diffLens)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, entryPaths, isDiff, uiStore.diffScope, uiStore.diffWorktree])
   const desktopLayout = useDesktopLayout()
   // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
   const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
