@@ -143,29 +143,18 @@ defmodule Suikou.Reviews do
          {:ok, head} <- fetch_head_ref(params),
          :ok <- ensure_ref(project, base, :base_ref_not_found),
          :ok <- ensure_ref(project, head, :head_ref_not_found),
-         :ok <- ensure_changes(project, base, head),
-         {:ok, base_sha} <- pin_sha(project, base),
-         {:ok, head_sha} <- pin_sha(project, head) do
+         :ok <- ensure_changes(project, base, head) do
       changeset =
         Review.create_changeset(project, %{
           name: Map.get(params, :name),
           source: %{
             __type__: "git_diff",
             base_ref: base,
-            head_ref: head,
-            base_sha: base_sha,
-            head_sha: head_sha
+            head_ref: head
           }
         })
 
       if changeset.valid?, do: Repo.insert(changeset), else: {:error, changeset}
-    end
-  end
-
-  defp pin_sha(%Project{path: path}, ref) do
-    case Git.rev_parse(path, ref) do
-      {:ok, sha} -> {:ok, sha}
-      {:error, _reason} -> {:error, :git_error}
     end
   end
 
@@ -298,37 +287,27 @@ defmodule Suikou.Reviews do
   def delete_review(%Review{} = review), do: Repo.delete(review)
 
   @typedoc """
-  Diff review's ref/SHA identity: the labels the reviewer picked at creation
-  (`base_ref`/`head_ref`), each side's SHA when the review was pinned
-  (`creation_base_sha`/`creation_head_sha`), each side's current SHA if the ref
-  still resolves (`base_sha`/`head_sha`, nil if the branch was deleted), and
-  `refs_moved` — true iff at least one side's current SHA differs from its
-  creation SHA. A vanished current SHA never flags a move, so a deleted branch
-  and an advanced branch are distinguishable.
+  Diff review's ref identity: the branch names the reviewer picked at creation.
+  Refs are resolved live on every render — a vanished ref surfaces as an error
+  page in the workspace (see BDR-0025). `refs_valid` is `false` when either
+  side no longer resolves in the project's git tree.
   """
   @type refs_snapshot() :: %{
-          base_ref: String.t() | nil,
-          head_ref: String.t() | nil,
-          base_sha: String.t() | nil,
-          head_sha: String.t() | nil,
-          creation_base_sha: String.t() | nil,
-          creation_head_sha: String.t() | nil,
-          refs_moved: boolean()
+          base_ref: String.t(),
+          head_ref: String.t(),
+          refs_valid: boolean()
         }
 
   @doc """
-  Point-in-time ref snapshot for a review. `nil` for a `FileSelection` review;
-  for a `GitDiff` review, returns the creation-pinned SHAs alongside each
-  side's current SHA (or nil when the branch no longer resolves) and a
-  `refs_moved` flag. Powers both the project board card and the review
-  workspace chrome so the "refs moved" and "branch deleted" states render off
-  the same authoritative source.
+  Live ref snapshot for a review. `nil` for a `FileSelection` review; for a
+  `GitDiff` review, returns the stored branch names plus a `refs_valid` flag
+  that is `false` iff either ref no longer resolves in the project's git tree.
+  Powers the workspace's error-page fallback (BDR-0025).
 
   ## Examples
 
       Suikou.Reviews.refs_snapshot(diff_review)
-      #=> %{base_ref: "main", head_ref: "feature/x", base_sha: "abc...", head_sha: "def...",
-      #     creation_base_sha: "abc...", creation_head_sha: "def...", refs_moved: false}
+      #=> %{base_ref: "main", head_ref: "feature/x", refs_valid: true}
 
       Suikou.Reviews.refs_snapshot(file_review)
       #=> nil
@@ -337,33 +316,14 @@ defmodule Suikou.Reviews do
   def refs_snapshot(%Review{source: %FileSelection{}}), do: nil
 
   def refs_snapshot(%Review{source: %GitDiff{} = git_diff, project: %Project{} = project}) do
-    current_base = resolve_current_sha(project, git_diff.base_ref)
-    current_head = resolve_current_sha(project, git_diff.head_ref)
-
     %{
       base_ref: git_diff.base_ref,
       head_ref: git_diff.head_ref,
-      base_sha: current_base,
-      head_sha: current_head,
-      creation_base_sha: git_diff.base_sha,
-      creation_head_sha: git_diff.head_sha,
-      refs_moved:
-        side_moved?(git_diff.base_sha, current_base) or
-          side_moved?(git_diff.head_sha, current_head)
+      refs_valid:
+        Git.ref_exists?(project.path, git_diff.base_ref) and
+          Git.ref_exists?(project.path, git_diff.head_ref)
     }
   end
-
-  defp resolve_current_sha(%Project{path: path}, ref) do
-    case Git.rev_parse(path, ref) do
-      {:ok, sha} -> sha
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp side_moved?(creation, current) when is_binary(creation) and is_binary(current),
-    do: creation != current
-
-  defp side_moved?(_creation, _current), do: false
 
   @doc """
   Lists the commits reachable from a diff review's `head_ref` but not from its
@@ -506,16 +466,41 @@ defmodule Suikou.Reviews do
     active_entries ++ removed_entries
   end
 
-  def list_files(%Review{source: %GitDiff{} = git_diff} = review) do
+  def list_files(%Review{source: %GitDiff{}} = review), do: list_files(review, %{})
+
+  @doc """
+  Lists a diff review's files under a live lens (BDR-0024): the reviewer's
+  current `scope` (`:all` or `{:commits, [sha, ...]}`) and `worktree`
+  (`:diff`, `:staged`, `:unstaged`) choice. Default lens (`%{}`) matches the
+  pinned `base_ref...head_ref` diff exactly like `list_files/1`, so callers
+  that do not care about the lens see no behaviour change. A single-element
+  `commits` list scopes to that commit's own patch; a longer list narrows to
+  the range spanning them (newest first per `list_diff_commits/1`). A
+  file-selection review ignores the lens.
+
+  ## Examples
+
+      Suikou.Reviews.list_files(diff_review, %{worktree: :staged})
+      #=> [%{path: "a.txt", change_status: :modified, ...}]
+
+      Suikou.Reviews.list_files(diff_review, %{scope: {:commits, [sha]}})
+      #=> [%{path: "a.txt", change_status: :modified, ...}]
+
+  """
+  @spec list_files(Review.t(), lens()) :: [file_entry()]
+  def list_files(%Review{source: %FileSelection{}} = review, _lens), do: list_files(review)
+
+  def list_files(%Review{source: %GitDiff{} = git_diff} = review, lens)
+      when is_map(lens) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
+    lens = normalize_lens(lens)
 
-    case changed_with_status(review.project, git_diff) do
+    case lens_changed_with_status(review.project, git_diff, lens) do
       {:ok, entries} ->
         sorted = Enum.sort_by(entries, & &1.path)
         paths = Enum.map(sorted, & &1.path)
-        blobs = head_blob_ids(review.project, git_diff, paths)
-        stats = diff_stats(review.project, git_diff)
+        {blobs, stats} = lens_blobs_and_stats(review.project, git_diff, lens, paths)
 
         Enum.map(sorted, fn %{path: path, status: status} ->
           file_entry(
@@ -590,6 +575,20 @@ defmodule Suikou.Reviews do
 
   @type content_source() ::
           {:file, String.t()} | {:inline, binary(), String.t()}
+  @typedoc """
+  Per-request live-lens overlay for a git-diff review (BDR-0024). Callers may
+  pass `%{}` to keep the default `base_ref...head_ref` diff — the same output
+  as the pre-lens API — or set `:scope` and/or `:worktree` to switch the
+  diff source at request time without changing the review row. `:scope`
+  carries the reviewer's commit-range selection: `:all` (or an empty commits
+  list, normalized to `:all`) keeps the full range; a `{:commits, shas}` tuple
+  narrows to those commits (newest first per `list_diff_commits/1`) — one sha
+  is a single commit's patch, two or more span a sub-range.
+  """
+  @type lens() :: %{
+          optional(:scope) => :all | {:commits, [String.t()]},
+          optional(:worktree) => :diff | :staged | :unstaged
+        }
   @type content_by_path_error() ::
           :path_not_in_review
           | :unsafe_path
@@ -597,6 +596,8 @@ defmodule Suikou.Reviews do
           | :not_a_git_repo
           | :git_error
           | :not_changed
+          | :commit_not_in_range
+          | :invalid_scope_worktree_combination
   @type raw_by_path_error() ::
           :path_not_in_review
           | :unsafe_path
@@ -628,26 +629,56 @@ defmodule Suikou.Reviews do
   @spec fetch_content_by_path(Review.t(), String.t()) ::
           {:ok, content_source()} | {:error, content_by_path_error()}
   def fetch_content_by_path(%Review{} = review, path) when is_binary(path) do
+    fetch_content_by_path(review, path, %{})
+  end
+
+  @doc """
+  Live-lens variant of `fetch_content_by_path/2` (BDR-0024). `lens` is a map
+  with optional `:scope` (`:all` or `{:commits, [sha, ...]}`) and `:worktree`
+  (`:diff`, `:staged`, `:unstaged`) keys. The default `%{}` matches
+  `fetch_content_by_path/2` exactly.
+
+  Rejects a non-empty `commits` selection paired with `worktree ∈ {:staged,
+  :unstaged}` as `:invalid_scope_worktree_combination`, and rejects any sha
+  that is not in the review's `base_ref...head_ref` range as
+  `:commit_not_in_range`. File-selection reviews ignore the lens.
+
+  ## Examples
+
+      Suikou.Reviews.fetch_content_by_path(diff_review, "a.txt", %{worktree: :staged})
+      #=> {:ok, {:inline, "diff --git a/a.txt b/a.txt\\n...", "text/x-diff"}}
+
+  """
+  @spec fetch_content_by_path(Review.t(), String.t(), lens()) ::
+          {:ok, content_source()} | {:error, content_by_path_error()}
+  def fetch_content_by_path(%Review{} = review, path, lens)
+      when is_binary(path) and is_map(lens) do
     review = Repo.preload(review, [:project])
 
-    if path_in_review?(review, path),
-      do: read_content_by_path(review, path),
-      else: {:error, :path_not_in_review}
+    with :ok <- validate_lens(lens),
+         :ok <- validate_scope_in_range(review, lens),
+         true <- path_in_review?(review, path, lens) do
+      read_content_by_path(review, path, normalize_lens(lens))
+    else
+      false -> {:error, :path_not_in_review}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp path_in_review?(%Review{} = review, path) do
-    Enum.any?(list_files(review), &(&1.path == path))
+  defp path_in_review?(%Review{} = review, path, lens) do
+    Enum.any?(list_files(review, lens), &(&1.path == path))
   end
 
-  defp read_content_by_path(%Review{source: %FileSelection{}, project: project}, path) do
+  defp read_content_by_path(%Review{source: %FileSelection{}, project: project}, path, _lens) do
     file_selection_content_source(project, path)
   end
 
   defp read_content_by_path(
          %Review{source: %GitDiff{} = git_diff, project: project},
-         path
+         path,
+         lens
        ) do
-    case Git.file_diff(project.path, git_diff.base_ref, git_diff.head_ref, path) do
+    case lens_file_diff(project, git_diff, lens, path) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -684,7 +715,7 @@ defmodule Suikou.Reviews do
   def fetch_raw_by_path(%Review{} = review, path) when is_binary(path) do
     review = Repo.preload(review, [:project])
 
-    if path_in_review?(review, path),
+    if path_in_review?(review, path, %{}),
       do: read_raw_by_path(review, path),
       else: {:error, :path_not_in_review}
   end
@@ -872,6 +903,188 @@ defmodule Suikou.Reviews do
     case Git.diff_stats(path, base, head) do
       {:ok, stats} -> stats
       {:error, _reason} -> %{}
+    end
+  end
+
+  # Fill in default lens keys so every reader downstream sees a fully-shaped
+  # map. Callers may pass a partial lens (`%{}`, `%{worktree: :staged}`, ...)
+  # and the defaults keep the pre-BDR-0024 behaviour (pinned base...head
+  # diff). An empty `commits` list normalizes to `:all` so downstream match
+  # arms don't need to special-case it.
+  defp normalize_lens(lens) do
+    scope =
+      case Map.get(lens, :scope, :all) do
+        {:commits, []} -> :all
+        other -> other
+      end
+
+    worktree = Map.get(lens, :worktree, :diff)
+    %{scope: scope, worktree: worktree}
+  end
+
+  defp validate_lens(lens) do
+    scope = Map.get(lens, :scope, :all)
+    worktree = Map.get(lens, :worktree, :diff)
+
+    cond do
+      match?({:commits, [_ | _]}, scope) and worktree in [:staged, :unstaged] ->
+        {:error, :invalid_scope_worktree_combination}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_scope_in_range(%Review{source: %FileSelection{}}, _lens), do: :ok
+
+  defp validate_scope_in_range(%Review{source: %GitDiff{}} = review, lens) do
+    case Map.get(lens, :scope, :all) do
+      :all ->
+        :ok
+
+      {:commits, []} ->
+        :ok
+
+      {:commits, shas} when is_list(shas) ->
+        case list_diff_commits(review) do
+          {:ok, entries} ->
+            known = MapSet.new(entries, & &1.sha)
+
+            if Enum.all?(shas, &MapSet.member?(known, &1)),
+              do: :ok,
+              else: {:error, :commit_not_in_range}
+
+          {:error, _reason} ->
+            {:error, :commit_not_in_range}
+        end
+    end
+  end
+
+  defp lens_changed_with_status(project, git_diff, %{scope: :all, worktree: :diff}) do
+    changed_with_status(project, git_diff)
+  end
+
+  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+         scope: {:commits, [sha]},
+         worktree: :diff
+       }) do
+    case Git.commit_files(path, sha) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  # A multi-commit selection collapses to the union of every commit's file
+  # set — a file that any selected commit touched is in the navigator, and
+  # the newer commit's status wins when the same file appears twice.
+  # `list_diff_commits/1` orders newest first, so the head is `newest` and
+  # the last entry is `oldest`; we walk oldest → newest so newer statuses
+  # overwrite. Root-safe because each `commit_files/2` handles the root
+  # commit on its own.
+  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+         scope: {:commits, [_first | _rest] = shas},
+         worktree: :diff
+       }) do
+    case multi_commit_files(path, Enum.reverse(shas)) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+         scope: :all,
+         worktree: :staged
+       }) do
+    case Git.staged_files(path) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+         scope: :all,
+         worktree: :unstaged
+       }) do
+    case Git.unstaged_files(path) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  defp lens_blobs_and_stats(project, git_diff, %{scope: :all, worktree: :diff}, paths) do
+    {head_blob_ids(project, git_diff, paths), diff_stats(project, git_diff)}
+  end
+
+  # Non-default lenses skip cached blob ids + line stats. Content hash is nil
+  # (no stable cache key against the live worktree/commit view — the frontend
+  # always refetches under a lens); +N/−M chips are omitted for the same
+  # reason. These are follow-ups if the reviewer wants them.
+  defp lens_blobs_and_stats(_project, _git_diff, _lens, _paths), do: {%{}, %{}}
+
+  defp lens_file_diff(%Project{path: path}, git_diff, %{scope: :all, worktree: :diff}, rel_path) do
+    Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, rel_path)
+  end
+
+  defp lens_file_diff(
+         %Project{path: path},
+         _git_diff,
+         %{scope: {:commits, [sha]}, worktree: :diff},
+         rel_path
+       ) do
+    Git.commit_file_diff(path, sha, rel_path)
+  end
+
+  defp lens_file_diff(
+         %Project{path: path},
+         _git_diff,
+         %{scope: {:commits, [newest | _rest] = shas}, worktree: :diff},
+         rel_path
+       ) do
+    Git.range_diff(path, List.last(shas), newest, rel_path)
+  end
+
+  defp lens_file_diff(
+         %Project{path: path},
+         _git_diff,
+         %{scope: :all, worktree: :staged},
+         rel_path
+       ) do
+    Git.staged_file_diff(path, rel_path)
+  end
+
+  defp lens_file_diff(
+         %Project{path: path},
+         _git_diff,
+         %{scope: :all, worktree: :unstaged},
+         rel_path
+       ) do
+    Git.unstaged_file_diff(path, rel_path)
+  end
+
+  # Walk `shas` (oldest → newest) and merge each commit's `commit_files/2`
+  # entries into a `path => status` map so a later commit's status wins.
+  # Bails on the first git error. The caller keeps ordering (the sorted list
+  # in `list_files/2` sorts by path anyway).
+  defp multi_commit_files(path, shas) do
+    result = Enum.reduce_while(shas, {:ok, %{}}, &merge_commit_files(path, &1, &2))
+
+    case result do
+      {:ok, map} -> {:ok, for({p, s} <- map, do: %{path: p, status: s})}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp merge_commit_files(path, sha, {:ok, acc}) do
+    case Git.commit_files(path, sha) do
+      {:ok, entries} ->
+        {:cont, {:ok, Enum.into(entries, acc, fn %{path: p, status: s} -> {p, s} end)}}
+
+      {:error, reason} ->
+        {:halt, {:error, reason}}
     end
   end
 end

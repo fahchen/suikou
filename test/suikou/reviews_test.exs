@@ -596,6 +596,206 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "fetch_content_by_path/3 (live lens, BDR-0024)" do
+    @tag :tmp_dir
+    test "commit scope returns only that commit's diff", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+      File.write!(Path.join(dir, "b.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add b"])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "a.txt",
+                 %{scope: {:commits, [sha]}}
+               )
+
+      assert diff =~ "+one"
+      refute diff =~ "b.txt"
+    end
+
+    @tag :tmp_dir
+    test "multi-commit scope spans the range oldest..newest", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha_a, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_a = String.trim(sha_a)
+      File.write!(Path.join(dir, "a.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "edit a"])
+      {sha_b, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_b = String.trim(sha_b)
+
+      review = diff_review_with(dir, "main", "topic")
+
+      # `list_diff_commits/1` orders newest first; feed the same order in.
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "a.txt",
+                 %{scope: {:commits, [sha_b, sha_a]}}
+               )
+
+      assert diff =~ "+two"
+      refute diff =~ "+one"
+    end
+
+    @tag :tmp_dir
+    test "empty commits list normalizes to :all", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      review = diff_review_with(dir, "main", "topic")
+
+      empty =
+        Reviews.fetch_content_by_path(Reviews.get_review(review.id), "a.txt", %{
+          scope: {:commits, []}
+        })
+
+      all = Reviews.fetch_content_by_path(Reviews.get_review(review.id), "a.txt", %{scope: :all})
+      assert empty == all
+    end
+
+    @tag :tmp_dir
+    test "unstaged worktree returns the working-tree diff", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "seed.txt"), "committed\n") end)
+      File.write!(Path.join(dir, "seed.txt"), "worktree edit\n")
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "seed.txt",
+                 %{worktree: :unstaged}
+               )
+
+      assert diff =~ "+worktree edit"
+    end
+
+    @tag :tmp_dir
+    test "staged worktree returns the index diff vs HEAD", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "seed.txt"), "committed\n") end)
+      File.write!(Path.join(dir, "seed.txt"), "staged edit\n")
+      git!(dir, ["add", "."])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "seed.txt",
+                 %{worktree: :staged}
+               )
+
+      assert diff =~ "+staged edit"
+    end
+
+    @tag :tmp_dir
+    test "rejects commit scope combined with staged worktree", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      review = diff_review_with(dir, "main", "topic")
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:error, :invalid_scope_worktree_combination} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "a.txt",
+                 %{scope: {:commits, [sha]}, worktree: :staged}
+               )
+    end
+
+    @tag :tmp_dir
+    test "rejects a sha that is not in the review's commit range", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      review = diff_review_with(dir, "main", "topic")
+
+      # A sha that resolves to a commit but sits outside base...head (main's HEAD
+      # is on main, not in topic's range).
+      git!(dir, ["checkout", "-q", "main"])
+      {main_sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      main_sha = String.trim(main_sha)
+
+      assert {:error, :commit_not_in_range} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "a.txt",
+                 %{scope: {:commits, [main_sha]}}
+               )
+    end
+
+    @tag :tmp_dir
+    test "default lens (empty map) matches fetch_content_by_path/2", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      review = diff_review_with(dir, "main", "topic")
+
+      arity2 = Reviews.fetch_content_by_path(Reviews.get_review(review.id), "a.txt")
+      arity3 = Reviews.fetch_content_by_path(Reviews.get_review(review.id), "a.txt", %{})
+      assert arity2 == arity3
+    end
+  end
+
+  describe "list_files/2 (live lens, BDR-0024)" do
+    @tag :tmp_dir
+    test "commit scope narrows the file list to that commit's changes", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+      File.write!(Path.join(dir, "b.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add b"])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      paths =
+        review.id
+        |> Reviews.get_review()
+        |> Reviews.list_files(%{scope: {:commits, [sha]}})
+        |> Enum.map(& &1.path)
+
+      assert paths == ["a.txt"]
+    end
+
+    @tag :tmp_dir
+    test "staged worktree lens returns the index vs HEAD file list", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "one\n") end)
+      File.write!(Path.join(dir, "staged_only.txt"), "new\n")
+      git!(dir, ["add", "."])
+
+      review = diff_review_with(dir, "main", "topic")
+
+      paths =
+        review.id
+        |> Reviews.get_review()
+        |> Reviews.list_files(%{worktree: :staged})
+        |> Enum.map(& &1.path)
+
+      assert paths == ["staged_only.txt"]
+    end
+  end
+
   describe "open_file/2 (git diff)" do
     @tag :tmp_dir
     test "mints a round-0 artifact for a changed path", %{tmp_dir: dir} do
