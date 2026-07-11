@@ -5,20 +5,121 @@ Reproduce the Suikou review-app frontend (`assets/`) 1:1 from the design mockups
 state by state, against the server-authoritative Musubi runtime — breadth first
 (all states present), then depth.
 
-## Current Phase
-2026-07-09/10: **Phase Ecomplete (comment lifecycle depth) is DONE.** Shipped E7/E8
-re-anchor (Source + markdown preview, `relocate_comment`), E16 stranded band, and E12
-reactions — the last grew into a full reaction redesign: disjoint vocabularies (human
-approval scale `💯👍👎❌` / agent work status `👀🤔✅`), actor-scoped validation,
-single-select per `(target, actor)` with replace-on-conflict, agent-avatar read-only
-chips, and the `suikou comment react`/`unreact` agent CLI verbs. Committed (`91a1ae7`,
-`2bfce48`, `bcbf2df`, `2b563d9`, `f2ee365`, `47dc475`, `0493d87`, `9008f33`, `b6c2ad7`);
-backend 445 tests pass, frontend typecheck/build green, all live-verified on the dev
-board ("Reaction demo" fixture `019f4908-1fd6-736e-8b0a-bd1b51d3b334`). **Not pushed.**
+## Current Phase — BDR-0025 rewrite: branch-only refs + multi-select commit scope (2026-07-11)
+**Gates green throughout**: `bun run typecheck` ✅ + `bun run build` ✅ +
+`mise exec -- mix test` = **518 pass**, 55 doctests / 463 tests. **Not pushed.**
 
-Current selected feature task: **none active** — awaiting user pick. Next per backlog:
-P4 D6/D7 diff + J1–J8 git_diff (renderer = `@pierre/diffs`), or P3-D11 stacked all-files
-mode.
+### Landed this session
+- **BDR-0025** written and accepted (`spec/decisions/BDR-0025-…`), supersedes
+  BDR-0020 §3 (immutable pinned SHAs) and BDR-0024 §2 (single-commit lens).
+- **Schema**: `ReviewSource.GitDiff` now holds only `base_ref`/`head_ref`
+  (branch names). `base_sha`/`head_sha` deleted from the embed. Every render
+  re-resolves refs live.
+- **Refs snapshot**: `Reviews.refs_snapshot/1` collapses to
+  `%{base_ref, head_ref, refs_valid}`. `refs_valid=false` when either ref no
+  longer resolves — surfaces as a full-viewport error page in the content
+  area (chrome stays, delete happens from the board's per-review kebab).
+- **Scope shape**: `{:commits, [sha, ...]}`. `[]` normalizes to `:all`;
+  single sha → that commit's patch; multi sha → `<oldest>^..<newest>` range
+  via new `Suikou.Git.range_diff/4` (empty-tree fallback for root commits).
+- **AssetController**: `?scope=all` (default) | `?scope=commits:sha1,sha2,...`
+  (hex, comma-separated); `?worktree=diff|staged|unstaged`.
+- **Frontend**:
+  - Old refs strip (`WorktreePicker` + `CommitsPopover` + `RefsWarningIcon` +
+    lens strip) deleted; `RefsMovedBanner`/`BranchDeletedBanner` + mobile
+    `ReviewBanner` gone with them.
+  - New `ScopePicker`: shared `ScopePickerBody` (source radio + commits
+    multi-select checkbox list) + `ScopePopover` trigger. Desktop trigger
+    lives in the file navigator header; mobile Files sheet grows a
+    Files/Scope tab bar and reuses the same body.
+  - `uiStore.diffScope: "all" | { commits: string[] }` with
+    `toggleDiffCommit(sha)` helper. Mutual-exclusion setters intact.
+  - `useFileContent` builds `?scope=commits:sha1,sha2` query strings.
+  - `RefsErrorPage` shows on `refs_valid: false`.
+- **Diff/source header parity**: `renderCustomHeader={() => null}` on
+  `PatchDiff` so the outer 42px file head is the only header. A/M/D letter
+  extracted to `ChangeStatusLetter` and reused by both navigator and file
+  head; desktop + mobile file head render the same dir/name path shape.
+- **Stacked view**: renders diffs via `DiffView` (PatchDiff highlighting) in
+  the isDiff branch; each file gets a chevron collapse toggle; markdown
+  Preview toggle disabled while in a diff review (was rendering diff text as
+  markdown).
+- **File ordering**: `orderByTree` (generic DFS on `path`) reorders the file
+  list to match the navigator tree — dirs before files at each level, then
+  alphabetical. Stacked view + prev/next nav both consume the reordered list
+  so all three iterate files in the same order.
+
+### Resolved
+- **Stacked inline comment save** (Task #36): NOT reproducible on this branch.
+  E2E on the "D11 stacked all-files" review — a stacked source line comment
+  saved (composer closed, zero console errors, persisted: comment `019f50fa`,
+  `LineRange{1,1}` with captured quote, scope `located`). Single-file and
+  stacked share one `fileProxy` path (`Source`/`DiffView`), so the earlier
+  report is resolved by the unified code path. Closed.
+
+### Landed since (worktree, NOT pushed) — E2E verified, screenshots in design/acceptance/p4-live-lens/
+- **#49 `diff_hunk` composer for NEW anchors** (custom `DiffRenderer`): gutters
+  are click/drag targets (`useDiffSelection` in `DiffRenderer.tsx`) that select
+  a contiguous line range on one side and open an inline `Composer`; submit
+  dispatches `add_comment` with `{type:"diff_hunk", side, start_line, end_line}`
+  (scope `located`) from `DiffView.tsx`. Works in unified + split, single-file +
+  stacked. Gated behind `commentable` (`!readOnly && fileProxy`).
+- **#51 stacked direct jump**: aside-click now uses instant `scrollIntoView`
+  (no smooth) so intervening files never mount, and force-unmounts non-target
+  file bodies at once via a `jumping` signal (`StackedEditor.tsx`) instead of
+  waiting `UNMOUNT_DELAY_MS`.
+
+### Landed this session (committed to worktree, NOT pushed)
+- **BDR-0024** written and accepted (`spec/decisions/BDR-0024-…`): supersedes
+  BDR-0020 §3 to allow a request-time **live lens** (scope × worktree)
+  overlay on a `GitDiff` review. Refs still pinned at creation; scope +
+  worktree re-interpret the *rendered* diff per request. Boundary rule:
+  `scope=commit:<sha>` × `worktree=staged|unstaged` is rejected as invalid.
+- **Backend live-lens overlay**:
+  - `Git.commit_files/2`, `Git.commit_file_diff/3`, `Git.staged_files/1`,
+    `Git.unstaged_files/1`, `Git.staged_file_diff/2`, `Git.unstaged_file_diff/2`
+    (new git primitives, 22 new tests, total 78 pass in git_test.exs).
+  - `Reviews.list_files/2` + `Reviews.fetch_content_by_path/3` accept a
+    `%{scope, worktree}` lens map. Rejects `:invalid_scope_worktree_combination`
+    and `:commit_not_in_range`. Default lens = pre-BDR-0024 behaviour, so all
+    existing `/2` callers stay identical.
+  - `SuikouWeb.AssetController.file_content/2` parses `?scope=all|commit:<sha>`
+    + `?worktree=diff|staged|unstaged` query params. 400 on invalid combo /
+    unknown keyword; 404 on unknown review or content miss.
+- **Frontend live switching**:
+  - `uiStore.diffScope` / `uiStore.diffWorktree` + setters that enforce the
+    boundary rule (setting a commit resets worktree to `:diff`, setting
+    a worktree resets scope to `:all`).
+  - `CommitsPopover` now control-path: shows the current lens selection,
+    clicking a commit sets `diffScope`, "Reset" restores "All commits".
+  - **New `WorktreePicker`** (Diff / Staged / Unstaged), disabled while a
+    single commit is picked.
+  - `useFileContent(reviewId, path, lens?)` appends the lens as
+    `?scope=…&worktree=…` when set. Threaded through single-file `Editor`
+    and stacked `StackedFile`/`StackedFileContent`.
+  - `Shell` computes `diffLens` from `uiStore` and resets it on review change.
+- **J3 diff_hunk comment anchoring** (delegated to a code agent):
+  - `DiffView` now filters `diff_hunk`-anchored comments, feeds them to
+    `PatchDiff` via `lineAnnotations` + `renderAnnotation` slot, and renders
+    each with the shared `CommentThread`. `selectedLines` highlights the
+    focused anchor's range on the correct side (`old`→deletions, `new`→additions).
+  - Threaded through single-file Editor. Stacked path untouched (stacked
+    renders diffs as Source today; noted in `DiffView.tsx` as a ponytail
+    follow-up).
+- **J-unavailable-diff notice**: diff reviews now surface a "Diff unavailable"
+  hint (with a scope/worktree suggestion) instead of the generic error red text.
+- **Mobile ReviewBanner (#25/#31 H2)**: 36px `lg:hidden` banner between the
+  refs banners and the grid, showing the current rollup verdict, reviewed
+  count, and open-blocker count — so mobile has H2 access without a dedicated
+  overview sheet (matches findings.md §100 "no dedicated overview sheet").
+  Mobile submit sheet + files sheet were already in place.
+
+### Follow-ups deliberately deferred (`ponytail:` notes in code)
+- Multi-line `diff_hunk` cards render under the range's start line
+  (GitHub-style end-line is one-character switch inside DiffView).
+- Per-file `+N/−M` chips + stable content_hash cache key for
+  staged/unstaged/single-commit lenses. `list_files/2` returns `nil` for
+  these under a non-default lens (`Reviews.lens_blobs_and_stats/4`).
 
 Parallel maintenance track complete: **frontend business-component extraction**
 inside `assets/src/review/` so the remaining feature work lands on smaller modules.
@@ -53,18 +154,24 @@ Cross-cutting implementation decisions now recorded for later tasks:
    (E7/E8 re-anchor, E16 stranded, E12 reaction redesign + agent CLI verb). See Phase Ecomplete below.
 2. [x] P-mobile file switching first slice: mobile file head now has previous/next file controls and a
    current-file chip that opens the existing Files sheet. The sheet remains the search/tree fallback.
-3. P-mobile #25/#31: finish the mobile app bar and bottom-sheet submit/overview shell, keeping comment actions
-   usable without hover.
-4. P3-D11 stacked-all-files mode, including comment grouping and interaction with the per-file verdict chip.
-5. P4-J diff comment anchoring: map `diff_hunk` comments onto rendered diff lines using the shared comment
-   components; introduce `parsePatchFiles` only if rendered-line metadata is actually needed.
-6. P4-D6: render `git_diff` reviews with `@pierre/diffs` `PatchDiff` from the existing unified patch payload.
-   Keep this as the smallest useful diff viewer before adding custom anchor logic.
-7. P4-D7: add unified / side-by-side display switching on the same diff payload. If the library path is not
-   straightforward, defer split view instead of building a second renderer.
-8. P4-J refs/status states: surface refs moved / branch deleted / unavailable diff states from the existing review
-   metadata.
-9. P4-J cross-round diff behavior and diff submit edge cases after the renderer and anchors are stable.
+3. [x] P-mobile #25/#31 shell: the mobile submit sheet and files sheet were already in place; this session added
+   `ReviewBanner` (mobile-only H2 verdict + reviewed + blockers strip above the editor), so overview access no
+   longer needs a dedicated sheet.
+4. [x] P3-D11 stacked-all-files mode: `StackedFiles` / `StackedFile` / `StackedFileContent` + `StackedSideRail`
+   ship the desktop stacked view with viewport virtualization, per-file verdict chip, comment grouping.
+5. [x] P4-J3 diff comment anchoring: published `diff_hunk` comments render on `@pierre/diffs`'s PatchDiff via
+   `lineAnnotations` + `renderAnnotation` reusing the shared `CommentThread`. Composer for **new** hunk anchors
+   is a ponytail follow-up.
+6. [x] P4-D6 baseline diff renderer via `@pierre/diffs` `PatchDiff` on the pinned base_ref...head_ref diff.
+7. [x] P4-D7 unified/split via `uiStore.diffStyle` — same payload, `PatchDiff`'s `diffStyle` option.
+8. [x] P4-J refs states: `RefsMovedBanner` (J1), `BranchDeletedBanner` (J2), and a diff-specific
+   "Diff unavailable" notice (J-unavailable) surface every ref state the payload already carries.
+9. Remaining diff polish (do only when there's a concrete review that needs them):
+   - Composer for new `diff_hunk` anchors on a rendered PatchDiff (range-select → `add_comment`).
+   - `+N / −M` chips + stable content_hash cache key for staged/unstaged/single-commit lenses.
+   - Stacked all-files diff view (StackedFileContent currently renders diffs as Source).
+   - J5 cross-round line diff verification (round-compare bar already renders; needs an eyes-on).
+   - J6 diff-specific submit edge cases; J8 resolved diff thread acceptance visual.
 10. Small maintenance: add the overscroll CSS rule; use `fs_notify` only when starting file-change-driven work.
 
 ### E14/H1-H4 Implementation Plan
@@ -220,8 +327,16 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
 - [x] D11 empty file — centered empty-state notice (File icon badge + heading + explanation +
       filename pill), sharing a `FileNotice` shell with the binary notice (committed `d2c3dbc`,
       restyled `21d0954`).
-- [ ] D11 stacked-all-files mode — deferred to task #26 (overlaps G per-file verdict chip).
-- **Status:** D2/D8/D9/D10/D11-empty done. Remaining: D3/D4/D5 html (task #22), D11-stacked (#26).
+- [x] D11 stacked-all-files mode — implemented in
+      `assets/src/review/components/StackedEditor.tsx` (`StackedFiles` +
+      `StackedFile` viewport virtualization + `StackedFileContent` heavy body +
+      `StackedSideRail` cross-file comments rail). Toggle in Settings → Review
+      defaults → File layout (single/stacked). See `D11-stacked-implementation.md`
+      for the design writeup. Toolbar "Hide reviewed" filter + scroll-spy
+      navigator both wired. Stacked diff rendering still falls back to Source
+      (per intentional simplification in the doc); noted as a ponytail follow-up.
+- **Status:** D2/D8/D9/D10/D11-empty/D11-stacked done. Remaining: D3/D4/D5 html
+  (task #22).
 
 ### Phase P4: Multi-round + git_diff
 - [x] A5–A7 latest / history (superseded, read-only) / round compare
@@ -247,8 +362,19 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
             side (see `refs_snapshot` docstring in `reviews.ex`). Renders alongside J1 for
             diff reviews only. No backend change needed — payload already has the nullable
             SHAs.
-      - [ ] J3–J8: diff_hunk anchors, unavailable diff, cross-round line diff,
-            diff submit edge cases
+      - [x] J3 diff_hunk anchoring — published `diff_hunk` comments render inline on the
+            `@pierre/diffs` PatchDiff via `lineAnnotations` + `renderAnnotation`, reusing
+            the shared `CommentThread`. Focus highlights the anchor range on the correct
+            side (`old`→deletions, `new`→additions). Composer for **new** hunk anchors
+            deferred as a ponytail note in `DiffView.tsx`.
+      - [x] J-unavailable — diff-specific "Diff unavailable" notice with a
+            scope/worktree hint replaces the generic error red text for
+            `isDiff && content.kind === "error"`.
+      - [ ] J5 cross-round line diff (round compare bar already exists; verifying
+            it renders true per-line diff for diff reviews is a small polish slice).
+      - [ ] J6 diff submit edge cases beyond the existing G soft gate / confirm.
+      - [ ] J8 diff resolved thread + agent reply state — already works through the
+            shared `CommentThread`; needs an acceptance visual to confirm.
 
 #### Diff review requirements (user-defined 2026-07-10) — "全部要做"
 1. **Scope control** for a diff review:
@@ -271,7 +397,14 @@ full mobile pass (#25/#31) vs continue desktop breadth (P4 rounds/diff, Ecomplet
   3. Map Suikou comment anchors to the library's rendered line/hunk structure; keep comment UI on the existing
      shared comment components instead of forking a new diff-thread implementation.
   4. Treat split view as a display-mode concern on top of the same diff payload, not a second diff pipeline.
-- **Status:** pending
+- **Status:** LIVE LENS SLICE DONE (2026-07-11). BDR-0024 supersedes BDR-0020 §3
+  for the *rendered* diff only (stored refs still pinned). Backend + frontend
+  scope×worktree overlay wired end-to-end; `CommitsPopover` control-path;
+  new `WorktreePicker`; J3 diff_hunk anchors render on PatchDiff; J-unavailable
+  notice replaces the generic error text. Remaining polish: J5 cross-round
+  diff verification, J6 diff-specific submit edge cases, J8 resolved-thread
+  acceptance visual, composer for new diff_hunk anchors, +N/−M chips under
+  non-default lenses. See top-of-file "Landed this session" + Follow-ups.
 
 #### Diff review backend contract (mapped 2026-07-10)
 Read-only snapshot of what exists today so the next slice can build on real ground, not the mockup.
@@ -481,6 +614,7 @@ decision). `bun run typecheck` + `bun run build` green.
 | E12 reactions: human + agent both react | User pick (2026-07-09). Reactions carry an `actor` (`:human`/`:agent`) and counts can exceed 1 — deliberately extends the BDR-0018 "agent may only reply" boundary. Human reacts via the UI now; the agent reaction path (CLI verb) is a later deliverable, but the schema/rendering already support `:agent` |
 | E12 reactions: disjoint human/agent emoji vocab (2026-07-10) | User pick. Human = approval/opposition scale `💯 strong_agree · 👍 agree · 👎 disagree · ❌ strong_disagree`. Agent = work-status `👀 eyes(working) · 🤔 thinking · ✅ check(done)`. Sets are DISJOINT, so the frontend derives "show bot avatar" from the emoji alone (no snapshot flag). Actor-scoped validation: each actor may only use its own set. Agent reacts via a new agent path (`AgentCLI.Comments.react` + `suikou comment react` verb). Old emoji (tada/heart/pray) dropped |
 | P4 diff renderer = `@pierre/diffs` | Avoid building a custom diff parser/viewer; adapt backend patch data into an existing React diff surface |
+| Diff review live lens (BDR-0024) | Refs stay pinned at creation; scope (`all` / `commit:<sha>`) × worktree (`diff` / `staged` / `unstaged`) are per-request query params re-read from live git. `commit × staged/unstaged` is invalid. Comments drift into the E16 stranded band on lens switch via the existing quote-based re-anchor path |
 | Filesystem watch = `fs_notify` | Reuse the existing Elixir-native watcher instead of inventing another file-change notification path |
 | (future #29) Integrate Motion with Base UI | Polish pass — animate Base UI primitives (dialog/menu/tooltip/popover/segmented) + html comment overlay via motion.dev/docs/base-ui |
 
