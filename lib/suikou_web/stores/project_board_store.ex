@@ -515,11 +515,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       selections: paths,
       base_ref: nil,
       head_ref: nil,
-      base_sha: nil,
-      head_sha: nil,
-      creation_base_sha: nil,
-      creation_head_sha: nil,
-      refs_moved: false
+      refs_valid: false
     }
   end
 
@@ -527,16 +523,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # refs, not a path list. The card surfaces its file count + list through the
   # async `review_files` field; `selections` stays empty. `base_ref`/`head_ref`
   # let the card display the compared refs (e.g. `main..topic`) independently
-  # of the review's chosen name. `base_sha`/`head_sha` are the refs' CURRENT
-  # commit SHAs (40-char hex) so the reviewer can tell which commits the diff
-  # actually reflects right now; both are `nil` when the ref no longer
-  # resolves (deleted branch, detached state). `creation_base_sha` /
-  # `creation_head_sha` are the SHAs pinned when the review was created (or
-  # backfilled from the then-current SHA for legacy rows), and `refs_moved`
-  # is true iff at least one side's current SHA differs from its creation
-  # SHA. A vanished current SHA does not flag a move (`refs_moved: false` on
-  # the unknown side), so the reviewer is not warned about a phantom move
-  # just because a branch was deleted.
+  # of the review's chosen name. `refs_valid` is `false` when either side no
+  # longer resolves in the project's git tree, so the workspace can surface a
+  # branch-deleted error page instead of a stale snapshot (BDR-0025).
   defp render_review(%Review{source: %GitDiff{}} = review) do
     refs = Reviews.refs_snapshot(review)
 
@@ -548,11 +537,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       selections: [],
       base_ref: refs.base_ref,
       head_ref: refs.head_ref,
-      base_sha: refs.base_sha,
-      head_sha: refs.head_sha,
-      creation_base_sha: refs.creation_base_sha,
-      creation_head_sha: refs.creation_head_sha,
-      refs_moved: refs.refs_moved
+      refs_valid: refs.refs_valid
     }
   end
 

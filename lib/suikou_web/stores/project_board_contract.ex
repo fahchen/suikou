@@ -89,11 +89,7 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
             selections: list(String.t()),
             base_ref: String.t() | nil,
             head_ref: String.t() | nil,
-            base_sha: String.t() | nil,
-            head_sha: String.t() | nil,
-            creation_base_sha: String.t() | nil,
-            creation_head_sha: String.t() | nil,
-            refs_moved: boolean()
+            refs_valid: boolean()
           })
       })
     end

@@ -70,7 +70,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
 
     @tag :tmp_dir
-    test "exposes a git-diff review's base/head refs and current commit SHAs on the card",
+    test "exposes a git-diff review's base/head refs and refs_valid on the card",
          %{tmp_dir: dir} do
       init_repo!(dir)
       git!(dir, ["checkout", "-q", "-b", "topic"])
@@ -97,74 +97,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                        selections: [],
                        base_ref: "main",
                        head_ref: "topic",
-                       base_sha: base_sha,
-                       head_sha: head_sha,
-                       creation_base_sha: creation_base_sha,
-                       creation_head_sha: creation_head_sha,
-                       refs_moved: false
+                       refs_valid: true
                      }
                    ]
                  }
                ]
              } = Testing.render(page)
-
-      assert is_binary(base_sha)
-      assert is_binary(head_sha)
-      assert byte_size(base_sha) == 40
-      assert byte_size(head_sha) == 40
-      refute base_sha == head_sha
-      # Just created: creation SHAs match current resolution.
-      assert creation_base_sha == base_sha
-      assert creation_head_sha == head_sha
     end
 
     @tag :tmp_dir
-    test "git-diff card flags refs_moved once a pinned ref advances",
-         %{tmp_dir: dir} do
-      init_repo!(dir)
-      git!(dir, ["checkout", "-q", "-b", "topic"])
-      File.write!(Path.join(dir, "a.txt"), "x\n")
-      git!(dir, ["add", "."])
-      git!(dir, ["commit", "-q", "-m", "topic v1"])
-      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
-
-      {:ok, _review} =
-        Reviews.create_diff_review(project, %{
-          name: "Topic",
-          base_ref: "main",
-          head_ref: "topic"
-        })
-
-      page = Testing.mount(ProjectBoardStore)
-
-      %{projects: [%{reviews: [%{refs_moved: false, creation_head_sha: pinned_head}]}]} =
-        Testing.render(page)
-
-      assert is_binary(pinned_head)
-
-      File.write!(Path.join(dir, "a.txt"), "y\n")
-      git!(dir, ["add", "."])
-      git!(dir, ["commit", "-q", "-m", "topic v2"])
-
-      %{
-        projects: [
-          %{
-            reviews: [
-              %{
-                refs_moved: true,
-                head_sha: current_head,
-                creation_head_sha: ^pinned_head
-              }
-            ]
-          }
-        ]
-      } = Testing.render(page)
-
-      refute current_head == pinned_head
-    end
-
-    @tag :tmp_dir
-    test "git-diff card refs_moved stays false when a ref vanishes",
+    test "git-diff card refs_valid flips to false when a ref vanishes",
          %{tmp_dir: dir} do
       init_repo!(dir)
       git!(dir, ["checkout", "-q", "-b", "topic"])
@@ -180,83 +122,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
           head_ref: "topic"
         })
 
-      git!(dir, ["checkout", "-q", "main"])
-      git!(dir, ["branch", "-q", "-D", "topic"])
-
-      page = Testing.mount(ProjectBoardStore)
-
-      assert %{
-               projects: [
-                 %{
-                   reviews: [
-                     %{
-                       kind: :git_diff,
-                       head_sha: nil,
-                       creation_head_sha: creation_head,
-                       refs_moved: false
-                     }
-                   ]
-                 }
-               ]
-             } = Testing.render(page)
-
-      # The pinned creation SHA is still there; only the current resolution
-      # vanished. The reviewer must not be told the ref "moved".
-      assert is_binary(creation_head)
-    end
-
-    @tag :tmp_dir
-    test "git-diff card head_sha follows the head ref when it advances",
-         %{tmp_dir: dir} do
-      init_repo!(dir)
-      git!(dir, ["checkout", "-q", "-b", "topic"])
-      File.write!(Path.join(dir, "a.txt"), "x\n")
-      git!(dir, ["add", "."])
-      git!(dir, ["commit", "-q", "-m", "topic v1"])
-      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
-
-      {:ok, _review} =
-        Reviews.create_diff_review(project, %{
-          name: "Topic",
-          base_ref: "main",
-          head_ref: "topic"
-        })
-
-      page = Testing.mount(ProjectBoardStore)
-      %{projects: [%{reviews: [%{head_sha: before_sha}]}]} = Testing.render(page)
-
-      File.write!(Path.join(dir, "a.txt"), "y\n")
-      git!(dir, ["add", "."])
-      git!(dir, ["commit", "-q", "-m", "topic v2"])
-
-      # render/1 re-resolves the ref on each call, so the second snapshot
-      # reflects the advanced branch without re-mounting.
-      %{projects: [%{reviews: [%{head_sha: after_sha}]}]} = Testing.render(page)
-
-      assert is_binary(before_sha)
-      assert is_binary(after_sha)
-      refute before_sha == after_sha
-    end
-
-    @tag :tmp_dir
-    test "git-diff card SHAs are nil when a ref no longer resolves",
-         %{tmp_dir: dir} do
-      init_repo!(dir)
-      git!(dir, ["checkout", "-q", "-b", "topic"])
-      File.write!(Path.join(dir, "a.txt"), "x\n")
-      git!(dir, ["add", "."])
-      git!(dir, ["commit", "-q", "-m", "topic"])
-      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
-
-      {:ok, _review} =
-        Reviews.create_diff_review(project, %{
-          name: "Topic",
-          base_ref: "main",
-          head_ref: "topic"
-        })
-
-      # Branch ref disappears (e.g. deleted upstream). Card render must not
-      # blow up; SHA fields stay null.
       git!(dir, ["checkout", "-q", "main"])
       git!(dir, ["branch", "-q", "-D", "topic"])
 
@@ -270,19 +135,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                        kind: :git_diff,
                        base_ref: "main",
                        head_ref: "topic",
-                       base_sha: base_sha,
-                       head_sha: nil
+                       refs_valid: false
                      }
                    ]
                  }
                ]
              } = Testing.render(page)
-
-      assert is_binary(base_sha)
     end
 
     @tag :tmp_dir
-    test "file-selection card carries nil SHA fields", %{tmp_dir: dir} do
+    test "file-selection card carries nil ref fields and refs_valid false", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
       {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
@@ -295,8 +157,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                    reviews: [
                      %{
                        kind: :file_selection,
-                       base_sha: nil,
-                       head_sha: nil
+                       base_ref: nil,
+                       head_ref: nil,
+                       refs_valid: false
                      }
                    ]
                  }

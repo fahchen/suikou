@@ -67,23 +67,18 @@ defmodule SuikouWeb.Stores.ReviewStore do
         })
       )
 
-      # Ref/SHA identity for a git_diff review — the labels picked at creation,
-      # each side's pinned and current SHA, and whether at least one side moved
-      # since pinning. `nil` for a file_selection review. Powers the workspace
-      # breadcrumb's refs line, the refs-moved / branch-deleted pills, and the
-      # "Re-diff refs" banner without the client having to hit the board store.
-      # Shape mirrors `Reviews.refs_snapshot/0` — kept inline so `musubi_ts` can
-      # emit a concrete TypeScript object rather than `unknown`.
+      # Ref identity for a git_diff review — the labels picked at creation, and
+      # whether both refs still resolve. `nil` for a file_selection review.
+      # Powers the workspace breadcrumb's refs line and the branch-deleted
+      # error page without the client having to hit the board store. Shape
+      # mirrors `Reviews.refs_snapshot/1` — kept inline so `musubi_ts` can emit
+      # a concrete TypeScript object rather than `unknown`.
       field(
         :refs,
         %{
-          base_ref: String.t() | nil,
-          head_ref: String.t() | nil,
-          base_sha: String.t() | nil,
-          head_sha: String.t() | nil,
-          creation_base_sha: String.t() | nil,
-          creation_head_sha: String.t() | nil,
-          refs_moved: boolean()
+          base_ref: String.t(),
+          head_ref: String.t(),
+          refs_valid: boolean()
         }
         | nil
       )
