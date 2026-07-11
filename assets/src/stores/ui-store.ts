@@ -34,7 +34,7 @@ class UiStore {
   commentDisplay: CommentDisplayMode = "inline"
   fileRange: FileRange = "single"
   diffStyle: DiffStyle = "unified"
-  wordDiff = false
+  wordDiff = true
   diffScope: DiffScope = "all"
   diffWorktree: DiffWorktree = "diff"
   settingsOpen = false
@@ -138,7 +138,7 @@ class UiStore {
     if (fileRange === "single" || fileRange === "stacked") this.fileRange = fileRange
     const diffStyle = localStorage.getItem(DIFF_STYLE_KEY)
     if (diffStyle === "unified" || diffStyle === "split") this.diffStyle = diffStyle
-    this.wordDiff = localStorage.getItem(WORD_DIFF_KEY) === "1"
+    this.wordDiff = localStorage.getItem(WORD_DIFF_KEY) !== "0"
     this.applyTheme()
   }
 
