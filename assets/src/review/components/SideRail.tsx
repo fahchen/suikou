@@ -118,7 +118,15 @@ export function SideRail({
         aria-label={`Comments sorted by ${selectedSortLabel.toLowerCase()}`}
       >
         {sortedComments.length === 0 ? (
-          <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">No comments on this file.</div>
+          <div className="grid h-full place-items-center px-6 text-center">
+            <div className="flex flex-col items-center gap-2.5">
+              <div className="grid size-[38px] place-items-center rounded-[12px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
+                <MessageSquare size={16} aria-hidden />
+              </div>
+              <div className="text-[12px] font-semibold text-ink">No comments on this file</div>
+              <div className="max-w-[24ch] text-[11px] leading-[1.45] text-muted">Click a line's gutter to start a new thread.</div>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             {sortedComments.map((comment) => (

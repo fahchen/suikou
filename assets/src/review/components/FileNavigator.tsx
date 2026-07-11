@@ -31,6 +31,29 @@ const STATUS_META: Record<
   type_changed: { letter: "T", className: "text-muted", title: "Type changed" },
 }
 
+/** Shared A/M/D letter used by the navigator's FileRow and the editor's
+ * file head so a diff review shows the same change-status affordance on
+ * both surfaces. `null` renders nothing so the caller doesn't need to
+ * branch. */
+export function ChangeStatusLetter({
+  status,
+  className = "",
+}: {
+  status: NonNullable<ReviewFileEntry["change_status"]> | null
+  className?: string
+}) {
+  if (!status) return null
+  const meta = STATUS_META[status]
+  return (
+    <span
+      title={meta.title}
+      className={`w-[10px] shrink-0 text-center font-mono text-[10.5px] font-bold ${meta.className} ${className}`}
+    >
+      {meta.letter}
+    </span>
+  )
+}
+
 type TreeNode =
   | { kind: "dir"; name: string; path: string; children: TreeNode[] }
   | { kind: "file"; name: string; path: string; entry: ReviewFileEntry }
@@ -132,6 +155,52 @@ export function FileList({
       </div>
     </>
   )
+}
+
+/** Flatten a file list into DFS tree-traversal order — dirs before files at
+ * each level, alphabetical inside — so stacked view + prev/next nav iterate
+ * files in the same order as the FileNavigator tree renders them. Generic
+ * on the entry shape: only `path` is read. */
+export function orderByTree<T extends { path: string }>(entries: T[]): T[] {
+  type Node =
+    | { kind: "dir"; name: string; children: Node[] }
+    | { kind: "file"; name: string; entry: T }
+  const root: Node[] = []
+  const dirs = new Map<string, Extract<Node, { kind: "dir" }>>()
+
+  for (const entry of entries) {
+    const segs = entry.path.split("/")
+    let level = root
+    let prefix = ""
+
+    for (let index = 0; index < segs.length - 1; index += 1) {
+      prefix = prefix ? `${prefix}/${segs[index]}` : segs[index]
+      let dir = dirs.get(prefix)
+      if (!dir) {
+        dir = { kind: "dir", name: segs[index], children: [] }
+        dirs.set(prefix, dir)
+        level.push(dir)
+      }
+      level = dir.children
+    }
+    level.push({ kind: "file", name: segs[segs.length - 1], entry })
+  }
+
+  const sort = (nodes: Node[]) => {
+    nodes.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "dir" ? -1 : 1))
+    for (const node of nodes) if (node.kind === "dir") sort(node.children)
+  }
+  sort(root)
+
+  const out: T[] = []
+  const walk = (nodes: Node[]) => {
+    for (const node of nodes) {
+      if (node.kind === "dir") walk(node.children)
+      else out.push(node.entry)
+    }
+  }
+  walk(root)
+  return out
 }
 
 function buildTree(entries: ReviewFileEntry[]): TreeNode[] {

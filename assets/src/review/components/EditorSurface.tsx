@@ -20,69 +20,146 @@ export type Content =
   | { kind: "binary"; mime: string; bytes: number | null }
   | { kind: "error"; message: string }
 
+/** Live-lens overlay for a diff review's file-content fetch (BDR-0025).
+ * `scope` and `worktree` are per-request query params; the backend
+ * re-interprets them against live git. Missing keys keep the branch-range
+ * diff. `commits` is stored newest-first, matching `/commits` order. */
+export type DiffLens = {
+  scope?: "all" | { commits: string[] }
+  worktree?: "diff" | "staged" | "unstaged"
+}
+
 /** Fetch a review file's bytes and classify them into a render `Content`: text
  * (with async Shiki tokens and a table-of-contents outline), image, binary, or
- * an error. Re-runs when the review or path changes; `null` path stays loading.
- * Shared by the single-file editor and the stacked all-files view. */
-export function useFileContent(reviewId: string, path: string | null): { content: Content; toc: OutlineItem[] } {
-  const [content, setContent] = useState<Content>({ kind: "loading" })
-  const [toc, setToc] = useState<OutlineItem[]>([])
+ * an error. Re-runs when the review, path, or lens changes; `null` path stays
+ * loading. Shared by the single-file editor and the stacked all-files view. */
+// Per-URL cache of the last successful `{content, toc}` payload. Keeps the
+// previously-rendered file visible while a refetch (lens change, path swap)
+// runs against the backend, so switching files or scope never flashes the
+// loading state. Cache is intentionally module-scoped and never invalidated —
+// the backend's live re-read gives the newer bytes when they arrive, and the
+// hook's effect always writes-through so subsequent renders converge.
+const FILE_CONTENT_CACHE = new Map<string, { content: Content; toc: OutlineItem[] }>()
+
+export function useFileContent(
+  reviewId: string,
+  path: string | null,
+  lens?: DiffLens,
+): { content: Content; toc: OutlineItem[] } {
+  const lensKey = lensQueryString(lens)
+  const url = path ? fileContentUrl(reviewId, path, lensKey) : ""
+  const cached = url ? FILE_CONTENT_CACHE.get(url) : undefined
+  const [content, setContent] = useState<Content>(cached?.content ?? { kind: "loading" })
+  const [toc, setToc] = useState<OutlineItem[]>(cached?.toc ?? [])
 
   useEffect(() => {
     if (!path) return
     let cancelled = false
-    setContent({ kind: "loading" })
-    setToc([])
-    fetch(`/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`)
+    const hit = FILE_CONTENT_CACHE.get(url)
+    if (hit) {
+      // Keep the last-known payload on screen while we revalidate. No flash.
+      setContent(hit.content)
+      setToc(hit.toc)
+    } else {
+      setContent({ kind: "loading" })
+      setToc([])
+    }
+    let finalContent: Content | null = null
+    let finalToc: OutlineItem[] = hit?.toc ?? []
+    const record = (next: Content) => {
+      finalContent = next
+      FILE_CONTENT_CACHE.set(url, { content: next, toc: finalToc })
+    }
+    const recordToc = (items: OutlineItem[]) => {
+      finalToc = items
+      if (finalContent) FILE_CONTENT_CACHE.set(url, { content: finalContent, toc: items })
+    }
+    fetch(url)
       .then(async (response) => {
         if (cancelled) return
         if (!response.ok) {
-          setContent({ kind: "error", message: `Couldn't load file (${response.status}).` })
+          const next: Content = { kind: "error", message: `Couldn't load file (${response.status}).` }
+          setContent(next)
+          record(next)
           return
         }
         const mime = response.headers.get("content-type") ?? ""
         if (!isTextMime(mime)) {
           const type = mime.split(";")[0].trim() || "application/octet-stream"
           const bytes = Number(response.headers.get("content-length")) || null
-          if (type.startsWith("image/")) {
-            const url = `/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`
-            setContent({ kind: "image", url, mime: type, bytes })
-          } else {
-            setContent({ kind: "binary", mime: type, bytes })
-          }
+          const next: Content =
+            type.startsWith("image/")
+              ? { kind: "image", url, mime: type, bytes }
+              : { kind: "binary", mime: type, bytes }
+          setContent(next)
+          record(next)
           return
         }
         const body = (await response.text()).replace(/\n$/, "")
         if (cancelled) return
-        setContent({ kind: "text", lines: body.split("\n"), tokens: null })
+        const initial: Content = { kind: "text", lines: body.split("\n"), tokens: null }
+        setContent(initial)
+        record(initial)
         const ext = path.slice(path.lastIndexOf(".") + 1)
         highlightLines(body, ext)
           .then((tokens) => {
-            if (!cancelled) setContent({ kind: "text", lines: body.split("\n"), tokens })
+            if (cancelled) return
+            const withTokens: Content = { kind: "text", lines: body.split("\n"), tokens }
+            setContent(withTokens)
+            record(withTokens)
           })
           .catch(() => undefined)
         if (/\.(md|markdown)$/i.test(path)) {
-          if (!cancelled) setToc(markdownToc(body))
+          if (!cancelled) {
+            const items = markdownToc(body)
+            setToc(items)
+            recordToc(items)
+          }
         } else {
           const lang = langForPath(path)
           if (lang) {
             outline(body, lang)
               .then((items) => {
-                if (!cancelled) setToc(items)
+                if (cancelled) return
+                setToc(items)
+                recordToc(items)
               })
               .catch(() => undefined)
           }
         }
       })
       .catch((cause: Error) => {
-        if (!cancelled) setContent({ kind: "error", message: cause.message })
+        if (cancelled) return
+        const next: Content = { kind: "error", message: cause.message }
+        setContent(next)
+        record(next)
       })
     return () => {
       cancelled = true
     }
-  }, [reviewId, path])
+  }, [reviewId, path, lensKey, url])
 
   return { content, toc }
+}
+
+/** Build the file-content URL with an optional lens query string appended.
+ * A default lens (undefined or empty) leaves the URL exactly matching the
+ * pre-BDR-0024 shape so cache keys and ETags stay stable. */
+function fileContentUrl(reviewId: string, path: string, lensQuery: string): string {
+  const base = `/api/review/${reviewId}/files/content?path=${encodeURIComponent(path)}`
+  return lensQuery ? `${base}&${lensQuery}` : base
+}
+
+function lensQueryString(lens: DiffLens | undefined): string {
+  if (!lens) return ""
+  const parts: string[] = []
+  if (lens.scope && lens.scope !== "all" && lens.scope.commits.length > 0) {
+    parts.push(`scope=commits:${lens.scope.commits.map(encodeURIComponent).join(",")}`)
+  }
+  if (lens.worktree && lens.worktree !== "diff") {
+    parts.push(`worktree=${lens.worktree}`)
+  }
+  return parts.join("&")
 }
 
 export function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line: number) => void }) {
@@ -201,15 +278,42 @@ export function EmptyFileNotice({ name }: { name: string }) {
   )
 }
 
-function FileNotice({ icon: Icon, title, body, meta }: { icon: typeof Binary; title: string; body: string; meta?: string }) {
+/** Shared empty-state / notice layout: circular icon badge, heading, body,
+ * optional pill-shaped meta, and optional action row (buttons / links).
+ * Reused by binary/empty/HTML/loading/error notices so every "not the
+ * content you asked for" surface looks the same. */
+export function FileNotice({
+  icon: Icon,
+  title,
+  body,
+  meta,
+  action,
+  tone = "default",
+  spin = false,
+}: {
+  icon: typeof Binary
+  title: React.ReactNode
+  body?: React.ReactNode
+  meta?: string
+  action?: React.ReactNode
+  tone?: "default" | "amber" | "request"
+  spin?: boolean
+}) {
+  const badge =
+    tone === "amber"
+      ? "border-amber-edge bg-amber-soft text-amber"
+      : tone === "request"
+        ? "border-request-edge bg-request-soft text-request"
+        : "border-hair-strong bg-soft text-muted"
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-[13px] px-8 py-12 text-center">
-      <div className="grid size-[54px] place-items-center rounded-[16px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
-        <Icon size={26} aria-hidden />
+      <div className={`grid size-[54px] place-items-center rounded-[16px] border shadow-[inset_0_0.5px_0_var(--edge-top-2)] ${badge}`}>
+        <Icon size={26} className={spin ? "animate-spin" : undefined} aria-hidden />
       </div>
       <h3 className="text-[15px] font-[680] text-ink">{title}</h3>
-      <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">{body}</p>
+      {body && <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">{body}</p>}
       {meta && <div className="rounded-full bg-control px-[11px] py-1 font-mono text-[11px] text-faint">{meta}</div>}
+      {action && <div className="pt-1">{action}</div>}
     </div>
   )
 }

@@ -183,6 +183,13 @@ const ReviewDefaultsPane = observer(function ReviewDefaultsPane() {
           ]}
         />
       </Row>
+      <Row title="Word diff" sub="Highlight the exact words that changed inside paired del/add lines.">
+        <Switch
+          aria-label="Word diff"
+          checked={uiStore.wordDiff}
+          onCheckedChange={(v) => uiStore.setWordDiff(v)}
+        />
+      </Row>
     </div>
   )
 })

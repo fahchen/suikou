@@ -7,6 +7,12 @@ export type MonoSize = "small" | "default" | "large"
 export type CommentDisplayMode = "inline" | "side" | "hidden"
 export type FileRange = "single" | "stacked"
 export type DiffStyle = "unified" | "split"
+/** Diff review live-lens state (BDR-0025): the reviewer's current commit
+ * scope and working-tree source. Both default to the branch-range diff.
+ * Reset by ReviewPage on review change. Commits are stored newest-first,
+ * matching the order the `/commits` endpoint returns. */
+export type DiffScope = "all" | { commits: string[] }
+export type DiffWorktree = "diff" | "staged" | "unstaged"
 
 const THEME_KEY = "suikou-theme"
 const DENSITY_KEY = "suikou-density"
@@ -15,6 +21,7 @@ const WRAP_KEY = "suikou-code-wrap"
 const COMMENT_DISPLAY_KEY = "suikou-comment-display"
 const FILE_RANGE_KEY = "suikou-file-range"
 const DIFF_STYLE_KEY = "suikou-diff-style"
+const WORD_DIFF_KEY = "suikou-word-diff"
 
 /** App-wide UI preferences (theme, reading density, code wrap) plus the
  * settings modal's open flag. Persisted to localStorage and applied to the
@@ -27,6 +34,9 @@ class UiStore {
   commentDisplay: CommentDisplayMode = "inline"
   fileRange: FileRange = "single"
   diffStyle: DiffStyle = "unified"
+  wordDiff = false
+  diffScope: DiffScope = "all"
+  diffWorktree: DiffWorktree = "diff"
   settingsOpen = false
 
   constructor() {
@@ -70,6 +80,42 @@ class UiStore {
     localStorage.setItem(DIFF_STYLE_KEY, style)
   }
 
+  setWordDiff(on: boolean) {
+    this.wordDiff = on
+    localStorage.setItem(WORD_DIFF_KEY, on ? "1" : "0")
+  }
+
+  setDiffScope(scope: DiffScope) {
+    // Empty commit list normalizes to "all" — same rule the backend applies.
+    if (scope !== "all" && scope.commits.length === 0) {
+      this.diffScope = "all"
+    } else {
+      this.diffScope = scope
+    }
+    // BDR-0025: any concrete commits selection is mutually exclusive with
+    // a staged/unstaged worktree; force the worktree back to diff.
+    if (this.diffScope !== "all") this.diffWorktree = "diff"
+  }
+
+  toggleDiffCommit(sha: string) {
+    const current = this.diffScope === "all" ? [] : this.diffScope.commits
+    const next = current.includes(sha)
+      ? current.filter((s) => s !== sha)
+      : [...current, sha]
+    this.setDiffScope(next.length === 0 ? "all" : { commits: next })
+  }
+
+  setDiffWorktree(worktree: DiffWorktree) {
+    this.diffWorktree = worktree
+    // Same rule from the other side: switching off :diff forces scope to :all.
+    if (worktree !== "diff") this.diffScope = "all"
+  }
+
+  resetDiffLens() {
+    this.diffScope = "all"
+    this.diffWorktree = "diff"
+  }
+
   setSettingsOpen(open: boolean) {
     this.settingsOpen = open
   }
@@ -92,6 +138,7 @@ class UiStore {
     if (fileRange === "single" || fileRange === "stacked") this.fileRange = fileRange
     const diffStyle = localStorage.getItem(DIFF_STYLE_KEY)
     if (diffStyle === "unified" || diffStyle === "split") this.diffStyle = diffStyle
+    this.wordDiff = localStorage.getItem(WORD_DIFF_KEY) === "1"
     this.applyTheme()
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileText, Info, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode } from "../stores/ui-store"
@@ -18,11 +18,12 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, FileNotice, HtmlView, ImageView, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
-import { FileList, HideReviewedToggle, NavHeader } from "./components/FileNavigator"
-import { BranchDeletedBanner, CommitsPopover, RefsMovedBanner, StatusBar, Toolbar, useDiffCommits, VerdictChip } from "./components/ReviewChrome"
+import { ChangeStatusLetter, FileList, HideReviewedToggle, NavHeader, orderByTree } from "./components/FileNavigator"
+import { ScopePickerBody, useScopeCommits } from "./components/ScopePicker"
+import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
@@ -145,9 +146,73 @@ export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string
     cache: storeCache,
   })
 
-  if (root.status === "loading") return <Centered>Loading review…</Centered>
-  if (root.status === "error") return <Centered>Can't reach Suikou. {root.error.message}</Centered>
+  if (root.status === "loading") {
+    return (
+      <div className="grid h-screen place-items-center bg-canvas">
+        <FileNotice icon={Loader2} title="Loading review" body="Fetching the review's structure…" spin />
+      </div>
+    )
+  }
+  if (root.status === "error") {
+    return (
+      <div className="grid h-screen place-items-center bg-canvas">
+        <FileNotice
+          icon={WifiOff}
+          title="Can't reach Suikou"
+          body={root.error.message}
+          tone="request"
+          action={
+            <a
+              href="/"
+              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+            >
+              Back to projects
+            </a>
+          }
+        />
+      </div>
+    )
+  }
   return <Shell store={root.store} reviewId={reviewId} file={file} />
+}
+
+/** Fetches the diff review's file list under the current scope × worktree
+ * lens (BDR-0025). Returns `null` while the default lens is active or when
+ * `enabled === false`; the caller falls back to the static
+ * `structure.file_entries` in that case, avoiding a round-trip when the lens
+ * matches the initial `load_review_structure` payload. */
+function useLensedFileEntries(
+  reviewId: string,
+  enabled: boolean,
+  commits: string[] | null,
+  worktree: "staged" | "unstaged" | null,
+): FileEntry[] | null {
+  const [entries, setEntries] = useState<FileEntry[] | null>(null)
+  const query =
+    commits && commits.length > 0
+      ? `scope=commits:${commits.map(encodeURIComponent).join(",")}`
+      : worktree
+        ? `worktree=${worktree}`
+        : null
+  useEffect(() => {
+    if (!enabled || !query) {
+      setEntries(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/review/${reviewId}/files?${query}`)
+      .then((r) => (r.ok ? r.json() : { files: [] }))
+      .then((body: { files?: FileEntry[] }) => {
+        if (!cancelled) setEntries(body.files ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setEntries([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reviewId, enabled, query])
+  return entries
 }
 
 const Shell = observer(function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
@@ -184,20 +249,43 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, reviewId])
 
+  const isDiff = structure?.kind === "diff"
+  const scopeQuery = uiStore.diffScope === "all" ? null : uiStore.diffScope.commits
+  const worktreeQuery = uiStore.diffWorktree === "diff" ? null : uiStore.diffWorktree
+  // When the reviewer picks a specific commit subset or a working-tree lens, the
+  // navigator's file list must follow — otherwise the sidebar lies about what's
+  // in the current view. Refetch from the lens-aware endpoint; fall back to the
+  // static structure payload for the default lens (no fetch, no round-trip).
+  const lensedEntries = useLensedFileEntries(reviewId, isDiff, scopeQuery, worktreeQuery)
+  const rawEntries =
+    lensedEntries !== null ? lensedEntries : structure?.file_entries ?? []
   const entries = useMemo(
-    () => (structure?.file_entries ?? []).filter((e) => !e.soft_removed),
-    [structure],
+    () => orderByTree(rawEntries.filter((e) => !e.soft_removed)),
+    [rawEntries],
   )
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
+  const [filesSheetTab, setFilesSheetTab] = useState<"files" | "scope">("files")
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
   const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
   const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
   const [stackedScrollTarget, setStackedScrollTarget] = useState<StackedScrollTarget | null>(null)
   const [hideReviewed, setHideReviewed] = useState(false)
 
-  const isDiff = structure?.kind === "diff"
-  const diffCommits = useDiffCommits(reviewId, isDiff)
+  const scopeCommits = useScopeCommits(reviewId, isDiff)
+  // Live diff lens (BDR-0024): scope + worktree are per-review view state.
+  // The pinned base/head refs never change; these params only re-shape the
+  // fetched content. Reset the lens whenever the review changes so a stale
+  // commit sha from an earlier review does not leak into a new one.
+  useEffect(() => {
+    uiStore.resetDiffLens()
+  }, [reviewId])
+  const diffLens = isDiff
+    ? {
+        scope: uiStore.diffScope,
+        worktree: uiStore.diffWorktree,
+      }
+    : undefined
   const desktopLayout = useDesktopLayout()
   // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
   const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
@@ -346,8 +434,27 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   }, [snap, selectedRound, review.verdict])
 
   if (structure && !structure.exists) {
-    return <Centered>Review not found.</Centered>
+    return (
+      <div className="grid h-screen place-items-center bg-canvas">
+        <FileNotice
+          icon={FileQuestion}
+          title="Review not found"
+          body="The review may have been deleted or the link is stale."
+          tone="amber"
+          action={
+            <a
+              href="/"
+              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+            >
+              Back to projects
+            </a>
+          }
+        />
+      </div>
+    )
   }
+
+  const refsValid = structure?.refs?.refs_valid ?? true
 
   const select = (path: string) => {
     setFilesSheetOpen(false)
@@ -377,31 +484,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
         selectedRound={selectedRound}
         latestRound={latestRound}
       />
-      {isDiff && structure?.refs?.refs_moved && (
-        <RefsMovedBanner
-          baseRef={structure.refs.base_ref}
-          headRef={structure.refs.head_ref}
-          baseSha={structure.refs.base_sha}
-          headSha={structure.refs.head_sha}
-          creationBaseSha={structure.refs.creation_base_sha}
-          creationHeadSha={structure.refs.creation_head_sha}
-        />
-      )}
-      {isDiff && structure?.refs && (
-        <BranchDeletedBanner
-          baseRef={structure.refs.base_ref}
-          headRef={structure.refs.head_ref}
-          baseSha={structure.refs.base_sha}
-          headSha={structure.refs.head_sha}
-          creationBaseSha={structure.refs.creation_base_sha}
-          creationHeadSha={structure.refs.creation_head_sha}
-        />
-      )}
-      {isDiff && diffCommits.length > 0 && (
-        <div className="flex h-[34px] shrink-0 items-center justify-end gap-2 border-b border-hair-strong bg-surface px-3">
-          <CommitsPopover commits={diffCommits} />
-        </div>
-      )}
+
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
           (stackedSide || (!stacked && commentDisplay === "side")) ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
@@ -414,9 +497,47 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
             hideReviewed={hideReviewed}
             onToggleHideReviewed={() => setHideReviewed((on) => !on)}
           />
-          <FileList entries={navEntries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
+          {isDiff && (
+            <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-3">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesSheetTab === "files"}
+                onClick={() => setFilesSheetTab("files")}
+                className={`inline-flex h-[26px] shrink-0 items-center text-[12px] font-semibold ${
+                  filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
+                }`}
+              >
+                Files
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filesSheetTab === "scope"}
+                onClick={() => setFilesSheetTab("scope")}
+                className={`inline-flex h-[26px] shrink-0 items-center text-[12px] font-semibold ${
+                  filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
+                }`}
+              >
+                Scope
+              </button>
+            </div>
+          )}
+          {filesSheetTab === "scope" && isDiff ? (
+            <div className="flex min-h-0 flex-col overflow-auto pt-1">
+              <ScopePickerBody commits={scopeCommits} />
+            </div>
+          ) : (
+            <FileList entries={navEntries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
+          )}
         </aside>
-        {stacked ? (
+        {isDiff && !refsValid ? (
+          <RefsErrorPage
+            baseRef={structure?.refs?.base_ref ?? null}
+            headRef={structure?.refs?.head_ref ?? null}
+            store={store}
+          />
+        ) : stacked ? (
           <StackedFiles
             reviewId={reviewId}
             files={stackedFiles}
@@ -430,6 +551,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
             onScrolledTo={setStackedCurrentPath}
             scrollTarget={stackedScrollTarget}
             onScrollHandled={() => setStackedScrollTarget(null)}
+            diffLens={diffLens}
           />
         ) : (
           <Editor
@@ -452,6 +574,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
             onOpenFiles={() => setFilesSheetOpen(true)}
             onSelectFile={select}
             filePosition={filePosition}
+            diffLens={diffLens}
           />
         )}
         {stackedSide && (
@@ -493,9 +616,41 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
           </span>
           <HideReviewedToggle hideReviewed={hideReviewed} onToggle={() => setHideReviewed((on) => !on)} />
         </div>
-        <div className="flex min-h-0 flex-col overflow-hidden pt-2">
-          <FileList entries={navEntries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
-        </div>
+        {isDiff && (
+          <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-4">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filesSheetTab === "files"}
+              onClick={() => setFilesSheetTab("files")}
+              className={`inline-flex h-[32px] shrink-0 items-center text-[13px] font-semibold ${
+                filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
+              }`}
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filesSheetTab === "scope"}
+              onClick={() => setFilesSheetTab("scope")}
+              className={`inline-flex h-[32px] shrink-0 items-center text-[13px] font-semibold ${
+                filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
+              }`}
+            >
+              Scope
+            </button>
+          </div>
+        )}
+        {filesSheetTab === "scope" && isDiff ? (
+          <div className="flex min-h-0 flex-col overflow-auto pt-1">
+            <ScopePickerBody commits={scopeCommits} />
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-col overflow-hidden pt-2">
+            <FileList entries={navEntries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
+          </div>
+        )}
       </Dialog>
       <SettingsModal />
     </div>
@@ -593,6 +748,7 @@ function Editor({
   onOpenFiles,
   onSelectFile,
   filePosition,
+  diffLens,
 }: {
   reviewId: string
   entry: FileEntry | null
@@ -613,10 +769,11 @@ function Editor({
   onOpenFiles: () => void
   onSelectFile: (path: string) => void
   filePosition: FilePosition | null
+  diffLens?: DiffLens
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
-  const { content, toc } = useFileContent(reviewId, entry?.path ?? null)
+  const { content, toc } = useFileContent(reviewId, entry?.path ?? null, diffLens)
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => (readDocView() === "source" ? "source" : "preview"))
@@ -734,12 +891,15 @@ function Editor({
         {entry ? (
           <>
             <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:hidden">
+              <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={13} />
-              <span className="truncate font-mono text-[12px] text-ink" title={entry.path}>
+              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink" title={entry.path}>
+                <span className="text-faint">{dir}</span>
                 {name}
               </span>
             </div>
             <div className="hidden min-w-0 items-center gap-2 lg:flex">
+              <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={14} />
               <span className="truncate font-mono text-[12.5px] text-ink">
                 <span className="text-faint">{dir}</span>
@@ -751,7 +911,7 @@ function Editor({
           <span className="min-w-0 flex-1 truncate text-[12.5px] text-faint lg:flex-none">No file selected</span>
         )}
         <span className="hidden flex-1 lg:block" />
-        {previewable && content.kind === "text" && (
+        {previewable && !isDiff && content.kind === "text" && (
           <>
             <div className="lg:hidden">
               <DropdownMenu>
@@ -952,19 +1112,45 @@ function Editor({
             />
           )}
           {!entry ? (
-            <div className="grid flex-1 place-items-center text-[13px] text-faint">
-              {filesLoaded ? "No files in this review." : "Loading…"}
-            </div>
+            filesLoaded ? (
+              <FileNotice
+                icon={Files}
+                title="No files in this review"
+                body="Add files from the project board or check that the review's selection is not empty."
+              />
+            ) : (
+              <FileNotice icon={Loader2} title="Loading…" body="Fetching the review's structure." spin />
+            )
           ) : content.kind === "loading" ? (
-            <div className="grid flex-1 place-items-center text-[13px] text-faint">Loading…</div>
+            <FileNotice icon={Loader2} title="Loading file" body="Reading the file's current bytes from the project." meta={entry.path} spin />
           ) : content.kind === "error" ? (
-            <div className="grid flex-1 place-items-center text-[13px] text-request">{content.message}</div>
+            isDiff ? (
+              <FileNotice
+                icon={AlertTriangle}
+                title="Diff unavailable"
+                body={`${content.message} · This file has no changes under the current source lens. Switch to a wider scope, or pick a different file.`}
+                tone="amber"
+                meta={entry.path}
+              />
+            ) : (
+              <FileNotice icon={AlertTriangle} title="Can't load this file" body={content.message} tone="request" meta={entry.path} />
+            )
           ) : content.kind === "image" ? (
             <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
           ) : content.kind === "binary" ? (
             <BinaryNotice name={name} mime={content.mime} bytes={content.bytes} />
           ) : isDiff && content.kind === "text" ? (
-            <DiffView patch={content.lines.join("\n")} />
+            <DiffView
+              patch={content.lines.join("\n")}
+              path={entry.path}
+              comments={comments}
+              fileProxy={fileProxy}
+              commentsProxy={commentsProxy}
+              draftScope={`${reviewId}:${entry.path}`}
+              readOnly={readOnly}
+              focusedCommentId={focusedCommentId}
+              onFocusComment={onFocusComment}
+            />
           ) : content.lines.length === 1 && content.lines[0] === "" ? (
             <EmptyFileNotice name={name} />
           ) : previewable && view === "preview" ? (
@@ -1061,8 +1247,39 @@ function CompareStat({ n, label, tone }: { n: number; label: string; tone: "appr
 /** H2 review overview — the draft verdict rollup, open-blocker list, and round
  * stats. No longer a persistent column; opened from the toolbar Review button. */
 
-function Centered({ children }: { children: React.ReactNode }) {
+/** BDR-0025: when a diff review's `base_ref` or `head_ref` no longer resolves
+ * in the project's git tree, the content area falls back to this notice.
+ * Chrome stays so the reviewer can still see the review's name and jump
+ * back to the board; deletion happens from the board's review kebab. */
+function RefsErrorPage({
+  baseRef,
+  headRef,
+  store,
+}: {
+  baseRef: string | null
+  headRef: string | null
+  store: ReviewStore
+}) {
+  void store
+  const meta =
+    baseRef && headRef
+      ? `${baseRef} · ${headRef}`
+      : baseRef || headRef || undefined
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas text-[13px] text-muted">{children}</div>
+    <FileNotice
+      icon={AlertTriangle}
+      title="Diff unavailable"
+      body="The diff can't be rendered because one of the refs no longer exists in the project. Delete this review or create a new one with valid refs."
+      meta={meta}
+      tone="request"
+      action={
+        <a
+          href="/"
+          className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+        >
+          Back to projects
+        </a>
+      }
+    />
   )
 }
