@@ -2,7 +2,7 @@ import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useSta
 import { observer } from "mobx-react-lite"
 import type { ThemedToken } from "shiki"
 import { diffWords } from "diff"
-import { Plus } from "lucide-react"
+import { Plus, UnfoldVertical } from "lucide-react"
 
 import { highlightLines } from "../highlight"
 import { parseDiffPatch, type DiffFile, type DiffHunk, type DiffLine } from "./parse"
@@ -94,6 +94,16 @@ const EMPTY_TOKENS: FileTokens = {
 export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendererProps<A>) {
   const { patch, diffStyle, lineAnnotations, selectedRange, renderAnnotation, languageHint, wordDiff, wrap = true, commentable, renderComposer } = props
 
+  // Split view needs two side-by-side columns; below `md` there's no room, so
+  // fall back to unified — otherwise each row stacks its old/new cells (and
+  // add/del rows trail an empty striped cell), reading as doubled lines with
+  // large vertical gaps.
+  const wide = useWideViewport()
+  const effectiveStyle = diffStyle === "split" && !wide ? "unified" : diffStyle
+  // Split's two columns must fit the container — force wrap so neither side
+  // overflows into a horizontal scroll. Unified keeps the user's wrap toggle.
+  const effectiveWrap = effectiveStyle === "split" ? true : wrap
+
   const files = useMemo(() => parseDiffPatch(patch), [patch])
   const tokens = useFileTokens(files, languageHint)
   const wordDiffMaps = useMemo(
@@ -104,14 +114,14 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
 
   const body = (
     <div className="min-h-0 flex-1 overflow-auto">
-      <div className={wrap ? undefined : "min-w-max"}>
+      <div className={effectiveWrap ? undefined : "min-w-max"}>
       {files.map((file, fileIndex) => (
         <DiffFileView<A>
           key={`${file.newPath ?? file.oldPath ?? "file"}:${fileIndex}`}
           file={file}
           tokens={tokens[fileIndex] ?? EMPTY_TOKENS}
           wordDiff={wordDiff === true ? wordDiffMaps[fileIndex] ?? EMPTY_WORD_DIFF : EMPTY_WORD_DIFF}
-          diffStyle={diffStyle}
+          diffStyle={effectiveStyle}
           lineAnnotations={lineAnnotations}
           selectedRange={selectedRange}
           renderAnnotation={renderAnnotation}
@@ -121,9 +131,22 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
       </div>
     </div>
   )
-  const wrapped = <DiffWrapContext.Provider value={wrap}>{body}</DiffWrapContext.Provider>
+  const wrapped = <DiffWrapContext.Provider value={effectiveWrap}>{body}</DiffWrapContext.Provider>
   return select ? <DiffSelectContext.Provider value={select}>{wrapped}</DiffSelectContext.Provider> : wrapped
 }) as <A>(props: DiffRendererProps<A>) => React.ReactElement
+
+/** True at `md`+ (≥768px), where split view has room for two columns. */
+function useWideViewport(): boolean {
+  const [wide, setWide] = useState(() => window.matchMedia("(min-width: 768px)").matches)
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)")
+    const update = () => setWide(query.matches)
+    update()
+    query.addEventListener("change", update)
+    return () => query.removeEventListener("change", update)
+  }, [])
+  return wide
+}
 
 /** Drag/click line-selection for new diff comments, mirroring the source view:
  * pointer-down on a gutter starts a drag, window pointer-move extends it over
@@ -309,6 +332,66 @@ function DiffFileView<A>({
   )
 }
 
+/** Context lines kept visible on each side of a folded gap — mirrors git's
+ * default `-U3` look so a full-context patch collapses back to the familiar
+ * three-line frame around every change. */
+const CONTEXT_MARGIN = 3
+
+/** A hunk's lines split into rendered runs and collapsible gaps. Under a
+ * full-context patch (default lens) a hunk spans the whole file, so long
+ * unchanged runs become `gap`s the reviewer can expand on click. */
+type HunkSegment =
+  | { kind: "lines"; lines: DiffLine[] }
+  | { kind: "gap"; key: string; hidden: DiffLine[] }
+
+/** Fold maximal runs of context lines longer than their reserved margins into
+ * `gap` segments, keeping `margin` lines adjacent to each change (and to the
+ * hunk's edges — the file top/bottom keep only their inner margin). Runs that
+ * would hide nothing stay fully visible, so a plain `-U3` patch produces no
+ * gaps. */
+function segmentHunk(lines: DiffLine[], margin: number): HunkSegment[] {
+  const segments: HunkSegment[] = []
+  let buffer: DiffLine[] = []
+  const flush = () => {
+    if (buffer.length > 0) {
+      segments.push({ kind: "lines", lines: buffer })
+      buffer = []
+    }
+  }
+  let i = 0
+  while (i < lines.length) {
+    if (lines[i]!.kind !== "ctx") {
+      buffer.push(lines[i]!)
+      i += 1
+      continue
+    }
+    let j = i
+    while (j < lines.length && lines[j]!.kind === "ctx") j += 1
+    const run = lines.slice(i, j)
+    const lead = i === 0 ? 0 : margin
+    const trail = j === lines.length ? 0 : margin
+    if (run.length - lead - trail < 1) {
+      for (const line of run) buffer.push(line)
+    } else {
+      for (let k = 0; k < lead; k++) buffer.push(run[k]!)
+      flush()
+      const hidden = run.slice(lead, run.length - trail)
+      segments.push({ kind: "gap", key: gapKey(hidden[0]!), hidden })
+      for (let k = run.length - trail; k < run.length; k++) buffer.push(run[k]!)
+    }
+    i = j
+  }
+  flush()
+  return segments
+}
+
+function gapKey(line: DiffLine): string {
+  if (line.kind === "add") return `a${line.newLine}`
+  if (line.kind === "del") return `d${line.oldLine}`
+  if (line.kind === "ctx") return `c${line.newLine}`
+  return "m"
+}
+
 function HunkView<A>({
   hunk,
   tokens,
@@ -327,46 +410,82 @@ function HunkView<A>({
   renderAnnotation: ((annotation: DiffAnnotation<A>) => React.ReactNode) | undefined
 }) {
   const annotations = lineAnnotations ?? []
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  // Reset folds when the patch changes (e.g. a lens switch reparses the file).
+  useEffect(() => setExpanded(new Set()), [hunk])
+  const segments = useMemo(() => segmentHunk(hunk.lines, CONTEXT_MARGIN), [hunk])
+
+  const renderLines = (lines: DiffLine[], key: number) =>
+    diffStyle === "unified" ? (
+      <UnifiedHunk<A>
+        key={key}
+        lines={lines}
+        tokens={tokens}
+        wordDiff={wordDiff}
+        annotations={annotations}
+        selectedRange={selectedRange ?? null}
+        renderAnnotation={renderAnnotation}
+      />
+    ) : (
+      <SplitHunk<A>
+        key={key}
+        lines={lines}
+        tokens={tokens}
+        wordDiff={wordDiff}
+        annotations={annotations}
+        selectedRange={selectedRange ?? null}
+        renderAnnotation={renderAnnotation}
+      />
+    )
 
   return (
     <div>
       <div className="border-y border-hair-strong bg-soft/60 px-3 py-1 font-mono text-[11px] text-muted">
         <span className="block truncate">{hunk.header}</span>
       </div>
-      {diffStyle === "unified" ? (
-        <UnifiedHunk<A>
-          hunk={hunk}
-          tokens={tokens}
-          wordDiff={wordDiff}
-          annotations={annotations}
-          selectedRange={selectedRange ?? null}
-          renderAnnotation={renderAnnotation}
-        />
-      ) : (
-        <SplitHunk<A>
-          hunk={hunk}
-          tokens={tokens}
-          wordDiff={wordDiff}
-          annotations={annotations}
-          selectedRange={selectedRange ?? null}
-          renderAnnotation={renderAnnotation}
-        />
-      )}
+      {segments.map((segment, index) => {
+        if (segment.kind === "gap" && !expanded.has(segment.key)) {
+          return (
+            <GapRow
+              key={index}
+              count={segment.hidden.length}
+              onExpand={() => setExpanded((prev) => new Set(prev).add(segment.key))}
+            />
+          )
+        }
+        return renderLines(segment.kind === "gap" ? segment.hidden : segment.lines, index)
+      })}
     </div>
+  )
+}
+
+function GapRow({ count, onExpand }: { count: number; onExpand: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      title="Expand unchanged lines"
+      className="flex w-full items-center gap-2 border-b border-hair bg-soft/40 px-3 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-accent-soft hover:text-accent-bright"
+    >
+      <UnfoldVertical size={12} aria-hidden />
+      <span>
+        Expand {count} unchanged {count === 1 ? "line" : "lines"}
+      </span>
+    </button>
   )
 }
 
 /* ---------------- Unified ---------------- */
 
 function UnifiedHunk<A>({
-  hunk,
+  lines,
   tokens,
   wordDiff,
   annotations,
   selectedRange,
   renderAnnotation,
 }: {
-  hunk: DiffHunk
+  lines: DiffLine[]
   tokens: FileTokens
   wordDiff: WordDiffMap
   annotations: DiffAnnotation<A>[]
@@ -376,10 +495,10 @@ function UnifiedHunk<A>({
   const select = useContext(DiffSelectContext)
   return (
     <div>
-      {hunk.lines.map((line, index) => {
+      {lines.map((line, index) => {
         const anchor = anchorLine(line)
         const inserted = anchor
-          ? annotations.filter((a) => a.side === anchor.side && a.startLine === anchor.line)
+          ? annotations.filter((a) => a.side === anchor.side && a.endLine === anchor.line)
           : []
         const composerHere =
           select?.draft && anchor && anchor.side === select.draft.side && anchor.line === select.draft.end
@@ -392,7 +511,7 @@ function UnifiedHunk<A>({
               highlighted={anchor !== null && isSelected(selectedRange, anchor.side, anchor.line)}
             />
             {composerHere && select?.draft && (
-              <div className="border-t border-hair px-2 py-1.5">{select.renderComposer(select.draft, select.close)}</div>
+              <div className="pl-[76px] pr-3 pb-1.5">{select.renderComposer(select.draft, select.close)}</div>
             )}
             {renderAnnotation !== undefined &&
               inserted.map((annotation, i) => (
@@ -437,10 +556,11 @@ function UnifiedRow({
   const wrap = useContext(DiffWrapContext)
   return (
     <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
-      <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
-      <Gutter value={newNo} side={line.kind === "del" ? undefined : "new"} line={line.kind === "del" ? undefined : line.newLine} />
-      <Sigil kind={line.kind} />
-      <code className={`min-w-0 flex-1 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+      <StickyLead>
+        <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
+        <Gutter value={newNo} side={line.kind === "del" ? undefined : "new"} line={line.kind === "del" ? undefined : line.newLine} />
+      </StickyLead>
+      <code className={`min-w-0 flex-1 pl-2.5 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
     </div>
@@ -501,21 +621,21 @@ function pairForSplit(lines: DiffLine[]): SplitRow[] {
 }
 
 function SplitHunk<A>({
-  hunk,
+  lines,
   tokens,
   wordDiff,
   annotations,
   selectedRange,
   renderAnnotation,
 }: {
-  hunk: DiffHunk
+  lines: DiffLine[]
   tokens: FileTokens
   wordDiff: WordDiffMap
   annotations: DiffAnnotation<A>[]
   selectedRange: { side: "old" | "new"; start: number; end: number } | null
   renderAnnotation: ((annotation: DiffAnnotation<A>) => React.ReactNode) | undefined
 }) {
-  const rows = useMemo(() => pairForSplit(hunk.lines), [hunk])
+  const rows = useMemo(() => pairForSplit(lines), [lines])
   const select = useContext(DiffSelectContext)
 
   return (
@@ -524,9 +644,9 @@ function SplitHunk<A>({
         const leftKey = row.left && row.left.line.kind !== "meta" ? row.left.number : null
         const rightKey = row.right && row.right.line.kind !== "meta" ? row.right.number : null
         const insertedLeft =
-          leftKey === null ? [] : annotations.filter((a) => a.side === "old" && a.startLine === leftKey)
+          leftKey === null ? [] : annotations.filter((a) => a.side === "old" && a.endLine === leftKey)
         const insertedRight =
-          rightKey === null ? [] : annotations.filter((a) => a.side === "new" && a.startLine === rightKey)
+          rightKey === null ? [] : annotations.filter((a) => a.side === "new" && a.endLine === rightKey)
         const composerSide =
           select?.draft && ((select.draft.side === "old" && leftKey === select.draft.end) || (select.draft.side === "new" && rightKey === select.draft.end))
             ? select.draft.side
@@ -541,7 +661,7 @@ function SplitHunk<A>({
             />
             {composerSide && select?.draft && (
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className={`border-t border-hair px-2 py-1.5 ${composerSide === "old" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"}`}>
+                <div className={`pl-[40px] pr-3 pb-1.5 ${composerSide === "old" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"}`}>
                   {select.renderComposer(select.draft, select.close)}
                 </div>
               </div>
@@ -642,9 +762,10 @@ function SplitCell({
   const wrap = useContext(DiffWrapContext)
   return (
     <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
-      <Gutter value={lineNo} side={side} line={cell.number} />
-      <Sigil kind={line.kind} />
-      <code className={`min-w-0 flex-1 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
+      <StickyLead>
+        <Gutter value={lineNo} side={side} line={cell.number} />
+      </StickyLead>
+      <code className={`min-w-0 flex-1 pl-2.5 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
     </div>
@@ -689,13 +810,11 @@ function inActiveRange(select: DiffSelect, side: "old" | "new", line: number): b
   return line >= lo && line <= hi
 }
 
-function Sigil({ kind }: { kind: "add" | "del" | "ctx" }) {
-  const glyph = kind === "add" ? "+" : kind === "del" ? "-" : " "
-  return (
-    <span className="w-[14px] shrink-0 select-none text-center font-mono text-[11.5px] leading-[1.6] text-faint">
-      {glyph}
-    </span>
-  )
+/** Pins the line-number column to the left while code scrolls horizontally
+ * (wrap-off). One opaque sticky layer per row, so the sliding code never bleeds
+ * through no matter the row's tint. */
+function StickyLead({ children }: { children: React.ReactNode }) {
+  return <div className="sticky left-0 z-[1] flex items-start self-stretch bg-canvas">{children}</div>
 }
 
 function TokenLine({
@@ -832,9 +951,10 @@ function AnnotationRow<A>({
   span: "unified" | "split-left" | "split-right"
 }) {
   const grid = span === "unified" ? "" : span === "split-left" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"
+  const lead = span === "unified" ? "pl-[76px]" : "pl-[40px]"
   return (
     <div className={span === "unified" ? "" : `grid grid-cols-1 md:grid-cols-2`}>
-      <div className={`border-t border-hair px-2 py-1.5 ${grid}`}>{render(annotation)}</div>
+      <div className={`${lead} pr-3 ${grid}`}>{render(annotation)}</div>
     </div>
   )
 }
