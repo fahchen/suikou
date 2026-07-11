@@ -85,6 +85,7 @@ export const DiffView = observer(function DiffView({
       patch={patch}
       diffStyle={uiStore.diffStyle}
       wordDiff={uiStore.wordDiff}
+      wrap={uiStore.codeWrap}
       languageHint={languageHint}
       lineAnnotations={annotations}
       selectedRange={selectedRange}

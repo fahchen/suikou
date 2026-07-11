@@ -29,6 +29,9 @@ export type DiffRendererProps<A = unknown> = {
   /** When true, paired del/add lines get inline word-level highlights on the
    * exact characters that changed. Pure adds / pure dels stay plain-highlighted. */
   wordDiff?: boolean
+  /** When true, long lines soft-wrap; when false they stay on one line and the
+   * diff scrolls horizontally (mirrors the source view's wrap toggle). */
+  wrap?: boolean
   /** When true, gutters become click/drag targets that open a composer for a new
    * `diff_hunk` comment. `renderComposer` supplies the composer body. */
   commentable?: boolean
@@ -48,6 +51,10 @@ type DiffSelect = {
 }
 
 const DiffSelectContext = createContext<DiffSelect | null>(null)
+
+/** Soft-wrap toggle shared with every row, so the deeply nested `<code>` cells
+ * pick up the source view's wrap preference without prop-drilling. */
+const DiffWrapContext = createContext<boolean>(true)
 
 /** A contiguous character range on one line that should be tinted as the
  * "same" or "changed" side of a word-diff pair. `kind === "shared"` means
@@ -85,7 +92,7 @@ const EMPTY_TOKENS: FileTokens = {
  * token colors are identical, and paints add/del rows from Suikou's
  * `--approve-*`/`--request-*` tokens instead of a library palette. */
 export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendererProps<A>) {
-  const { patch, diffStyle, lineAnnotations, selectedRange, renderAnnotation, languageHint, wordDiff, commentable, renderComposer } = props
+  const { patch, diffStyle, lineAnnotations, selectedRange, renderAnnotation, languageHint, wordDiff, wrap = true, commentable, renderComposer } = props
 
   const files = useMemo(() => parseDiffPatch(patch), [patch])
   const tokens = useFileTokens(files, languageHint)
@@ -97,6 +104,7 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
 
   const body = (
     <div className="min-h-0 flex-1 overflow-auto">
+      <div className={wrap ? undefined : "min-w-max"}>
       {files.map((file, fileIndex) => (
         <DiffFileView<A>
           key={`${file.newPath ?? file.oldPath ?? "file"}:${fileIndex}`}
@@ -110,9 +118,11 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
           multiFile={files.length > 1}
         />
       ))}
+      </div>
     </div>
   )
-  return select ? <DiffSelectContext.Provider value={select}>{body}</DiffSelectContext.Provider> : body
+  const wrapped = <DiffWrapContext.Provider value={wrap}>{body}</DiffWrapContext.Provider>
+  return select ? <DiffSelectContext.Provider value={select}>{wrapped}</DiffSelectContext.Provider> : wrapped
 }) as <A>(props: DiffRendererProps<A>) => React.ReactElement
 
 /** Drag/click line-selection for new diff comments, mirroring the source view:
@@ -424,12 +434,13 @@ function UnifiedRow({
   const newNo = line.kind === "del" ? "" : String(line.newLine)
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
+  const wrap = useContext(DiffWrapContext)
   return (
     <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
       <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
       <Gutter value={newNo} side={line.kind === "del" ? undefined : "new"} line={line.kind === "del" ? undefined : line.newLine} />
       <Sigil kind={line.kind} />
-      <code className="min-w-0 flex-1 whitespace-pre-wrap break-words pr-3 text-text">
+      <code className={`min-w-0 flex-1 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
     </div>
@@ -628,11 +639,12 @@ function SplitCell({
   const lineNo = String(cell.number)
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
+  const wrap = useContext(DiffWrapContext)
   return (
     <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
       <Gutter value={lineNo} side={side} line={cell.number} />
       <Sigil kind={line.kind} />
-      <code className="min-w-0 flex-1 whitespace-pre-wrap break-words pr-3 text-text">
+      <code className={`min-w-0 flex-1 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
     </div>
