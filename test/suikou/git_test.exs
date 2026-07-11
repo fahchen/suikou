@@ -340,7 +340,11 @@ defmodule Suikou.GitTest do
       git!(["add", "."], cd: dir)
       commit!(dir, "second topic commit")
 
-      assert {:ok, [%{sha: sha1, subject: "second topic commit"}, %{sha: sha2, subject: "first topic commit"}]} =
+      assert {:ok,
+              [
+                %{sha: sha1, subject: "second topic commit"},
+                %{sha: sha2, subject: "first topic commit"}
+              ]} =
                Git.list_commits(dir, "main", "topic")
 
       assert String.length(sha1) == 40
@@ -416,6 +420,286 @@ defmodule Suikou.GitTest do
     @tag :tmp_dir
     test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
       assert {:error, :not_a_repo} = Git.commit_diff(dir, "HEAD")
+    end
+  end
+
+  describe "commit_files/2" do
+    @tag :tmp_dir
+    test "lists paths a commit changed with status letters mapped", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "first\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      File.write!(Path.join(dir, "a.txt"), "second\n")
+      File.write!(Path.join(dir, "b.txt"), "new\n")
+      git!(["add", "-A"], cd: dir)
+      commit!(dir, "edit a add b")
+
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, entries} = Git.commit_files(dir, sha)
+
+      assert Enum.sort(entries) ==
+               Enum.sort([%{path: "a.txt", status: :modified}, %{path: "b.txt", status: :added}])
+    end
+
+    @tag :tmp_dir
+    test "root commit surfaces every path as added", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, [%{path: "seed.txt", status: :added}]} = Git.commit_files(dir, sha)
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown sha", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.commit_files(dir, "deadbeef")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.commit_files(dir, "--evil")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.commit_files(dir, "HEAD")
+    end
+  end
+
+  describe "commit_file_diff/3" do
+    @tag :tmp_dir
+    test "returns the per-file patch a commit introduced", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "first\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      File.write!(Path.join(dir, "a.txt"), "second\n")
+      File.write!(Path.join(dir, "b.txt"), "new\n")
+      git!(["add", "-A"], cd: dir)
+      commit!(dir, "edit a add b")
+
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, diff} = Git.commit_file_diff(dir, sha, "a.txt")
+      assert diff =~ "-first"
+      assert diff =~ "+second"
+      refute diff =~ "b.txt"
+    end
+
+    @tag :tmp_dir
+    test "returns an empty string when the path is unchanged by the commit", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "keep\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      File.write!(Path.join(dir, "b.txt"), "brand new\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add b only")
+
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, ""} = Git.commit_file_diff(dir, sha, "a.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown sha", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.commit_file_diff(dir, "deadbeef", "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.commit_file_diff(dir, "--evil", "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.commit_file_diff(dir, "HEAD", "a.txt")
+    end
+  end
+
+  describe "range_diff/4" do
+    @tag :tmp_dir
+    test "spans oldest..newest, collapsing intermediate commits", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      {sha_a, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_a = String.trim(sha_a)
+
+      File.write!(Path.join(dir, "a.txt"), "two\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "edit a")
+      {sha_b, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_b = String.trim(sha_b)
+
+      assert {:ok, diff} = Git.range_diff(dir, sha_a, sha_b, "a.txt")
+      # `sha_a`'s parent is the seed commit, which has no `a.txt`; the range
+      # spans `<sha_a>^..<sha_b>`, so the final state is `two` and it's an add
+      # from the reviewer's perspective.
+      assert diff =~ "+two"
+      refute diff =~ "+one"
+    end
+
+    @tag :tmp_dir
+    test "single-commit range delegates to that commit's patch", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:ok, diff} = Git.range_diff(dir, sha, sha, "a.txt")
+      assert diff =~ "+one"
+    end
+
+    @tag :tmp_dir
+    test "root oldest falls back to empty-tree diff", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      {root, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      root = String.trim(root)
+
+      # A follow-up commit so `newest` differs from the root.
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      {newest, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      newest = String.trim(newest)
+
+      # Range from root..newest includes the seed file's own addition.
+      assert {:ok, diff} = Git.range_diff(dir, root, newest, "seed.txt")
+      assert diff =~ "+seed"
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown sha", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      assert {:error, :ref_not_found} = Git.range_diff(dir, "deadbeef", sha, "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.range_diff(dir, "--evil", "HEAD", "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.range_diff(dir, "HEAD", "HEAD", "seed.txt")
+    end
+  end
+
+  describe "staged_files/1" do
+    @tag :tmp_dir
+    test "lists paths with staged changes vs HEAD", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "changed\n")
+      File.write!(Path.join(dir, "new.txt"), "new\n")
+      git!(["add", "-A"], cd: dir)
+
+      assert {:ok, entries} = Git.staged_files(dir)
+
+      assert Enum.sort(entries) ==
+               Enum.sort([
+                 %{path: "seed.txt", status: :modified},
+                 %{path: "new.txt", status: :added}
+               ])
+    end
+
+    @tag :tmp_dir
+    test "returns an empty list when the index matches HEAD", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:ok, []} = Git.staged_files(dir)
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.staged_files(dir)
+    end
+  end
+
+  describe "unstaged_files/1" do
+    @tag :tmp_dir
+    test "lists paths with unstaged changes vs the index", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "worktree edit\n")
+
+      assert {:ok, [%{path: "seed.txt", status: :modified}]} = Git.unstaged_files(dir)
+    end
+
+    @tag :tmp_dir
+    test "does not list purely-staged changes", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "staged only\n")
+      git!(["add", "."], cd: dir)
+
+      assert {:ok, []} = Git.unstaged_files(dir)
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.unstaged_files(dir)
+    end
+  end
+
+  describe "staged_file_diff/2" do
+    @tag :tmp_dir
+    test "returns the unified diff of the index vs HEAD for one path", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "changed\n")
+      git!(["add", "."], cd: dir)
+
+      assert {:ok, diff} = Git.staged_file_diff(dir, "seed.txt")
+      assert diff =~ "-seed"
+      assert diff =~ "+changed"
+    end
+
+    @tag :tmp_dir
+    test "returns an empty string when the path has no staged changes", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:ok, ""} = Git.staged_file_diff(dir, "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.staged_file_diff(dir, "seed.txt")
+    end
+  end
+
+  describe "unstaged_file_diff/2" do
+    @tag :tmp_dir
+    test "returns the unified diff of the working tree vs the index for one path",
+         %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "worktree edit\n")
+
+      assert {:ok, diff} = Git.unstaged_file_diff(dir, "seed.txt")
+      assert diff =~ "-seed"
+      assert diff =~ "+worktree edit"
+    end
+
+    @tag :tmp_dir
+    test "returns an empty string when the path has no unstaged changes", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:ok, ""} = Git.unstaged_file_diff(dir, "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
+      assert {:error, :not_a_repo} = Git.unstaged_file_diff(dir, "seed.txt")
     end
   end
 

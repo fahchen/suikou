@@ -26,6 +26,11 @@ defmodule Suikou.Git do
   @type diff_stats_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type list_commits_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type commit_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type commit_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type commit_file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type range_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type worktree_files_error() :: :not_a_repo | :git_error
+  @type worktree_file_diff_error() :: :not_a_repo | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
   @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
   @type commit_entry() :: %{sha: String.t(), subject: String.t()}
@@ -440,6 +445,196 @@ defmodule Suikou.Git do
     end
   end
 
+  @doc """
+  Lists files changed by a single `sha` (commit vs. its first parent) with
+  name-status letters mapped as in `changed_files_with_status/3`. Root
+  commits diff against the empty tree, so every path surfaces as `:added`.
+  Powers the per-commit lens's navigator when the reviewer picks a single
+  commit from the commit-range popover (BDR-0024).
+
+  ## Examples
+
+      Suikou.Git.commit_files("/projects/app", "0a1b2c3")
+      #=> {:ok, [%{path: "a.txt", status: :modified}]}
+
+  """
+  @spec commit_files(repo_dir(), ref()) ::
+          {:ok, [%{path: rel_path(), status: change_status()}]}
+          | {:error, commit_files_error()}
+  def commit_files(dir, sha) do
+    with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, sha),
+         {:ok, out} <-
+           run(dir, [
+             "show",
+             "--format=",
+             "--name-status",
+             "-z",
+             sha,
+             "--"
+           ]) do
+      {:ok, parse_name_status(out)}
+    end
+  end
+
+  @doc """
+  Returns the unified diff a single `sha` introduces for one `path` (commit
+  vs. its first parent). Powers the per-commit lens's file-content route so
+  the reviewer sees exactly what that commit changed in that file, instead
+  of the aggregate `base...head` diff. Empty string when `path` is unchanged
+  by the commit.
+
+  ## Examples
+
+      Suikou.Git.commit_file_diff("/projects/app", "0a1b2c3", "a.txt")
+      #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
+
+  """
+  @spec commit_file_diff(repo_dir(), ref(), rel_path()) ::
+          {:ok, String.t()} | {:error, commit_file_diff_error()}
+  def commit_file_diff(dir, sha, path) when is_binary(path) do
+    with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, sha) do
+      run(dir, ["show", "--format=", "--patch", sha, "--", path])
+    end
+  end
+
+  @doc """
+  Returns the unified diff for one `path` covering the commit range from
+  `oldest` (inclusive) through `newest` (inclusive) — the patches every commit
+  between them introduces on that file, collapsed into one diff. Powers the
+  per-file view under a multi-commit lens selection, where the reviewer has
+  highlighted a slice of the commit-range popover.
+
+  Root-commit safe: when `oldest` has no parent, the range starts from git's
+  well-known empty-tree object so the root commit's own additions are
+  included. When `oldest == newest` the diff collapses to that single commit's
+  patch (delegates to `commit_file_diff/3`). Returns an empty string when
+  `path` is unchanged across the range.
+
+  ## Examples
+
+      Suikou.Git.range_diff("/projects/app", "0a1b2c3", "9f8e7d6", "a.txt")
+      #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
+
+  """
+  @spec range_diff(repo_dir(), ref(), ref(), rel_path()) ::
+          {:ok, String.t()} | {:error, range_diff_error()}
+  def range_diff(dir, oldest, newest, path) when is_binary(path) do
+    with {:ok, oldest} <- tag_invalid_ref(safe_ref(oldest)),
+         {:ok, newest} <- tag_invalid_ref(safe_ref(newest)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, oldest),
+         :ok <- ensure_ref(dir, newest) do
+      if oldest == newest do
+        commit_file_diff(dir, newest, path)
+      else
+        base = range_base(dir, oldest)
+        run(dir, ["diff", base <> ".." <> newest, "--", path])
+      end
+    end
+  end
+
+  # `<oldest>^` when `oldest` has a parent, otherwise git's well-known empty
+  # tree SHA — the same base `git show` uses for root commits, so the range
+  # `<empty_tree>..<newest>` walks every change up to and including the root.
+  defp range_base(dir, oldest) do
+    case run(dir, ["rev-parse", "--verify", "--quiet", oldest <> "^"]) do
+      {:ok, _out} -> oldest <> "^"
+      {:error, _reason} -> empty_tree_sha()
+    end
+  end
+
+  # The canonical git empty-tree object hash; every git repository resolves it
+  # without needing any commits, so we can diff against it as the "before"
+  # side of a root commit.
+  defp empty_tree_sha, do: "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+  @doc """
+  Lists files with staged changes — the current index against `HEAD`, with
+  name-status letters mapped as in `changed_files_with_status/3`. Powers the
+  staged working-tree lens's navigator (BDR-0024 §4). Returns `{:ok, []}`
+  when the index matches `HEAD`.
+
+  ## Examples
+
+      Suikou.Git.staged_files("/projects/app")
+      #=> {:ok, [%{path: "a.txt", status: :modified}]}
+
+  """
+  @spec staged_files(repo_dir()) ::
+          {:ok, [%{path: rel_path(), status: change_status()}]}
+          | {:error, worktree_files_error()}
+  def staged_files(dir) do
+    with :ok <- ensure_repo(dir),
+         {:ok, out} <-
+           run(dir, ["diff", "--cached", "--name-status", "-z", "HEAD", "--"]) do
+      {:ok, parse_name_status(out)}
+    end
+  end
+
+  @doc """
+  Lists files with unstaged changes — the working tree against the current
+  index, with name-status letters mapped as in `changed_files_with_status/3`.
+  Powers the unstaged working-tree lens's navigator (BDR-0024 §4). Returns
+  `{:ok, []}` when the working tree matches the index.
+
+  ## Examples
+
+      Suikou.Git.unstaged_files("/projects/app")
+      #=> {:ok, [%{path: "a.txt", status: :modified}]}
+
+  """
+  @spec unstaged_files(repo_dir()) ::
+          {:ok, [%{path: rel_path(), status: change_status()}]}
+          | {:error, worktree_files_error()}
+  def unstaged_files(dir) do
+    with :ok <- ensure_repo(dir),
+         {:ok, out} <- run(dir, ["diff", "--name-status", "-z", "--"]) do
+      {:ok, parse_name_status(out)}
+    end
+  end
+
+  @doc """
+  Returns the unified diff of the current index against `HEAD` for one
+  `path` — the "staged" working-tree lens for a diff review (BDR-0024).
+  Empty string when `path` has no staged changes.
+
+  ## Examples
+
+      Suikou.Git.staged_file_diff("/projects/app", "a.txt")
+      #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
+
+  """
+  @spec staged_file_diff(repo_dir(), rel_path()) ::
+          {:ok, String.t()} | {:error, worktree_file_diff_error()}
+  def staged_file_diff(dir, path) when is_binary(path) do
+    with :ok <- ensure_repo(dir) do
+      run(dir, ["diff", "--cached", "HEAD", "--", path])
+    end
+  end
+
+  @doc """
+  Returns the unified diff of the working tree against the current index for
+  one `path` — the "unstaged" working-tree lens for a diff review
+  (BDR-0024). Empty string when `path` has no unstaged changes.
+
+  ## Examples
+
+      Suikou.Git.unstaged_file_diff("/projects/app", "a.txt")
+      #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
+
+  """
+  @spec unstaged_file_diff(repo_dir(), rel_path()) ::
+          {:ok, String.t()} | {:error, worktree_file_diff_error()}
+  def unstaged_file_diff(dir, path) when is_binary(path) do
+    with :ok <- ensure_repo(dir) do
+      run(dir, ["diff", "--", path])
+    end
+  end
+
   # `git log --format=%H%x00%s -z` emits `<sha>\0<subject>\0` per commit. Split
   # on NUL and pair the tokens; a trailing empty tail from the final NUL is
   # dropped by `trim: true`.
@@ -451,11 +646,8 @@ defmodule Suikou.Git do
   end
 
   @doc """
-  Resolves `ref` to its current 40-character commit SHA in `dir`. Used by the
-  project board to show "this diff currently compares <base_sha>..<head_sha>"
-  so a reviewer is not misled when a branch ref advances after the review was
-  created. Returns `{:error, :ref_not_found}` when the ref does not resolve to
-  a commit.
+  Resolves `ref` to its current 40-character commit SHA in `dir`. Returns
+  `{:error, :ref_not_found}` when the ref does not resolve to a commit.
 
   ## Examples
 
