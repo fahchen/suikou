@@ -1025,8 +1025,12 @@ defmodule Suikou.Reviews do
   # reason. These are follow-ups if the reviewer wants them.
   defp lens_blobs_and_stats(_project, _git_diff, _lens, _paths), do: {%{}, %{}}
 
+  # Full-file context so the reviewer can expand every gap client-side; the
+  # renderer folds long unchanged runs back down to a GitHub-style default view.
+  # ponytail: only the default lens ships full context — commit/staged/unstaged
+  # views stay at git's -U3; widen them if reviewers ask.
   defp lens_file_diff(%Project{path: path}, git_diff, %{scope: :all, worktree: :diff}, rel_path) do
-    Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, rel_path)
+    Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, rel_path, 1_000_000)
   end
 
   defp lens_file_diff(

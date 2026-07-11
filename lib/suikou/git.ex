@@ -190,21 +190,26 @@ defmodule Suikou.Git do
   three-dot. Returns an empty string when `path` is unchanged. Paths are
   treated as filenames, not options, by the trailing `--` separator.
 
+  `unified` is the number of context lines around each change (git's `-U`).
+  Pass a large value (e.g. `1_000_000`) to emit the whole file as context so
+  the reviewer can expand every gap client-side; git clamps it to the file's
+  line count, so there is no need to know the length up front.
+
   ## Examples
 
       Suikou.Git.file_diff("/projects/app", "main", "topic", "lib/app.ex")
       #=> {:ok, "diff --git a/lib/app.ex b/lib/app.ex\\n..."}
 
   """
-  @spec file_diff(repo_dir(), ref(), ref(), rel_path()) ::
+  @spec file_diff(repo_dir(), ref(), ref(), rel_path(), non_neg_integer()) ::
           {:ok, String.t()} | {:error, file_diff_error()}
-  def file_diff(dir, base, head, path) do
+  def file_diff(dir, base, head, path, unified \\ 3) when is_integer(unified) and unified >= 0 do
     with {:ok, base} <- tag_invalid_ref(safe_ref(base)),
          {:ok, head} <- tag_invalid_ref(safe_ref(head)),
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, base),
          :ok <- ensure_ref(dir, head) do
-      run(dir, ["diff", base <> "..." <> head, "--", path])
+      run(dir, ["diff", "--unified=#{unified}", base <> "..." <> head, "--", path])
     end
   end
 
