@@ -233,7 +233,8 @@ defmodule Suikou.Critique.Comments do
       #=> {:error, :artifact_not_found}
 
   """
-  @spec reanchor_artifact(Ecto.UUID.t()) :: {:ok, non_neg_integer()} | {:error, :artifact_not_found}
+  @spec reanchor_artifact(Ecto.UUID.t()) ::
+          {:ok, non_neg_integer()} | {:error, :artifact_not_found}
   def reanchor_artifact(artifact_id) do
     case Rounds.latest(artifact_id) do
       %Round{} = round ->

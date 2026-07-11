@@ -128,7 +128,8 @@ defmodule Suikou.Critique do
       #=> {:ok, 2}
 
   """
-  @spec reanchor_artifact(Ecto.UUID.t()) :: {:ok, non_neg_integer()} | {:error, :artifact_not_found}
+  @spec reanchor_artifact(Ecto.UUID.t()) ::
+          {:ok, non_neg_integer()} | {:error, :artifact_not_found}
   def reanchor_artifact(artifact_id) do
     case Comments.reanchor_artifact(artifact_id) do
       {:ok, moved} = result ->

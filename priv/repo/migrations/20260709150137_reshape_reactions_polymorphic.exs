@@ -12,6 +12,7 @@ defmodule Suikou.Repo.Migrations.ReshapeReactionsPolymorphic do
     create table(:reactions) do
       add :comment_id, references(:comments, on_delete: :delete_all)
       add :reply_id, references(:replies, on_delete: :delete_all)
+
       add :emoji, :string,
         null: false,
         check: %{
