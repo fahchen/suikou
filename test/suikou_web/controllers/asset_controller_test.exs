@@ -198,6 +198,185 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert response(conn, 404)
     end
+
+    @tag :tmp_dir
+    test "serves a single commit's diff when ?scope=commits:<sha>",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+      File.write!(Path.join(dir, "b.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add b"])
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content",
+          path: "a.txt",
+          scope: "commits:#{sha}"
+        )
+
+      body = response(conn, 200)
+      assert body =~ "+one"
+      refute body =~ "b.txt"
+    end
+
+    @tag :tmp_dir
+    test "serves a multi-commit range diff when ?scope=commits:<sha>,<sha>",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha_a, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_a = String.trim(sha_a)
+      File.write!(Path.join(dir, "a.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "edit a"])
+      {sha_b, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_b = String.trim(sha_b)
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content",
+          path: "a.txt",
+          scope: "commits:#{sha_b},#{sha_a}"
+        )
+
+      body = response(conn, 200)
+      assert body =~ "+two"
+      refute body =~ "+one"
+    end
+
+    @tag :tmp_dir
+    test "serves the unstaged working-tree diff when ?worktree=unstaged",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "seed.txt"), "committed\n") end)
+      File.write!(Path.join(dir, "seed.txt"), "worktree edit\n")
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content",
+          path: "seed.txt",
+          worktree: "unstaged"
+        )
+
+      body = response(conn, 200)
+      assert body =~ "+worktree edit"
+    end
+
+    @tag :tmp_dir
+    test "400 when scope=commits is combined with worktree=staged",
+         %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha = String.trim(sha)
+
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content",
+          path: "a.txt",
+          scope: "commits:#{sha}",
+          worktree: "staged"
+        )
+
+      assert response(conn, 400)
+    end
+
+    @tag :tmp_dir
+    test "400 when scope=commits has an invalid hex sha", %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content", path: "a.txt", scope: "commits:zzz")
+
+      assert response(conn, 400)
+    end
+
+    @tag :tmp_dir
+    test "400 when scope=commits is empty", %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn = get(conn, "/api/review/#{review.id}/files/content", path: "a.txt", scope: "commits:")
+
+      assert response(conn, 400)
+    end
+
+    @tag :tmp_dir
+    test "400 for an unknown scope keyword", %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn =
+        get(conn, "/api/review/#{review.id}/files/content", path: "a.txt", scope: "nonsense")
+
+      assert response(conn, 400)
+    end
   end
 
   describe "GET /api/review/:review_id/files/raw" do
@@ -307,7 +486,12 @@ defmodule SuikouWeb.AssetControllerTest do
 
       conn = get(conn, "/api/review/#{review.id}/commits")
 
-      assert %{"commits" => [%{"sha" => sha2, "subject" => "second"}, %{"sha" => _sha1, "subject" => "first"}]} =
+      assert %{
+               "commits" => [
+                 %{"sha" => sha2, "subject" => "second"},
+                 %{"sha" => _sha1, "subject" => "first"}
+               ]
+             } =
                json_response(conn, 200)
 
       assert String.match?(sha2, ~r/^[0-9a-f]{40}$/)

@@ -81,11 +81,20 @@ defmodule SuikouWeb.AssetController do
 
   """
   @spec file_content(Plug.Conn.t(), map()) :: Plug.Conn.t()
-  def file_content(conn, %{"review_id" => review_id, "path" => path})
+  def file_content(conn, %{"review_id" => review_id, "path" => path} = params)
       when is_binary(path) and path != "" do
-    case Reviews.get_review(review_id) do
-      %Review{} = review -> serve_review_path(conn, review, path)
-      nil -> send_resp(conn, 404, "")
+    case parse_lens(params) do
+      {:ok, lens} ->
+        case Reviews.get_review(review_id) do
+          %Review{} = review -> serve_review_path(conn, review, path, lens)
+          nil -> send_resp(conn, 404, "")
+        end
+
+      {:error, :invalid_scope_worktree_combination} ->
+        send_resp(conn, 400, "")
+
+      {:error, _reason} ->
+        send_resp(conn, 400, "")
     end
   end
 
@@ -125,8 +134,8 @@ defmodule SuikouWeb.AssetController do
   first, as JSON `{"commits": [{"sha", "subject"}]}`. Answers 404 for a
   file-selection review, an unknown review, or a git error (deleted ref,
   invalid ref, non-repo project) — the review chrome already surfaces the
-  refs-moved/branch-deleted states via `refs_snapshot/1`, so this endpoint
-  stays a plain read.
+  branch-deleted state via `refs_snapshot/1` (`refs_valid: false`), so this
+  endpoint stays a plain read.
 
   ## Examples
 
@@ -147,12 +156,89 @@ defmodule SuikouWeb.AssetController do
     end
   end
 
-  defp serve_review_path(conn, %Review{} = review, path) do
-    case Reviews.fetch_content_by_path(review, path) do
-      {:ok, source} -> serve_content(conn, source)
-      {:error, _reason} -> send_resp(conn, 404, "")
+  @doc """
+  Lists a review's files under the given scope × worktree lens, as JSON:
+  `{"files": [{path, change_status, added, deleted, verdict, approved,
+  soft_removed, artifact_id, content_hash}]}`. Powers the file navigator's
+  scope-aware refresh (BDR-0025): when the reviewer switches scope or worktree,
+  the navigator refetches from here instead of the static
+  `load_review_structure` payload. 404 for an unknown review or invalid lens
+  keyword; 400 for an invalid scope × worktree combination.
+  """
+  @spec files(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def files(conn, %{"review_id" => review_id} = params) do
+    case parse_lens(params) do
+      {:ok, lens} ->
+        case Reviews.get_review(review_id) do
+          %Review{} = review -> json(conn, %{files: Reviews.list_files(review, lens)})
+          nil -> send_resp(conn, 404, "")
+        end
+
+      {:error, :invalid_scope_worktree_combination} ->
+        send_resp(conn, 400, "")
+
+      {:error, _reason} ->
+        send_resp(conn, 400, "")
     end
   end
+
+  defp serve_review_path(conn, %Review{} = review, path, lens) do
+    case Reviews.fetch_content_by_path(review, path, lens) do
+      {:ok, source} ->
+        serve_content(conn, source)
+
+      {:error, :invalid_scope_worktree_combination} ->
+        send_resp(conn, 400, "")
+
+      {:error, _reason} ->
+        send_resp(conn, 404, "")
+    end
+  end
+
+  # `?scope=all` (default) | `?scope=commits:<sha>[,<sha>...]` | `?worktree=diff`
+  # (default) | `?worktree=staged` | `?worktree=unstaged`. Missing keys keep the
+  # pinned `base_ref...head_ref` diff (BDR-0024 default lens). `commits` carries
+  # a newest-first hex SHA list (each 4-64 hex chars), matching
+  # `Suikou.Reviews.list_diff_commits/1`'s order.
+  defp parse_lens(params) do
+    with {:ok, scope} <- parse_scope(Map.get(params, "scope")),
+         {:ok, worktree} <- parse_worktree(Map.get(params, "worktree")) do
+      lens =
+        %{}
+        |> maybe_put(:scope, scope, :all)
+        |> maybe_put(:worktree, worktree, :diff)
+
+      cond do
+        match?({:commits, [_ | _]}, scope) and worktree in [:staged, :unstaged] ->
+          {:error, :invalid_scope_worktree_combination}
+
+        true ->
+          {:ok, lens}
+      end
+    end
+  end
+
+  defp parse_scope(nil), do: {:ok, :all}
+  defp parse_scope("all"), do: {:ok, :all}
+
+  defp parse_scope("commits:" <> rest) when byte_size(rest) > 0 do
+    shas = String.split(rest, ",", trim: true)
+
+    if shas != [] and Enum.all?(shas, &(&1 =~ ~r/^[a-f0-9]{4,64}$/i)),
+      do: {:ok, {:commits, Enum.map(shas, &String.downcase/1)}},
+      else: {:error, :invalid_scope}
+  end
+
+  defp parse_scope(_other), do: {:error, :invalid_scope}
+
+  defp parse_worktree(nil), do: {:ok, :diff}
+  defp parse_worktree("diff"), do: {:ok, :diff}
+  defp parse_worktree("staged"), do: {:ok, :staged}
+  defp parse_worktree("unstaged"), do: {:ok, :unstaged}
+  defp parse_worktree(_other), do: {:error, :invalid_worktree}
+
+  defp maybe_put(map, _key, default, default), do: map
+  defp maybe_put(map, key, value, _default), do: Map.put(map, key, value)
 
   defp serve_review_raw(conn, %Review{} = review, path) do
     case Reviews.fetch_raw_by_path(review, path) do
