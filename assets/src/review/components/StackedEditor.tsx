@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { ArrowDownUp, Check, ChevronRight, Lock, MessageSquare } from "lucide-react"
+import { ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { CommentDisplayMode } from "../../stores/ui-store"
@@ -12,6 +12,7 @@ import { SideCommentCard } from "./comments/SideCommentCard"
 import {
   BinaryNotice,
   type Content,
+  type DiffLens,
   EmptyFileNotice,
   ImageView,
   LoadingNotice,
@@ -19,6 +20,8 @@ import {
   useFileContent,
   writeDocView,
 } from "./EditorSurface"
+import { DiffView } from "./DiffView"
+import { FileNotice } from "./EditorSurface"
 import { VerdictChip } from "./ReviewChrome"
 import { CommentThread } from "./comments/CommentThread"
 import type { Comment, CommentsStoreProxy } from "./comments/shared"
@@ -79,6 +82,7 @@ export const StackedFiles = observer(function StackedFiles({
   onScrolledTo,
   scrollTarget,
   onScrollHandled,
+  diffLens,
 }: {
   reviewId: string
   files: StackedFileDatum[]
@@ -92,6 +96,7 @@ export const StackedFiles = observer(function StackedFiles({
   onScrolledTo: (path: string) => void
   scrollTarget: StackedScrollTarget | null
   onScrollHandled: () => void
+  diffLens?: DiffLens
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const showThreads = commentDisplay === "inline"
@@ -140,9 +145,11 @@ export const StackedFiles = observer(function StackedFiles({
         }}
       >
         {shown.length === 0 ? (
-          <div className="grid flex-1 place-items-center text-[13px] text-faint">
-            {files.length === 0 ? "No files in this review." : "Every file has a verdict."}
-          </div>
+          files.length === 0 ? (
+            <FileNotice icon={Files} title="No files in this review" body="Add files from the project board or check that the review's selection is not empty." />
+          ) : (
+            <FileNotice icon={CircleCheck} title="Every file has a verdict" body="Nothing left to review under the current filter. Toggle Hide reviewed off to see the finished files again." />
+          )
         ) : (
           shown.map((file) => (
             <StackedFile
@@ -154,7 +161,9 @@ export const StackedFiles = observer(function StackedFiles({
               focusedCommentId={focusedCommentId}
               onFocusComment={onFocusComment}
               scrollTarget={scrollTarget?.path === file.path ? scrollTarget : null}
+              jumping={scrollTarget != null && scrollTarget.path !== file.path}
               onScrollHandled={onScrollHandled}
+              diffLens={diffLens}
             />
           ))
         )}
@@ -181,7 +190,9 @@ const StackedFile = observer(function StackedFile({
   focusedCommentId,
   onFocusComment,
   scrollTarget,
+  jumping,
   onScrollHandled,
+  diffLens,
 }: {
   reviewId: string
   file: StackedFileDatum
@@ -190,7 +201,9 @@ const StackedFile = observer(function StackedFile({
   focusedCommentId: string | null
   onFocusComment: (commentId: string | null) => void
   scrollTarget: StackedScrollTarget | null
+  jumping: boolean
   onScrollHandled: () => void
+  diffLens?: DiffLens
 }) {
   const dir = file.path.slice(0, file.path.lastIndexOf("/") + 1)
   const name = file.path.slice(file.path.lastIndexOf("/") + 1)
@@ -212,6 +225,10 @@ const StackedFile = observer(function StackedFile({
   // review scrolls without holding every file's render at once.
   const sectionRef = useRef<HTMLElement>(null)
   const [mounted, setMounted] = useState(false)
+  // Manual per-file collapse: reviewer clicks the chevron to hide the body.
+  // Collapsed files skip the heavy render entirely (no spacer either), so the
+  // stack behaves like a folded outline. Transient — resets on remount.
+  const [collapsed, setCollapsed] = useState(false)
   const bodyHeight = useRef<number>(DEFAULT_BODY_HEIGHT)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -244,31 +261,70 @@ const StackedFile = observer(function StackedFile({
     }
   }, [])
 
-  // Render-before-locate: a scroll request force-mounts this file (so a body that
-  // was dropped to a spacer renders first), then scrolls. A header-only target
-  // (no line) can scroll immediately; a line target is scrolled by the content
-  // once it has rendered.
+  // Render-before-locate: a scroll request force-mounts this file (so a body
+  // that was dropped to a spacer renders first), then scrolls. The spacer's
+  // reserved height is a stale estimate from the last measurement (or the
+  // 440px default on first mount), so scrolling BEFORE the real body renders
+  // lands on the wrong absolute position — after mount, everything below
+  // shifts and the header ends up above/below the viewport. Solution: mount
+  // first, defer scroll until the body has laid out (two RAFs = "next frame
+  // after commit"). A header-only target (no line) is enough; a line target
+  // is handled inside StackedFileContent once the specific line row exists.
+  const pendingScroll = useRef(false)
   useEffect(() => {
     if (!scrollTarget) return
     setMounted(true)
     clearTimeout(timer.current)
     if (scrollTarget.line == null) {
-      sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-      onScrollHandled()
+      pendingScroll.current = true
     }
-  }, [scrollTarget, onScrollHandled])
+  }, [scrollTarget])
+
+  // Direct jump: when the reader clicks another file, drop every non-target body
+  // at once (instead of after UNMOUNT_DELAY_MS) so the jump lands without paying
+  // to render the files scrolled past. IO re-mounts the new neighbours on arrival.
+  useEffect(() => {
+    if (!jumping) return
+    clearTimeout(timer.current)
+    setMounted(false)
+  }, [jumping])
+
+  useEffect(() => {
+    if (!mounted || !pendingScroll.current || !scrollTarget || scrollTarget.line != null) return
+    pendingScroll.current = false
+    // Two RAFs so both React commit + browser layout are settled before we
+    // measure the header's position and scroll to it.
+    const r1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sectionRef.current?.scrollIntoView({ block: "start" })
+        onScrollHandled()
+      })
+    })
+    return () => cancelAnimationFrame(r1)
+  }, [mounted, scrollTarget, onScrollHandled])
 
   const chooseView = (next: "source" | "preview") => {
     setView(next)
     writeDocView(next === "source" ? "source" : "rendered")
   }
 
+  const isDiff = !!diffLens
   return (
     <section ref={sectionRef} className="border-b border-hair-strong last:border-b-0">
       <header
         data-stacked-file={file.path}
         className="sticky top-0 z-[4] flex items-center gap-2.5 border-b border-hair-strong bg-surface px-3.5 py-2 shadow-[0_2px_8px_var(--shadow-color,transparent)]"
       >
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="grid size-[20px] shrink-0 place-items-center rounded text-muted hover:bg-soft hover:text-ink"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand file" : "Collapse file"}
+          title={collapsed ? "Expand file" : "Collapse file"}
+        >
+          {collapsed ? <ChevronRight size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />}
+        </button>
         {badge && (
           <span
             title={badge.title}
@@ -289,7 +345,7 @@ const StackedFile = observer(function StackedFile({
           </span>
         )}
         <span className="flex-1" />
-        {previewable && (
+        {previewable && !isDiff && (
           <Segmented<"source" | "preview">
             value={view}
             onChange={chooseView}
@@ -303,7 +359,7 @@ const StackedFile = observer(function StackedFile({
           <VerdictChip file={file} proxy={file.proxy} />
         )}
       </header>
-      {mounted ? (
+      {collapsed ? null : mounted ? (
         <StackedFileContent
           reviewId={reviewId}
           file={file}
@@ -321,6 +377,7 @@ const StackedFile = observer(function StackedFile({
           onHeight={(h) => {
             bodyHeight.current = h
           }}
+          diffLens={diffLens}
         />
       ) : (
         <div style={{ height: bodyHeight.current }} aria-hidden />
@@ -348,6 +405,7 @@ const StackedFileContent = observer(function StackedFileContent({
   scrollToLine,
   onScrollHandled,
   onHeight,
+  diffLens,
 }: {
   reviewId: string
   file: StackedFileDatum
@@ -363,8 +421,9 @@ const StackedFileContent = observer(function StackedFileContent({
   scrollToLine: number | null
   onScrollHandled: () => void
   onHeight: (height: number) => void
+  diffLens?: DiffLens
 }) {
-  const { content } = useFileContent(reviewId, file.path)
+  const { content } = useFileContent(reviewId, file.path, diffLens)
   // ponytail: html renders as Source in the stacked scan view. Rich html modes
   // (iframe comment/interactive/zoom) stay in the single-file editor — an iframe
   // per stacked file would be heavy and the anchoring belongs to focused reading.
@@ -394,7 +453,7 @@ const StackedFileContent = observer(function StackedFileContent({
     if (scrollToLine == null || content.kind !== "text") return
     ref.current
       ?.querySelector(`[data-review-line="${scrollToLine}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" })
+      ?.scrollIntoView({ block: "center" })
     onScrollHandled()
   }, [scrollToLine, content.kind, onScrollHandled])
 
@@ -424,6 +483,7 @@ const StackedFileContent = observer(function StackedFileContent({
         focusedCommentId={focusedCommentId}
         highlightedRange={highlightedRange}
         onFocusComment={onFocusComment}
+        isDiff={!!diffLens}
       />
     </div>
   )
@@ -441,6 +501,7 @@ function StackedBody({
   focusedCommentId,
   highlightedRange,
   onFocusComment,
+  isDiff,
 }: {
   content: Content
   name: string
@@ -453,6 +514,7 @@ function StackedBody({
   focusedCommentId: string | null
   highlightedRange: { start: number; end: number } | null
   onFocusComment: (commentId: string | null) => void
+  isDiff: boolean
 }) {
   if (content.kind === "loading") {
     return <LoadingNotice name={name} />
@@ -468,6 +530,21 @@ function StackedBody({
   }
   if (content.lines.length === 1 && content.lines[0] === "") {
     return <EmptyFileNotice name={name} />
+  }
+  if (isDiff) {
+    return (
+      <DiffView
+        patch={content.lines.join("\n")}
+        path={file.path}
+        comments={file.comments}
+        fileProxy={file.proxy}
+        commentsProxy={file.commentsProxy}
+        draftScope={draftScope}
+        readOnly={readOnly}
+        focusedCommentId={focusedCommentId}
+        onFocusComment={onFocusComment}
+      />
+    )
   }
   if (previewable && view === "preview") {
     return (
