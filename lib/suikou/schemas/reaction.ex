@@ -51,40 +51,14 @@ defmodule Suikou.Schemas.Reaction do
   def emojis, do: @emojis
 
   @doc """
-  Returns the emojis a human reviewer may apply. Disjoint from `agent_emojis/0`,
-  so the frontend derives the reacting actor from the emoji itself.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Reaction.human_emojis()
-      [:strong_agree, :agree, :disagree, :strong_disagree]
-
-  """
-  @spec human_emojis() :: [emoji()]
-  def human_emojis, do: @human_emojis
-
-  @doc """
-  Returns the emojis an agent may apply. Disjoint from `human_emojis/0`, so the
-  frontend derives the reacting actor from the emoji itself.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Reaction.agent_emojis()
-      [:eyes, :thinking, :check]
-
-  """
-  @spec agent_emojis() :: [emoji()]
-  def agent_emojis, do: @agent_emojis
-
-  @doc """
   Builds a changeset for a reaction on `reaction` (a struct that already carries
   the programmatic `actor`, set when the struct is built), casting `comment_id`,
   `reply_id`, and `emoji` from `params`. A reaction targets exactly one of a
   comment or a reply; this changeset-level check mirrors the DB constraint.
   `emoji` arrives as a string from the store payload; the `Ecto.Enum` field
   validates and coerces it to the atom. The emoji must also belong to the
-  reaction's actor vocabulary (`human_emojis/0` or `agent_emojis/0`), which are
-  disjoint, so a human cannot apply an agent emoji and vice versa.
+  reaction's actor vocabulary (human or agent emojis), which are disjoint, so a
+  human cannot apply an agent emoji and vice versa.
 
   ## Examples
 

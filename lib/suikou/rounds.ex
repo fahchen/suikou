@@ -26,20 +26,6 @@ defmodule Suikou.Rounds do
   def get(round_id), do: Repo.get(Round, round_id)
 
   @doc """
-  Fetches a round by its artifact and round number, or `nil` when none exists.
-
-  ## Examples
-
-      Suikou.Rounds.get_by_number(artifact.id, 2)
-      #=> %Suikou.Schemas.Round{number: 2}
-
-  """
-  @spec get_by_number(Ecto.UUID.t(), integer()) :: Round.t() | nil
-  def get_by_number(artifact_id, number) do
-    Repo.get_by(Round, artifact_id: artifact_id, number: number)
-  end
-
-  @doc """
   Returns the highest-numbered round for an artifact, or `nil` when it has none.
 
   ## Examples

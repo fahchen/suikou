@@ -111,11 +111,6 @@ class UiStore {
     if (worktree !== "diff") this.diffScope = "all"
   }
 
-  resetDiffLens() {
-    this.diffScope = "all"
-    this.diffWorktree = "diff"
-  }
-
   // Set both lens fields at once from an already-exclusive source (the URL),
   // bypassing the cross-forcing the individual setters apply.
   hydrateDiffLens(scope: DiffScope, worktree: DiffWorktree) {

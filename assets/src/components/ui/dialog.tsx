@@ -6,7 +6,7 @@ import { BACKDROP_MOTION, DIALOG_MOTION } from "./motion"
 /** Themed modal over the Base UI Dialog primitive: a dimmed backdrop and a
  * surface popup that is a bottom sheet on phones and a centered card from `sm`.
  * Base UI handles focus trapping, scroll lock, and Escape; `onClose` fires on
- * any dismissal (Escape, backdrop, or a DialogClose inside). Size the popup via
+ * any dismissal (Escape or backdrop). Size the popup via
  * `className`. */
 export function Dialog({
   open,
@@ -42,6 +42,3 @@ export function Dialog({
 
 /** The dialog's accessible title. Renders an `<h2>`; pass `className` to style. */
 export const DialogTitle = BaseDialog.Title
-
-/** A button that closes the enclosing dialog. */
-export const DialogClose = BaseDialog.Close

@@ -55,7 +55,3 @@ export function safeDraft(raw: string | null): { type: CritiqueType; body: strin
     return null
   }
 }
-
-export function compactCritiqueLabel(type: CritiqueType): string {
-  return TYPE_META[type].label.replace("_REQUIRED", "").replace("NEEDS_", "")
-}
