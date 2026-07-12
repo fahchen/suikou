@@ -1,8 +1,18 @@
 import MarkdownIt from "markdown-it"
+import deflist from "markdown-it-deflist"
+import { full as emoji } from "markdown-it-emoji"
+import footnote from "markdown-it-footnote"
+import sub from "markdown-it-sub"
+import sup from "markdown-it-sup"
 
 // One renderer is shared by document previews and comment bodies. Embedded
 // HTML stays disabled, and markdown-it rejects unsafe link protocols.
 export const markdown = new MarkdownIt({ html: false, linkify: true })
+  .use(deflist)
+  .use(emoji)
+  .use(footnote)
+  .use(sub)
+  .use(sup)
 
 const defaultFence =
   markdown.renderer.rules.fence ??
