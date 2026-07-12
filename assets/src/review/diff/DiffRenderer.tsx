@@ -90,7 +90,7 @@ const EMPTY_TOKENS: FileTokens = {
 
 /** Diff renderer. Reuses the same shiki path as Suikou's source-file view so
  * token colors are identical, and paints add/del rows from Suikou's
- * `--approve-*`/`--request-*` tokens instead of a library palette. */
+ * `--diff-add-*`/`--diff-del-*` tokens instead of a library palette. */
 export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendererProps<A>) {
   const { patch, diffStyle, lineAnnotations, selectedRange, renderAnnotation, languageHint, wordDiff, wrap = true, commentable, renderComposer } = props
 
@@ -972,15 +972,15 @@ function interleaveTokensWithSegments(
 }
 
 /** Inline tint for a `"changed"` word-diff slice on `del` / `add` rows. Uses
- * the raw `--request`/`--approve` variables with a stronger alpha than the
+ * the raw `--diff-del`/`--diff-add` variables with a stronger alpha than the
  * ambient `bg-*-soft` row surface so the exact changed characters stand out
  * without stomping shiki's token colors. `ctx` never receives word-diff. */
 function wordDiffBackground(kind: "add" | "del" | "ctx"): string | undefined {
   if (kind === "add") {
-    return "rounded-sm bg-[color:oklch(from_var(--approve)_l_c_h/0.40)] shadow-[inset_0_0_0_1px_var(--approve-edge)]"
+    return "rounded-sm bg-[color:oklch(from_var(--diff-add)_l_c_h/0.40)] shadow-[inset_0_0_0_1px_var(--diff-add-edge)]"
   }
   if (kind === "del") {
-    return "rounded-sm bg-[color:oklch(from_var(--request)_l_c_h/0.40)] shadow-[inset_0_0_0_1px_var(--request-edge)]"
+    return "rounded-sm bg-[color:oklch(from_var(--diff-del)_l_c_h/0.40)] shadow-[inset_0_0_0_1px_var(--diff-del-edge)]"
   }
   return undefined
 }
@@ -1006,8 +1006,8 @@ function AnnotationRow<A>({
 /* ---------------- Helpers ---------------- */
 
 function rowSurface(kind: "add" | "del" | "ctx"): string {
-  if (kind === "add") return "bg-approve-soft border-l-2 border-approve-edge"
-  if (kind === "del") return "bg-request-soft border-l-2 border-request-edge"
+  if (kind === "add") return "bg-diff-add-soft border-l-2 border-diff-add-edge"
+  if (kind === "del") return "bg-diff-del-soft border-l-2 border-diff-del-edge"
   return "border-l-2 border-transparent"
 }
 

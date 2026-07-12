@@ -37,6 +37,13 @@
   --color-request-soft: var(--request-soft);
   --color-request-edge: var(--request-edge);
 
+  --color-diff-add: var(--diff-add);
+  --color-diff-add-soft: var(--diff-add-soft);
+  --color-diff-add-edge: var(--diff-add-edge);
+  --color-diff-del: var(--diff-del);
+  --color-diff-del-soft: var(--diff-del-soft);
+  --color-diff-del-edge: var(--diff-del-edge);
+
   --color-type-fix: var(--type-fix);
   --color-type-fix-soft: var(--type-fix-soft);
   --color-type-fix-edge: var(--type-fix-edge);
@@ -68,6 +75,17 @@
   --type-note: var(--ink-2);
   --type-note-soft: color-mix(in oklab, var(--ink-3) 14%, transparent);
   --type-note-edge: color-mix(in oklab, var(--ink-3) 26%, transparent);
+
+  /* Diff add/delete are colour-blind-safe: additions are blue (not the green
+     `--approve`), deletions stay red. Blue vs red separates on hue AND
+     lightness, so protan/deutan/tritan viewers still tell them apart. Stronger
+     edge alpha than the critique tokens for a more visible row border. */
+  --diff-add: var(--blue);
+  --diff-add-soft: color-mix(in oklab, var(--blue) 17%, transparent);
+  --diff-add-edge: color-mix(in oklab, var(--blue) 48%, transparent);
+  --diff-del: var(--request);
+  --diff-del-soft: color-mix(in oklab, var(--request) 15%, transparent);
+  --diff-del-edge: color-mix(in oklab, var(--request) 48%, transparent);
 }
 
 /* Suikou Dark — the default palette. */
