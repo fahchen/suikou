@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { ChevronDown, FileText, Folder, GitCompare, Plus, Search, SlidersHorizontal } from "lucide-react"
+import { ChevronDown, FileText, Folder, GitCompare, Plus, Search, SlidersHorizontal, WifiOff } from "lucide-react"
+
+import { FileNotice } from "../review/components/EditorSurface"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
@@ -73,7 +75,17 @@ export function ProjectsBoard() {
     return readBoardCache() ? <div aria-hidden className="h-screen" /> : <Centered>Loading projects…</Centered>
   }
   if (root.status === "error") {
-    return <Centered>Can't reach Suikou. {root.error.message}</Centered>
+    return (
+      <div className="grid h-screen place-items-center bg-canvas">
+        <FileNotice
+          icon={WifiOff}
+          title="Can't reach Suikou"
+          body="The server didn't respond. Check that the dev server is running, then reload."
+          tone="request"
+          meta={root.error.message}
+        />
+      </div>
+    )
   }
   return <Board store={root.store} />
 }
