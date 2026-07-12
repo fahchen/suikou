@@ -502,7 +502,7 @@ defmodule Suikou.Git do
     with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, sha) do
-      run(dir, ["show", "--format=", "--patch", sha, "--", path])
+      run(dir, ["show", "--format=", "--patch", "--unified=1000000", sha, "--", path])
     end
   end
 
@@ -537,7 +537,7 @@ defmodule Suikou.Git do
         commit_file_diff(dir, newest, path)
       else
         base = range_base(dir, oldest)
-        run(dir, ["diff", base <> ".." <> newest, "--", path])
+        run(dir, ["diff", "--unified=1000000", base <> ".." <> newest, "--", path])
       end
     end
   end
@@ -617,7 +617,7 @@ defmodule Suikou.Git do
           {:ok, String.t()} | {:error, worktree_file_diff_error()}
   def staged_file_diff(dir, path) when is_binary(path) do
     with :ok <- ensure_repo(dir) do
-      run(dir, ["diff", "--cached", "HEAD", "--", path])
+      run(dir, ["diff", "--unified=1000000", "--cached", "HEAD", "--", path])
     end
   end
 
@@ -636,7 +636,7 @@ defmodule Suikou.Git do
           {:ok, String.t()} | {:error, worktree_file_diff_error()}
   def unstaged_file_diff(dir, path) when is_binary(path) do
     with :ok <- ensure_repo(dir) do
-      run(dir, ["diff", "--", path])
+      run(dir, ["diff", "--unified=1000000", "--", path])
     end
   end
 
