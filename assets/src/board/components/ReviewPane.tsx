@@ -4,6 +4,7 @@ import type { CommandReply, StoreProxy } from "@musubi/react"
 import { Check, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
+import { parseIso } from "../../lib/utils"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { ProjectSettingsDialog } from "../ProjectSettingsDialog"
 import {
@@ -287,8 +288,7 @@ function filesFor(grouped: ReviewFilesGrouped, reviewId: string): BoardReviewFil
 
 /** Coarse relative time (2h, 4d, 1w) for a review's created-at stamp. */
 function elapsed(iso: string): string {
-  const stamp = /Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`
-  const secs = Math.max(0, (Date.now() - new Date(stamp).getTime()) / 1000)
+  const secs = Math.max(0, (Date.now() - parseIso(iso).getTime()) / 1000)
   if (secs < 60) return `${Math.floor(secs)}s`
   const mins = secs / 60
   if (mins < 60) return `${Math.floor(mins)}m`

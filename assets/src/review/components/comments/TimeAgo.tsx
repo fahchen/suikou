@@ -1,4 +1,5 @@
 import { Tooltip } from "../../../components/ui/tooltip"
+import { parseIso } from "../../../lib/utils"
 
 export function TimeAgo({ iso }: { iso: string }) {
   const date = parseIso(iso)
@@ -17,11 +18,6 @@ export function TimeAgo({ iso }: { iso: string }) {
       }
     />
   )
-}
-
-function parseIso(iso: string): Date {
-  const stamp = /Z|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`
-  return new Date(stamp)
 }
 
 function relativeTime(date: Date): string {
