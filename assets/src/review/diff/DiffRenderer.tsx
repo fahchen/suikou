@@ -2,7 +2,7 @@ import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useSta
 import { observer } from "mobx-react-lite"
 import type { ThemedToken } from "shiki"
 import { diffWords } from "diff"
-import { Plus, UnfoldVertical } from "lucide-react"
+import { ChevronDown, ChevronUp, Plus, UnfoldVertical } from "lucide-react"
 
 import { highlightLines } from "../highlight"
 import { parseDiffPatch, type DiffFile, type DiffHunk, type DiffLine } from "./parse"
@@ -337,6 +337,9 @@ function DiffFileView<A>({
  * three-line frame around every change. */
 const CONTEXT_MARGIN = 3
 
+/** How many hidden lines one click of a gap control reveals. */
+const EXPAND_STEP = 20
+
 /** A hunk's lines split into rendered runs and collapsible gaps. Under a
  * full-context patch (default lens) a hunk spans the whole file, so long
  * unchanged runs become `gap`s the reviewer can expand on click. */
@@ -410,10 +413,23 @@ function HunkView<A>({
   renderAnnotation: ((annotation: DiffAnnotation<A>) => React.ReactNode) | undefined
 }) {
   const annotations = lineAnnotations ?? []
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  // Per gap: how many hidden lines have been revealed from each end. A click
+  // grows one end by EXPAND_STEP so a large gap opens progressively, GitHub
+  // style, rather than dumping the whole file at once.
+  const [revealed, setRevealed] = useState<Map<string, { top: number; bottom: number }>>(() => new Map())
   // Reset folds when the patch changes (e.g. a lens switch reparses the file).
-  useEffect(() => setExpanded(new Set()), [hunk])
+  useEffect(() => setRevealed(new Map()), [hunk])
   const segments = useMemo(() => segmentHunk(hunk.lines, CONTEXT_MARGIN), [hunk])
+
+  const grow = (key: string, end: "top" | "bottom", total: number) =>
+    setRevealed((prev) => {
+      const next = new Map(prev)
+      const cur = next.get(key) ?? { top: 0, bottom: 0 }
+      const remaining = total - cur.top - cur.bottom
+      const step = Math.min(EXPAND_STEP, remaining)
+      next.set(key, end === "top" ? { ...cur, top: cur.top + step } : { ...cur, bottom: cur.bottom + step })
+      return next
+    })
 
   const renderLines = (lines: DiffLine[], key: number) =>
     diffStyle === "unified" ? (
@@ -444,34 +460,62 @@ function HunkView<A>({
         <span className="block truncate">{hunk.header}</span>
       </div>
       {segments.map((segment, index) => {
-        if (segment.kind === "gap" && !expanded.has(segment.key)) {
-          return (
+        if (segment.kind !== "gap") return renderLines(segment.lines, index)
+        const total = segment.hidden.length
+        const rev = revealed.get(segment.key) ?? { top: 0, bottom: 0 }
+        const remaining = total - rev.top - rev.bottom
+        if (remaining <= 0) return renderLines(segment.hidden, index)
+        return (
+          <Fragment key={index}>
+            {rev.top > 0 && renderLines(segment.hidden.slice(0, rev.top), index * 3)}
             <GapRow
-              key={index}
-              count={segment.hidden.length}
-              onExpand={() => setExpanded((prev) => new Set(prev).add(segment.key))}
+              count={remaining}
+              onExpandDown={() => grow(segment.key, "top", total)}
+              onExpandUp={() => grow(segment.key, "bottom", total)}
             />
-          )
-        }
-        return renderLines(segment.kind === "gap" ? segment.hidden : segment.lines, index)
+            {rev.bottom > 0 && renderLines(segment.hidden.slice(total - rev.bottom), index * 3 + 2)}
+          </Fragment>
+        )
       })}
     </div>
   )
 }
 
-function GapRow({ count, onExpand }: { count: number; onExpand: () => void }) {
+function GapRow({
+  count,
+  onExpandDown,
+  onExpandUp,
+}: {
+  count: number
+  onExpandDown: () => void
+  onExpandUp: () => void
+}) {
+  const step = Math.min(EXPAND_STEP, count)
+  const partial = count > EXPAND_STEP
   return (
-    <button
-      type="button"
-      onClick={onExpand}
-      title="Expand unchanged lines"
-      className="flex w-full items-center border-b border-hair bg-soft/40 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-accent-soft hover:text-accent-bright"
-    >
-      <span className="sticky left-0 flex items-center gap-2 px-3">
-        <UnfoldVertical size={12} aria-hidden />
-        Expand {count} unchanged {count === 1 ? "line" : "lines"}
+    <div className="flex w-full items-center border-b border-hair bg-soft/40 py-1 font-mono text-[11px] text-muted">
+      <span className="sticky left-0 flex items-center gap-1 px-3">
+        {partial && (
+          <button
+            type="button"
+            onClick={onExpandDown}
+            title={`Expand ${step} lines down`}
+            className="flex items-center rounded-sm p-0.5 transition-colors hover:bg-accent-soft hover:text-accent-bright"
+          >
+            <ChevronDown size={12} aria-hidden />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={partial ? onExpandUp : onExpandDown}
+          title={partial ? `Expand ${step} lines up` : "Expand unchanged lines"}
+          className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 transition-colors hover:bg-accent-soft hover:text-accent-bright"
+        >
+          {partial ? <ChevronUp size={12} aria-hidden /> : <UnfoldVertical size={12} aria-hidden />}
+          {count} unchanged {count === 1 ? "line" : "lines"}
+        </button>
       </span>
-    </button>
+    </div>
   )
 }
 
