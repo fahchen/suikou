@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ChevronDown, Code2, CornerDownRight } from "lucide-react"
+import { ChevronDown, Code2, CornerDownRight, Loader2 } from "lucide-react"
 
 import { ConfirmDialog } from "../../../components/ui/confirm-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu"
@@ -182,10 +182,14 @@ export function Composer({
             type="button"
             onClick={submit}
             disabled={!body.trim() || pending}
-            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitLabel}
-            <span className="text-[11px] opacity-80">⌘⏎</span>
+            {pending ? (
+              <Loader2 size={12} className="animate-spin opacity-90" aria-hidden />
+            ) : (
+              <span className="text-[11px] opacity-80">⌘⏎</span>
+            )}
           </button>
         </div>
       </div>

@@ -732,8 +732,7 @@ function ArtifactComments({
   }, [composing])
 
   const submit = (body: string, type: CritiqueType) => {
-    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).catch(() => undefined)
-    onClose()
+    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).then(onClose).catch(() => undefined)
   }
 
   if (items.length === 0 && !composing) return null

@@ -50,8 +50,8 @@ export const DiffView = observer(function DiffView({
         body,
         anchor: { type: "diff_hunk", side: draft.side, start_line: draft.start, end_line: draft.end },
       })
+      .then(close)
       .catch(() => undefined)
-    close()
   }
   // Filter to diff-hunk anchored comments and pair each with an annotation on
   // the anchor's start_line. Multi-line ranges collapse to a single card under

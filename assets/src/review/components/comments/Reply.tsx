@@ -35,8 +35,8 @@ export function Reply({
         className=""
         pending={editCmd.isPending}
         onSubmit={(body) => {
-          if (commentsProxy) editCmd.dispatch({ reply_id: reply.id, body }).catch(() => undefined)
-          setEditing(false)
+          if (!commentsProxy) return
+          editCmd.dispatch({ reply_id: reply.id, body }).then(() => setEditing(false)).catch(() => undefined)
         }}
         onCancel={() => setEditing(false)}
       />

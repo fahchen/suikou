@@ -118,8 +118,8 @@ export const MarkdownPreview = observer(function MarkdownPreview({
         body,
         anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
       })
+      .then(close)
       .catch(() => undefined)
-    close()
   }
 
   const dragging = drag !== null
@@ -444,8 +444,8 @@ export const Source = observer(function Source({
         body,
         anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
       })
+      .then(close)
       .catch(() => undefined)
-    close()
   }
 
   return (

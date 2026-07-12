@@ -147,8 +147,8 @@ export const HtmlView = observer(function HtmlView({
     if (!fileProxy || overlay?.kind !== "compose") return
     addComment
       .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote: overlay.quote } })
+      .then(() => applyOverlay(null))
       .catch(() => undefined)
-    applyOverlay(null)
   }
 
   const frameRect = frameRef.current?.getBoundingClientRect()

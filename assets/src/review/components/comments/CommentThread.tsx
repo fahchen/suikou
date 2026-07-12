@@ -82,8 +82,8 @@ export function CommentThread({
         chrome={!compact}
         className={compact ? "m-0" : undefined}
         onSubmit={(body, type) => {
-          if (commentsProxy) editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).catch(() => undefined)
-          setEditing(false)
+          if (!commentsProxy) return
+          editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).then(() => setEditing(false)).catch(() => undefined)
         }}
         onCancel={() => setEditing(false)}
       />
@@ -173,8 +173,8 @@ export function CommentThread({
               className="mx-2.5 mb-2.5"
               pending={replyCmd.isPending}
               onSubmit={(body) => {
-                if (commentsProxy) replyCmd.dispatch({ comment_id: comment.id, body }).catch(() => undefined)
-                setReplying(false)
+                if (!commentsProxy) return
+                replyCmd.dispatch({ comment_id: comment.id, body }).then(() => setReplying(false)).catch(() => undefined)
               }}
               onCancel={() => setReplying(false)}
             />
