@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
-import { uiStore, type CommentDisplayMode } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,7 +139,7 @@ function hasArtifactDraftBody(scope: string): boolean {
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
  * structure; file content and the live comment overlay arrive in later passes. */
-export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string }) {
+export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: reviewId,
@@ -173,7 +174,14 @@ export function ReviewPage({ reviewId, file }: { reviewId: string; file?: string
       </div>
     )
   }
-  return <Shell store={root.store} reviewId={reviewId} file={file} />
+  return <Shell store={root.store} reviewId={reviewId} file={file} lens={lens} commits={commits} />
+}
+
+type ReviewPageProps = {
+  reviewId: string
+  file?: string
+  lens?: "staged" | "unstaged"
+  commits?: string[]
 }
 
 /** Fetches the diff review's file list under the current scope × worktree
@@ -215,7 +223,7 @@ function useLensedFileEntries(
   return entries
 }
 
-const Shell = observer(function Shell({ store, reviewId, file }: { store: ReviewStore; reviewId: string; file?: string }) {
+const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: { store: ReviewStore; reviewId: string; file?: string; lens?: "staged" | "unstaged"; commits?: string[] }) {
   const load = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
   const snap = useMusubiSnapshot(store)
@@ -273,13 +281,42 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   const [hideReviewed, setHideReviewed] = useState(false)
 
   const scopeCommits = useScopeCommits(reviewId, isDiff)
-  // Live diff lens (BDR-0024): scope + worktree are per-review view state.
-  // The pinned base/head refs never change; these params only re-shape the
-  // fetched content. Reset the lens whenever the review changes so a stale
-  // commit sha from an earlier review does not leak into a new one.
+  // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
+  // shareable and survives reload / back-forward. The route is the source of
+  // truth; hydrate the store from it whenever the review or its lens params
+  // change (a fresh review carries no lens params, so this also clears any
+  // stale sha from the review left behind).
+  const commitsKey = commits?.join(",") ?? ""
   useEffect(() => {
-    uiStore.resetDiffLens()
-  }, [reviewId])
+    const scope: DiffScope = commits && commits.length > 0 ? { commits } : "all"
+    const worktree: DiffWorktree = lens ?? "diff"
+    const currentCommits = uiStore.diffScope === "all" ? [] : uiStore.diffScope.commits
+    const wantCommits = commits ?? []
+    const sameScope =
+      currentCommits.length === wantCommits.length && currentCommits.every((c, i) => c === wantCommits[i])
+    const sameWorktree = uiStore.diffWorktree === worktree
+    if (!sameScope || !sameWorktree) uiStore.hydrateDiffLens(scope, worktree)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, lens, commitsKey])
+  // Mirror any lens change (scope picker, worktree toggle) back into the route,
+  // replacing history so the URL stays in sync without piling up back entries.
+  useEffect(() => {
+    return reaction(
+      () => ({ scope: uiStore.diffScope, worktree: uiStore.diffWorktree }),
+      ({ scope, worktree }) => {
+        navigate({
+          to: "/reviews/$reviewId",
+          params: { reviewId },
+          search: (prev) => ({
+            ...prev,
+            lens: worktree === "diff" ? undefined : worktree,
+            commits: scope === "all" ? undefined : scope.commits,
+          }),
+          replace: true,
+        })
+      },
+    )
+  }, [navigate, reviewId])
   const diffLens = isDiff
     ? {
         scope: uiStore.diffScope,
@@ -325,7 +362,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   useEffect(() => {
     if (!selectedPath || file === selectedPath) return
     localStorage.setItem(fileKey, selectedPath)
-    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: selectedPath }, replace: true })
+    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: (prev) => ({ ...prev, file: selectedPath }), replace: true })
   }, [file, fileKey, navigate, reviewId, selectedPath])
   // Comment threads stream on the live snapshot; the structure (chrome, file
   // list) rides the command reply. Join them by path here.
@@ -468,7 +505,7 @@ const Shell = observer(function Shell({ store, reviewId, file }: { store: Review
   const select = (path: string) => {
     setFilesSheetOpen(false)
     localStorage.setItem(fileKey, path)
-    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: { file: path } })
+    navigate({ to: "/reviews/$reviewId", params: { reviewId }, search: (prev) => ({ ...prev, file: path }) })
   }
 
   // In the stack, a navigator click asks the stacked view to bring that file into
