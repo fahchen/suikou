@@ -8,7 +8,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, type MonoSize } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks } from "../markdown"
+import { renderMarkdownBlocks, useCodeScroll, useMermaid } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -46,6 +46,9 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   onFocusComment?: (commentId: string | null) => void
 }) {
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
+  const docRef = useRef<HTMLDivElement>(null)
+  useMermaid(docRef, [blocks])
+  useCodeScroll(docRef, [blocks])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
 
@@ -170,7 +173,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
 
   return (
     <div className="shrink-0">
-      <div className="md-doc py-4">
+      <div ref={docRef} className="md-doc py-4">
         {blocks.map((block, index) => {
           const threads = threadsByBlock.get(index)
           const inDrag = drag !== null && index >= dragLo && index <= dragHi

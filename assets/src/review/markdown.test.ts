@@ -54,6 +54,25 @@ describe("renderMarkdownBlocks", () => {
     expect(blocks[3].html).toContain("Second child")
   })
 
+  test("renders each fenced code line as an independently anchored block", () => {
+    const blocks = renderMarkdownBlocks(["```js", "const a = 1", "const b = 2", "```"].join("\n"))
+
+    expect(blocks.map(({ line, endLine }) => [line, endLine])).toEqual([
+      [2, 2],
+      [3, 3],
+    ])
+    expect(blocks[0].html).toContain('class="md-code-line md-code-first"')
+    expect(blocks[0].html).toContain("const a = 1")
+    expect(blocks[1].html).toContain("md-code-last")
+  })
+
+  test("keeps mermaid fences as a single block", () => {
+    const blocks = renderMarkdownBlocks(["```mermaid", "graph TD", "  A --> B", "```"].join("\n"))
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].html).toContain("mermaid-diagram")
+  })
+
   test("lifts leading frontmatter into a metadata card and keeps body line maps", () => {
     const source = ["---", "title: Demo", "tags:", "  - a", "  - b", "---", "", "# Heading", "", "Body text"].join("\n")
     const blocks = renderMarkdownBlocks(source)

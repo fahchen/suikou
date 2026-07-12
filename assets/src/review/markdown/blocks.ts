@@ -1,3 +1,4 @@
+import { renderCodeBlocks } from "./code-blocks"
 import { markdown } from "./engine"
 import { parseFrontmatter, renderFrontmatterCard } from "./frontmatter"
 import { renderListBlocks } from "./list-blocks"
@@ -29,6 +30,16 @@ export function renderMarkdownBlocks(source: string): MarkdownBlock[] {
       if (close !== -1) {
         blocks.push(...renderTableBlocks(tokens, index, close, env))
         index = close
+        start = index + 1
+        depth = 0
+        continue
+      }
+    }
+
+    if (token.type === "fence" || token.type === "code_block") {
+      const lines = renderCodeBlocks(token)
+      if (lines) {
+        blocks.push(...lines)
         start = index + 1
         depth = 0
         continue

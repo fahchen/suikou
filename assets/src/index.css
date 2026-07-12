@@ -937,6 +937,45 @@
   background: none;
   box-shadow: none;
 }
+
+/* Per-line code blocks: one commentable line each, stacked into a single slab
+   with only the first/last line rounded so seams read as one block. */
+.md-doc .md-body .md-code-line {
+  margin: 0;
+  padding: 1px 10px;
+  border-radius: 0;
+  overflow-x: auto;
+  white-space: pre;
+  scrollbar-width: none;
+}
+.md-doc .md-body .md-code-line::-webkit-scrollbar {
+  display: none;
+}
+.md-doc .md-body .md-code-line code {
+  display: inline-block;
+}
+.md-doc .md-body .md-code-first {
+  padding-top: 8px;
+  border-radius: 8px 8px 0 0;
+}
+.md-doc .md-body .md-code-last {
+  padding-bottom: 8px;
+  border-radius: 0 0 8px 8px;
+}
+.md-doc .md-body .md-code-only {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-radius: 8px;
+}
+/* Collapse block gutters so adjacent code lines abut with no gap. */
+.md-doc .flex:has(.md-code-line) > button:first-child {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.md-doc .flex:has(.md-code-line) > .md-body {
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .md-body strong {
   font-weight: 700;
 }

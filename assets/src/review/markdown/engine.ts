@@ -10,7 +10,16 @@ const defaultFence =
 
 markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
-  if (token.info.trim().toLowerCase() !== "suggestion") {
+  const info = token.info.trim().toLowerCase()
+
+  // Mermaid fences render to an SVG diagram client-side (lazy `useMermaid`
+  // hydration) so the heavy layout lib stays out of the base bundle. Emit a
+  // placeholder carrying the source; the hook fills in the SVG after mount.
+  if (info === "mermaid") {
+    return `<div class="mermaid-diagram my-3 flex justify-center overflow-x-auto" data-mermaid="${markdown.utils.escapeHtml(token.content)}"></div>`
+  }
+
+  if (info !== "suggestion") {
     return defaultFence(tokens, idx, options, env, self)
   }
 
