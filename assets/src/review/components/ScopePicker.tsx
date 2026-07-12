@@ -1,6 +1,6 @@
 import { observer } from "mobx-react-lite"
 import { useEffect, useState } from "react"
-import { Check, Filter } from "lucide-react"
+import { Check, Filter, Search } from "lucide-react"
 
 import { Popover } from "../../components/ui/popover"
 import { uiStore, type DiffWorktree } from "../../stores/ui-store"
@@ -83,6 +83,11 @@ export const ScopePickerBody = observer(function ScopePickerBody({
   const worktree = uiStore.diffWorktree
   const isDiffMode = worktree === "diff"
   const selected = uiStore.diffScope === "all" ? new Set<string>() : new Set(uiStore.diffScope.commits)
+  const [query, setQuery] = useState("")
+  const needle = query.trim().toLowerCase()
+  const shownCommits = needle
+    ? commits.filter((c) => c.sha.includes(needle) || c.subject.toLowerCase().includes(needle))
+    : commits
   return (
     <div className="flex min-h-0 flex-col">
       <fieldset className="border-b border-hair-strong px-2.5 py-2">
@@ -136,8 +141,19 @@ export const ScopePickerBody = observer(function ScopePickerBody({
               </button>
             )}
           </div>
+          {commits.length > 8 && (
+            <div className="mx-2.5 mb-1 flex h-[26px] shrink-0 items-center gap-1.5 rounded-ctrl bg-canvas px-2 shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
+              <Search size={12} className="shrink-0 text-faint" aria-hidden />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter commits…"
+                className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink placeholder:text-faint focus:outline-none"
+              />
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-auto px-1 pb-1.5">
-            {commits.map((commit) => {
+            {shownCommits.map((commit) => {
               const checked = selected.has(commit.sha)
               return (
                 <label
@@ -169,6 +185,9 @@ export const ScopePickerBody = observer(function ScopePickerBody({
                 </label>
               )
             })}
+            {shownCommits.length === 0 && (
+              <p className="px-2.5 py-3 text-center text-[11.5px] text-faint">No commits match.</p>
+            )}
           </div>
         </div>
       )}
