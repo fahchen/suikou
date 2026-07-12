@@ -125,6 +125,32 @@ function useDesktopLayout(): boolean {
 const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
 const sideRailSortKey = (scope: string): string => `suikou-side-sort:${scope}`
 
+// Persist the last `load_review_structure` reply so a cold load (a fresh tab, or
+// a Safari resume that dropped the page from bfcache and did a full reload)
+// paints the file list and chrome from cache instead of blanking until the
+// socket reconnects and the live command replies. `v1` is the shape version:
+// bump it when the reply shape changes so deployed clients discard stale entries.
+const structureCacheKey = (reviewId: string): string => `suikou-structure:v1:${reviewId}`
+
+function readStructureCache(reviewId: string): Structure | null {
+  try {
+    const raw = localStorage.getItem(structureCacheKey(reviewId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Structure
+    return parsed && typeof parsed === "object" && Array.isArray(parsed.file_entries) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeStructureCache(reviewId: string, structure: Structure): void {
+  try {
+    localStorage.setItem(structureCacheKey(reviewId), JSON.stringify(structure))
+  } catch {
+    // Best-effort: a full localStorage (quota) must never break the live load.
+  }
+}
+
 /** Whether a persisted file-comment composer draft holds unsent text, so a
  * reload reopens it just like a line composer. */
 function hasArtifactDraftBody(scope: string): boolean {
@@ -228,9 +254,16 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const connected = useSocketConnected()
   const snap = useMusubiSnapshot(store)
   const navigate = useNavigate()
-  const [structure, setStructure] = useState<Structure | null>(null)
+  const [structure, setStructure] = useState<Structure | null>(() => readStructureCache(reviewId))
   const structRef = useRef<Structure | null>(null)
   structRef.current = structure
+
+  // The Shell is not remounted when the route's reviewId changes (same route,
+  // new param), so seed the cached structure on every review switch — paint the
+  // file list from cache first, then let the live command below overwrite it.
+  useEffect(() => {
+    setStructure(readStructureCache(reviewId))
+  }, [reviewId])
 
   useEffect(() => {
     if (!connected) return
@@ -241,7 +274,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       load
         .dispatch({})
         .then((reply) => {
-          if (!cancelled) setStructure(reply)
+          if (cancelled) return
+          setStructure(reply)
+          writeStructureCache(reviewId, reply)
         })
         .catch(() => {
           if (cancelled) return
