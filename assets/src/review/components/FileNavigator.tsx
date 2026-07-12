@@ -346,12 +346,12 @@ function FileRow({
       </span>
       <FileIcon name={name} size={13} />
       <span className="min-w-0 flex-1 truncate">{name}</span>
-      {isDiff && (entry.added !== null || entry.deleted !== null) && (
-        <span className="shrink-0 font-mono text-[10.5px] tabular-nums">
-          <span className="text-approve">+{entry.added ?? 0}</span>{" "}
-          <span className="text-request">−{entry.deleted ?? 0}</span>
+      {isDiff && (entry.added || entry.deleted) ? (
+        <span className="flex shrink-0 items-center gap-1 font-mono text-[10.5px] tabular-nums">
+          {entry.added ? <span className="text-approve">+{entry.added}</span> : null}
+          {entry.deleted ? <span className="text-request">−{entry.deleted}</span> : null}
         </span>
-      )}
+      ) : null}
       {blockers > 0 ? (
         <span
           title={`${blockers} open blocker${blockers > 1 ? "s" : ""}`}
