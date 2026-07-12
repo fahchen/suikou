@@ -66,7 +66,8 @@ export function renderMarkdownBlocks(source: string): MarkdownBlock[] {
     if (!html.trim()) continue
 
     const line = first.map ? first.map[0] + 1 : 1
-    blocks.push({ line, endLine: first.map ? first.map[1] : line, html })
+    const heading = first.type === "heading_open" ? Number(first.tag.slice(1)) : undefined
+    blocks.push({ line, endLine: first.map ? first.map[1] : line, html, heading })
   }
 
   return blocks

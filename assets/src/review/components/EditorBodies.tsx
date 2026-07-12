@@ -2,13 +2,13 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { Crosshair, Plus } from "lucide-react"
+import { ChevronRight, Crosshair, Plus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore, type MonoSize } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useCodeScroll, useMermaid } from "../markdown"
+import { renderMarkdownBlocks, useCodeScroll, useMermaid, type MarkdownBlock } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -171,6 +171,19 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const dragLo = drag ? Math.min(drag.from, drag.to) : -1
   const dragHi = drag ? Math.max(drag.from, drag.to) : -1
 
+  const foldKey = `suikou-fold:${draftScope}`
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => loadFold(foldKey))
+  useEffect(() => setCollapsed(loadFold(foldKey)), [foldKey])
+  const toggleFold = (line: number) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(line)) next.delete(line)
+      else next.add(line)
+      persistFold(foldKey, next)
+      return next
+    })
+  const hidden = useMemo(() => hiddenBlocks(blocks, collapsed), [blocks, collapsed])
+
   return (
     <div className="shrink-0">
       <div ref={docRef} className="md-doc py-4">
@@ -226,6 +239,22 @@ export const MarkdownPreview = observer(function MarkdownPreview({
             </button>
           )
 
+          if (hidden.has(index)) return <Fragment key={index} />
+
+          const foldToggle = block.heading ? (
+            <button
+              type="button"
+              onClick={() => toggleFold(block.line)}
+              title={collapsed.has(block.line) ? "Expand section" : "Collapse section"}
+              className="flex shrink-0 items-center self-stretch px-1 text-faint hover:text-accent-bright"
+            >
+              <ChevronRight
+                size={14}
+                className={`transition-transform ${collapsed.has(block.line) ? "" : "rotate-90"}`}
+              />
+            </button>
+          ) : null
+
           return (
             <Fragment key={index}>
               <div className={`flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
@@ -256,6 +285,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 ) : (
                   gutterButton
                 )}
+                {foldToggle}
                 <div
                   className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
                   // eslint-disable-next-line react/no-danger
@@ -616,4 +646,34 @@ function hasDraftBody(scope: string, range: Range): boolean {
   } catch {
     return false
   }
+}
+
+function loadFold(key: string): Set<number> {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]")
+    return new Set(Array.isArray(value) ? value.filter((n) => typeof n === "number") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function persistFold(key: string, lines: Set<number>): void {
+  if (lines.size === 0) localStorage.removeItem(key)
+  else localStorage.setItem(key, JSON.stringify([...lines]))
+}
+
+// Block indices hidden because a collapsed heading owns them: everything after a
+// collapsed heading up to the next heading of equal or higher rank.
+function hiddenBlocks(blocks: MarkdownBlock[], collapsed: Set<number>): Set<number> {
+  const hidden = new Set<number>()
+  for (let i = 0; i < blocks.length; i += 1) {
+    const level = blocks[i].heading
+    if (!level || !collapsed.has(blocks[i].line)) continue
+    for (let j = i + 1; j < blocks.length; j += 1) {
+      const next = blocks[j].heading
+      if (next && next <= level) break
+      hidden.add(j)
+    }
+  }
+  return hidden
 }
