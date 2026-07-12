@@ -1065,5 +1065,26 @@ function wordSegmentsFor(delContent: string, addContent: string): {
     delOffset += length
     addOffset += length
   }
-  return { delSegments, addSegments }
+  return { delSegments: coalesceChanged(delSegments), addSegments: coalesceChanged(addSegments) }
+}
+
+/** Merge every `"changed"` region on one side into a single span running from
+ * the first change to the last, so scattered word-level edits read as one
+ * contiguous highlight instead of a spray of tiny islands. Leading and trailing
+ * `"shared"` text stays plain. */
+function coalesceChanged(segments: WordSegment[]): WordSegment[] {
+  const first = segments.findIndex((seg) => seg.kind === "changed")
+  if (first === -1) return segments
+  let last = first
+  for (let i = segments.length - 1; i > first; i--) {
+    if (segments[i]!.kind === "changed") {
+      last = i
+      break
+    }
+  }
+  return [
+    ...segments.slice(0, first),
+    { start: segments[first]!.start, end: segments[last]!.end, kind: "changed" as const },
+    ...segments.slice(last + 1),
+  ]
 }
