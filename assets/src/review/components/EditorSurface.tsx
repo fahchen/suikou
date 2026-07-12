@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ThemedToken } from "shiki"
 import { Binary, File, ListTree, Loader2 } from "lucide-react"
 
@@ -266,24 +266,166 @@ export function isTextMime(mime: string): boolean {
   return /^application\/(json|javascript|xml|x-yaml|yaml|toml|x-sh|x-httpd-php|graphql|sql)$/.test(type)
 }
 
+const MAX_IMAGE_ZOOM = 8
+const clampImageZoom = (zoom: number): number => Math.min(MAX_IMAGE_ZOOM, Math.max(1, zoom))
+
+/** Frameless image viewer: the artifact fills the canvas (object-contain) with
+ * no border, and a metadata strip (name, dimensions, size, format) sits below
+ * it. Zoom with Shift+wheel (or a trackpad pinch) on desktop and a two-finger
+ * pinch on touch; drag to pan once zoomed; double-click or double-tap resets to
+ * fit. Pan is clamped to the scaled image's own bounds so it can't be flung
+ * into empty canvas. */
 export function ImageView({ name, url, mime, bytes }: { name: string; url: string; mime: string; bytes: number | null }) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
+  const dimsRef = useRef<{ w: number; h: number } | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const zoomRef = useRef(1)
+  const offsetRef = useRef({ x: 0, y: 0 })
+  zoomRef.current = zoom
+  offsetRef.current = offset
+
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ dist: number; zoom: number; mid: { x: number; y: number }; offset: { x: number; y: number } } | null>(null)
+  const panLast = useRef<{ x: number; y: number } | null>(null)
+
+  // Overflow of the fitted (object-contain) image beyond the container at a
+  // given zoom, halved — the furthest the image center may travel each axis.
+  const clampOffset = (next: { x: number; y: number }, atZoom: number) => {
+    const el = containerRef.current
+    const nat = dimsRef.current
+    if (!el || !nat) return next
+    const cw = el.clientWidth
+    const ch = el.clientHeight
+    const fit = Math.min(cw / nat.w, ch / nat.h)
+    const fw = nat.w * fit
+    const fh = nat.h * fit
+    const maxX = Math.max(0, (fw * atZoom - cw) / 2)
+    const maxY = Math.max(0, (fh * atZoom - ch) / 2)
+    return { x: Math.max(-maxX, Math.min(maxX, next.x)), y: Math.max(-maxY, Math.min(maxY, next.y)) }
+  }
+
+  const reset = () => {
+    setZoom(1)
+    setOffset({ x: 0, y: 0 })
+  }
+
+  // Zoom toward a container-center-relative point, keeping it visually pinned.
+  const zoomAround = (nextZoom: number, px: number, py: number, from: { zoom: number; offset: { x: number; y: number } }) => {
+    const nz = clampImageZoom(nextZoom)
+    const nextOffset = clampOffset(
+      { x: px - (px - from.offset.x) * (nz / from.zoom), y: py - (py - from.offset.y) * (nz / from.zoom) },
+      nz,
+    )
+    setZoom(nz)
+    setOffset(nextOffset)
+  }
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      // Plain wheel scrolls the surrounding editor; Shift (or a trackpad pinch,
+      // which browsers deliver as ctrl+wheel) zooms the image in place.
+      if (!event.shiftKey && !event.ctrlKey) return
+      event.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const px = event.clientX - rect.left - rect.width / 2
+      const py = event.clientY - rect.top - rect.height / 2
+      zoomAround(zoomRef.current * Math.exp(-event.deltaY * 0.0015), px, py, {
+        zoom: zoomRef.current,
+        offset: offsetRef.current,
+      })
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [])
+
+  const relCenter = (clientX: number, clientY: number) => {
+    const rect = containerRef.current!.getBoundingClientRect()
+    return { x: clientX - rect.left - rect.width / 2, y: clientY - rect.top - rect.height / 2 }
+  }
+
+  const onPointerDown = (event: React.PointerEvent) => {
+    containerRef.current?.setPointerCapture(event.pointerId)
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      pinch.current = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        zoom: zoomRef.current,
+        mid: relCenter((a.x + b.x) / 2, (a.y + b.y) / 2),
+        offset: offsetRef.current,
+      }
+      panLast.current = null
+    } else if (pointers.current.size === 1) {
+      panLast.current = { x: event.clientX, y: event.clientY }
+    }
+  }
+
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (!pointers.current.has(event.pointerId)) return
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.current.size === 2 && pinch.current) {
+      const [a, b] = [...pointers.current.values()]
+      const dist = Math.hypot(a.x - b.x, a.y - b.y)
+      zoomAround((pinch.current.zoom * dist) / pinch.current.dist, pinch.current.mid.x, pinch.current.mid.y, {
+        zoom: pinch.current.zoom,
+        offset: pinch.current.offset,
+      })
+    } else if (pointers.current.size === 1 && panLast.current && zoomRef.current > 1) {
+      const dx = event.clientX - panLast.current.x
+      const dy = event.clientY - panLast.current.y
+      panLast.current = { x: event.clientX, y: event.clientY }
+      setOffset((current) => clampOffset({ x: current.x + dx, y: current.y + dy }, zoomRef.current))
+    }
+  }
+
+  const onPointerUp = (event: React.PointerEvent) => {
+    pointers.current.delete(event.pointerId)
+    if (pointers.current.size < 2) pinch.current = null
+    if (pointers.current.size === 1) {
+      const [only] = [...pointers.current.values()]
+      panLast.current = { x: only.x, y: only.y }
+    } else if (pointers.current.size === 0) {
+      panLast.current = null
+    }
+  }
+
   const format = mime.split("/")[1]?.split("+")[0]?.toUpperCase() ?? "IMAGE"
   const meta = [name, dims && `${dims.w}×${dims.h}`, bytes && formatBytes(bytes), format].filter(Boolean).join(" · ")
 
   return (
-    <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-6 [background:repeating-conic-gradient(var(--bg-2)_0%_25%,var(--bg-1)_0%_50%)_50%/18px_18px]">
-      <figure className="max-w-[80%] overflow-hidden rounded-[12px] border border-hair-strong bg-soft shadow-[0_10px_30px_-10px_oklch(0%_0_0/0.28)]">
-        <img
-          src={url}
-          alt={name}
-          onLoad={(event) => setDims({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
-          className="block h-auto w-full"
-        />
-        <figcaption className="border-t border-hair-strong bg-control px-3 py-1.5 text-center font-mono text-[11px] text-muted">
-          {meta}
-        </figcaption>
-      </figure>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onDoubleClick={reset}
+        style={{ touchAction: "none" }}
+        className={`grid min-h-0 flex-1 place-items-center overflow-hidden p-6 [background:repeating-conic-gradient(var(--bg-2)_0%_25%,var(--bg-1)_0%_50%)_50%/18px_18px] ${
+          zoom > 1 ? "cursor-grab active:cursor-grabbing" : ""
+        }`}
+      >
+        <figure className="flex max-h-full max-w-full min-h-0 flex-col items-center gap-1.5">
+          <img
+            src={url}
+            alt={name}
+            draggable={false}
+            onLoad={(event) => {
+              const next = { w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight }
+              dimsRef.current = next
+              setDims(next)
+            }}
+            style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
+            className="block min-h-0 max-h-[calc(100%-1.5rem)] max-w-full select-none [transform-origin:center]"
+          />
+          {meta && <figcaption className="max-w-full truncate font-mono text-[11px] text-muted">{meta}</figcaption>}
+        </figure>
+      </div>
     </div>
   )
 }
