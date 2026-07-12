@@ -1,7 +1,7 @@
 defmodule Suikou.Repo.Migrations.ReshapeReactionsPolymorphic do
   use Ecto.Migration
 
-  def change do
+  def up do
     drop table(:reactions)
 
     # Exactly one target. SQLite booleans are 0/1, so summing the two IS NOT NULL
@@ -36,5 +36,21 @@ defmodule Suikou.Repo.Migrations.ReshapeReactionsPolymorphic do
              where: "comment_id IS NULL",
              name: :reactions_reply_emoji_actor
            )
+  end
+
+  # Restore the pre-polymorphic `create_reactions` shape: comment-only,
+  # NOT NULL comment_id, single unique index over (comment_id, emoji, actor).
+  def down do
+    drop table(:reactions)
+
+    create table(:reactions) do
+      add :comment_id, references(:comments, on_delete: :delete_all), null: false
+      add :emoji, :string, null: false
+      add :actor, :string, null: false
+
+      timestamps()
+    end
+
+    create unique_index(:reactions, [:comment_id, :emoji, :actor])
   end
 end

@@ -1,7 +1,7 @@
 defmodule Suikou.Repo.Migrations.ReactionsOnePerActor do
   use Ecto.Migration
 
-  def change do
+  def up do
     # The previous unique key was per-emoji ((target, emoji, actor)), which let a
     # single actor stack multiple emoji on one target. The rule is now one
     # reaction per actor per target, so the key drops `emoji`. Throwaway demo
@@ -35,6 +35,38 @@ defmodule Suikou.Repo.Migrations.ReactionsOnePerActor do
     create unique_index(:reactions, [:reply_id, :actor],
              where: "comment_id IS NULL",
              name: :reactions_reply_actor
+           )
+  end
+
+  # Restore the per-emoji polymorphic shape from the prior migration: same
+  # table, but the unique keys include `emoji` again.
+  def down do
+    drop table(:reactions)
+
+    create table(:reactions) do
+      add :comment_id, references(:comments, on_delete: :delete_all)
+      add :reply_id, references(:replies, on_delete: :delete_all)
+
+      add :emoji, :string,
+        null: false,
+        check: %{
+          name: "reaction_exactly_one_target",
+          expr: "((comment_id IS NOT NULL) + (reply_id IS NOT NULL)) = 1"
+        }
+
+      add :actor, :string, null: false
+
+      timestamps()
+    end
+
+    create unique_index(:reactions, [:comment_id, :emoji, :actor],
+             where: "reply_id IS NULL",
+             name: :reactions_comment_emoji_actor
+           )
+
+    create unique_index(:reactions, [:reply_id, :emoji, :actor],
+             where: "comment_id IS NULL",
+             name: :reactions_reply_emoji_actor
            )
   end
 end
