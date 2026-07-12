@@ -653,6 +653,36 @@ defmodule Suikou.ReviewsTest do
     end
 
     @tag :tmp_dir
+    test "commit scope tolerates client click order (oldest-first)", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "one\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add a"])
+      {sha_a, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_a = String.trim(sha_a)
+      File.write!(Path.join(dir, "a.txt"), "two\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "edit a"])
+      {sha_b, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
+      sha_b = String.trim(sha_b)
+
+      review = diff_review_with(dir, "main", "topic")
+
+      # Client tracks click order, not git order; feed oldest-first and rely on
+      # `normalize_lens` reordering to `list_diff_commits/1`'s newest-first.
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(
+                 Reviews.get_review(review.id),
+                 "a.txt",
+                 %{scope: {:commits, [sha_a, sha_b]}}
+               )
+
+      assert diff =~ "+two"
+      refute diff =~ "+one"
+    end
+
+    @tag :tmp_dir
     test "empty commits list normalizes to :all", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)

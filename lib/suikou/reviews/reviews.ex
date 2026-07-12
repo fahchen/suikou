@@ -494,7 +494,7 @@ defmodule Suikou.Reviews do
       when is_map(lens) do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
-    lens = normalize_lens(lens)
+    lens = normalize_lens(review, lens)
 
     case lens_changed_with_status(review.project, git_diff, lens) do
       {:ok, entries} ->
@@ -658,7 +658,7 @@ defmodule Suikou.Reviews do
     with :ok <- validate_lens(lens),
          :ok <- validate_scope_in_range(review, lens),
          true <- path_in_review?(review, path, lens) do
-      read_content_by_path(review, path, normalize_lens(lens))
+      read_content_by_path(review, path, normalize_lens(review, lens))
     else
       false -> {:error, :path_not_in_review}
       {:error, reason} -> {:error, reason}
@@ -911,15 +911,34 @@ defmodule Suikou.Reviews do
   # and the defaults keep the pre-BDR-0024 behaviour (pinned base...head
   # diff). An empty `commits` list normalizes to `:all` so downstream match
   # arms don't need to special-case it.
-  defp normalize_lens(lens) do
+  defp normalize_lens(review, lens) do
     scope =
       case Map.get(lens, :scope, :all) do
         {:commits, []} -> :all
+        {:commits, [_single] = shas} -> {:commits, shas}
+        {:commits, [_ | _] = shas} -> {:commits, order_commits(review, shas)}
         other -> other
       end
 
     worktree = Map.get(lens, :worktree, :diff)
     %{scope: scope, worktree: worktree}
+  end
+
+  # Reorder a client-supplied sha selection into `list_diff_commits/1`'s
+  # canonical newest-first order. The client tracks click order, not git
+  # order, so downstream range/union derivations that assume newest-first
+  # (`lens_file_diff`, `lens_changed_with_status`) must not trust it. Falls
+  # back to the given order when the canonical list is unavailable.
+  defp order_commits(review, shas) do
+    case list_diff_commits(review) do
+      {:ok, entries} ->
+        selected = MapSet.new(shas)
+        ordered = for %{sha: sha} <- entries, MapSet.member?(selected, sha), do: sha
+        if ordered == [], do: shas, else: ordered
+
+      {:error, _reason} ->
+        shas
+    end
   end
 
   defp validate_lens(lens) do
