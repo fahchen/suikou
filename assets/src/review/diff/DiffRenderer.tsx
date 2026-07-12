@@ -113,7 +113,7 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
   const select = useDiffSelection(commentable === true ? renderComposer : undefined)
 
   const body = (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="min-h-0 flex-1 overflow-auto [container-type:inline-size]">
       <div className={effectiveWrap ? undefined : "min-w-max"}>
       {files.map((file, fileIndex) => (
         <DiffFileView<A>
@@ -465,10 +465,10 @@ function GapRow({ count, onExpand }: { count: number; onExpand: () => void }) {
       type="button"
       onClick={onExpand}
       title="Expand unchanged lines"
-      className="flex w-full items-center gap-2 border-b border-hair bg-soft/40 px-3 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-accent-soft hover:text-accent-bright"
+      className="flex w-full items-center border-b border-hair bg-soft/40 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-accent-soft hover:text-accent-bright"
     >
-      <UnfoldVertical size={12} aria-hidden />
-      <span>
+      <span className="sticky left-0 flex items-center gap-2 px-3">
+        <UnfoldVertical size={12} aria-hidden />
         Expand {count} unchanged {count === 1 ? "line" : "lines"}
       </span>
     </button>
@@ -511,7 +511,7 @@ function UnifiedHunk<A>({
               highlighted={anchor !== null && isSelected(selectedRange, anchor.side, anchor.line)}
             />
             {composerHere && select?.draft && (
-              <div className="pl-[76px] pr-3 pb-1.5">{select.renderComposer(select.draft, select.close)}</div>
+              <div className="sticky left-0 w-[100cqi] pl-[76px] pr-3 pb-1.5">{select.renderComposer(select.draft, select.close)}</div>
             )}
             {renderAnnotation !== undefined &&
               inserted.map((annotation, i) => (
@@ -660,7 +660,7 @@ function SplitHunk<A>({
               selectedRange={selectedRange}
             />
             {composerSide && select?.draft && (
-              <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="sticky left-0 grid w-[100cqi] grid-cols-1 md:grid-cols-2">
                 <div className={`pl-[40px] pr-3 pb-1.5 ${composerSide === "old" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"}`}>
                   {select.renderComposer(select.draft, select.close)}
                 </div>
@@ -953,7 +953,7 @@ function AnnotationRow<A>({
   const grid = span === "unified" ? "" : span === "split-left" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"
   const lead = span === "unified" ? "pl-[76px]" : "pl-[40px]"
   return (
-    <div className={span === "unified" ? "" : `grid grid-cols-1 md:grid-cols-2`}>
+    <div className={`sticky left-0 w-[100cqi] ${span === "unified" ? "" : "grid grid-cols-1 md:grid-cols-2"}`}>
       <div className={`${lead} pr-3 ${grid}`}>{render(annotation)}</div>
     </div>
   )
