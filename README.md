@@ -1,4 +1,7 @@
-# Suikou
+<h1>
+  <img src="priv/static/icon-192.png" alt="" width="30" align="left" />
+  Suikou
+</h1>
 
 A human-in-the-loop code review tool: a server-authoritative Musubi runtime on
 Phoenix (API + Musubi socket), a React frontend, and a single-file `suikou`
