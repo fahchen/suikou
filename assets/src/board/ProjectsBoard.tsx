@@ -4,6 +4,7 @@ import type { CommandReply, StoreProxy } from "@musubi/react"
 import { ChevronDown, FileText, Folder, GitCompare, Plus, SlidersHorizontal, WifiOff } from "lucide-react"
 
 import { FileNotice } from "../review/components/EditorSurface"
+import { BrandMark } from "../brand/BrandMark"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
@@ -241,9 +242,7 @@ function Toolbar({
   return (
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
       <button className="inline-flex h-[30px] items-center gap-[9px] rounded-ctrl px-1 pr-2 hover:bg-soft">
-        <span className="grid size-6 place-items-center rounded-[7px] bg-accent text-sm font-black text-on-accent">
-          S
-        </span>
+        <BrandMark size={24} radius={7} />
         <span className="text-sm font-bold tracking-[-0.02em] text-ink">Suikou</span>
       </button>
       <span className="flex-1" />
