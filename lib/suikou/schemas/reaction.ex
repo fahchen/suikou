@@ -126,10 +126,10 @@ defmodule Suikou.Schemas.Reaction do
       {nil, nil} ->
         add_error(changeset, :comment_id, "requires a comment or reply target")
 
-      {id, nil} when not is_nil(id) ->
+      {_comment_id, nil} ->
         changeset
 
-      {nil, id} when not is_nil(id) ->
+      {nil, _reply_id} ->
         changeset
 
       {_both, _set} ->

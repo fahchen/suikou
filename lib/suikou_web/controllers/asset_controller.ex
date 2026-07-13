@@ -208,12 +208,10 @@ defmodule SuikouWeb.AssetController do
         |> maybe_put(:scope, scope, :all)
         |> maybe_put(:worktree, worktree, :diff)
 
-      cond do
-        match?({:commits, [_ | _]}, scope) and worktree in [:staged, :unstaged] ->
-          {:error, :invalid_scope_worktree_combination}
-
-        true ->
-          {:ok, lens}
+      if match?({:commits, [_first | _rest]}, scope) and worktree in [:staged, :unstaged] do
+        {:error, :invalid_scope_worktree_combination}
+      else
+        {:ok, lens}
       end
     end
   end

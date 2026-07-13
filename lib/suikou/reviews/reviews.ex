@@ -915,8 +915,7 @@ defmodule Suikou.Reviews do
     scope =
       case Map.get(lens, :scope, :all) do
         {:commits, []} -> :all
-        {:commits, [_single] = shas} -> {:commits, shas}
-        {:commits, [_ | _] = shas} -> {:commits, order_commits(review, shas)}
+        {:commits, shas} -> {:commits, order_commits(review, shas)}
         other -> other
       end
 
@@ -945,12 +944,10 @@ defmodule Suikou.Reviews do
     scope = Map.get(lens, :scope, :all)
     worktree = Map.get(lens, :worktree, :diff)
 
-    cond do
-      match?({:commits, [_ | _]}, scope) and worktree in [:staged, :unstaged] ->
-        {:error, :invalid_scope_worktree_combination}
-
-      true ->
-        :ok
+    if match?({:commits, [_first | _rest]}, scope) and worktree in [:staged, :unstaged] do
+      {:error, :invalid_scope_worktree_combination}
+    else
+      :ok
     end
   end
 
@@ -965,17 +962,21 @@ defmodule Suikou.Reviews do
         :ok
 
       {:commits, shas} when is_list(shas) ->
-        case list_diff_commits(review) do
-          {:ok, entries} ->
-            known = MapSet.new(entries, & &1.sha)
+        commits_in_range(review, shas)
+    end
+  end
 
-            if Enum.all?(shas, &MapSet.member?(known, &1)),
-              do: :ok,
-              else: {:error, :commit_not_in_range}
+  defp commits_in_range(review, shas) do
+    case list_diff_commits(review) do
+      {:ok, entries} ->
+        known = MapSet.new(entries, & &1.sha)
 
-          {:error, _reason} ->
-            {:error, :commit_not_in_range}
-        end
+        if Enum.all?(shas, &MapSet.member?(known, &1)),
+          do: :ok,
+          else: {:error, :commit_not_in_range}
+
+      {:error, _reason} ->
+        {:error, :commit_not_in_range}
     end
   end
 
