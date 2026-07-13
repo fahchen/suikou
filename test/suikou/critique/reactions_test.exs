@@ -15,27 +15,27 @@ defmodule Suikou.Critique.ReactionsTest do
       assert {:ok, ^comment_id} = Critique.react_as_human(comment.id, "agree")
 
       assert [%Reaction{emoji: :agree, actor: :human}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "reacting with the same emoji and actor leaves a single row", %{comment: comment} do
-      assert {:ok, _} = Critique.react_as_human(comment.id, "agree")
-      assert {:ok, _} = Critique.react_as_human(comment.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
 
       assert Repo.aggregate(Reaction, :count) == 1
     end
 
     test "reacting with a new emoji replaces the actor's previous one", %{comment: comment} do
-      assert {:ok, _} = Critique.react_as_human(comment.id, "agree")
-      assert {:ok, _} = Critique.react_as_human(comment.id, "disagree")
+      assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "disagree")
 
       assert [%Reaction{emoji: :disagree, actor: :human}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "a human and an agent reaction on the same comment coexist", %{comment: comment} do
-      assert {:ok, _} = Critique.react_as_human(comment.id, "agree")
-      assert {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
+      assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
 
       assert Repo.aggregate(Reaction, :count) == 2
     end
@@ -56,7 +56,7 @@ defmodule Suikou.Critique.ReactionsTest do
 
   describe "unreact_as_human/2" do
     test "removes the human's reaction", %{comment: comment} do
-      {:ok, _} = Critique.react_as_human(comment.id, "agree")
+      {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
 
       comment_id = comment.id
       assert {:ok, ^comment_id} = Critique.unreact_as_human(comment.id, "agree")
@@ -64,7 +64,7 @@ defmodule Suikou.Critique.ReactionsTest do
     end
 
     test "removes the human's reaction regardless of the emoji passed", %{comment: comment} do
-      {:ok, _} = Critique.react_as_human(comment.id, "agree")
+      {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
 
       comment_id = comment.id
       assert {:ok, ^comment_id} = Critique.unreact_as_human(comment.id, "disagree")
@@ -72,13 +72,13 @@ defmodule Suikou.Critique.ReactionsTest do
     end
 
     test "leaves the agent's reaction on the same comment intact", %{comment: comment} do
-      {:ok, _} = Critique.react_as_human(comment.id, "agree")
-      {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
+      {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
 
-      assert {:ok, _} = Critique.unreact_as_human(comment.id, "agree")
+      assert {:ok, _comment_id} = Critique.unreact_as_human(comment.id, "agree")
 
       assert [%Reaction{emoji: :eyes, actor: :agent}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "unreacting to a missing comment is rejected" do
@@ -94,22 +94,22 @@ defmodule Suikou.Critique.ReactionsTest do
       assert {:ok, ^comment_id} = Critique.react_as_agent(comment.id, "eyes")
 
       assert [%Reaction{emoji: :eyes, actor: :agent}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "reacting with the same emoji and actor leaves a single row", %{comment: comment} do
-      assert {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
-      assert {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
 
       assert Repo.aggregate(Reaction, :count) == 1
     end
 
     test "reacting with a new emoji replaces the actor's previous one", %{comment: comment} do
-      assert {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
-      assert {:ok, _} = Critique.react_as_agent(comment.id, "thinking")
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "thinking")
 
       assert [%Reaction{emoji: :thinking, actor: :agent}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "reacting with a human-only emoji is rejected", %{comment: comment} do
@@ -128,7 +128,7 @@ defmodule Suikou.Critique.ReactionsTest do
 
   describe "unreact_as_agent/2" do
     test "removes the matching agent reaction", %{comment: comment} do
-      {:ok, _} = Critique.react_as_agent(comment.id, "eyes")
+      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "eyes")
 
       comment_id = comment.id
       assert {:ok, ^comment_id} = Critique.unreact_as_agent(comment.id, "eyes")
@@ -151,12 +151,12 @@ defmodule Suikou.Critique.ReactionsTest do
       reply_id = reply.id
 
       assert [%Reaction{emoji: :agree, actor: :human, reply_id: ^reply_id, comment_id: nil}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "reacting with the same emoji and actor leaves a single row", %{reply: reply} do
-      assert {:ok, _} = Critique.react_reply_as_human(reply.id, "agree")
-      assert {:ok, _} = Critique.react_reply_as_human(reply.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
 
       assert Repo.aggregate(Reaction, :count) == 1
     end
@@ -164,11 +164,11 @@ defmodule Suikou.Critique.ReactionsTest do
     test "reacting with a new emoji replaces the actor's previous one", %{reply: reply} do
       reply_id = reply.id
 
-      assert {:ok, _} = Critique.react_reply_as_human(reply.id, "agree")
-      assert {:ok, _} = Critique.react_reply_as_human(reply.id, "disagree")
+      assert {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
+      assert {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "disagree")
 
       assert [%Reaction{emoji: :disagree, actor: :human, reply_id: ^reply_id}] =
-               Repo.all(from(r in Reaction, as: :reaction))
+               Repo.all(Reaction)
     end
 
     test "reacting to a missing reply is rejected" do
@@ -182,7 +182,7 @@ defmodule Suikou.Critique.ReactionsTest do
   describe "unreact_reply_as_human/2" do
     test "removes the human's reaction and returns the parent comment id",
          %{comment: comment, reply: reply} do
-      {:ok, _} = Critique.react_reply_as_human(reply.id, "agree")
+      {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
 
       comment_id = comment.id
       assert {:ok, ^comment_id} = Critique.unreact_reply_as_human(reply.id, "agree")
@@ -190,9 +190,9 @@ defmodule Suikou.Critique.ReactionsTest do
     end
 
     test "removes the human's reaction regardless of the emoji passed", %{reply: reply} do
-      {:ok, _} = Critique.react_reply_as_human(reply.id, "agree")
+      {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
 
-      assert {:ok, _} = Critique.unreact_reply_as_human(reply.id, "disagree")
+      assert {:ok, _comment_id} = Critique.unreact_reply_as_human(reply.id, "disagree")
       assert Repo.aggregate(Reaction, :count) == 0
     end
 
