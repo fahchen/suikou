@@ -19,7 +19,7 @@ export function Sidebar({
   onSelect: (id: string) => void
 }) {
   return (
-    <aside className="hidden flex-col border-r border-hair-strong bg-surface px-[9px] pt-3 pb-[9px] lg:flex">
+    <aside className="hidden flex-col px-[9px] pt-3 pb-[9px] lg:flex">
       <div className="flex items-center gap-[7px] px-[9px] pt-[3px] pb-[9px] text-2xs font-bold uppercase tracking-[0.12em] text-faint">
         Projects
         <span aria-hidden className="h-px flex-1 bg-hair" />

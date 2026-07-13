@@ -46,7 +46,7 @@ export function ReviewPane({
   const [pickerOpen, setPickerOpen] = useState(false)
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col bg-canvas">
+    <div className="flex min-h-0 min-w-0 flex-col bg-surface lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
       <div className="flex shrink-0 items-center gap-3 border-b border-hair px-5 py-[14px] pt-4">
         {project.emoji && (
           <span aria-hidden className="shrink-0 text-lg leading-none">
@@ -84,7 +84,7 @@ export function ReviewPane({
         }}
         onClose={() => setPickerOpen(false)}
       />
-      <div className="flex flex-1 flex-col gap-[9px] overflow-auto px-4 pt-[14px] pb-[18px]">
+      <div className="flex flex-1 flex-col divide-y divide-hair overflow-auto">
         {project.reviews.map((review) => (
           <ReviewRow
             key={review.id}
@@ -191,7 +191,7 @@ function ReviewRow({
   const approved = files.length > 0 && files.every((file) => file.approved)
 
   return (
-    <div className="group flex items-center gap-3 rounded-panel px-3 py-[11px] pl-[13px] hover:bg-surface hover:shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+    <div className="group flex items-center gap-3 px-5 py-3 hover:bg-soft">
       <Link
         to="/reviews/$reviewId"
         params={{ reviewId: review.id }}
