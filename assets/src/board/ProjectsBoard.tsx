@@ -74,11 +74,11 @@ export function ProjectsBoard() {
   if (root.status === "loading") {
     // A warm cache resolves the mount in a microtask, so show a transparent
     // placeholder instead of flashing the loading screen over the chrome.
-    return readBoardCache() ? <div aria-hidden className="h-screen" /> : <Centered>Loading projects…</Centered>
+    return readBoardCache() ? <div aria-hidden className="h-dvh" /> : <Centered>Loading projects…</Centered>
   }
   if (root.status === "error") {
     return (
-      <div className="grid h-screen place-items-center bg-canvas">
+      <div className="grid h-dvh place-items-center bg-canvas">
         <FileNotice
           icon={WifiOff}
           title="Can't reach Suikou"
@@ -162,7 +162,7 @@ function Board({ store }: { store: BoardStore }) {
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
       <Toolbar
         onNewProject={() => setCreatingProject(true)}
         onNewReview={setNewReviewKind}
@@ -224,7 +224,7 @@ function Board({ store }: { store: BoardStore }) {
 
 function Centered({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas text-sm text-muted">
+    <div className="flex h-dvh items-center justify-center bg-canvas text-sm text-muted">
       {children}
     </div>
   )
@@ -240,7 +240,7 @@ function Toolbar({
   canNewReview: boolean
 }) {
   return (
-    <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
+    <div className="flex h-[50px] shrink-0 items-center gap-[9px] px-3">
       <button className="inline-flex h-[30px] items-center gap-[9px] rounded-ctrl px-1 pr-2 hover:bg-soft">
         <BrandMark size={24} radius={7} />
         <span className="text-sm font-bold tracking-[-0.02em] text-ink">Suikou</span>

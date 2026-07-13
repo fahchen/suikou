@@ -176,14 +176,14 @@ export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
 
   if (root.status === "loading") {
     return (
-      <div className="grid h-screen place-items-center bg-canvas">
+      <div className="grid h-dvh place-items-center bg-canvas">
         <FileNotice icon={Loader2} title="Loading review" body="Fetching the review's structure…" spin />
       </div>
     )
   }
   if (root.status === "error") {
     return (
-      <div className="grid h-screen place-items-center bg-canvas">
+      <div className="grid h-dvh place-items-center bg-canvas">
         <FileNotice
           icon={WifiOff}
           title="Can't reach Suikou"
@@ -518,7 +518,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
 
   if (structure && !structure.exists) {
     return (
-      <div className="grid h-screen place-items-center bg-canvas">
+      <div className="grid h-dvh place-items-center bg-canvas">
         <FileNotice
           icon={FileQuestion}
           title="Review not found"
@@ -565,7 +565,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   }, [reviewName])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
       <Toolbar
         name={structure?.name ?? "…"}
         connected={connected}

@@ -149,6 +149,15 @@ class UiStore {
 
   private applyTheme() {
     document.documentElement.dataset.theme = this.theme
+    // Tint the iOS/Safari browser UI (status bar, bottom bar) to the app canvas
+    // so it reads as one app surface, not a vermilion band. Read the resolved
+    // rgb() off body — a computed colour is always valid in theme-color, unlike
+    // the raw oklch() var. rAF so the new theme's cascade has settled.
+    requestAnimationFrame(() => {
+      const meta = document.querySelector('meta[name="theme-color"]')
+      const bg = getComputedStyle(document.body).backgroundColor
+      if (meta && bg) meta.setAttribute("content", bg)
+    })
   }
 }
 
