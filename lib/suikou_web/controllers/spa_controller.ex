@@ -56,7 +56,7 @@ defmodule SuikouWeb.SpaController do
         |> put_resp_content_type("text/plain")
         |> send_resp(
           500,
-          "SPA shell not built. Run `mix suikou.package`, or `bun run build` in assets/."
+          "SPA shell not built. Run `mise run package`, or `bun run build` in assets/."
         )
     end
   end

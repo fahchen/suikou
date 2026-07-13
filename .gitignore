@@ -47,7 +47,7 @@ suikou-*.tar
 # Vite dev cache at the repo root (separate from the prod build dir above).
 /.vite/
 
-# Single-file packaging (mix suikou.package)
+# Single-file packaging (mise run package)
 /dist/
 /packaging/embed/server.tar.gz
 

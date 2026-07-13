@@ -3,12 +3,23 @@ elixir = "1.20.0-otp-29"
 erlang = "29.0"
 bun = "latest"
 
+# Install Elixir deps and the frontend's bun deps. Prerequisite of the tasks
+# that need a resolved dep tree (dev, cli, package).
+[tasks.setup]
+description = "Install Elixir deps and assets (bun)"
+run = """
+set -eu
+mix deps.get
+cd assets && bun install
+"""
+
 # Dev = Phoenix (port 4710) + Vite (port 5173) together. Phoenix runs as a
 # distributed node so the agent CLI can rpc into the *live* BEAM (its PubSub is
 # what `review poll` blocks on); plain `mix phx.server` is non-distributed and
 # unreachable. Vite proxies /socket + /api to 4710. Ctrl-C stops both.
 [tasks.dev]
 description = "Dev: Phoenix (distributed node suikou_dev@127.0.0.1) + Vite"
+depends = ["setup"]
 run = """
 elixir --name suikou_dev@127.0.0.1 --cookie suikou_dev -S mix phx.server &
 phx=$!
@@ -23,5 +34,43 @@ wait
 # Args pass through, e.g. `mise run cli -- review poll <id>`.
 [tasks.cli]
 description = "Agent CLI (bun source) targeting the dev node"
+depends = ["setup"]
 env = { SUIKOU_RPC_NODE = "suikou_dev@127.0.0.1", SUIKOU_RPC_COOKIE = "suikou_dev" }
 run = "bun packaging/launcher.ts"
+
+# Package the whole app into one runnable file at dist/suikou: a self-contained
+# `mix release` (ERTS bundled) packed and embedded into a `bun --compile`
+# launcher that unpacks and boots Phoenix at runtime. Host platform only
+# (macOS arm64). To install: copy dist/suikou onto PATH, then
+# `xattr -c` + ad-hoc `codesign --force --sign -` the copy (cp invalidates the
+# signature and macOS SIGKILLs an unsigned copy), and restart the daemon.
+[tasks.package]
+description = "Build the single-file dist/suikou executable"
+depends = ["setup"]
+run = """
+set -eu
+
+echo "==> building frontend"
+rm -rf priv/static/assets priv/static/index.html
+# --no-save so packaging can't rewrite assets/bun.lock (the file: musubi deps
+# make bun re-resolve on every run, so --frozen-lockfile is unusable).
+cd assets && bun install --no-save && bun run build && cd ..
+
+echo "==> building release"
+MIX_ENV=prod mix release suikou --overwrite
+
+echo "==> packing release"
+mkdir -p packaging/embed
+# The :tar release step emits a versioned tarball; glob rather than hardcode.
+count=$(ls -1 _build/prod/suikou-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
+[ "$count" = "1" ] || { echo "expected exactly one release tarball, got $count" >&2; exit 1; }
+cp _build/prod/suikou-*.tar.gz packaging/embed/server.tar.gz
+
+echo "==> compiling single-file binary"
+mkdir -p dist
+# cwd packaging/ so the launcher's relative ./embed/server.tar.gz import resolves.
+cd packaging && bun build --compile launcher.ts --outfile ../dist/suikou && cd ..
+chmod 755 dist/suikou
+
+echo "packaged -> dist/suikou"
+"""

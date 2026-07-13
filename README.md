@@ -19,13 +19,13 @@ mix precommit    # format, compile --warnings-as-errors, test — run before pus
 
 ## Package & install
 
-`mix suikou.package` builds the whole app — React frontend, a self-contained
+`mise run package` builds the whole app — React frontend, a self-contained
 `mix release` (ERTS bundled), and the bun launcher — into one file at
 `dist/suikou`. It does **not** install; copy it onto your `PATH` and restart the
 daemon so the new binary and any `config.toml` changes take effect:
 
 ```sh
-mix suikou.package
+mise run package
 suikou stop                                    # if a daemon from an older build is running
 cp dist/suikou ~/.local/bin/suikou
 xattr -c ~/.local/bin/suikou                   # drop provenance/quarantine xattrs

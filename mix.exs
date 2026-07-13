@@ -39,7 +39,7 @@ defmodule Suikou.MixProject do
   end
 
   # Self-contained release bundling ERTS, embedded into the single-file
-  # executable by `mix suikou.package`.
+  # executable by `mise run package`.
   defp releases do
     [
       suikou: [
