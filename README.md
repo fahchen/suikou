@@ -3,9 +3,23 @@
   Suikou
 </h1>
 
-A human-in-the-loop code review tool: a server-authoritative Musubi runtime on
-Phoenix (API + Musubi socket), a React frontend, and a single-file `suikou`
-binary that an agent drives over a small CLI.
+**A workbench for deliberate code review.** Read closely, anchor comments to
+exact lines, set a verdict per file, submit a round, iterate.
+
+Suikou runs as a single-file binary on your own machine and exposes a small CLI,
+so an agent can open a review and hand it to you to sign off.
+
+## Highlights
+
+- **File-by-file verdicts.** Every file carries its own state; a round isn't done
+  until each one is judged.
+- **Anchored discussion.** Comments pin to exact lines and survive re-reads.
+- **Two review modes.** Browse whole files, or a branch/commit diff with a live
+  scope lens.
+- **Server-authoritative.** A Musubi runtime on Phoenix holds the truth; the
+  React frontend is a thin, realtime view that resumes instantly (PWA shell).
+- **Yours, on your tailnet.** Single user, single binary, no cloud. Reachable
+  from any device over Tailscale.
 
 ## Develop
 
@@ -57,11 +71,7 @@ suikou skill     # print the agent CLI skill markdown (no server needed)
 
 ## Configure
 
-Runtime config is read once at boot from `~/.config/suikou/config.toml`
-(packaged build only; dev/test ignore it). Every key is optional — see
-[`config.toml.example`](config.toml.example) for the full list and defaults.
-Edit, then `suikou stop && suikou start` to apply.
-
-Common keys: `host` (Tailscale MagicDNS name for tailnet links), `url_scheme` /
-`url_port` (set to `https` / `443` only behind a TLS front like
-`tailscale serve`), `port` (HTTP listener, default `47100`).
+Runtime config is read once at boot from `~/.config/suikou/config.toml` (packaged
+build only; dev/test ignore it). Every key is optional and documented inline in
+[`config.toml.example`](config.toml.example) — copy it, edit, then
+`suikou stop && suikou start` to apply.
