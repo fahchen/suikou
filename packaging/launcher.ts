@@ -46,7 +46,10 @@ async function dispatch(command: string | undefined): Promise<void> {
       // Never returns.
       return runServer({ openBrowser: false })
     case "start":
-      return process.exit(await start(process.argv.includes("--force") || process.argv.includes("-f")))
+      return process.exit(await start(
+        process.argv.includes("--force") || process.argv.includes("-f"),
+        !process.argv.includes("--no-open")
+      ))
     case "stop":
       return process.exit(await stop())
     case "status":
@@ -581,7 +584,7 @@ function usage(group?: string, verb?: string): string {
   }
 
   const lifecycle = "  (bare)        start the foreground server and open the browser\n" +
-    "  start [--force]     start the background daemon (--force relaunches a running one)\n" +
+    "  start [--force] [--no-open]  start the background daemon (--force relaunches; --no-open skips the browser)\n" +
     "  stop|status         background daemon control\n" +
     "  open                open the Suikou board in the browser\n" +
     "  wait <review-id>    alias for `review wait`\n" +
@@ -634,8 +637,9 @@ async function runServer({ openBrowser }: { openBrowser: boolean }): Promise<nev
 // `suikou start [--force]`: start the release as an OTP daemon (run_erl), then
 // open the browser once it is serving. Returns promptly — `daemon` backgrounds
 // itself. `--force` stops an already-running daemon first and relaunches it,
-// instead of reattaching to the existing one.
-async function start(force = false): Promise<number> {
+// instead of reattaching to the existing one. `openBrowser` is false when the
+// caller passed `--no-open` (headless/remote start).
+async function start(force = false, openBrowser = true): Promise<number> {
   const releaseRoot = await ensureExtracted()
   const bin = join(releaseRoot, "suikou", "bin", "suikou")
   await mkdir(releaseTmp, { recursive: true })
@@ -667,14 +671,14 @@ async function start(force = false): Promise<number> {
       } else {
         const url = urlForPort(port)
         if (await tcpUp(port)) {
-          spawn(["open", url])
+          if (openBrowser) spawn(["open", url])
           console.log(`already running (pid ${runningPid}) at ${url}`)
         } else {
           // Node is up but the Phoenix endpoint may still be booting (migrations
           // run first); wait until the port is reachable before opening, like the
           // first-start path does, so we don't open a dead page.
           console.log(`already running (pid ${runningPid}) — starting at ${url}`)
-          if (await waitForReady(port)) spawn(["open", url])
+          if (await waitForReady(port) && openBrowser) spawn(["open", url])
         }
       }
       return 0
@@ -702,7 +706,7 @@ async function start(force = false): Promise<number> {
 
     const url = urlForPort(port)
     if (await waitForReady(port)) {
-      spawn(["open", url])
+      if (openBrowser) spawn(["open", url])
       console.log(`started at ${url}`)
       return 0
     }
