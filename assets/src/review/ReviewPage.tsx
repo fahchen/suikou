@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, Plus, WifiOff } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, Plus, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
@@ -937,7 +937,7 @@ function Editor({
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-4">
         {entry && filePosition ? (
-          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-1 lg:hidden">
             <button
               type="button"
               onClick={() => filePosition.previousPath && onSelectFile(filePosition.previousPath)}
@@ -951,12 +951,14 @@ function Editor({
             <button
               type="button"
               onClick={onOpenFiles}
-              className="inline-flex h-[30px] shrink-0 items-center gap-0.5 rounded-ctrl px-2 font-mono text-xs font-semibold tabular-nums text-muted hover:bg-soft hover:text-ink"
+              className="flex h-[30px] min-w-0 flex-1 items-center gap-1.5 rounded-ctrl px-1.5 text-left hover:bg-soft"
               title="Files"
               aria-label={`Open file list, current file ${filePosition.index + 1} of ${filePosition.total}`}
             >
-              {filePosition.index + 1}/{filePosition.total}
-              <ChevronDown size={12} aria-hidden />
+              <ChangeStatusLetter status={entry.change_status ?? null} />
+              <FileIcon name={name} size={13} />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">{name}</span>
+              <ChevronDown size={12} className="shrink-0 text-muted" aria-hidden />
             </button>
             <button
               type="button"
@@ -982,24 +984,14 @@ function Editor({
           </button>
         )}
         {entry ? (
-          <>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:hidden">
-              <ChangeStatusLetter status={entry.change_status ?? null} />
-              <FileIcon name={name} size={13} />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink" title={entry.path}>
-                <span className="text-faint">{dir}</span>
-                {name}
-              </span>
-            </div>
-            <div className="hidden min-w-0 items-center gap-2 lg:flex">
-              <ChangeStatusLetter status={entry.change_status ?? null} />
-              <FileIcon name={name} size={14} />
-              <span className="truncate font-mono text-xs text-ink">
-                <span className="text-faint">{dir}</span>
-                {name}
-              </span>
-            </div>
-          </>
+          <div className="hidden min-w-0 items-center gap-2 lg:flex">
+            <ChangeStatusLetter status={entry.change_status ?? null} />
+            <FileIcon name={name} size={14} />
+            <span className="truncate font-mono text-xs text-ink">
+              <span className="text-faint">{dir}</span>
+              {name}
+            </span>
+          </div>
         ) : (
           <span className="min-w-0 flex-1 truncate text-xs text-faint lg:flex-none">No file selected</span>
         )}
@@ -1012,20 +1004,22 @@ function Editor({
                   render={
                     <button
                       type="button"
-                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-1.5 text-muted hover:bg-soft hover:text-ink"
                       aria-label="Choose view mode"
-                      title="View mode"
+                      title={view === "source" ? "Viewing source" : "Viewing preview"}
                     >
-                      {view === "source" ? "Source" : "Preview"}
-                      <ChevronDown size={13} aria-hidden />
+                      {view === "source" ? <Code size={15} aria-hidden /> : <Eye size={15} aria-hidden />}
+                      <ChevronDown size={12} aria-hidden />
                     </button>
                   }
                 />
                 <DropdownMenuContent>
                   <DropdownMenuItem selected={view === "source"} onClick={() => chooseView("source")}>
+                    <Code size={14} aria-hidden />
                     Source
                   </DropdownMenuItem>
                   <DropdownMenuItem selected={view === "preview"} onClick={() => chooseView("preview")}>
+                    <Eye size={14} aria-hidden />
                     Preview
                   </DropdownMenuItem>
                 </DropdownMenuContent>
