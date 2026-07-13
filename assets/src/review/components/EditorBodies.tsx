@@ -186,14 +186,30 @@ export const MarkdownPreview = observer(function MarkdownPreview({
       <div ref={docRef} className="md-doc py-4">
         {(() => {
           const rendered: ReactNode[] = []
-          let codeBuf: ReactNode[] = []
+          type CodeRow = { index: number; highlight: boolean; gutter: ReactNode; body: ReactNode }
+          let codeBuf: CodeRow[] = []
           let segKey = ""
           let segGroup: string | null = null
           const flushCode = () => {
             if (codeBuf.length === 0) return
             rendered.push(
-              <div key={`fence-${segKey}`} className="md-fence-scroll">
-                <div className="md-fence-track">{codeBuf}</div>
+              <div key={`fence-${segKey}`} className="md-fence">
+                <div className="md-fence-nums">
+                  {codeBuf.map((r) => (
+                    <div key={r.index} className={`md-fence-numrow group/md flex ${r.highlight ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+                      {r.gutter}
+                    </div>
+                  ))}
+                </div>
+                <div className="md-fence-scroll">
+                  <div className="md-fence-track">
+                    {codeBuf.map((r) => (
+                      <div key={r.index} className={`md-fence-coderow ${r.highlight ? "bg-accent-soft" : ""}`}>
+                        {r.body}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>,
             )
             codeBuf = []
@@ -238,11 +254,6 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 style={{
                   minWidth: `${gutter + 2}ch`,
                   touchAction: "none",
-                  // Code gutters sit inside a horizontal scroll container; pin them
-                  // and give an opaque backdrop so scrolled code can't show through.
-                  ...(isCode
-                    ? { position: "sticky" as const, left: 0, zIndex: 1, background: selecting || focused ? undefined : "var(--bg-1)" }
-                    : {}),
                 }}
                 title="Comment on this block — drag or shift-click for a range"
                 className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
@@ -277,40 +288,47 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               </button>
             ) : null
 
+            const gutterNode =
+              composerMode === "popover" ? (
+                <Popover
+                  open={composerOpen}
+                  onOpenChange={(next) => {
+                    if (next) requestOpen({ start: block.line, end: block.endLine })
+                    else if (composerOpen) close()
+                  }}
+                  side="right"
+                  align="start"
+                  chrome={false}
+                  className="w-[330px] p-0"
+                  render={gutterButton}
+                >
+                  {composerOpen && draft && (
+                    <Composer
+                      anchorLabel={label}
+                      draftKey={draftBodyKey(draftScope, draft)}
+                      pending={addComment.isPending}
+                      className="m-0"
+                      onSubmit={submitNew}
+                      onCancel={close}
+                    />
+                  )}
+                </Popover>
+              ) : (
+                gutterButton
+              )
+
+            const bodyNode = (
+              <div
+                className={`md-body min-w-0 pb-1 pr-4 text-sm leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: block.html }}
+              />
+            )
+
             const row = (
-              <div key={index} className={`group/md flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
-                {composerMode === "popover" ? (
-                  <Popover
-                    open={composerOpen}
-                    onOpenChange={(next) => {
-                      if (next) requestOpen({ start: block.line, end: block.endLine })
-                      else if (composerOpen) close()
-                    }}
-                    side="right"
-                    align="start"
-                    chrome={false}
-                    className="w-[330px] p-0"
-                    render={gutterButton}
-                  >
-                    {composerOpen && draft && (
-                      <Composer
-                        anchorLabel={label}
-                        draftKey={draftBodyKey(draftScope, draft)}
-                        pending={addComment.isPending}
-                        className="m-0"
-                        onSubmit={submitNew}
-                        onCancel={close}
-                      />
-                    )}
-                  </Popover>
-                ) : (
-                  gutterButton
-                )}
-                <div
-                  className={`md-body min-w-0 pb-1 pr-4 text-sm leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
-                  // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: block.html }}
-                />
+              <div key={index} className={`group/md flex ${selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+                {gutterNode}
+                {bodyNode}
                 {foldToggle}
               </div>
             )
@@ -339,9 +357,9 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 </Fragment>
               ) : null
 
-            // Code lines share one horizontal scroll container. A comment or
-            // composer breaks the fence (it renders full-width outside the
-            // scroller), so flush the buffer before emitting it.
+            // Code lines split into a fixed number column and one shared
+            // horizontal code scroller. A comment or composer breaks the fence
+            // (it renders full-width outside), so flush the buffer before it.
             if (isCode) {
               // A new fence (different codeGroup) starts its own scroll container.
               if (codeBuf.length > 0 && block.codeGroup !== segGroup) flushCode()
@@ -349,7 +367,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 segKey = String(index)
                 segGroup = block.codeGroup ?? null
               }
-              codeBuf.push(row)
+              codeBuf.push({ index, highlight: selecting || focused, gutter: gutterNode, body: bodyNode })
               if (extras) {
                 flushCode()
                 rendered.push(extras)
@@ -602,7 +620,7 @@ export const Source = observer(function Source({
 
         return (
           <Fragment key={index}>
-            <div data-review-line={lineNo} className={`flex scroll-mt-2 ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+            <div data-review-line={lineNo} className={`flex scroll-mt-2 ${selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
               {composerMode === "popover" ? (
                 <Popover
                   open={composerOpen}

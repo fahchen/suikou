@@ -952,14 +952,29 @@
   box-shadow: none;
 }
 
-/* Per-line code blocks: one commentable line each, stacked into a single slab
-   with only the first/last line rounded so seams read as one block. A fence's
-   lines share one horizontal scroll container (.md-fence-scroll), so long lines
-   scroll together with no JS. */
+/* Per-line code blocks: one commentable line each. Line numbers live in a fixed
+   column (.md-fence-nums) so only the code scrolls; the code lines share one
+   horizontal scroll container (.md-fence-scroll) so long lines move together
+   with no JS and the numbers never shift. Both columns' rows share a line box so
+   digits stay aligned.
+   ponytail: assumes single-line code rows at text-sm; revisit if code wraps. */
+.md-fence {
+  display: flex;
+  /* right margin matches the prose md-body pr-4 so the slab's right edge lines
+     up with the text column. */
+  margin: 0.6em 1rem 0.6em 0;
+}
+.md-fence-nums {
+  flex-shrink: 0;
+}
 .md-fence-scroll {
-  margin: 0.6em 0;
+  min-width: 0;
+  flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Slab background lives on the scroll container so it stays put while the
+     code lines scroll over it. */
+  background: color-mix(in oklab, var(--ink-3) 8%, transparent);
 }
 .md-fence-scroll::-webkit-scrollbar {
   display: none;
@@ -970,39 +985,42 @@
   width: max-content;
   min-width: 100%;
 }
-.md-fence-track > .flex {
-  width: 100%;
+.md-fence-numrow,
+.md-fence-coderow {
+  min-height: calc(1.4rem + 2px);
+}
+.md-fence-numrow > button {
+  height: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
+  justify-content: center;
+}
+/* A selected row's highlight is translucent, and the number and code columns
+   sit on different backdrops (bare gutter vs grey slab) with different layer
+   counts (numrow + its button both tint), so the columns read as two shades and
+   leave a lone stripe. Flatten both columns to one opaque blue over the editor
+   surface, and drop the inner button's own tint so the number column matches. */
+.md-fence-numrow.bg-accent-soft,
+.md-fence-coderow.bg-accent-soft {
+  background-color: var(--color-editor);
+  background-image: linear-gradient(var(--color-accent-soft), var(--color-accent-soft));
+}
+.md-fence-numrow.bg-accent-soft > button {
+  background: transparent;
+}
+.md-doc .md-fence-coderow .md-body {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .md-doc .md-body .md-code-line {
   margin: 0;
   padding: 1px 10px;
   border-radius: 0;
   white-space: pre;
+  background: none;
 }
 .md-doc .md-body .md-code-line code {
   display: inline-block;
-}
-.md-doc .md-body .md-code-first {
-  padding-top: 8px;
-  border-radius: 8px 8px 0 0;
-}
-.md-doc .md-body .md-code-last {
-  padding-bottom: 8px;
-  border-radius: 0 0 8px 8px;
-}
-.md-doc .md-body .md-code-only {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  border-radius: 8px;
-}
-/* Collapse block gutters so adjacent code lines abut with no gap. */
-.md-doc .flex:has(.md-code-line) > button:first-child {
-  padding-top: 0;
-  padding-bottom: 0;
-}
-.md-doc .flex:has(.md-code-line) > .md-body {
-  padding-top: 0;
-  padding-bottom: 0;
 }
 .md-body strong {
   font-weight: 700;
