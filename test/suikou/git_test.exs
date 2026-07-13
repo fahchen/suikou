@@ -772,48 +772,6 @@ defmodule Suikou.GitTest do
     end
   end
 
-  describe "rev_parse/2" do
-    @tag :tmp_dir
-    test "resolves a branch to its 40-character commit SHA", %{tmp_dir: dir} do
-      init_repo!(dir, branch: "main")
-
-      assert {:ok, sha} = Git.rev_parse(dir, "main")
-      assert is_binary(sha)
-      assert byte_size(sha) == 40
-      assert sha =~ ~r/^[0-9a-f]{40}$/
-    end
-
-    @tag :tmp_dir
-    test "resolves an unrelated ref to a different SHA after the branch advances",
-         %{tmp_dir: dir} do
-      init_repo!(dir, branch: "main")
-      assert {:ok, before_sha} = Git.rev_parse(dir, "main")
-
-      File.write!(Path.join(dir, "next.txt"), "next\n")
-      git!(["add", "."], cd: dir)
-      commit!(dir, "advance main")
-
-      assert {:ok, after_sha} = Git.rev_parse(dir, "main")
-      refute after_sha == before_sha
-    end
-
-    @tag :tmp_dir
-    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
-      init_repo!(dir, branch: "main")
-      assert {:error, :ref_not_found} = Git.rev_parse(dir, "no-such-ref")
-    end
-
-    @tag :tmp_dir
-    test "rejects refs that look like options", %{tmp_dir: dir} do
-      init_repo!(dir, branch: "main")
-      assert {:error, :invalid_ref} = Git.rev_parse(dir, "--evil")
-    end
-
-    @tag :tmp_dir
-    test "returns :not_a_repo for a plain directory", %{tmp_dir: dir} do
-      assert {:error, :not_a_repo} = Git.rev_parse(dir, "main")
-    end
-  end
 
   describe "trap_exit isolation" do
     @tag :tmp_dir

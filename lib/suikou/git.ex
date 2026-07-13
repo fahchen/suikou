@@ -19,7 +19,6 @@ defmodule Suikou.Git do
   @type changed_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type blob_ids_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
-  @type rev_parse_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type show_blob_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type changed_files_with_status_error() ::
           :not_a_repo | :invalid_ref | :ref_not_found | :git_error
@@ -648,29 +647,6 @@ defmodule Suikou.Git do
     |> String.split(<<0>>, trim: true)
     |> Enum.chunk_every(2, 2, :discard)
     |> Enum.map(fn [sha, subject] -> %{sha: sha, subject: subject} end)
-  end
-
-  @doc """
-  Resolves `ref` to its current 40-character commit SHA in `dir`. Returns
-  `{:error, :ref_not_found}` when the ref does not resolve to a commit.
-
-  ## Examples
-
-      Suikou.Git.rev_parse("/projects/app", "main")
-      #=> {:ok, "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b"}
-
-      Suikou.Git.rev_parse("/projects/app", "missing")
-      #=> {:error, :ref_not_found}
-
-  """
-  @spec rev_parse(repo_dir(), ref()) :: {:ok, String.t()} | {:error, rev_parse_error()}
-  def rev_parse(dir, ref) do
-    with {:ok, ref} <- tag_invalid_ref(safe_ref(ref)),
-         :ok <- ensure_repo(dir),
-         :ok <- ensure_ref(dir, ref),
-         {:ok, out} <- run(dir, ["rev-parse", "--verify", ref <> "^{commit}"]) do
-      {:ok, String.trim(out)}
-    end
   end
 
   defp parse_ls_tree(out) do
