@@ -8,8 +8,8 @@ defmodule SuikouWeb.AssetController do
   git-diff artifact streams the live unified diff inline as `text/x-diff`.
 
   Also lists a diff review's commit range as JSON so the frontend can drive
-  commit-by-commit navigation without a store round-trip (batch data — see the
-  Phase P4 "commit range × working-tree state" requirements in `task_plan.md`).
+  commit-by-commit navigation without a store round-trip (batch data over HTTP,
+  keeping the realtime store to comments and counters).
   """
 
   use SuikouWeb, :controller

@@ -360,9 +360,8 @@ defmodule Suikou.Reviews do
   `{:inline, diff_text, "text/x-diff"}` so the controller can serve it with the
   same shape as `fetch_content_by_path/2`.
 
-  Powers the future commit-by-commit navigation axis for diff reviews (see
-  Phase P4 diff-review requirements in `task_plan.md`) — the frontend fetches
-  one commit's whole patch and `@pierre/diffs` splits it per file.
+  Powers the commit-by-commit navigation axis for diff reviews — the frontend
+  fetches one commit's whole patch and `@pierre/diffs` splits it per file.
 
   Returns `{:error, :not_a_diff_review}` for a file-selection review; other
   errors mirror `Git.commit_diff/2`.
