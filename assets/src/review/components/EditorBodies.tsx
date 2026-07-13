@@ -285,7 +285,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                   gutterButton
                 )}
                 <div
-                  className="md-body min-w-0 flex-1 pb-1 pr-4 text-sm leading-[1.6] text-ink"
+                  className={`md-body min-w-0 pb-1 pr-4 text-sm leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: block.html }}
                 />
