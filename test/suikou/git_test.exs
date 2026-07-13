@@ -772,7 +772,6 @@ defmodule Suikou.GitTest do
     end
   end
 
-
   describe "trap_exit isolation" do
     @tag :tmp_dir
     test "git subprocess Port exit never leaks into a trap_exit caller", %{tmp_dir: dir} do
