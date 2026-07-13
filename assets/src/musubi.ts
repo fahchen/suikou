@@ -1,4 +1,4 @@
-import { useCallback, useRef, useSyncExternalStore } from "react"
+import { useSyncExternalStore } from "react"
 import { Socket } from "phoenix"
 import { createStorageCachePersister } from "@musubi/client"
 import { createMusubi } from "@musubi/react"
@@ -92,42 +92,3 @@ export const {
   useMusubiSnapshot,
   useMusubiCommand
 } = createMusubi<Musubi.Stores>()
-
-// One prefetch per reviewId per page session — hover handlers fire many times;
-// dedupe so we mount/unmount the server-side root at most once.
-const prefetched = new Set<string>()
-
-/**
- * Returns a hover-friendly prefetcher for a ReviewStore identity keyed by
- * reviewId. Warms the SWR cache so the first visit to a review paints from
- * cache instead of waiting on the initial patch.
- */
-export function usePrefetchReviewStore(): (reviewId: string) => void {
-  const connection = useMusubiConnection()
-  const inFlight = useRef<Set<string>>(new Set())
-  return useCallback(
-    (reviewId: string) => {
-      if (!reviewId) return
-      const key = `SuikouWeb.Stores.ReviewStore|${reviewId}`
-      if (prefetched.has(key) || inFlight.current.has(key)) return
-      inFlight.current.add(key)
-      connection
-        .mountStore({
-          module: "SuikouWeb.Stores.ReviewStore",
-          id: reviewId,
-          params: { review_id: reviewId },
-          cache: storeCache
-        })
-        .then(async (mounted) => {
-          await mounted.revalidated.catch(() => undefined)
-          await mounted.unmount()
-          prefetched.add(key)
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          inFlight.current.delete(key)
-        })
-    },
-    [connection]
-  )
-}

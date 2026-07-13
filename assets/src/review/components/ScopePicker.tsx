@@ -1,8 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { useEffect, useState } from "react"
-import { Check, Filter, Search } from "lucide-react"
+import { Check, Search } from "lucide-react"
 
-import { Popover } from "../../components/ui/popover"
 import { uiStore, type DiffWorktree } from "../../stores/ui-store"
 
 /** BDR-0025 diff lens: a diff review is rendered against a live git tree.
@@ -57,20 +56,6 @@ export function useScopeCommits(reviewId: string, enabled: boolean): ScopeCommit
     }
   }, [reviewId, enabled])
   return commits
-}
-
-/** Human label for the current lens — used as the popover trigger text and
- * the mobile sheet-tab caption. */
-export function scopeLabel(commitCount: number): string {
-  if (uiStore.diffWorktree === "staged") return "Staged"
-  if (uiStore.diffWorktree === "unstaged") return "Unstaged"
-  if (uiStore.diffScope === "all") {
-    return commitCount > 0
-      ? `All commits (${commitCount})`
-      : "All commits"
-  }
-  const n = uiStore.diffScope.commits.length
-  return `${n} commit${n === 1 ? "" : "s"}`
 }
 
 /** Shared popover body: worktree radio + commits multi-select. Reused by
@@ -192,35 +177,5 @@ export const ScopePickerBody = observer(function ScopePickerBody({
         </div>
       )}
     </div>
-  )
-})
-
-/** Desktop scope trigger: a compact chip whose label reflects the current
- * lens; opens the popover with the shared body. */
-export const ScopePopover = observer(function ScopePopover({
-  commits,
-}: {
-  commits: ScopeCommit[]
-}) {
-  const label = scopeLabel(commits.length)
-  return (
-    <Popover
-      align="end"
-      className="w-[340px] p-0"
-      render={
-        <button
-          type="button"
-          className="inline-flex h-[24px] shrink-0 items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-2 text-[11px] font-medium text-ink hover:bg-soft"
-          title="Diff scope"
-        >
-          <Filter size={12} className="text-muted" aria-hidden />
-          <span className="tabular-nums max-w-[160px] truncate">{label}</span>
-        </button>
-      }
-    >
-      <div className="max-h-[70vh] min-h-0">
-        <ScopePickerBody commits={commits} />
-      </div>
-    </Popover>
   )
 })

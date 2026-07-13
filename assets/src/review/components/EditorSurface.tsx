@@ -259,7 +259,7 @@ export function writeDocView(value: "source" | "rendered"): void {
   localStorage.setItem(DOC_VIEW_KEY, value)
 }
 
-export function isTextMime(mime: string): boolean {
+function isTextMime(mime: string): boolean {
   const type = mime.split(";")[0].trim()
   if (type === "" || type === "application/octet-stream" || type === "image/svg+xml") return true
   if (type.startsWith("text/")) return true
