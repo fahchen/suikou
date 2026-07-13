@@ -48,14 +48,18 @@ export default defineConfig({
         short_name: "Suikou",
         display: "standalone",
         start_url: "/",
-        theme_color: "#b3462f",
-        background_color: "#f7efe8",
+        // Splash / standalone title bar. Match the app's default (Suikou Dark)
+        // first-paint canvas so launch is seamless, not a vermilion flash.
+        theme_color: "#12181c",
+        background_color: "#12181c",
+        // Icons are full-bleed (the 2x2 seal grid runs edge to edge), so they
+        // carry no maskable safe zone — declaring `maskable` would let Android's
+        // circular mask clip the corner glyphs. Ship `any` only; the system
+        // frames it on its own plate without cropping.
         icons: [
           { src: "/favicon.ico", sizes: "any", type: "image/x-icon" },
           { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
         ]
       },
       // Off in dev so the SW never shadows Vite HMR on :5173.

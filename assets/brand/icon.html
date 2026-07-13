@@ -8,8 +8,9 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: #ffffff; }
-  /* Full-bleed square (no radius): iOS/Android apply their own mask, and the
-     maskable purpose needs the art to bleed to the edges. */
+  /* Full-bleed square (no radius): iOS rounds it, Android frames it on a plate.
+     Not declared `maskable` — a full-bleed grid has no safe zone, so a circular
+     mask would clip the corner glyphs. */
   #icon {
     width: 512px; height: 512px; overflow: hidden; display: flex;
     font-family: "Hina Mincho", serif;
