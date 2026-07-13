@@ -609,7 +609,7 @@ export const StackedSideRail = observer(function StackedSideRail({
     })
 
   return (
-    <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
+    <aside className="hidden min-h-0 flex-col lg:flex">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
         <MessageSquare size={15} className="text-muted" aria-hidden />
         <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Comments</h3>

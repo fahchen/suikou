@@ -51,7 +51,7 @@ export function Toolbar({
   latestRound: number
 }) {
   return (
-    <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-2 lg:h-[50px] lg:px-3">
+    <div className="flex h-[52px] shrink-0 items-center gap-[9px] px-2 lg:h-[50px] lg:px-3">
       <a
         href="/"
         className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl px-1 hover:bg-soft lg:px-2"
@@ -171,7 +171,7 @@ export function StatusBar({
   const blockers = review.blockers.length
 
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-xs text-muted">
+    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted">
       <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
       {stacked && (
         <>

@@ -581,7 +581,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           (stackedSide || (!stacked && commentDisplay === "side")) ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
         }`}
       >
-        <aside className="hidden min-h-0 flex-col border-r border-hair-strong bg-surface pt-3 lg:flex">
+        <aside className="hidden min-h-0 flex-col pt-3 lg:flex">
           <NavHeader
             entries={entries}
             reviewed={review.reviewed}
@@ -622,6 +622,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             <FileList entries={navEntries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
           )}
         </aside>
+        <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
         {isDiff && !refsValid ? (
           <RefsErrorPage
             baseRef={structure?.refs?.base_ref ?? null}
@@ -668,6 +669,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             diffLens={diffLens}
           />
         )}
+        </div>
         {stackedSide && (
           <StackedSideRail
             files={stackedFiles}
