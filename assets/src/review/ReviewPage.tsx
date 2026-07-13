@@ -556,6 +556,14 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const navSelect = stacked ? scrollToStacked : select
   const stackedSide = stacked && commentDisplay === "side"
 
+  const reviewName = structure?.name
+  useEffect(() => {
+    document.title = reviewName ? `${reviewName} · Suikou` : "Suikou"
+    return () => {
+      document.title = "Suikou"
+    }
+  }, [reviewName])
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       <Toolbar
