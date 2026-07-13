@@ -19,7 +19,7 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, FileNotice, HtmlView, ImageView, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, HideReviewedToggle, NavHeader, orderByTree } from "./components/FileNavigator"
@@ -1204,17 +1204,7 @@ function Editor({
           ) : content.kind === "loading" ? (
             <FileNotice icon={Loader2} title="Loading file" body="Reading the file's current bytes from the project." meta={entry.path} spin />
           ) : content.kind === "error" ? (
-            isDiff ? (
-              <FileNotice
-                icon={AlertTriangle}
-                title="Diff unavailable"
-                body={`${content.message} · This file has no changes under the current source lens. Switch to a wider scope, or pick a different file.`}
-                tone="amber"
-                meta={entry.path}
-              />
-            ) : (
-              <FileNotice icon={AlertTriangle} title="Can't load this file" body={content.message} tone="request" meta={entry.path} />
-            )
+            <FileErrorNotice isDiff={isDiff} content={content} meta={entry.path} />
           ) : content.kind === "image" ? (
             <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />
           ) : content.kind === "binary" ? (

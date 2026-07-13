@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { AlertTriangle, ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare } from "lucide-react"
+import { ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { CommentDisplayMode } from "../../stores/ui-store"
@@ -14,6 +14,7 @@ import {
   type Content,
   type DiffLens,
   EmptyFileNotice,
+  FileErrorNotice,
   FileNotice,
   ImageView,
   LoadingNotice,
@@ -520,7 +521,7 @@ function StackedBody({
     return <LoadingNotice name={name} />
   }
   if (content.kind === "error") {
-    return <FileNotice icon={AlertTriangle} title="Can't load this file" body={content.message} tone="request" meta={name} />
+    return <FileErrorNotice isDiff={isDiff} content={content} meta={name} />
   }
   if (content.kind === "image") {
     return <ImageView name={name} url={content.url} mime={content.mime} bytes={content.bytes} />

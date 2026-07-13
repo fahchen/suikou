@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { ThemedToken } from "shiki"
-import { Binary, File, ListTree, Loader2 } from "lucide-react"
+import { AlertTriangle, Binary, File, ListTree, Loader2 } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ export type Content =
   | { kind: "text"; lines: string[]; tokens: ThemedToken[][] | null }
   | { kind: "image"; url: string; mime: string; bytes: number | null }
   | { kind: "binary"; mime: string; bytes: number | null }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: string; status: number | null }
 
 /** Live-lens overlay for a diff review's file-content fetch (BDR-0025).
  * `scope` and `worktree` are per-request query params; the backend
@@ -78,7 +78,7 @@ export function useFileContent(
       .then(async (response) => {
         if (cancelled) return
         if (!response.ok) {
-          const next: Content = { kind: "error", message: `Couldn't load file (${response.status}).` }
+          const next: Content = { kind: "error", message: `Couldn't load file (${response.status}).`, status: response.status }
           setContent(next)
           record(next)
           return
@@ -130,7 +130,7 @@ export function useFileContent(
       })
       .catch((cause: Error) => {
         if (cancelled) return
-        const next: Content = { kind: "error", message: cause.message }
+        const next: Content = { kind: "error", message: cause.message, status: null }
         setContent(next)
         record(next)
       })
@@ -467,6 +467,34 @@ export function EmptyFileNotice({ name }: { name: string }) {
       meta={name}
     />
   )
+}
+
+/** Error-state notice for a file fetch. A diff review's 404 is the "no
+ * changes under the current source lens" case (BDR-0025) and gets its own
+ * amber guidance; every other failure (500, network, non-diff 404) is a
+ * genuine load error, so the raw message shows instead of the misleading
+ * "switch scope" hint. */
+export function FileErrorNotice({
+  isDiff,
+  content,
+  meta,
+}: {
+  isDiff: boolean
+  content: Extract<Content, { kind: "error" }>
+  meta: string
+}) {
+  if (isDiff && content.status === 404) {
+    return (
+      <FileNotice
+        icon={AlertTriangle}
+        title="Diff unavailable"
+        body="This file has no changes under the current source lens. Switch to a wider scope, or pick a different file."
+        tone="amber"
+        meta={meta}
+      />
+    )
+  }
+  return <FileNotice icon={AlertTriangle} title="Can't load this file" body={content.message} tone="request" meta={meta} />
 }
 
 /** Shared empty-state / notice layout: circular icon badge, heading, body,
