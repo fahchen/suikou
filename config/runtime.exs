@@ -66,8 +66,6 @@ if config_env() == :prod do
 
   host = user_config["host"] || System.get_env("PHX_HOST") || "example.com"
 
-  config :suikou, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
-
   # Frontend debug overlay (React ErrorBoundary + router ErrorOverlay). When true,
   # SpaController injects a `<meta name="suikou:debug">` into the served shell so
   # the bundle turns it on. Dev is always on via import.meta.env.DEV; this only

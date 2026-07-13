@@ -12,7 +12,6 @@ defmodule Suikou.Application do
       Suikou.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:suikou, :ecto_repos), skip: skip_migrations?()},
-      {DNSCluster, query: Application.get_env(:suikou, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Suikou.PubSub},
       # Per-review file watchers: one process per review_id, found by id and
       # ref-counted by the connected review stores (see Suikou.FileWatcher).
