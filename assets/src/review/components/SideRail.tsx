@@ -65,8 +65,8 @@ export function SideRail({
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
         <MessageSquare size={15} className="text-muted" aria-hidden />
-        <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Comments</h3>
-        <span className="rounded-full bg-soft px-2 py-0.5 text-[10.5px] font-bold text-muted tabular-nums">{comments.length}</span>
+        <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Comments</h3>
+        <span className="rounded-full bg-soft px-2 py-0.5 text-2xs font-bold text-muted tabular-nums">{comments.length}</span>
         <span className="flex-1" />
         {fileProxy && fileCommentDraftKey && (
           <button
@@ -123,8 +123,8 @@ export function SideRail({
               <div className="grid size-[38px] place-items-center rounded-[12px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
                 <MessageSquare size={16} aria-hidden />
               </div>
-              <div className="text-[12px] font-semibold text-ink">No comments on this file</div>
-              <div className="max-w-[24ch] text-[11px] leading-[1.45] text-muted">Click a line's gutter to start a new thread.</div>
+              <div className="text-xs font-semibold text-ink">No comments on this file</div>
+              <div className="max-w-[24ch] text-xs leading-[1.45] text-muted">Click a line's gutter to start a new thread.</div>
             </div>
           </div>
         ) : (

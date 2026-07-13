@@ -70,9 +70,9 @@ export function Reactions({
               exit={CHIP_ENTER}
               transition={CHIP_TRANSITION}
               title="Agent reaction"
-              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-[11px] ring-1 ring-inset ring-accent-edge"
+              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
             >
-              <span className="text-[11px] leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
+              <span className="text-xs leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
               <Bot size={11} className="text-accent-bright" aria-hidden />
               {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
             </motion.span>
@@ -87,7 +87,7 @@ export function Reactions({
               type="button"
               aria-pressed={reaction.mine}
               onClick={(event) => toggle(reaction.emoji, event)}
-              className={`inline-flex h-[22px] items-center rounded-full px-2 text-[11px] leading-none ring-1 ring-inset transition-colors ${
+              className={`inline-flex h-[22px] items-center rounded-full px-2 text-xs leading-none ring-1 ring-inset transition-colors ${
                 reaction.mine
                   ? "bg-accent-soft text-accent-bright ring-accent-edge"
                   : "bg-soft text-muted ring-hair-strong hover:text-ink"
@@ -127,7 +127,7 @@ export function Reactions({
                 toggle(emoji, event)
                 setOpen(false)
               }}
-              className={`grid size-[28px] place-items-center rounded-full text-[16px] transition-colors hover:bg-soft ${
+              className={`grid size-[28px] place-items-center rounded-full text-base transition-colors hover:bg-soft ${
                 mine.get(emoji) ? "bg-accent-soft ring-1 ring-inset ring-accent-edge" : ""
               }`}
             >

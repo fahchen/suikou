@@ -108,7 +108,7 @@ export function Composer({
     >
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
         {anchorLabel && (
-          <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted">
             <CornerDownRight size={12} aria-hidden />
             {anchorLabel}
           </span>
@@ -120,7 +120,7 @@ export function Composer({
               render={
                 <button
                   type="button"
-                  className="inline-flex h-[24px] cursor-pointer items-center gap-1.5 rounded-full border border-hair-strong bg-canvas px-2.5 text-[11px] font-semibold text-text hover:bg-soft"
+                  className="inline-flex h-[24px] cursor-pointer items-center gap-1.5 rounded-full border border-hair-strong bg-canvas px-2.5 text-xs font-semibold text-text hover:bg-soft"
                 >
                   <span className={`size-2 rounded-full ${current.dot}`} aria-hidden />
                   {current.label}
@@ -156,7 +156,7 @@ export function Composer({
           }}
           rows={2}
           placeholder={withType ? "Leave a comment..." : "Write a reply..."}
-          className="block max-h-[240px] min-h-[58px] w-full resize-none overflow-y-auto rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-[12.5px] leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+          className="block max-h-[240px] min-h-[58px] w-full resize-none overflow-y-auto rounded-ctrl border border-hair-strong bg-canvas px-2.5 py-2 text-xs leading-[1.5] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
         />
         <div className="mt-2 flex items-center gap-2">
           {suggestSeed !== undefined && (
@@ -164,7 +164,7 @@ export function Composer({
               type="button"
               onClick={insertSuggestion}
               title="Insert a code suggestion"
-              className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12px] font-medium text-text hover:bg-soft"
+              className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-medium text-text hover:bg-soft"
             >
               <Code2 size={13} className="text-muted" aria-hidden />
               Suggest
@@ -174,7 +174,7 @@ export function Composer({
           <button
             type="button"
             onClick={cancelNow}
-            className="h-[28px] cursor-pointer rounded-ctrl px-3 text-[12px] font-medium text-muted hover:bg-soft hover:text-ink"
+            className="h-[28px] cursor-pointer rounded-ctrl px-3 text-xs font-medium text-muted hover:bg-soft hover:text-ink"
           >
             Cancel
           </button>
@@ -182,13 +182,13 @@ export function Composer({
             type="button"
             onClick={submit}
             disabled={!body.trim() || pending}
-            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-[12px] font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-xs font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitLabel}
             {pending ? (
               <Loader2 size={12} className="animate-spin opacity-90" aria-hidden />
             ) : (
-              <span className="text-[11px] opacity-80">⌘⏎</span>
+              <span className="text-xs opacity-80">⌘⏎</span>
             )}
           </button>
         </div>

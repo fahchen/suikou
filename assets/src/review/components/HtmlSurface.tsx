@@ -166,12 +166,12 @@ export const HtmlView = observer(function HtmlView({
         ref={frameRef}
         className="relative min-h-0 flex-1 overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]"
       >
-        <span className="absolute right-2 top-2 z-10 inline-flex h-[19px] items-center gap-1 rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 text-[9.5px] font-bold uppercase tracking-wide text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
+        <span className="absolute right-2 top-2 z-10 inline-flex h-[19px] items-center gap-1 rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 text-2xs font-bold uppercase tracking-wide text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
           <Lock size={10} aria-hidden />
           sandboxed iframe{interactive ? " · interactive" : ""}
         </span>
         {hover && !interactive && (
-          <span className="pointer-events-none absolute left-2 top-2 z-20 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-[9.5px] font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
+          <span className="pointer-events-none absolute left-2 top-2 z-20 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-2xs font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
             {hover.selector}
           </span>
         )}
@@ -229,7 +229,7 @@ export const HtmlView = observer(function HtmlView({
             style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 40, width: 340 }}
             className="overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
           >
-            <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-[11px]">
+            <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-xs">
               <span className="truncate font-mono text-accent-bright">{overlay.selector}</span>
               <span className="flex-1" />
               <button
@@ -244,7 +244,7 @@ export const HtmlView = observer(function HtmlView({
             {overlay.kind === "compose" ? (
               <div className="p-2.5">
                 {overlay.quote && (
-                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
                     “{overlay.quote}”
                   </div>
                 )}
@@ -261,7 +261,7 @@ export const HtmlView = observer(function HtmlView({
             ) : (
               <div className="max-h-[60vh] overflow-auto p-2.5">
                 {threadQuote && (
-                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-[11px] text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
                     “{threadQuote}”
                   </div>
                 )}

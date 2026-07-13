@@ -41,7 +41,7 @@ const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
 ]
 
 const SUBMIT_BTN =
-  "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl bg-accent px-3 text-[12.5px] font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
+  "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl bg-accent px-3 text-xs font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
 
 export function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSummary }) {
   const submit = useMusubiCommand(store, "submit_review")
@@ -100,7 +100,7 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
       <Dialog open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[86vh] sm:max-w-[360px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <Upload size={16} className="text-muted" aria-hidden />
-          <DialogTitle className="text-[14px] font-bold text-ink">Finish review</DialogTitle>
+          <DialogTitle className="text-sm font-bold text-ink">Finish review</DialogTitle>
         </div>
         <div className="flex min-h-0 flex-col gap-2 overflow-auto p-2">
           <SubmitPanel
@@ -112,7 +112,7 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
           />
           {review.blockers.length > 0 && (
             <div className="px-1">
-              <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
+              <p className="mb-1.5 text-2xs font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
               <BlockerList blockers={review.blockers} />
             </div>
           )}
@@ -156,7 +156,7 @@ function SubmitPanel({
   return (
     <>
       {heading && (
-        <div className="px-[9px] pt-2 pb-[7px] text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+        <div className="px-[9px] pt-2 pb-[7px] text-2xs font-bold uppercase tracking-[0.06em] text-faint">
           Finish review
         </div>
       )}
@@ -168,24 +168,24 @@ function SubmitPanel({
               key={verdict}
               type="button"
               onClick={() => onChoose(verdict)}
-              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-left text-[13px] ${on ? "bg-soft" : "hover:bg-soft/60"}`}
+              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-left text-sm ${on ? "bg-soft" : "hover:bg-soft/60"}`}
             >
               <VerdictRadio verdict={verdict} on={on} />
               <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
                 {VERDICT_META[verdict].label}
               </span>
-              {hint && <span className="ml-auto text-[11px] text-faint">{hint}</span>}
+              {hint && <span className="ml-auto text-xs text-faint">{hint}</span>}
             </button>
           )
         })}
       </div>
       <div className="my-1.5 h-px bg-hair-strong" />
-      <div className="flex flex-col gap-1.5 px-[9px] py-1 text-[12px] text-text">
+      <div className="flex flex-col gap-1.5 px-[9px] py-1 text-xs text-text">
         <SummaryRow icon={MessageSquare} n={review.pendingComments} label="pending comments" />
         <SummaryRow icon={FileText} n={review.draftVerdicts} label="draft verdicts" />
       </div>
       {softGate && (
-        <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-[11.5px] leading-[1.45] text-amber-deep">
+        <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-xs leading-[1.45] text-amber-deep">
           <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
           <span>
             <b className="font-bold">{review.blockers.length} open fix_required.</b> Approving anyway is
@@ -198,7 +198,7 @@ function SubmitPanel({
           type="button"
           disabled={!canSubmit || submitting}
           onClick={onSubmit}
-          className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-[13px] font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
+          className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-sm font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
         >
           {canSubmit ? "Submit review" : "Nothing to submit"}
         </button>
@@ -216,10 +216,10 @@ function BlockerList({ blockers }: { blockers: Blocker[] }) {
           className="flex items-center gap-2 rounded-[7px] border border-request-edge bg-request-soft px-2.5 py-1.5"
         >
           <span className="size-1.5 shrink-0 rounded-full bg-request shadow-[0_0_6px_var(--request)]" aria-hidden />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">
             {blocker.path.slice(blocker.path.lastIndexOf("/") + 1)}
           </span>
-          {blocker.line !== null && <span className="shrink-0 font-mono text-[11px] text-muted">line {blocker.line}</span>}
+          {blocker.line !== null && <span className="shrink-0 font-mono text-xs text-muted">line {blocker.line}</span>}
         </div>
       ))}
     </div>
@@ -271,11 +271,11 @@ function SubmitConfirm({
         <span className={`grid size-[30px] shrink-0 place-items-center rounded-[9px] ${verdictSoft(verdict)}`}>
           <Upload size={16} className={verdictText(verdict)} aria-hidden />
         </span>
-        <DialogTitle className="text-[13.5px] font-bold text-ink">
+        <DialogTitle className="text-sm font-bold text-ink">
           Submit this review as <span className={verdictText(verdict)}>{VERDICT_META[verdict].label}</span>?
         </DialogTitle>
       </div>
-      <div className="flex flex-col gap-2 text-[12px] text-text">
+      <div className="flex flex-col gap-2 text-xs text-text">
         <ConfirmLine icon={MessageSquare}>
           Publishes <b className="font-bold text-ink">{review.pendingComments}</b> pending comments across all files
         </ConfirmLine>
@@ -292,14 +292,14 @@ function SubmitConfirm({
         <span className="flex-1" />
         <button
           onClick={onCancel}
-          className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft"
+          className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft"
         >
           Cancel
         </button>
         <button
           onClick={onConfirm}
           disabled={pending}
-          className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+          className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
         >
           Submit review
         </button>

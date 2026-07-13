@@ -20,7 +20,7 @@ export function Tooltip({
         <BaseTooltip.Trigger render={render} />
         <BaseTooltip.Portal>
           <BaseTooltip.Positioner side={side} sideOffset={6} className="z-50">
-            <BaseTooltip.Popup className={`max-w-[280px] rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 text-[11.5px] leading-[1.45] text-muted shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION}`}>
+            <BaseTooltip.Popup className={`max-w-[280px] rounded-ctrl border border-hair-strong bg-surface px-2.5 py-1.5 text-xs leading-[1.45] text-muted shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION}`}>
               {content}
             </BaseTooltip.Popup>
           </BaseTooltip.Positioner>

@@ -25,7 +25,7 @@ export function Combobox({
       <div className="relative">
         <BaseCombobox.Input
           placeholder={placeholder}
-          className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas pr-8 pl-3 font-mono text-[12.5px] text-ink placeholder:font-sans placeholder:text-faint focus-visible:border-accent-edge focus-visible:outline-none"
+          className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas pr-8 pl-3 font-mono text-xs text-ink placeholder:font-sans placeholder:text-faint focus-visible:border-accent-edge focus-visible:outline-none"
         />
         <BaseCombobox.Trigger className="absolute top-1/2 right-2 -translate-y-1/2 text-muted">
           <ChevronDown size={14} aria-hidden />
@@ -34,7 +34,7 @@ export function Combobox({
       <BaseCombobox.Portal>
         <BaseCombobox.Positioner sideOffset={4} className="z-[60]">
           <BaseCombobox.Popup className={`max-h-[260px] w-[var(--anchor-width)] min-w-[220px] overflow-auto rounded-panel border border-hair-strong bg-surface p-1 shadow-[0_12px_30px_oklch(0%_0_0/0.3)] outline-none ${POPUP_MOTION}`}>
-            <BaseCombobox.Empty className="text-[12px] text-faint">
+            <BaseCombobox.Empty className="text-xs text-faint">
               <span className="block px-2 py-2">No branches match.</span>
             </BaseCombobox.Empty>
             <BaseCombobox.List>
@@ -42,7 +42,7 @@ export function Combobox({
                 <BaseCombobox.Item
                   key={option}
                   value={option}
-                  className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 font-mono text-[12px] text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
+                  className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 font-mono text-xs text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
                 >
                   <span className="min-w-0 flex-1 truncate">{option}</span>
                   <span className="grid size-1.5 shrink-0 place-items-center">

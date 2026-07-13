@@ -76,7 +76,7 @@ export const ScopePickerBody = observer(function ScopePickerBody({
   return (
     <div className="flex min-h-0 flex-col">
       <fieldset className="border-b border-hair-strong px-2.5 py-2">
-        <legend className="px-1 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+        <legend className="px-1 pb-1.5 text-2xs font-bold uppercase tracking-[0.06em] text-faint">
           Source
         </legend>
         <div className="flex flex-col gap-0.5">
@@ -102,8 +102,8 @@ export const ScopePickerBody = observer(function ScopePickerBody({
                   {active && <Check size={11} />}
                 </span>
                 <span className="flex-1">
-                  <span className="block text-[13px] font-semibold">{option.label}</span>
-                  <span className="block text-[11.5px] text-muted">{option.description}</span>
+                  <span className="block text-sm font-semibold">{option.label}</span>
+                  <span className="block text-xs text-muted">{option.description}</span>
                 </span>
               </button>
             )
@@ -113,14 +113,14 @@ export const ScopePickerBody = observer(function ScopePickerBody({
       {isDiffMode && commits.length > 0 && (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between px-2.5 pt-2 pb-1.5">
-            <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+            <div className="text-2xs font-bold uppercase tracking-[0.06em] text-faint">
               Commits ({commits.length})
             </div>
             {selected.size > 0 && (
               <button
                 type="button"
                 onClick={() => uiStore.setDiffScope("all")}
-                className="text-[10.5px] font-medium text-muted hover:text-ink"
+                className="text-2xs font-medium text-muted hover:text-ink"
               >
                 Clear
               </button>
@@ -133,7 +133,7 @@ export const ScopePickerBody = observer(function ScopePickerBody({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Filter commits…"
-                className="min-w-0 flex-1 bg-transparent text-[11.5px] text-ink placeholder:text-faint focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
               />
             </div>
           )}
@@ -161,17 +161,17 @@ export const ScopePickerBody = observer(function ScopePickerBody({
                     checked={checked}
                     onChange={() => uiStore.toggleDiffCommit(commit.sha)}
                   />
-                  <code className="mt-px shrink-0 rounded bg-control px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-muted">
+                  <code className="mt-px shrink-0 rounded bg-control px-1.5 py-0.5 font-mono text-2xs tabular-nums text-muted">
                     {commit.sha.slice(0, 7)}
                   </code>
-                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink" title={commit.subject}>
+                  <span className="min-w-0 flex-1 truncate text-xs text-ink" title={commit.subject}>
                     {commit.subject}
                   </span>
                 </label>
               )
             })}
             {shownCommits.length === 0 && (
-              <p className="px-2.5 py-3 text-center text-[11.5px] text-faint">No commits match.</p>
+              <p className="px-2.5 py-3 text-center text-xs text-faint">No commits match.</p>
             )}
           </div>
         </div>

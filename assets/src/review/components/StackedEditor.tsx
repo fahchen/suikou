@@ -128,7 +128,7 @@ export const StackedFiles = observer(function StackedFiles({
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
       {readOnly && (
-        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-[11.5px] leading-[1.45] text-muted">
+        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
           <Lock size={15} className="shrink-0 text-muted" aria-hidden />
           <span>
             Round {selectedRound} is superseded and read-only. You can read its comments, but new comments
@@ -329,18 +329,18 @@ const StackedFile = observer(function StackedFile({
         {badge && (
           <span
             title={badge.title}
-            className={`grid size-[17px] shrink-0 place-items-center rounded-[4px] text-[9.5px] font-extrabold ${badge.className}`}
+            className={`grid size-[17px] shrink-0 place-items-center rounded-[4px] text-2xs font-extrabold ${badge.className}`}
           >
             {badge.letter}
           </span>
         )}
         <FileIcon name={name} size={13} />
-        <span className="min-w-0 truncate font-mono text-[12.5px] font-semibold text-ink" title={file.path}>
+        <span className="min-w-0 truncate font-mono text-xs font-semibold text-ink" title={file.path}>
           <span className="font-normal text-faint">{dir}</span>
           {name}
         </span>
         {isReviewed(file) && (
-          <span className="inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full bg-approve-soft px-2 text-[10px] font-bold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
+          <span className="inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full bg-approve-soft px-2 text-2xs font-bold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
             <Check size={11} aria-hidden />
             Reviewed
           </span>
@@ -464,8 +464,8 @@ const StackedFileContent = observer(function StackedFileContent({
         <div className="border-b border-hair px-3.5 pt-2 pb-1">
           <div className="flex items-center gap-2 px-1 pb-0.5">
             <MessageSquare size={13} className="text-muted" aria-hidden />
-            <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
-            <span className="text-[11px] font-semibold text-muted tabular-nums">{artifactComments.length}</span>
+            <span className="text-xs font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
+            <span className="text-xs font-semibold text-muted tabular-nums">{artifactComments.length}</span>
           </div>
           {artifactComments.map((comment) => (
             <CommentThread key={comment.id} comment={comment} commentsProxy={file.commentsProxy} className="my-1.5" />
@@ -612,8 +612,8 @@ export const StackedSideRail = observer(function StackedSideRail({
     <aside className="hidden min-h-0 flex-col border-l border-hair-strong bg-surface lg:flex">
       <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-3">
         <MessageSquare size={15} className="text-muted" aria-hidden />
-        <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Comments</h3>
-        <span className="rounded-full bg-soft px-2 py-0.5 text-[10.5px] font-bold text-muted tabular-nums">{total}</span>
+        <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Comments</h3>
+        <span className="rounded-full bg-soft px-2 py-0.5 text-2xs font-bold text-muted tabular-nums">{total}</span>
         <span className="flex-1" />
         <button
           type="button"
@@ -627,7 +627,7 @@ export const StackedSideRail = observer(function StackedSideRail({
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2">
         {withComments.length === 0 ? (
-          <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-[1.45] text-faint">
+          <div className="grid h-full place-items-center px-6 text-center text-xs leading-[1.45] text-faint">
             No comments in this review yet.
           </div>
         ) : (
@@ -651,11 +651,11 @@ export const StackedSideRail = observer(function StackedSideRail({
                       aria-hidden
                     />
                     <FileIcon name={name} size={12} />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] font-semibold text-ink" title={file.path}>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs font-semibold text-ink" title={file.path}>
                       <span className="font-normal text-faint">{dir}</span>
                       {name}
                     </span>
-                    <span className="shrink-0 rounded-full bg-soft px-1.5 py-0.5 text-[10px] font-bold text-muted tabular-nums">
+                    <span className="shrink-0 rounded-full bg-soft px-1.5 py-0.5 text-2xs font-bold text-muted tabular-nums">
                       {file.comments.length}
                     </span>
                   </button>

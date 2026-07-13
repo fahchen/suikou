@@ -117,7 +117,7 @@ export function CommentCard({
           render={
             <span
               aria-label={pending ? `${meta.title}, pending comment` : meta.title}
-              className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-1.5 text-[10px] font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}
+              className={`inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full px-1.5 text-2xs font-extrabold tracking-wide ring-1 ring-inset ${meta.pill}`}
             >
               <meta.Icon size={11} aria-hidden />
               {pending && <span className="size-1.5 shrink-0 rounded-full bg-amber" aria-hidden />}
@@ -127,7 +127,7 @@ export function CommentCard({
         {renderedMetaLine}
         <TimeAgo iso={comment.inserted_at} />
         {collapsed && summaryText && (
-          <span className="min-w-0 flex-1 truncate self-center text-[12px] leading-none text-muted">
+          <span className="min-w-0 flex-1 truncate self-center text-xs leading-none text-muted">
             {summaryText}
           </span>
         )}

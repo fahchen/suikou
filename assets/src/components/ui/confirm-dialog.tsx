@@ -21,19 +21,19 @@ export function ConfirmDialog({
 }) {
   return (
     <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[400px]">
-      <DialogTitle className="text-[15px] font-bold text-ink">{title}</DialogTitle>
-      <p className="text-[12.5px] leading-[1.5] text-muted">{body}</p>
+      <DialogTitle className="text-base font-bold text-ink">{title}</DialogTitle>
+      <p className="text-xs leading-[1.5] text-muted">{body}</p>
       <div className="flex items-center gap-2 pt-1">
         <span className="flex-1" />
         <button
           onClick={onCancel}
-          className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft"
+          className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft"
         >
           Cancel
         </button>
         <button
           onClick={onConfirm}
-          className={`inline-flex h-[32px] items-center rounded-ctrl px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 ${
+          className={`inline-flex h-[32px] items-center rounded-ctrl px-4 text-sm font-semibold text-on-accent hover:brightness-110 ${
             destructive ? "bg-request" : "bg-accent"
           }`}
         >

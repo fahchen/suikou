@@ -49,7 +49,7 @@ export function DropdownMenuItem({
   return (
     <Menu.Item
       onClick={onClick}
-      className={`flex h-[32px] cursor-pointer items-center gap-2 rounded-ctrl px-2.5 text-[12.5px] outline-none data-[highlighted]:bg-soft ${
+      className={`flex h-[32px] cursor-pointer items-center gap-2 rounded-ctrl px-2.5 text-xs outline-none data-[highlighted]:bg-soft ${
         destructive ? "text-request" : selected ? "bg-soft text-ink" : "text-text"
       }`}
     >

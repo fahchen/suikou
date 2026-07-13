@@ -4,6 +4,9 @@ import { THEMES, type ThemeName } from "../themes"
 
 export type Density = "compact" | "comfortable" | "loose"
 export type MonoSize = "small" | "default" | "large"
+/** Mono font-size tiers, aligned to the Tailwind text scale so code and diff
+ * surfaces size identically per tier (small=12px, default=14px, large=16px). */
+export const MONO_SIZE: Record<MonoSize, string> = { small: "text-xs", default: "text-sm", large: "text-base" }
 export type CommentDisplayMode = "inline" | "side" | "hidden"
 export type FileRange = "single" | "stacked"
 export type DiffStyle = "unified" | "split"

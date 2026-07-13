@@ -51,14 +51,14 @@ export function Reply({
         }`}
       >
         <div className="mb-1 flex items-center gap-1.5">
-          <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
             <span className={`grid size-[15px] place-items-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
               {agent ? <Bot size={10} aria-hidden /> : <User size={10} aria-hidden />}
             </span>
             {agent ? "agent" : "you"}
           </span>
           {pending && (
-            <span className="inline-flex items-center rounded-full bg-amber-soft px-1.5 py-px text-[9px] font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
+            <span className="inline-flex items-center rounded-full bg-amber-soft px-1.5 py-px text-2xs font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
               pending
             </span>
           )}
@@ -72,7 +72,7 @@ export function Reply({
           )}
         </div>
         <div
-          className="md-body text-[12px] leading-[1.5] text-text"
+          className="md-body text-xs leading-[1.5] text-text"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: bodyHtml }}
         />

@@ -230,11 +230,11 @@ export function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line
             <DropdownMenuItem key={`${item.line}-${index}`} onClick={() => onJump(item.line)}>
               <span
                 style={{ paddingLeft: (item.level - 1) * 12 }}
-                className="min-w-0 flex-1 truncate font-mono text-[12px]"
+                className="min-w-0 flex-1 truncate font-mono text-xs"
               >
                 {item.text}
               </span>
-              <span className="ml-2 shrink-0 font-mono text-[10.5px] tabular-nums text-faint">{item.line}</span>
+              <span className="ml-2 shrink-0 font-mono text-2xs tabular-nums text-faint">{item.line}</span>
             </DropdownMenuItem>
           ))}
         </div>
@@ -423,7 +423,7 @@ export function ImageView({ name, url, mime, bytes }: { name: string; url: strin
             style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
             className="block min-h-0 max-h-[calc(100%-1.5rem)] max-w-full select-none [transform-origin:center]"
           />
-          {meta && <figcaption className="max-w-full truncate font-mono text-[11px] text-muted">{meta}</figcaption>}
+          {meta && <figcaption className="max-w-full truncate font-mono text-xs text-muted">{meta}</figcaption>}
         </figure>
       </div>
     </div>
@@ -453,7 +453,7 @@ export function LoadingNotice({ name }: { name: string }) {
       <div className="grid size-[54px] place-items-center rounded-[16px] border border-hair-strong bg-soft text-muted shadow-[inset_0_0.5px_0_var(--edge-top-2)]">
         <Loader2 size={24} className="animate-spin" aria-hidden />
       </div>
-      <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">Loading {name}…</p>
+      <p className="max-w-[40ch] text-xs leading-[1.5] text-muted">Loading {name}…</p>
     </div>
   )
 }
@@ -529,9 +529,9 @@ export function FileNotice({
       <div className={`grid size-[54px] place-items-center rounded-[16px] border shadow-[inset_0_0.5px_0_var(--edge-top-2)] ${badge}`}>
         <Icon size={26} className={spin ? "animate-spin" : undefined} aria-hidden />
       </div>
-      <h3 className="text-[15px] font-[680] text-ink">{title}</h3>
-      {body && <p className="max-w-[40ch] text-[12.5px] leading-[1.5] text-muted">{body}</p>}
-      {meta && <div className="rounded-full bg-control px-[11px] py-1 font-mono text-[11px] text-faint">{meta}</div>}
+      <h3 className="text-base font-[680] text-ink">{title}</h3>
+      {body && <p className="max-w-[40ch] text-xs leading-[1.5] text-muted">{body}</p>}
+      {meta && <div className="rounded-full bg-control px-[11px] py-1 font-mono text-xs text-faint">{meta}</div>}
       {action && <div className="pt-1">{action}</div>}
     </div>
   )

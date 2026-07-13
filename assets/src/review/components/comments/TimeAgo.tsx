@@ -11,7 +11,7 @@ export function TimeAgo({ iso }: { iso: string }) {
       render={
         <time
           dateTime={date.toISOString()}
-          className="shrink-0 cursor-default font-mono text-[11px] text-muted tabular-nums"
+          className="shrink-0 cursor-default font-mono text-xs text-muted tabular-nums"
         >
           {relativeTime(date)}
         </time>

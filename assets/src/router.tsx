@@ -13,7 +13,7 @@ export const router = createRouter({
 const BackToProjects = (
   <a
     href="/"
-    className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+    className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-semibold text-ink hover:bg-soft"
   >
     Back to projects
   </a>

@@ -16,7 +16,7 @@ export function CommentActionButton({
   tone?: "default" | "approve"
   reveal?: "always" | "comment-hover" | "reply-hover"
 }) {
-  const sizeClass = size === "sm" ? "h-[24px] text-[11px]" : "h-[26px] text-[11.5px]"
+  const sizeClass = size === "sm" ? "h-[24px] text-xs" : "h-[26px] text-xs"
   const toneClass = tone === "approve" ? "text-approve hover:bg-soft" : "text-muted hover:bg-soft hover:text-ink"
   const revealClass =
     reveal === "comment-hover"

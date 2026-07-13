@@ -97,12 +97,12 @@ export function SideCommentCard({
             <button
               type="button"
               onClick={onFocusLine}
-              className="shrink-0 cursor-pointer rounded-ctrl px-1.5 py-0.5 font-mono text-[11px] font-semibold text-muted hover:bg-soft hover:text-accent-bright"
+              className="shrink-0 cursor-pointer rounded-ctrl px-1.5 py-0.5 font-mono text-xs font-semibold text-muted hover:bg-soft hover:text-accent-bright"
             >
               {label}
             </button>
           ) : (
-            <span className="shrink-0 font-mono text-[11px] font-semibold text-muted">{label}</span>
+            <span className="shrink-0 font-mono text-xs font-semibold text-muted">{label}</span>
           )
         }
         headerActions={
@@ -135,7 +135,7 @@ export function SideCommentCard({
         }
         body={
           <div
-            className="md-body mt-2 text-[12px] leading-[1.45] text-ink"
+            className="md-body mt-2 text-xs leading-[1.45] text-ink"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
@@ -148,13 +148,13 @@ export function SideCommentCard({
               ))}
             </div>
           ) : latestReply ? (
-            <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-[11.5px] leading-[1.45] text-text">
+            <div className="mt-2 rounded-[8px] bg-canvas/55 px-2 py-1.5 text-xs leading-[1.45] text-text">
               {latestReply.body}
             </div>
           ) : undefined
         }
         actions={
-          <div className="mt-2 flex items-center gap-2 text-[10.5px] font-semibold text-muted">
+          <div className="mt-2 flex items-center gap-2 text-2xs font-semibold text-muted">
             {comment.replies.length > 0 && <span className="tabular-nums">{comment.replies.length} replies</span>}
             <span className="flex-1" />
             {pending ? (

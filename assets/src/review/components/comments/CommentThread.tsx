@@ -104,7 +104,7 @@ export function CommentThread({
         onFocus={onFocus}
         metaLine={
           anchorLabel ? (
-            <span className="inline-flex items-center font-mono text-[11px] text-muted">
+            <span className="inline-flex items-center font-mono text-xs text-muted">
               {anchorLabel}
               {pending ? "" : ` · R${comment.authored_round}`}
             </span>
@@ -138,7 +138,7 @@ export function CommentThread({
         }
         body={
           <div
-            className="md-body px-3 pb-2.5 text-[12.5px] leading-[1.5] text-ink"
+            className="md-body px-3 pb-2.5 text-xs leading-[1.5] text-ink"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />

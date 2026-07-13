@@ -44,8 +44,8 @@ markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
 
   return (
     `<div class="my-2 overflow-hidden rounded-[9px] border border-approve-edge bg-soft/50">` +
-    `<div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-approve">Suggested change</div>` +
-    `<div class="whitespace-pre overflow-x-auto px-2 py-1.5 font-mono text-[11.5px] leading-[1.6]">${rows}</div>` +
+    `<div class="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs font-bold uppercase tracking-wide text-approve">Suggested change</div>` +
+    `<div class="whitespace-pre overflow-x-auto px-2 py-1.5 font-mono text-xs leading-[1.6]">${rows}</div>` +
     `</div>`
   )
 }

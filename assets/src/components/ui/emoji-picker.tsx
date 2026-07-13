@@ -47,12 +47,12 @@ export function EmojiPicker({
           onChange={(event) => onChange(lastEmoji(event.target.value))}
           placeholder="🙂"
           aria-label="Emoji"
-          className="size-[40px] shrink-0 rounded-ctrl border border-hair-strong bg-canvas text-center text-[20px] leading-none placeholder:opacity-40 focus:border-accent-edge focus:outline-none"
+          className="size-[40px] shrink-0 rounded-ctrl border border-hair-strong bg-canvas text-center text-xl leading-none placeholder:opacity-40 focus:border-accent-edge focus:outline-none"
         />
         <button
           type="button"
           onClick={() => onChange(RANDOM_POOL[Math.floor(Math.random() * RANDOM_POOL.length)])}
-          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl bg-soft px-2.5 text-[12px] font-medium text-text hover:bg-control"
+          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl bg-soft px-2.5 text-xs font-medium text-text hover:bg-control"
         >
           <Dices size={14} aria-hidden />
           Random
@@ -61,13 +61,13 @@ export function EmojiPicker({
           type="button"
           onClick={() => onChange(null)}
           disabled={value === null}
-          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl px-2.5 text-[12px] font-medium text-muted hover:bg-soft disabled:opacity-40"
+          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl px-2.5 text-xs font-medium text-muted hover:bg-soft disabled:opacity-40"
         >
           <X size={14} aria-hidden />
           Clear
         </button>
       </div>
-      <p className="text-[11px] text-faint">
+      <p className="text-xs text-faint">
         Pick from your system emoji panel (⌃⌘Space on macOS), or paste one.
       </p>
     </div>
