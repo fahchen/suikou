@@ -58,17 +58,10 @@ export function Toolbar({
         title={connected ? "Back to projects" : "Reconnecting…"}
         aria-label="Back to projects"
       >
-        <ChevronLeft size={20} className="text-muted lg:hidden" aria-hidden />
-        <span
-          className={`hidden size-6 place-items-center rounded-[7px] bg-accent text-[13px] font-black text-on-accent lg:grid ${
-            connected ? "" : "animate-pulse"
-          }`}
-        >
-          S
-        </span>
+        <ChevronLeft size={20} className={`text-muted ${connected ? "" : "animate-pulse"}`} aria-hidden />
       </a>
       <div className="flex min-w-0 flex-1 items-center px-1 lg:h-[30px]">
-        <span className="truncate text-[14px] font-semibold tracking-[-0.015em] text-ink lg:text-[13px]">{name}</span>
+        <span className="truncate text-sm font-semibold tracking-[-0.015em] text-ink lg:text-sm">{name}</span>
       </div>
       {roundSummaries.length > 0 && (
         <RoundSelector
@@ -108,7 +101,7 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
         <button
           type="button"
           title={`Per-file verdict${effective ? `: ${VERDICT_META[effective].label}` : ""}`}
-          className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-semibold sm:px-2.5 ${
+          className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-semibold sm:px-2.5 ${
             chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
           }`}
         >
@@ -121,7 +114,7 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
         </button>
       }
     >
-      <div className="px-1 pt-1 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-faint">
+      <div className="px-1 pt-1 pb-1.5 text-2xs font-bold uppercase tracking-[0.06em] text-faint">
         File verdict
       </div>
       <div className="flex flex-col">
@@ -133,7 +126,7 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
               key={verdict}
               type="button"
               onClick={() => void setVerdict.dispatch({ verdict })}
-              className={`flex items-center gap-2.5 rounded-ctrl px-2 py-1.5 text-left text-[13px] ${on ? "bg-soft" : "hover:bg-soft/60"}`}
+              className={`flex items-center gap-2.5 rounded-ctrl px-2 py-1.5 text-left text-sm ${on ? "bg-soft" : "hover:bg-soft/60"}`}
             >
               <meta.icon size={14} className={verdictText(verdict)} aria-hidden />
               <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>{VERDICT_META[verdict].label}</span>
@@ -148,7 +141,7 @@ export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStorePr
           <button
             type="button"
             onClick={() => void dismiss.dispatch({})}
-            className="flex w-full items-center gap-2 rounded-ctrl px-2 py-1.5 text-left text-[12.5px] text-text hover:bg-soft"
+            className="flex w-full items-center gap-2 rounded-ctrl px-2 py-1.5 text-left text-xs text-text hover:bg-soft"
           >
             <RotateCcw size={13} className="text-muted" aria-hidden />
             Dismiss approval
@@ -178,7 +171,7 @@ export function StatusBar({
   const blockers = review.blockers.length
 
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-[11.5px] text-muted">
+    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden border-t border-hair-strong bg-surface px-3.5 text-xs text-muted">
       <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
       {stacked && (
         <>
@@ -246,14 +239,14 @@ function RoundSelector({
           <button
             type="button"
             title={`Round ${selectedRound}${selectedRound < latestRound ? " (read-only)" : ""}`}
-            className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-hair-strong bg-canvas px-2.5 text-[12.5px] font-medium text-ink hover:bg-soft sm:rounded-ctrl sm:px-2.5"
+            className={`h-[30px] shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-hair-strong bg-canvas px-2 text-xs font-medium text-ink hover:bg-soft sm:inline-flex sm:gap-1.5 sm:rounded-ctrl sm:px-2.5 ${latestRound > 1 ? "inline-flex" : "hidden"}`}
           >
-            <GitCompare size={14} className="text-muted" aria-hidden />
+            <GitCompare size={14} className="hidden text-muted sm:block" aria-hidden />
             <span className="hidden sm:inline">Round </span>
             <span className="sm:hidden">R</span>
             {selectedRound}
             {selectedRound < latestRound && (
-              <span className="hidden text-[11px] font-semibold text-muted sm:inline">· read-only</span>
+              <span className="hidden text-xs font-semibold text-muted sm:inline">· read-only</span>
             )}
             <ChevronDown size={12} className="text-faint" aria-hidden />
           </button>
@@ -270,10 +263,10 @@ function RoundSelector({
             >
               <span className={`flex-1 font-medium ${round.number === selectedRound ? "text-accent-bright" : "text-ink"}`}>
                 Round {round.number}
-                {round.number === latestRound && <span className="ml-1.5 text-[11px] font-normal text-muted">latest</span>}
+                {round.number === latestRound && <span className="ml-1.5 text-xs font-normal text-muted">latest</span>}
               </span>
               {round.unresolved_count > 0 && (
-                <span className="shrink-0 text-[11px] font-semibold text-request tabular-nums">{round.unresolved_count} open</span>
+                <span className="shrink-0 text-xs font-semibold text-request tabular-nums">{round.unresolved_count} open</span>
               )}
             </DropdownMenuItem>
           ))}

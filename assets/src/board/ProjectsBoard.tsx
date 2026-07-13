@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { ChevronDown, FileText, Folder, GitCompare, Plus, Search, SlidersHorizontal, WifiOff } from "lucide-react"
+import { ChevronDown, FileText, Folder, GitCompare, Plus, SlidersHorizontal, WifiOff } from "lucide-react"
 
 import { FileNotice } from "../review/components/EditorSurface"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
-import { MobileProjectBar, Sidebar } from "./components/ProjectNavigation"
+import { Sidebar } from "./components/ProjectNavigation"
 import { ReviewPane } from "./components/ReviewPane"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 import { NewReviewDialog } from "./NewReviewDialog"
@@ -93,6 +94,7 @@ export function ProjectsBoard() {
 function Board({ store }: { store: BoardStore }) {
   const loadBoard = useMusubiCommand(store, "load_board")
   const connected = useSocketConnected()
+  const navigate = useNavigate()
   const [board, setBoard] = useState<LoadBoardReply | null>(() => readBoardCache())
   const [selectedId, setSelectedId] = useState<string | null>(() => readSelectedProjectId())
   const boardRef = useRef<LoadBoardReply | null>(null)
@@ -145,15 +147,15 @@ function Board({ store }: { store: BoardStore }) {
   const [creatingProject, setCreatingProject] = useState(false)
   const [newReviewKind, setNewReviewKind] = useState<"files" | "diff" | null>(null)
   const [editingReview, setEditingReview] = useState<BoardReview | null>(null)
-  const refetch = () => {
+  const refetch = () =>
     loadBoard
       .dispatch({})
       .then((reply) => {
         setBoard(reply)
         writeBoardCache(reply)
+        return reply
       })
-      .catch(() => {})
-  }
+      .catch(() => null)
 
   const projects = board?.projects ?? []
   const selected = projects.find((p) => p.id === selectedId) ?? null
@@ -165,13 +167,15 @@ function Board({ store }: { store: BoardStore }) {
         onNewReview={setNewReviewKind}
         canNewReview={selected !== null}
       />
-      <MobileProjectBar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_1fr]">
         <Sidebar projects={projects} selectedId={selectedId} onSelect={setSelectedId} />
         {selected && (
           <ReviewPane
             store={store}
             project={selected}
+            projects={projects}
+            selectedId={selectedId}
+            onSelectProject={setSelectedId}
             reviewFiles={board?.review_files ?? []}
             onNewReview={setNewReviewKind}
             onEditReview={setEditingReview}
@@ -183,7 +187,11 @@ function Board({ store }: { store: BoardStore }) {
         store={store}
         open={creatingProject}
         onClose={() => setCreatingProject(false)}
-        onCreated={refetch}
+        onCreated={(projectId) => {
+          refetch().then((reply) => {
+            if (reply?.projects.some((p) => p.id === projectId)) setSelectedId(projectId)
+          })
+        }}
       />
       {selected && (
         <NewReviewDialog
@@ -202,7 +210,10 @@ function Board({ store }: { store: BoardStore }) {
             setNewReviewKind(null)
             setEditingReview(null)
           }}
-          onCreated={refetch}
+          onCreated={(reviewId) => {
+            refetch()
+            if (reviewId) navigate({ to: "/reviews/$reviewId", params: { reviewId } })
+          }}
         />
       )}
       <SettingsModal />
@@ -212,7 +223,7 @@ function Board({ store }: { store: BoardStore }) {
 
 function Centered({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen items-center justify-center bg-canvas text-[13px] text-muted">
+    <div className="flex h-screen items-center justify-center bg-canvas text-sm text-muted">
       {children}
     </div>
   )
@@ -230,20 +241,12 @@ function Toolbar({
   return (
     <div className="flex h-[50px] shrink-0 items-center gap-[9px] border-b border-hair-strong bg-surface px-3">
       <button className="inline-flex h-[30px] items-center gap-[9px] rounded-ctrl px-1 pr-2 hover:bg-soft">
-        <span className="grid size-6 place-items-center rounded-[7px] bg-accent text-[13px] font-black text-on-accent">
+        <span className="grid size-6 place-items-center rounded-[7px] bg-accent text-sm font-black text-on-accent">
           S
         </span>
-        <span className="text-[14px] font-bold tracking-[-0.02em] text-ink">Suikou</span>
+        <span className="text-sm font-bold tracking-[-0.02em] text-ink">Suikou</span>
       </button>
       <span className="flex-1" />
-      <button className="hidden h-[30px] min-w-[240px] max-w-[320px] items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-2.5 pr-2 text-[12.5px] text-faint sm:flex sm:w-[280px]">
-        <Search size={14} className="shrink-0" aria-hidden />
-        <span className="flex-1 truncate text-left">Search projects and reviews…</span>
-        <kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-muted ring-1 ring-inset ring-hair-strong">
-          ⌘K
-        </kbd>
-      </button>
-      <span aria-hidden className="hidden h-[22px] w-px bg-hair-strong sm:block" />
       <button
         onClick={() => uiStore.setSettingsOpen(true)}
         className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
@@ -254,7 +257,7 @@ function Toolbar({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button className="inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-[13px] font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
+            <button className="inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-sm font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
               <Plus size={15} strokeWidth={1.9} aria-hidden />
               New
               <ChevronDown size={11} strokeWidth={2.2} aria-hidden className="-mr-0.5 opacity-80" />

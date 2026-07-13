@@ -5,7 +5,7 @@ import type { ThemedToken } from "shiki"
 import { ChevronRight, Crosshair, Plus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
-import { uiStore, type MonoSize } from "../../stores/ui-store"
+import { uiStore, MONO_SIZE } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
 import { renderMarkdownBlocks, useCodeScroll, useMermaid, type MarkdownBlock } from "../markdown"
@@ -17,8 +17,6 @@ type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type Range = { start: number; end: number }
 type HighlightRange = Range | null
 type ComposerMode = "inline" | "popover"
-
-const MONO_PX: Record<MonoSize, string> = { small: "11.5px", default: "12.5px", large: "14px" }
 
 export const MarkdownPreview = observer(function MarkdownPreview({
   source,
@@ -222,7 +220,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               }}
               style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
               title="Comment on this block — drag or shift-click for a range"
-              className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-[10.5px] tabular-nums ${
+              className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
                 selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
               }`}
             >
@@ -246,7 +244,8 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               type="button"
               onClick={() => toggleFold(block.line)}
               title={collapsed.has(block.line) ? "Expand section" : "Collapse section"}
-              className="flex shrink-0 items-center self-stretch px-1 text-faint hover:text-accent-bright"
+              style={{ marginTop: headingToggleOffset(block.heading) }}
+              className="flex shrink-0 items-center self-start px-2 text-faint opacity-0 transition-opacity hover:text-accent-bright focus-visible:opacity-100 group-hover/md:opacity-100 [@media(hover:none)]:opacity-100"
             >
               <ChevronRight
                 size={14}
@@ -257,7 +256,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
 
           return (
             <Fragment key={index}>
-              <div className={`flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+              <div className={`group/md flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 {composerMode === "popover" ? (
                   <Popover
                     open={composerOpen}
@@ -285,12 +284,12 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 ) : (
                   gutterButton
                 )}
-                {foldToggle}
                 <div
-                  className="md-body min-w-0 flex-1 pb-1 pr-4 text-[13.5px] leading-[1.6] text-ink"
+                  className="md-body min-w-0 flex-1 pb-1 pr-4 text-sm leading-[1.6] text-ink"
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: block.html }}
                 />
+                {foldToggle}
               </div>
               {composerMode === "inline" && composerHere && draft && (
                 <Composer
@@ -482,10 +481,10 @@ export const Source = observer(function Source({
   }
 
   return (
-    <div className="shrink-0 py-1 font-mono leading-[1.55]" style={{ fontSize: MONO_PX[uiStore.monoSize] }}>
+    <div className={`shrink-0 py-1 font-mono leading-[1.55] ${MONO_SIZE[uiStore.monoSize]}`}>
       {showThreads && strandedComments.length > 0 && (
         <div className="mx-3 mb-2 rounded-panel border border-hair-strong bg-soft/40 p-2 font-sans">
-          <div className="mb-1 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
             <Crosshair size={12} className="text-accent" />
             Stranded {strandedComments.length === 1 ? "comment" : "comments"}
             <span className="font-normal normal-case tracking-normal text-faint">· anchor line no longer exists</span>
@@ -646,6 +645,20 @@ function hasDraftBody(scope: string, range: Range): boolean {
   } catch {
     return false
   }
+}
+
+// Top offset (px) that centers the fold chevron on a heading's first text line,
+// mirroring the heading font-size/margin scale in index.css. md-body is text-sm
+// (14px) with leading 1.6; the chevron is 14px tall.
+function headingToggleOffset(level: number): number {
+  const scale: Record<number, { fs: number; mt: number }> = {
+    1: { fs: 1.55, mt: 0.1 },
+    2: { fs: 1.28, mt: 0.7 },
+    3: { fs: 1.1, mt: 0.55 },
+  }
+  const { fs, mt } = scale[level] ?? { fs: 1, mt: 0.5 }
+  const fsPx = fs * 14
+  return mt * fsPx + (fsPx * 1.6) / 2 - 7
 }
 
 function loadFold(key: string): Set<number> {

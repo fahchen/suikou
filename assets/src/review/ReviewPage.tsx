@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, PanelLeft, Plus, WifiOff } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, Plus, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
@@ -93,6 +93,7 @@ type PerFile = {
   approved: boolean
   openBlockers: number
   pending: number
+  unresolved: number
 }
 type Blocker = { path: string; line: number | null }
 type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number; verdict: Verdict | null }
@@ -191,7 +192,7 @@ export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
           action={
             <a
               href="/"
-              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-semibold text-ink hover:bg-soft"
             >
               Back to projects
             </a>
@@ -427,6 +428,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         approved: e.approved,
         openBlockers: live ? live.comments.items.filter(isOpenBlocker).length : 0,
         pending: live ? live.comments.items.filter((c) => c.status === "pending").length : 0,
+        unresolved: live ? live.comments.items.filter((c) => c.status === "published" && !c.resolved).length : 0,
       }
     })
     const blockers = entries.flatMap((e) => {
@@ -525,7 +527,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           action={
             <a
               href="/"
-              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+              className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-semibold text-ink hover:bg-soft"
             >
               Back to projects
             </a>
@@ -585,7 +587,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
                 role="tab"
                 aria-selected={filesSheetTab === "files"}
                 onClick={() => setFilesSheetTab("files")}
-                className={`inline-flex h-[26px] shrink-0 items-center text-[12px] font-semibold ${
+                className={`inline-flex h-[26px] shrink-0 items-center text-xs font-semibold ${
                   filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
                 }`}
               >
@@ -596,7 +598,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
                 role="tab"
                 aria-selected={filesSheetTab === "scope"}
                 onClick={() => setFilesSheetTab("scope")}
-                className={`inline-flex h-[26px] shrink-0 items-center text-[12px] font-semibold ${
+                className={`inline-flex h-[26px] shrink-0 items-center text-xs font-semibold ${
                   filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
                 }`}
               >
@@ -690,9 +692,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
-          <DialogTitle className="text-[15px] font-bold text-ink">Files</DialogTitle>
+          <DialogTitle className="text-base font-bold text-ink">Files</DialogTitle>
           <span className="flex-1" />
-          <span className="text-[12px] font-semibold text-muted tabular-nums">
+          <span className="text-xs font-semibold text-muted tabular-nums">
             {review.reviewed}/{entries.length}
           </span>
           <HideReviewedToggle hideReviewed={hideReviewed} onToggle={() => setHideReviewed((on) => !on)} />
@@ -704,7 +706,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
               role="tab"
               aria-selected={filesSheetTab === "files"}
               onClick={() => setFilesSheetTab("files")}
-              className={`inline-flex h-[32px] shrink-0 items-center text-[13px] font-semibold ${
+              className={`inline-flex h-[32px] shrink-0 items-center text-sm font-semibold ${
                 filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
               }`}
             >
@@ -715,7 +717,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
               role="tab"
               aria-selected={filesSheetTab === "scope"}
               onClick={() => setFilesSheetTab("scope")}
-              className={`inline-flex h-[32px] shrink-0 items-center text-[13px] font-semibold ${
+              className={`inline-flex h-[32px] shrink-0 items-center text-sm font-semibold ${
                 filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
               }`}
             >
@@ -777,8 +779,8 @@ function ArtifactComments({
       {items.length > 0 && (
         <div className="flex items-center gap-2 px-1 pb-0.5">
           <MessageSquare size={13} className="text-muted" aria-hidden />
-          <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
-          <span className="text-[11px] font-semibold text-muted tabular-nums">{items.length}</span>
+          <span className="text-xs font-bold uppercase tracking-[0.05em] text-faint">File comments</span>
+          <span className="text-xs font-semibold text-muted tabular-nums">{items.length}</span>
         </div>
       )}
       {items.map((comment) => (
@@ -939,7 +941,7 @@ function Editor({
             <button
               type="button"
               onClick={onOpenFiles}
-              className="inline-flex h-[30px] shrink-0 items-center gap-0.5 rounded-ctrl px-2 font-mono text-[11px] font-semibold tabular-nums text-muted hover:bg-soft hover:text-ink"
+              className="inline-flex h-[30px] shrink-0 items-center gap-0.5 rounded-ctrl px-2 font-mono text-xs font-semibold tabular-nums text-muted hover:bg-soft hover:text-ink"
               title="Files"
               aria-label={`Open file list, current file ${filePosition.index + 1} of ${filePosition.total}`}
             >
@@ -961,11 +963,12 @@ function Editor({
           <button
             type="button"
             onClick={onOpenFiles}
-            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink lg:hidden"
+            className="inline-flex h-[30px] shrink-0 items-center gap-0.5 rounded-ctrl px-2 text-xs font-semibold text-muted hover:bg-soft hover:text-ink lg:hidden"
             title="Files"
             aria-label="Open file list"
           >
-            <PanelLeft size={17} aria-hidden />
+            Files
+            <ChevronDown size={12} aria-hidden />
           </button>
         )}
         {entry ? (
@@ -973,7 +976,7 @@ function Editor({
             <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:hidden">
               <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={13} />
-              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink" title={entry.path}>
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink" title={entry.path}>
                 <span className="text-faint">{dir}</span>
                 {name}
               </span>
@@ -981,14 +984,14 @@ function Editor({
             <div className="hidden min-w-0 items-center gap-2 lg:flex">
               <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={14} />
-              <span className="truncate font-mono text-[12.5px] text-ink">
+              <span className="truncate font-mono text-xs text-ink">
                 <span className="text-faint">{dir}</span>
                 {name}
               </span>
             </div>
           </>
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-faint lg:flex-none">No file selected</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-faint lg:flex-none">No file selected</span>
         )}
         <span className="hidden flex-1 lg:block" />
         {previewable && !isDiff && content.kind === "text" && (
@@ -999,7 +1002,7 @@ function Editor({
                   render={
                     <button
                       type="button"
-                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-[12px] font-semibold text-muted hover:bg-soft hover:text-ink"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
                       aria-label="Choose view mode"
                       title="View mode"
                     >
@@ -1038,7 +1041,7 @@ function Editor({
                   render={
                     <button
                       type="button"
-                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-[12px] font-semibold text-muted hover:bg-soft hover:text-ink"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
                       aria-label="Choose view mode"
                       title="View mode"
                     >
@@ -1093,7 +1096,7 @@ function Editor({
             </div>
             {htmlMode !== "source" && (
               <>
-                <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-[11px]">
+                <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-xs">
                   <button
                     type="button"
                     onClick={() => chooseZoom(htmlZoom - 0.1)}
@@ -1151,7 +1154,7 @@ function Editor({
       </div>
       {compare && <CompareBar compare={compare} />}
       {readOnly && entry && (
-        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-[11.5px] leading-[1.45] text-muted">
+        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
           <Lock size={15} className="shrink-0 text-muted" aria-hidden />
           <span>
             Round {selectedRound} is superseded and read-only. You can read its comments, but new comments
@@ -1265,23 +1268,23 @@ function CompareBar({ compare }: { compare: RoundCompare }) {
   return (
     <div className="shrink-0 border-b border-hair-strong bg-surface">
       <div className="flex items-center gap-2 border-b border-hair bg-soft/40 px-4 py-2">
-        <span className="rounded-full bg-soft px-2 py-0.5 text-[11px] font-bold text-text">Round {compare.from}</span>
+        <span className="rounded-full bg-soft px-2 py-0.5 text-xs font-bold text-text">Round {compare.from}</span>
         <ArrowRight size={13} className="text-muted" aria-hidden />
-        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]">
           Round {compare.to}
         </span>
-        <span className="ml-1 text-[12px] text-muted">what changed this round</span>
+        <span className="ml-1 text-xs text-muted">what changed this round</span>
       </div>
-      <div className="flex items-center gap-4 px-4 py-2.5 text-[12px]">
+      <div className="flex items-center gap-4 px-4 py-2.5 text-xs">
         <CompareStat n={compare.resolved} label="resolved" tone="approve" />
         <CompareStat n={compare.added} label="new" tone="accent" />
         <CompareStat n={compare.open} label="still open" tone="amber" />
         {compare.verdict && (
           <>
             <span className="flex-1" />
-            <span className="text-[10px] font-bold uppercase tracking-wide text-faint">Verdict</span>
+            <span className="text-2xs font-bold uppercase tracking-wide text-faint">Verdict</span>
             <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${verdictSoft(compare.verdict)} ${verdictText(compare.verdict)}`}
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${verdictSoft(compare.verdict)} ${verdictText(compare.verdict)}`}
             >
               {VERDICT_META[compare.verdict].label}
             </span>
@@ -1301,7 +1304,7 @@ function CompareStat({ n, label, tone }: { n: number; label: string; tone: "appr
         : "bg-amber-soft text-amber"
   return (
     <span className="inline-flex items-center gap-1.5 text-text">
-      <span className={`grid size-[18px] place-items-center rounded-[5px] text-[10px] font-extrabold tabular-nums ${chip}`}>
+      <span className={`grid size-[18px] place-items-center rounded-[5px] text-2xs font-extrabold tabular-nums ${chip}`}>
         {n}
       </span>
       {label}
@@ -1345,7 +1348,7 @@ function RefsErrorPage({
       action={
         <a
           href="/"
-          className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-[12.5px] font-semibold text-ink hover:bg-soft"
+          className="inline-flex h-[30px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-semibold text-ink hover:bg-soft"
         >
           Back to projects
         </a>

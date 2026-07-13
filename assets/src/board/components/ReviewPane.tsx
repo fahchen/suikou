@@ -1,12 +1,13 @@
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { ProjectSettingsDialog } from "../ProjectSettingsDialog"
+import { ProjectPickerSheet } from "./ProjectNavigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,9 @@ type BoardReviewFile = ReviewFilesGrouped[number]["files"][number]
 export function ReviewPane({
   store,
   project,
+  projects,
+  selectedId,
+  onSelectProject,
   reviewFiles,
   onNewReview,
   onEditReview,
@@ -31,25 +35,38 @@ export function ReviewPane({
 }: {
   store: BoardStore
   project: BoardProject
+  projects: BoardProject[]
+  selectedId: string | null
+  onSelectProject: (id: string) => void
   reviewFiles: ReviewFilesGrouped
   onNewReview: (kind: "files" | "diff") => void
   onEditReview: (review: BoardReview) => void
   onChanged: () => void
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-canvas">
       <div className="flex shrink-0 items-center gap-3 border-b border-hair px-5 py-[14px] pt-4">
         {project.emoji && (
-          <span aria-hidden className="shrink-0 text-[18px] leading-none">
+          <span aria-hidden className="shrink-0 text-lg leading-none">
             {project.emoji}
           </span>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[17px] font-bold tracking-[-0.02em] text-ink">
-            {project.name}
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="flex min-w-0 flex-1 flex-col text-left lg:pointer-events-none"
+          title="Switch project"
+        >
+          <span className="flex w-full items-center gap-1.5">
+            <span className="min-w-0 truncate text-lg font-bold tracking-[-0.02em] text-ink">
+              {project.name}
+            </span>
+            <ChevronsUpDown size={15} className="shrink-0 text-muted lg:hidden" aria-hidden />
           </span>
-          <span className="truncate font-mono text-[11px] text-faint">{project.path}</span>
-        </div>
+          <span className="truncate font-mono text-xs text-faint">{project.path}</span>
+        </button>
         <ProjectActions
           store={store}
           project={project}
@@ -57,6 +74,16 @@ export function ReviewPane({
           onChanged={onChanged}
         />
       </div>
+      <ProjectPickerSheet
+        open={pickerOpen}
+        projects={projects}
+        selectedId={selectedId}
+        onSelect={(id) => {
+          onSelectProject(id)
+          setPickerOpen(false)
+        }}
+        onClose={() => setPickerOpen(false)}
+      />
       <div className="flex flex-1 flex-col gap-[9px] overflow-auto px-4 pt-[14px] pb-[18px]">
         {project.reviews.map((review) => (
           <ReviewRow
@@ -178,12 +205,12 @@ function ReviewRow({
           {isDiff ? <GitCompare size={18} strokeWidth={1.8} /> : <FileText size={18} strokeWidth={1.7} />}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
-          <span className="truncate text-[13.5px] font-semibold tracking-[-0.012em] text-ink">
+          <span className="truncate text-sm font-semibold tracking-[-0.012em] text-ink">
             {review.name}
           </span>
-          <span className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-[11.5px] text-muted">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-xs text-muted">
             <span
-              className={`inline-flex h-[17px] items-center rounded-full px-[7px] text-[10px] font-bold uppercase tracking-[0.04em] ${
+              className={`inline-flex h-[17px] items-center rounded-full px-[7px] text-2xs font-bold uppercase tracking-[0.04em] ${
                 isDiff
                   ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
                   : "bg-soft text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
@@ -210,7 +237,7 @@ function ReviewRow({
         </span>
       </Link>
       {approved && (
-        <span className="inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full bg-approve-soft pr-[9px] pl-[7px] text-[11px] font-semibold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
+        <span className="inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full bg-approve-soft pr-[9px] pl-[7px] text-xs font-semibold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
           <Check size={13} strokeWidth={2.4} aria-hidden />
           Approved
         </span>

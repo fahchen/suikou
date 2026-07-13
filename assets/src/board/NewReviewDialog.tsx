@@ -29,7 +29,7 @@ export function NewReviewDialog({
   review?: BoardReview | null
   open: boolean
   onClose: () => void
-  onCreated: () => void
+  onCreated: (reviewId?: string) => void
 }) {
   const createFiles = useMusubiCommand(store, "create_review")
   const createDiff = useMusubiCommand(store, "create_diff_review")
@@ -100,12 +100,12 @@ export function NewReviewDialog({
     if (!canSubmit) return
     const reviewName = name.trim() || derivedName
     const fail = (cause: Error) => setError(cause.message)
-    const done = (reply: { error: string | null }) => {
+    const done = (reply: { error: string | null; review_id?: string | null }) => {
       if (reply.error) {
         setError(reply.error)
         return
       }
-      onCreated()
+      onCreated(reply.review_id ?? undefined)
       onClose()
     }
 
@@ -150,10 +150,10 @@ export function NewReviewDialog({
   return (
     <Dialog open={open} onClose={onClose} className="max-h-[86vh] overflow-hidden sm:h-[600px] sm:max-w-[560px]">
         <header className="flex items-center gap-3 border-b border-hair px-5 py-4">
-          <DialogTitle className="text-[15px] font-bold text-ink">
+          <DialogTitle className="text-base font-bold text-ink">
             {editing ? "Edit" : "New"} {activeKind === "files" ? "file" : "diff"} review
           </DialogTitle>
-          <span className="text-[12px] text-faint">{project.name}</span>
+          <span className="text-xs text-faint">{project.name}</span>
           <span className="flex-1" />
           <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
             <X size={15} aria-hidden />
@@ -162,7 +162,7 @@ export function NewReviewDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[11.5px] font-semibold text-muted">Name</span>
+            <span className="text-xs font-semibold text-muted">Name</span>
             <input
               value={name}
               onChange={(event) => {
@@ -170,13 +170,13 @@ export function NewReviewDialog({
                 setNameDirty(true)
               }}
               placeholder={derivedName}
-              className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 text-[13px] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+              className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
             />
           </label>
 
           {activeKind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-              <span className="text-[11.5px] font-semibold text-muted">
+              <span className="text-xs font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
               </span>
               <div className="min-h-[200px] flex-1 overflow-auto rounded-ctrl border border-hair-strong bg-canvas p-1">
@@ -189,18 +189,18 @@ export function NewReviewDialog({
             <DiffRefs store={store} projectId={project.id} base={base} head={head} onBase={setBase} onHead={setHead} />
           )}
 
-          {error && <p className="text-[12px] text-request">{error}</p>}
+          {error && <p className="text-xs text-request">{error}</p>}
         </div>
 
         <footer className="flex items-center gap-2 border-t border-hair px-5 py-3">
           <span className="flex-1" />
-          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft">
+          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft">
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={busy || !canSubmit}
-            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
           >
             {busy ? (editing ? "Saving…" : "Creating…") : editing ? "Save changes" : "Create review"}
           </button>
@@ -234,7 +234,7 @@ function DirNode({
   }, [path, projectId])
 
   if (entries === null) {
-    return <div className="px-2 py-1 text-[12px] text-faint">Loading…</div>
+    return <div className="px-2 py-1 text-xs text-faint">Loading…</div>
   }
 
   const sel = [...selections]
@@ -266,7 +266,7 @@ function DirNode({
                       return next
                     })
                   }
-                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px] text-text"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs text-text"
                 >
                   <ChevronRight size={13} className={`shrink-0 text-faint transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden />
                   <Folder size={14} className="shrink-0 text-muted" aria-hidden />
@@ -284,7 +284,7 @@ function DirNode({
             key={entry.path}
             type="button"
             onClick={() => onToggle(entry.path, false)}
-            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 text-left text-[12.5px] text-text hover:bg-soft"
+            className="flex h-[28px] w-full items-center gap-2 rounded-ctrl px-1.5 text-left text-xs text-text hover:bg-soft"
           >
             <span className="pointer-events-none flex">
               <Checkbox checked={isCovered} onCheckedChange={() => onToggle(entry.path, false)} />
@@ -305,11 +305,11 @@ function DirNode({
 function ReadonlyRefs({ base, head }: { base: string; head: string }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[11.5px] font-semibold text-muted">Diff range</span>
-      <span className="flex h-[34px] items-center rounded-ctrl border border-hair bg-soft px-3 font-mono text-[12.5px] text-faint">
+      <span className="text-xs font-semibold text-muted">Diff range</span>
+      <span className="flex h-[34px] items-center rounded-ctrl border border-hair bg-soft px-3 font-mono text-xs text-faint">
         {base ? `${base}..${head}` : head}
       </span>
-      <span className="text-[11px] text-faint">Refs are fixed once the review exists.</span>
+      <span className="text-xs text-faint">Refs are fixed once the review exists.</span>
     </div>
   )
 }
@@ -361,7 +361,7 @@ function RefSelect({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[11.5px] font-semibold text-muted">{label}</span>
+      <span className="text-xs font-semibold text-muted">{label}</span>
       <Combobox value={value} onValueChange={onChange} options={branches} placeholder="Search a branch…" />
     </div>
   )

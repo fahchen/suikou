@@ -18,7 +18,7 @@ export function CreateProjectDialog({
   store: BoardStore
   open: boolean
   onClose: () => void
-  onCreated: () => void
+  onCreated: (projectId: string) => void
 }) {
   const create = useMusubiCommand(store, "create_project")
   const [name, setName] = useState("")
@@ -44,11 +44,11 @@ export function CreateProjectDialog({
     create
       .dispatch({ name: trimmedName, path: trimmedPath, respect_gitignore: respectGitignore, emoji })
       .then((reply) => {
-        if (reply.error) {
-          setError(reply.error)
+        if (reply.error || !reply.project_id) {
+          setError(reply.error ?? "create_failed")
           return
         }
-        onCreated()
+        onCreated(reply.project_id)
         onClose()
       })
       .catch((cause: Error) => setError(cause.message))
@@ -57,7 +57,7 @@ export function CreateProjectDialog({
   return (
     <Dialog open={open} onClose={onClose} className="gap-4 p-5 sm:max-w-[440px]">
       <div className="flex items-center gap-3">
-        <DialogTitle className="text-[15px] font-bold text-ink">New project</DialogTitle>
+        <DialogTitle className="text-base font-bold text-ink">New project</DialogTitle>
         <span className="flex-1" />
         <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
           <X size={15} aria-hidden />
@@ -70,7 +70,7 @@ export function CreateProjectDialog({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Data Platform"
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-[13px] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
           />
         </Field>
         <Field label="Path">
@@ -79,7 +79,7 @@ export function CreateProjectDialog({
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
             placeholder="/Users/you/code/project"
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 font-mono text-[12.5px] text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 font-mono text-xs text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
           />
         </Field>
 
@@ -90,7 +90,7 @@ export function CreateProjectDialog({
         <button
           type="button"
           onClick={() => setRespectGitignore((v) => !v)}
-          className="flex items-center gap-2.5 text-left text-[12.5px] text-text"
+          className="flex items-center gap-2.5 text-left text-xs text-text"
         >
           <span className="pointer-events-none flex">
             <Checkbox
@@ -102,17 +102,17 @@ export function CreateProjectDialog({
           Respect .gitignore when listing files
         </button>
 
-        {error && <p className="text-[12px] text-request">{error}</p>}
+        {error && <p className="text-xs text-request">{error}</p>}
 
         <div className="flex items-center gap-2 pt-1">
           <span className="flex-1" />
-          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-[13px] font-medium text-muted hover:bg-soft">
+          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft">
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={busy || !name.trim() || !path.trim()}
-            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-[13px] font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create project"}
           </button>
@@ -124,7 +124,7 @@ export function CreateProjectDialog({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11.5px] font-semibold text-muted">{label}</span>
+      <span className="text-xs font-semibold text-muted">{label}</span>
       {children}
     </label>
   )

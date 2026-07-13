@@ -17,6 +17,7 @@ export type ReviewFileStatus = {
   draftVerdict: Verdict | null
   latestVerdict: Verdict | null
   openBlockers: number
+  unresolved: number
 }
 
 const STATUS_META: Record<
@@ -47,7 +48,7 @@ export function ChangeStatusLetter({
   return (
     <span
       title={meta.title}
-      className={`w-[10px] shrink-0 text-center font-mono text-[10.5px] font-bold ${meta.className} ${className}`}
+      className={`w-[10px] shrink-0 text-center font-mono text-2xs font-bold ${meta.className} ${className}`}
     >
       {meta.letter}
     </span>
@@ -74,9 +75,9 @@ export function NavHeader({
   return (
     <div className="flex items-center gap-[7px] px-3 pb-2">
       <FileText size={15} className="text-muted" aria-hidden />
-      <h3 className="text-[12px] font-bold tracking-[-0.01em] text-ink">Files</h3>
+      <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Files</h3>
       <span className="flex-1" />
-      <span className="text-[11px] font-semibold text-muted tabular-nums">
+      <span className="text-xs font-semibold text-muted tabular-nums">
         {reviewed}/{entries.length}
       </span>
       <HideReviewedToggle hideReviewed={hideReviewed} onToggle={onToggleHideReviewed} />
@@ -137,7 +138,7 @@ export function FileList({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Filter files…"
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-ink placeholder:text-faint focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto px-1.5 pb-2">
@@ -151,7 +152,7 @@ export function FileList({
           closedDirs={needle ? EMPTY_SET : closedDirs}
           onToggleDir={toggleDir}
         />
-        {shown.length === 0 && <p className="px-3 py-4 text-center text-[12px] text-faint">No files match.</p>}
+        {shown.length === 0 && <p className="px-3 py-4 text-center text-xs text-faint">No files match.</p>}
       </div>
     </>
   )
@@ -267,7 +268,7 @@ function TreeNodes({
               type="button"
               onClick={() => onToggleDir(node.path)}
               style={{ paddingLeft: 9 + depth * 12 }}
-              className="flex h-[27px] w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-[12.5px] text-text hover:bg-soft"
+              className="flex h-[27px] w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-xs text-text hover:bg-soft"
             >
               <ChevronRight
                 size={13}
@@ -324,6 +325,7 @@ function FileRow({
   const name = entry.path.slice(entry.path.lastIndexOf("/") + 1)
   const status = entry.change_status ? STATUS_META[entry.change_status] : null
   const blockers = live?.openBlockers ?? 0
+  const unresolved = live?.unresolved ?? 0
   const verdict = live ? (live.draftVerdict ?? live.latestVerdict) : entry.verdict
 
   return (
@@ -332,22 +334,31 @@ function FileRow({
       onClick={() => onSelect(entry.path)}
       aria-current={selected ? "true" : undefined}
       style={{ paddingLeft: 9 + depth * 12 }}
-      className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-[12.5px] ${
+      className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-xs ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
           : "text-text hover:bg-soft"
       }`}
     >
       <span
-        className={`w-[10px] shrink-0 text-center font-mono text-[10.5px] font-bold ${status?.className ?? "text-faint"}`}
+        className={`w-[10px] shrink-0 text-center font-mono text-2xs font-bold ${status?.className ?? "text-faint"}`}
         title={status?.title}
       >
         {status?.letter ?? ""}
       </span>
       <FileIcon name={name} size={13} />
       <span className="min-w-0 flex-1 truncate">{name}</span>
+      {unresolved > 0 ? (
+        <span
+          title={`${unresolved} unresolved comment${unresolved > 1 ? "s" : ""}`}
+          className="flex shrink-0 items-center gap-0.5 font-mono text-2xs tabular-nums text-muted"
+        >
+          <MessageSquare size={11} aria-hidden />
+          {unresolved}
+        </span>
+      ) : null}
       {isDiff && (entry.added || entry.deleted) ? (
-        <span className="flex shrink-0 items-center gap-1 font-mono text-[10.5px] tabular-nums">
+        <span className="flex shrink-0 items-center gap-1 font-mono text-2xs tabular-nums">
           {entry.added ? <span className="text-approve">+{entry.added}</span> : null}
           {entry.deleted ? <span className="text-request">−{entry.deleted}</span> : null}
         </span>
@@ -355,7 +366,7 @@ function FileRow({
       {blockers > 0 ? (
         <span
           title={`${blockers} open blocker${blockers > 1 ? "s" : ""}`}
-          className="grid h-4 min-w-[17px] shrink-0 place-items-center rounded-full bg-request-soft px-1 text-[10px] font-bold tabular-nums text-request shadow-[inset_0_0_0_0.5px_var(--request-edge)]"
+          className="grid h-4 min-w-[17px] shrink-0 place-items-center rounded-full bg-request-soft px-1 text-2xs font-bold tabular-nums text-request shadow-[inset_0_0_0_0.5px_var(--request-edge)]"
         >
           {blockers}
         </span>

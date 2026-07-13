@@ -5,6 +5,7 @@ import { diffWords } from "diff"
 import { ChevronDown, ChevronUp, Plus, UnfoldVertical } from "lucide-react"
 
 import { highlightLines } from "../highlight"
+import { uiStore, MONO_SIZE } from "../../stores/ui-store"
 import { parseDiffPatch, type DiffFile, type DiffHunk, type DiffLine } from "./parse"
 
 export type DiffAnnotation<Meta = unknown> = {
@@ -55,6 +56,19 @@ const DiffSelectContext = createContext<DiffSelect | null>(null)
 /** Soft-wrap toggle shared with every row, so the deeply nested `<code>` cells
  * pick up the source view's wrap preference without prop-drilling. */
 const DiffWrapContext = createContext<boolean>(true)
+
+/** Mono font-size tier (a Tailwind text-* class) shared with every code row so
+ * diff cells match the source view's Mono size setting. */
+const DiffMonoContext = createContext<string>(MONO_SIZE.default)
+
+/** Which sides a file actually spans. A pure add (new file) has no old side, a
+ * pure delete no new side — the renderer drops the always-empty gutter so a new
+ * file doesn't waste a full line-number column, which reads especially wide on
+ * a phone. Default both true for context/mixed files. */
+type DiffSides = { old: boolean; new: boolean }
+const DiffSidesContext = createContext<DiffSides>({ old: true, new: true })
+const GUTTER_PX = 38
+const leadWidth = (sides: DiffSides): number => (sides.old ? GUTTER_PX : 0) + (sides.new ? GUTTER_PX : 0)
 
 /** A contiguous character range on one line that should be tinted as the
  * "same" or "changed" side of a word-diff pair. `kind === "shared"` means
@@ -131,7 +145,8 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
       </div>
     </div>
   )
-  const wrapped = <DiffWrapContext.Provider value={effectiveWrap}>{body}</DiffWrapContext.Provider>
+  const sized = <DiffMonoContext.Provider value={MONO_SIZE[uiStore.monoSize]}>{body}</DiffMonoContext.Provider>
+  const wrapped = <DiffWrapContext.Provider value={effectiveWrap}>{sized}</DiffWrapContext.Provider>
   return select ? <DiffSelectContext.Provider value={select}>{wrapped}</DiffSelectContext.Provider> : wrapped
 }) as <A>(props: DiffRendererProps<A>) => React.ReactElement
 
@@ -300,7 +315,7 @@ function DiffFileView<A>({
 }) {
   if (file.isBinary) {
     return (
-      <div className="border-b border-hair-strong px-4 py-2 text-[12px] text-muted">
+      <div className="border-b border-hair-strong px-4 py-2 text-xs text-muted">
         {multiFile && (file.newPath ?? file.oldPath) && (
           <span className="mr-2 font-mono text-ink">{file.newPath ?? file.oldPath}</span>
         )}
@@ -309,27 +324,45 @@ function DiffFileView<A>({
     )
   }
 
+  const sides = fileSides(file)
   return (
     <div className={multiFile ? "border-b border-hair-strong" : undefined}>
       {multiFile && (file.newPath ?? file.oldPath) && (
-        <div className="border-b border-hair-strong bg-canvas px-4 py-1.5 font-mono text-[11.5px] text-ink">
+        <div className="border-b border-hair-strong bg-canvas px-4 py-1.5 font-mono text-xs text-ink">
           {file.newPath ?? file.oldPath}
         </div>
       )}
-      {file.hunks.map((hunk, hunkIndex) => (
-        <HunkView<A>
-          key={hunkIndex}
-          hunk={hunk}
-          tokens={tokens}
-          wordDiff={wordDiff}
-          diffStyle={diffStyle}
-          lineAnnotations={lineAnnotations}
-          selectedRange={selectedRange}
-          renderAnnotation={renderAnnotation}
-        />
-      ))}
+      <DiffSidesContext.Provider value={sides}>
+        {file.hunks.map((hunk, hunkIndex) => (
+          <HunkView<A>
+            key={hunkIndex}
+            hunk={hunk}
+            tokens={tokens}
+            wordDiff={wordDiff}
+            diffStyle={diffStyle}
+            lineAnnotations={lineAnnotations}
+            selectedRange={selectedRange}
+            renderAnnotation={renderAnnotation}
+          />
+        ))}
+      </DiffSidesContext.Provider>
     </div>
   )
+}
+
+/** True on each side the file actually has rows for. A new file spans only
+ * `new`, a deleted file only `old`; anything with context spans both. */
+function fileSides(file: DiffFile): DiffSides {
+  let old = false
+  let neu = false
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      if (line.kind === "del" || line.kind === "ctx") old = true
+      if (line.kind === "add" || line.kind === "ctx") neu = true
+    }
+  }
+  // A file with no hunks (or only meta) keeps both columns — nothing to trim.
+  return { old: old || !neu, new: neu || !old }
 }
 
 /** Context lines kept visible on each side of a folded gap — mirrors git's
@@ -456,7 +489,7 @@ function HunkView<A>({
 
   return (
     <div>
-      <div className="border-y border-hair-strong bg-soft/60 px-3 py-1 font-mono text-[11px] text-muted">
+      <div className="border-y border-hair-strong bg-soft/60 px-3 py-1 font-mono text-xs text-muted">
         <span className="block truncate">{hunk.header}</span>
       </div>
       {segments.map((segment, index) => {
@@ -493,7 +526,7 @@ function GapRow({
   const step = Math.min(EXPAND_STEP, count)
   const partial = count > EXPAND_STEP
   return (
-    <div className="flex w-full items-center border-b border-hair bg-soft/40 py-1 font-mono text-[11px] text-muted">
+    <div className="flex w-full items-center border-b border-hair bg-soft/40 py-1 font-mono text-xs text-muted">
       <span className="sticky left-0 flex items-center gap-1 px-3">
         {partial && (
           <button
@@ -537,6 +570,7 @@ function UnifiedHunk<A>({
   renderAnnotation: ((annotation: DiffAnnotation<A>) => React.ReactNode) | undefined
 }) {
   const select = useContext(DiffSelectContext)
+  const sides = useContext(DiffSidesContext)
   return (
     <div>
       {lines.map((line, index) => {
@@ -555,7 +589,7 @@ function UnifiedHunk<A>({
               highlighted={anchor !== null && isSelected(selectedRange, anchor.side, anchor.line)}
             />
             {composerHere && select?.draft && (
-              <div className="sticky left-0 w-[100cqi] pl-[76px] pr-3 pb-1.5">{select.renderComposer(select.draft, select.close)}</div>
+              <div className="sticky left-0 w-[100cqi] pr-3 pb-1.5" style={{ paddingLeft: leadWidth(sides) }}>{select.renderComposer(select.draft, select.close)}</div>
             )}
             {renderAnnotation !== undefined &&
               inserted.map((annotation, i) => (
@@ -584,9 +618,10 @@ function UnifiedRow({
   wordDiff: WordDiffMap
   highlighted: boolean
 }) {
+  const sides = useContext(DiffSidesContext)
   if (line.kind === "meta") {
     return (
-      <div className="flex items-start pl-[76px] font-mono text-[11px] italic text-faint">
+      <div className="flex items-start font-mono text-xs italic text-faint" style={{ paddingLeft: leadWidth(sides) }}>
         <span className="whitespace-pre-wrap">{line.content}</span>
       </div>
     )
@@ -598,11 +633,16 @@ function UnifiedRow({
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
   const wrap = useContext(DiffWrapContext)
+  const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
+    <div className={`flex items-start font-mono ${mono} ${rowClass}${outline}`}>
       <StickyLead>
-        <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
-        <Gutter value={newNo} side={line.kind === "del" ? undefined : "new"} line={line.kind === "del" ? undefined : line.newLine} />
+        {sides.old && (
+          <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
+        )}
+        {sides.new && (
+          <Gutter value={newNo} side={line.kind === "del" ? undefined : "new"} line={line.kind === "del" ? undefined : line.newLine} />
+        )}
       </StickyLead>
       <code className={`min-w-0 flex-1 pl-2.5 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
@@ -792,7 +832,7 @@ function SplitCell({
   const line = cell.line
   if (line.kind === "meta") {
     return (
-      <div className="flex items-start pl-[40px] font-mono text-[11px] italic text-faint">
+      <div className="flex items-start pl-[40px] font-mono text-xs italic text-faint">
         <span className="whitespace-pre-wrap">{line.content}</span>
       </div>
     )
@@ -804,8 +844,9 @@ function SplitCell({
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
   const wrap = useContext(DiffWrapContext)
+  const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono text-[12px] ${rowClass}${outline}`}>
+    <div className={`flex items-start font-mono ${mono} ${rowClass}${outline}`}>
       <StickyLead>
         <Gutter value={lineNo} side={side} line={cell.number} />
       </StickyLead>
@@ -820,7 +861,7 @@ function SplitCell({
 
 function Gutter({ value, side, line }: { value: string; side?: "old" | "new"; line?: number }) {
   const select = useContext(DiffSelectContext)
-  const base = "w-[38px] shrink-0 select-none pr-1.5 text-right font-mono text-[10.5px] tabular-nums leading-[1.6]"
+  const base = "w-[38px] shrink-0 select-none pr-1.5 text-right font-mono text-2xs tabular-nums leading-[1.6]"
   if (!select || side === undefined || line === undefined || value === "") {
     return <span className={`${base} text-faint`}>{value}</span>
   }
@@ -994,11 +1035,13 @@ function AnnotationRow<A>({
   render: (annotation: DiffAnnotation<A>) => React.ReactNode
   span: "unified" | "split-left" | "split-right"
 }) {
+  const sides = useContext(DiffSidesContext)
   const grid = span === "unified" ? "" : span === "split-left" ? "md:col-start-1 md:col-end-2" : "md:col-start-2 md:col-end-3"
-  const lead = span === "unified" ? "pl-[76px]" : "pl-[40px]"
+  const lead = span === "unified" ? undefined : "pl-[40px]"
+  const leadStyle = span === "unified" ? { paddingLeft: leadWidth(sides) } : undefined
   return (
     <div className={`sticky left-0 w-[100cqi] ${span === "unified" ? "" : "grid grid-cols-1 md:grid-cols-2"}`}>
-      <div className={`${lead} pr-3 ${grid}`}>{render(annotation)}</div>
+      <div className={`${lead ?? ""} pr-3 ${grid}`} style={leadStyle}>{render(annotation)}</div>
     </div>
   )
 }
