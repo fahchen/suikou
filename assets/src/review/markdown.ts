@@ -2,7 +2,6 @@ import { markdown } from "./markdown/engine"
 import { parseFrontmatter } from "./markdown/frontmatter"
 
 export { renderMarkdownBlocks } from "./markdown/blocks"
-export { useCodeScroll } from "./markdown/code-scroll"
 export { useMermaid } from "./markdown/mermaid"
 export type { MarkdownBlock } from "./markdown/types"
 

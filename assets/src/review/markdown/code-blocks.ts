@@ -35,7 +35,8 @@ export function renderCodeBlocks(token: MarkdownToken): MarkdownBlock[] | null {
     return {
       line: source,
       endLine: source,
-      html: `<pre class="md-code-line ${position}" data-code-group="${openLine}"><code>${markdown.utils.escapeHtml(line) || " "}</code></pre>`,
+      codeGroup: String(openLine),
+      html: `<pre class="md-code-line ${position}"><code>${markdown.utils.escapeHtml(line) || " "}</code></pre>`,
     }
   })
 }

@@ -953,17 +953,31 @@
 }
 
 /* Per-line code blocks: one commentable line each, stacked into a single slab
-   with only the first/last line rounded so seams read as one block. */
+   with only the first/last line rounded so seams read as one block. A fence's
+   lines share one horizontal scroll container (.md-fence-scroll), so long lines
+   scroll together with no JS. */
+.md-fence-scroll {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.md-fence-scroll::-webkit-scrollbar {
+  display: none;
+}
+/* max-content so the slab widens to the longest line (uniform background across
+   the scroll extent); min-width 100% so short blocks still fill the column. */
+.md-fence-track {
+  width: max-content;
+  min-width: 100%;
+}
+.md-fence-track > .flex {
+  width: 100%;
+}
 .md-doc .md-body .md-code-line {
   margin: 0;
   padding: 1px 10px;
   border-radius: 0;
-  overflow-x: auto;
   white-space: pre;
-  scrollbar-width: none;
-}
-.md-doc .md-body .md-code-line::-webkit-scrollbar {
-  display: none;
 }
 .md-doc .md-body .md-code-line code {
   display: inline-block;

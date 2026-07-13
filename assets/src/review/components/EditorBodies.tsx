@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
 import type { ThemedToken } from "shiki"
@@ -8,7 +8,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useCodeScroll, useMermaid, type MarkdownBlock } from "../markdown"
+import { renderMarkdownBlocks, useMermaid, type MarkdownBlock } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -46,7 +46,6 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
   const docRef = useRef<HTMLDivElement>(null)
   useMermaid(docRef, [blocks])
-  useCodeScroll(docRef, [blocks])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
 
@@ -185,78 +184,101 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   return (
     <div className="shrink-0">
       <div ref={docRef} className="md-doc py-4">
-        {blocks.map((block, index) => {
-          const threads = threadsByBlock.get(index)
-          const inDrag = drag !== null && index >= dragLo && index <= dragHi
-          const inDraft = draft !== null && block.line >= draft.start && block.endLine <= draft.end
-          const selecting = inDrag || inDraft
-          const focused = highlightedRange !== null && highlightedRange.start >= block.line && highlightedRange.start <= block.endLine
-          const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
-          const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
-          const composerOpen = composerHere && draft !== null
-          const gutterButton = (
-            <button
-              type="button"
-              data-review-block={index}
-              onPointerDown={(event) => {
-                if (event.button !== 0) return
-                if (event.shiftKey && draft) open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
-                else {
-                  const next = { from: index, to: index }
-                  dragRef.current = next
-                  setDrag(next)
-                }
-              }}
-              onPointerUp={(event) => {
-                const current = dragRef.current
-                if (event.button !== 0 || event.shiftKey || !current || current.from !== current.to) return
-                dragRef.current = null
-                setDrag(null)
-                if (composerMode === "inline") requestOpen({ start: block.line, end: block.endLine })
-              }}
-              onClick={(event) => {
-                if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
-                requestOpen({ start: block.line, end: block.endLine })
-              }}
-              style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
-              title="Comment on this block — drag or shift-click for a range"
-              className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
-                selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
-              }`}
-            >
-              <span data-review-line={block.line} className="group-hover/gut:opacity-0">
-                {block.line}
-              </span>
-              {block.endLine > block.line && (
-                <>
-                  <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong group-hover/gut:opacity-0" />
-                  <span className="group-hover/gut:opacity-0">{block.endLine}</span>
-                </>
-              )}
-              <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
-            </button>
-          )
+        {(() => {
+          const rendered: ReactNode[] = []
+          let codeBuf: ReactNode[] = []
+          let segKey = ""
+          let segGroup: string | null = null
+          const flushCode = () => {
+            if (codeBuf.length === 0) return
+            rendered.push(
+              <div key={`fence-${segKey}`} className="md-fence-scroll">
+                <div className="md-fence-track">{codeBuf}</div>
+              </div>,
+            )
+            codeBuf = []
+            segGroup = null
+          }
 
-          if (hidden.has(index)) return <Fragment key={index} />
+          blocks.forEach((block, index) => {
+            if (hidden.has(index)) return
+            const isCode = block.codeGroup != null
+            const threads = threadsByBlock.get(index)
+            const inDrag = drag !== null && index >= dragLo && index <= dragHi
+            const inDraft = draft !== null && block.line >= draft.start && block.endLine <= draft.end
+            const selecting = inDrag || inDraft
+            const focused = highlightedRange !== null && highlightedRange.start >= block.line && highlightedRange.start <= block.endLine
+            const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
+            const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
+            const composerOpen = composerHere && draft !== null
+            const gutterButton = (
+              <button
+                type="button"
+                data-review-block={index}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return
+                  if (event.shiftKey && draft) open({ start: Math.min(draft.start, block.line), end: Math.max(draft.end, block.endLine) })
+                  else {
+                    const next = { from: index, to: index }
+                    dragRef.current = next
+                    setDrag(next)
+                  }
+                }}
+                onPointerUp={(event) => {
+                  const current = dragRef.current
+                  if (event.button !== 0 || event.shiftKey || !current || current.from !== current.to) return
+                  dragRef.current = null
+                  setDrag(null)
+                  if (composerMode === "inline") requestOpen({ start: block.line, end: block.endLine })
+                }}
+                onClick={(event) => {
+                  if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
+                  requestOpen({ start: block.line, end: block.endLine })
+                }}
+                style={{
+                  minWidth: `${gutter + 2}ch`,
+                  touchAction: "none",
+                  // Code gutters sit inside a horizontal scroll container; pin them
+                  // and give an opaque backdrop so scrolled code can't show through.
+                  ...(isCode
+                    ? { position: "sticky" as const, left: 0, zIndex: 1, background: selecting || focused ? undefined : "var(--bg-1)" }
+                    : {}),
+                }}
+                title="Comment on this block — drag or shift-click for a range"
+                className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
+                  selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
+                }`}
+              >
+                <span data-review-line={block.line} className="group-hover/gut:opacity-0">
+                  {block.line}
+                </span>
+                {block.endLine > block.line && (
+                  <>
+                    <span aria-hidden className="my-1 w-px flex-1 bg-hair-strong group-hover/gut:opacity-0" />
+                    <span className="group-hover/gut:opacity-0">{block.endLine}</span>
+                  </>
+                )}
+                <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
+              </button>
+            )
 
-          const foldToggle = block.heading ? (
-            <button
-              type="button"
-              onClick={() => toggleFold(block.line)}
-              title={collapsed.has(block.line) ? "Expand section" : "Collapse section"}
-              style={{ marginTop: headingToggleOffset(block.heading) }}
-              className="flex shrink-0 items-center self-start px-2 text-faint opacity-0 transition-opacity hover:text-accent-bright focus-visible:opacity-100 group-hover/md:opacity-100 [@media(hover:none)]:opacity-100"
-            >
-              <ChevronRight
-                size={14}
-                className={`transition-transform ${collapsed.has(block.line) ? "" : "rotate-90"}`}
-              />
-            </button>
-          ) : null
+            const foldToggle = block.heading ? (
+              <button
+                type="button"
+                onClick={() => toggleFold(block.line)}
+                title={collapsed.has(block.line) ? "Expand section" : "Collapse section"}
+                style={{ marginTop: headingToggleOffset(block.heading) }}
+                className="flex shrink-0 items-center self-start px-2 text-faint opacity-0 transition-opacity hover:text-accent-bright focus-visible:opacity-100 group-hover/md:opacity-100 [@media(hover:none)]:opacity-100"
+              >
+                <ChevronRight
+                  size={14}
+                  className={`transition-transform ${collapsed.has(block.line) ? "" : "rotate-90"}`}
+                />
+              </button>
+            ) : null
 
-          return (
-            <Fragment key={index}>
-              <div className={`group/md flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+            const row = (
+              <div key={index} className={`group/md flex ${selecting ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 {composerMode === "popover" ? (
                   <Popover
                     open={composerOpen}
@@ -291,27 +313,61 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 />
                 {foldToggle}
               </div>
-              {composerMode === "inline" && composerHere && draft && (
-                <Composer
-                  anchorLabel={label}
-                  draftKey={draftBodyKey(draftScope, draft)}
-                  pending={addComment.isPending}
-                  onSubmit={submitNew}
-                  onCancel={close}
-                />
-              )}
-              {showThreads && threads?.map((comment) => (
-                <CommentThread
-                  key={comment.id}
-                  comment={comment}
-                  commentsProxy={commentsProxy}
-                  focused={focusedCommentId === comment.id}
-                  onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
-                />
-              ))}
-            </Fragment>
-          )
-        })}
+            )
+
+            const extras =
+              (composerMode === "inline" && composerHere && draft) || (showThreads && threads && threads.length > 0) ? (
+                <Fragment key={`extras-${index}`}>
+                  {composerMode === "inline" && composerHere && draft && (
+                    <Composer
+                      anchorLabel={label}
+                      draftKey={draftBodyKey(draftScope, draft)}
+                      pending={addComment.isPending}
+                      onSubmit={submitNew}
+                      onCancel={close}
+                    />
+                  )}
+                  {showThreads && threads?.map((comment) => (
+                    <CommentThread
+                      key={comment.id}
+                      comment={comment}
+                      commentsProxy={commentsProxy}
+                      focused={focusedCommentId === comment.id}
+                      onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
+                    />
+                  ))}
+                </Fragment>
+              ) : null
+
+            // Code lines share one horizontal scroll container. A comment or
+            // composer breaks the fence (it renders full-width outside the
+            // scroller), so flush the buffer before emitting it.
+            if (isCode) {
+              // A new fence (different codeGroup) starts its own scroll container.
+              if (codeBuf.length > 0 && block.codeGroup !== segGroup) flushCode()
+              if (codeBuf.length === 0) {
+                segKey = String(index)
+                segGroup = block.codeGroup ?? null
+              }
+              codeBuf.push(row)
+              if (extras) {
+                flushCode()
+                rendered.push(extras)
+              }
+            } else {
+              flushCode()
+              rendered.push(
+                <Fragment key={index}>
+                  {row}
+                  {extras}
+                </Fragment>,
+              )
+            }
+          })
+
+          flushCode()
+          return rendered
+        })()}
       </div>
       <ConfirmDialog
         open={switchTo !== null}
