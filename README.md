@@ -69,6 +69,23 @@ suikou status    # is the daemon running, and where
 suikou skill     # print the agent CLI skill markdown (no server needed)
 ```
 
+## Install the agent skill
+
+`suikou skill` emits the CLI skill doc that teaches an agent to drive a review
+loop — create a review, wait for the human's critique, fix the code, reply to
+each comment. It reads the doc baked into the binary, so it works before the
+server (or anything) is running; an agent can install it for itself.
+
+Write it into the agent's skills directory. For Claude Code:
+
+```sh
+suikou skill -o ~/.claude/skills/suikou/SKILL.md   # --force to overwrite
+```
+
+Or just ask the agent to install it — "install the Suikou skill for yourself"
+— and let it run the command. Restart the agent to pick it up. Point `-o` at whatever path your agent reads
+skills from; with no `-o` it prints to stdout (`suikou skill > SKILL.md`).
+
 ## Configure
 
 Runtime config is read once at boot from `~/.config/suikou/config.toml` (packaged
