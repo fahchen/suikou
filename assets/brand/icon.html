@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hina+Mincho&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #ffffff; }
+  /* Full-bleed square (no radius): iOS/Android apply their own mask, and the
+     maskable purpose needs the art to bleed to the edges. */
+  #icon {
+    width: 512px; height: 512px; overflow: hidden; display: flex;
+    font-family: "Hina Mincho", serif;
+  }
+  .col {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0;
+  }
+  .col > span { font-size: 232px; line-height: 1; }
+  /* 阴刻 / 白文: left, light glyph on the inked vermilion field */
+  .yin  { background: #b3462f; color: #f7efe8; }
+  /* 阳刻 / 朱文: right, vermilion glyph on the paper-light field */
+  .yang { background: #f7efe8; color: #b3462f; }
+</style>
+</head>
+<body>
+  <div id="icon">
+    <div class="col yin"><span>す</span><span>い</span></div>
+    <div class="col yang"><span>こ</span><span>う</span></div>
+  </div>
+</body>
+</html>

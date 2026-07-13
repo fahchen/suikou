@@ -48,8 +48,8 @@ export default defineConfig({
         short_name: "Suikou",
         display: "standalone",
         start_url: "/",
-        theme_color: "#157c99",
-        background_color: "#157c99",
+        theme_color: "#b3462f",
+        background_color: "#f7efe8",
         icons: [
           { src: "/favicon.ico", sizes: "any", type: "image/x-icon" },
           { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
