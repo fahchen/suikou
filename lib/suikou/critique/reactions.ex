@@ -64,12 +64,13 @@ defmodule Suikou.Critique.Reactions do
     comment_ids = review_comment_ids(review_id)
     reply_ids = from(rp in Reply, where: rp.comment_id in subquery(comment_ids), select: rp.id)
 
-    Repo.one(
+    query =
       from(r in Reaction,
         where: r.comment_id in subquery(comment_ids) or r.reply_id in subquery(reply_ids),
         select: {count(r.id), max(r.updated_at)}
       )
-    )
+
+    Repo.one(query)
   end
 
   defp review_comment_ids(review_id) do
