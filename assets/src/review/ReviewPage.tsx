@@ -967,13 +967,13 @@ function Editor({
             <button
               type="button"
               onClick={onOpenFiles}
-              className="flex h-[30px] min-w-0 flex-1 items-center gap-1.5 rounded-ctrl px-1.5 text-left hover:bg-soft"
+              className="flex h-[30px] min-w-0 items-center gap-1.5 rounded-ctrl px-1.5 text-left hover:bg-soft"
               title="Files"
               aria-label={`Open file list, current file ${filePosition.index + 1} of ${filePosition.total}`}
             >
               <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={13} />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">{name}</span>
+              <span className="min-w-0 truncate font-mono text-xs text-ink">{name}</span>
               <ChevronDown size={12} className="shrink-0 text-muted" aria-hidden />
             </button>
             <button
