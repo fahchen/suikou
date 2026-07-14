@@ -857,6 +857,9 @@
     min-height: 100%;
     /* App shell, not a document: suppress the vertical rubber-band / bounce. */
     overscroll-behavior-y: none;
+    /* html carries the canvas colour too (not just body) so an iOS standalone
+       PWA never reveals its black default backdrop around the safe areas. */
+    background: var(--bg-0);
   }
   body {
     margin: 0;

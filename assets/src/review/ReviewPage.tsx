@@ -175,11 +175,11 @@ export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
   })
 
   if (root.status === "loading") {
-    return (
-      <div className="grid h-dvh place-items-center bg-canvas">
-        <FileNotice icon={Loader2} title="Loading review" body="Fetching the review's structure…" spin />
-      </div>
-    )
+    // Cache-seeded mounts resolve in a frame or two; showing the centered
+    // spinner instantly makes the page-transition fade land on a blank canvas.
+    // Hold the bare canvas briefly so fast loads go straight to content, and
+    // only surface the spinner when the fetch is genuinely slow.
+    return <LoadingShell />
   }
   if (root.status === "error") {
     return (
@@ -202,6 +202,22 @@ export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
     )
   }
   return <Shell store={root.store} reviewId={reviewId} file={file} lens={lens} commits={commits} />
+}
+
+function LoadingShell() {
+  const [showSpinner, setShowSpinner] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShowSpinner(true), 200)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div className="grid h-dvh place-items-center bg-canvas">
+      {showSpinner && (
+        <FileNotice icon={Loader2} title="Loading review" body="Fetching the review's structure…" spin />
+      )}
+    </div>
+  )
 }
 
 type ReviewPageProps = {
@@ -935,7 +951,7 @@ function Editor({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
-      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-4">
+      <div className="flex h-[42px] shrink-0 items-center gap-2 px-4">
         {entry && filePosition ? (
           <div className="flex min-w-0 flex-1 items-center gap-1 lg:hidden">
             <button

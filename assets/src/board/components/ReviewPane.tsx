@@ -33,7 +33,9 @@ export function ReviewPane({
   onEditReview,
   onChanged,
 }: {
-  store: BoardStore
+  // Null only during the cache-seeded first frame while the live board store
+  // mounts — the list still renders, interactive menus are held back.
+  store: BoardStore | null
   project: BoardProject
   projects: BoardProject[]
   selectedId: string | null
@@ -47,7 +49,7 @@ export function ReviewPane({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-surface lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
-      <div className="flex shrink-0 items-center gap-3 border-b border-hair px-5 py-[14px] pt-4">
+      <div className="flex shrink-0 items-center gap-3 px-5 py-[14px] pt-4">
         {project.emoji && (
           <span aria-hidden className="shrink-0 text-lg leading-none">
             {project.emoji}
@@ -67,12 +69,14 @@ export function ReviewPane({
           </span>
           <span className="truncate font-mono text-xs text-faint">{project.path}</span>
         </button>
-        <ProjectActions
-          store={store}
-          project={project}
-          onNewReview={onNewReview}
-          onChanged={onChanged}
-        />
+        {store && (
+          <ProjectActions
+            store={store}
+            project={project}
+            onNewReview={onNewReview}
+            onChanged={onChanged}
+          />
+        )}
       </div>
       <ProjectPickerSheet
         open={pickerOpen}
@@ -181,7 +185,7 @@ function ReviewRow({
   onEdit,
   onDeleted,
 }: {
-  store: BoardStore
+  store: BoardStore | null
   review: BoardReview
   files: BoardReviewFile[]
   onEdit: (review: BoardReview) => void
@@ -242,7 +246,7 @@ function ReviewRow({
           Approved
         </span>
       )}
-      <ReviewActions store={store} review={review} onEdit={onEdit} onDeleted={onDeleted} />
+      {store && <ReviewActions store={store} review={review} onEdit={onEdit} onDeleted={onDeleted} />}
     </div>
   )
 }

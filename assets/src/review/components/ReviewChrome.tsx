@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "@tanstack/react-router"
 import type { StoreProxy } from "@musubi/react"
 import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
@@ -52,14 +53,14 @@ export function Toolbar({
 }) {
   return (
     <div className="flex h-[52px] shrink-0 items-center gap-[9px] px-2 lg:h-[50px] lg:px-3">
-      <a
-        href="/"
+      <Link
+        to="/"
         className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl px-1 hover:bg-soft lg:px-2"
         title={connected ? "Back to projects" : "Reconnecting…"}
         aria-label="Back to projects"
       >
         <ChevronLeft size={20} className={`text-muted ${connected ? "" : "animate-pulse"}`} aria-hidden />
-      </a>
+      </Link>
       <div className="flex min-w-0 flex-1 items-center px-1 lg:h-[30px]">
         <span className="truncate text-sm font-semibold tracking-[-0.015em] text-ink lg:text-sm">{name}</span>
       </div>
@@ -171,7 +172,7 @@ export function StatusBar({
   const blockers = review.blockers.length
 
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 pb-[max(env(safe-area-inset-bottom)-12px,4px)] text-xs text-muted [box-sizing:content-box]">
+    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 mb-[-20px] pb-0 text-xs text-muted [box-sizing:content-box]">
       <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
       {stacked && (
         <>

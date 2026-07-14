@@ -72,9 +72,13 @@ export function ProjectsBoard() {
   })
 
   if (root.status === "loading") {
-    // A warm cache resolves the mount in a microtask, so show a transparent
-    // placeholder instead of flashing the loading screen over the chrome.
-    return readBoardCache() ? <div aria-hidden className="h-dvh" /> : <Centered>Loading projects…</Centered>
+    // A warm cache resolves the mount in a microtask, but that one blank frame
+    // still lands at the start of the page-transition slide and reads as a white
+    // flash. Paint the cached chrome (toolbar + project list) right away — the
+    // store-backed <Board> takes over as soon as the mount settles.
+    const cached = readBoardCache()
+    if (!cached) return <Centered>Loading projects…</Centered>
+    return <CachedBoardShell board={cached} />
   }
   if (root.status === "error") {
     return (
@@ -218,6 +222,39 @@ function Board({ store }: { store: BoardStore }) {
         />
       )}
       <SettingsModal />
+    </div>
+  )
+}
+
+/** First-frame shell painted from the board cache while the live store mounts.
+ * Non-interactive by design — the store-backed <Board> replaces it a microtask
+ * later; this only exists to keep the page-transition slide from flashing blank. */
+function CachedBoardShell({ board }: { board: LoadBoardReply }) {
+  const projects = board.projects
+  const remembered = readSelectedProjectId()
+  const selectedId =
+    remembered && projects.some((p) => p.id === remembered) ? remembered : (projects[0]?.id ?? null)
+  const selected = projects.find((p) => p.id === selectedId) ?? null
+
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
+      <Toolbar onNewProject={() => {}} onNewReview={() => {}} canNewReview={false} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_1fr]">
+        <Sidebar projects={projects} selectedId={selectedId} onSelect={() => {}} />
+        {selected && (
+          <ReviewPane
+            store={null}
+            project={selected}
+            projects={projects}
+            selectedId={selectedId}
+            onSelectProject={() => {}}
+            reviewFiles={board.review_files}
+            onNewReview={() => {}}
+            onEditReview={() => {}}
+            onChanged={() => {}}
+          />
+        )}
+      </div>
     </div>
   )
 }
