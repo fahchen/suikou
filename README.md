@@ -9,6 +9,8 @@ exact lines, set a verdict per file, submit a round, iterate.
 Suikou runs as a single-file binary on your own machine and exposes a small CLI,
 so an agent can open a review and hand it to you to sign off.
 
+![Suikou reviewing a file in the Suikou Light theme](assets/brand/screenshot.png)
+
 ## Highlights
 
 - **File-by-file verdicts.** Every file carries its own state; a round isn't done
