@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare } from "lucide-react"
+import { ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare, MessageSquarePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { CommentDisplayMode } from "../../stores/ui-store"
@@ -25,6 +25,7 @@ import {
 import { DiffView } from "./DiffView"
 import { VerdictChip } from "./ReviewChrome"
 import { CommentThread } from "./comments/CommentThread"
+import { FileCommentComposer } from "./comments/FileCommentComposer"
 import type { Comment, CommentsStoreProxy } from "./comments/shared"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
@@ -56,6 +57,18 @@ const STATUS_BADGE: Record<Exclude<ChangeStatus, null>, { letter: string; classN
 
 const effectiveVerdict = (file: StackedFileDatum): Verdict | null => file.draftVerdict ?? file.latestVerdict
 const isReviewed = (file: StackedFileDatum): boolean => effectiveVerdict(file) !== null && file.openBlockers === 0
+
+// Per-file collapse state, persisted so a refresh keeps the outline. `null` means
+// the reviewer never toggled this file, so the caller falls back to its reviewed
+// default.
+const collapsedKey = (scope: string) => `suikou-stacked-collapsed:${scope}`
+function readCollapsed(scope: string): boolean | null {
+  const v = localStorage.getItem(collapsedKey(scope))
+  return v === null ? null : v === "1"
+}
+function writeCollapsed(scope: string, collapsed: boolean) {
+  localStorage.setItem(collapsedKey(scope), collapsed ? "1" : "0")
+}
 
 /** A request to bring a stacked file (and optionally a specific line) into view.
  * A `null` line just scrolls to the file header; a set line scrolls to that line
@@ -101,6 +114,7 @@ export const StackedFiles = observer(function StackedFiles({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const showThreads = commentDisplay === "inline"
+  const showComments = commentDisplay !== "hidden"
   const shown = hideReviewed ? files.filter((f) => !isReviewed(f)) : files
 
   // Scroll-spy: mark the file whose header sits near the top of the scroll as the
@@ -159,6 +173,7 @@ export const StackedFiles = observer(function StackedFiles({
               file={file}
               readOnly={readOnly}
               showThreads={showThreads}
+              showComments={showComments}
               focusedCommentId={focusedCommentId}
               onFocusComment={onFocusComment}
               scrollTarget={scrollTarget?.path === file.path ? scrollTarget : null}
@@ -188,6 +203,7 @@ const StackedFile = observer(function StackedFile({
   file,
   readOnly,
   showThreads,
+  showComments,
   focusedCommentId,
   onFocusComment,
   scrollTarget,
@@ -199,6 +215,7 @@ const StackedFile = observer(function StackedFile({
   file: StackedFileDatum
   readOnly: boolean
   showThreads: boolean
+  showComments: boolean
   focusedCommentId: string | null
   onFocusComment: (commentId: string | null) => void
   scrollTarget: StackedScrollTarget | null
@@ -227,9 +244,20 @@ const StackedFile = observer(function StackedFile({
   const sectionRef = useRef<HTMLElement>(null)
   const [mounted, setMounted] = useState(false)
   // Manual per-file collapse: reviewer clicks the chevron to hide the body.
-  // Collapsed files skip the heavy render entirely (no spacer either), so the
-  // stack behaves like a folded outline. Transient — resets on remount.
-  const [collapsed, setCollapsed] = useState(false)
+  // Persisted per file so a refresh keeps the outline; an already-reviewed file
+  // defaults to collapsed. While in the viewport a collapsed body stays mounted
+  // (just hidden) for an instant re-expand — the IntersectionObserver only
+  // destroys it once the file scrolls out of view ("离开视口才销毁").
+  const [collapsed, setCollapsed] = useState(() => readCollapsed(draftScope) ?? isReviewed(file))
+  useEffect(() => {
+    writeCollapsed(draftScope, collapsed)
+  }, [draftScope, collapsed])
+  // Whole-file comment authoring lives in the sticky header so it stays reachable
+  // in every comment mode (inline / side) and even while the body is collapsed —
+  // the inline "File comments" band only shows when threads render (inline mode).
+  const fileCommentDraftKey = `suikou-artifact:${draftScope}`
+  const [fileComposing, setFileComposing] = useState(false)
+  const canComment = showComments && !readOnly && !!file.proxy
   const bodyHeight = useRef<number>(DEFAULT_BODY_HEIGHT)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -356,31 +384,53 @@ const StackedFile = observer(function StackedFile({
             ]}
           />
         )}
+        {canComment && (
+          <button
+            type="button"
+            onClick={() => setFileComposing(true)}
+            title="Comment on this file"
+            aria-label="Comment on this file"
+            className="grid size-[24px] shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          >
+            <MessageSquarePlus size={14} aria-hidden />
+          </button>
+        )}
         {!readOnly && file.proxy && (
           <VerdictChip file={file} proxy={file.proxy} />
         )}
       </header>
-      {collapsed ? null : mounted ? (
-        <StackedFileContent
-          reviewId={reviewId}
-          file={file}
-          name={name}
-          previewable={previewable}
-          view={view}
-          draftScope={draftScope}
-          readOnly={readOnly}
-          showThreads={showThreads}
-          focusedCommentId={focusedCommentId}
-          highlightedRange={highlightedRange}
-          onFocusComment={onFocusComment}
-          scrollToLine={scrollTarget?.line ?? null}
-          onScrollHandled={onScrollHandled}
-          onHeight={(h) => {
-            bodyHeight.current = h
-          }}
-          diffLens={diffLens}
-        />
-      ) : (
+      {fileComposing && file.proxy && (
+        <div className="border-b border-hair-strong px-3.5 py-2">
+          <FileCommentComposer
+            fileProxy={file.proxy}
+            draftKey={fileCommentDraftKey}
+            onClose={() => setFileComposing(false)}
+          />
+        </div>
+      )}
+      {mounted ? (
+        <div hidden={collapsed}>
+          <StackedFileContent
+            reviewId={reviewId}
+            file={file}
+            name={name}
+            previewable={previewable}
+            view={view}
+            draftScope={draftScope}
+            readOnly={readOnly}
+            showThreads={showThreads}
+            focusedCommentId={focusedCommentId}
+            highlightedRange={highlightedRange}
+            onFocusComment={onFocusComment}
+            scrollToLine={scrollTarget?.line ?? null}
+            onScrollHandled={onScrollHandled}
+            onHeight={(h) => {
+              bodyHeight.current = h
+            }}
+            diffLens={diffLens}
+          />
+        </div>
+      ) : collapsed ? null : (
         <div style={{ height: bodyHeight.current }} aria-hidden />
       )}
     </section>

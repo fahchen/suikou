@@ -2,11 +2,10 @@ import type { StoreProxy } from "@musubi/react"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowDownUp, MessageSquare, MessageSquarePlus } from "lucide-react"
 
-import { useMusubiCommand } from "../../musubi"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu"
-import { Composer } from "./comments/Composer"
+import { FileCommentComposer } from "./comments/FileCommentComposer"
 import { SideCommentCard } from "./comments/SideCommentCard"
-import { safeDraft, type Comment, type CommentsStoreProxy, type CritiqueType } from "./comments/shared"
+import { safeDraft, type Comment, type CommentsStoreProxy } from "./comments/shared"
 
 type HighlightRange = { start: number; end: number } | null
 type SortOrder = "newest" | "oldest"
@@ -106,7 +105,7 @@ export function SideRail({
       </div>
       {fileComposing && fileProxy && fileCommentDraftKey && (
         <div className="shrink-0 border-b border-hair p-2">
-          <RailFileCommentComposer
+          <FileCommentComposer
             fileProxy={fileProxy}
             draftKey={fileCommentDraftKey}
             onClose={() => setFileComposing(false)}
@@ -141,33 +140,6 @@ export function SideRail({
         )}
       </div>
     </aside>
-  )
-}
-
-function RailFileCommentComposer({
-  fileProxy,
-  draftKey,
-  onClose,
-}: {
-  fileProxy: FileStoreProxy
-  draftKey: string
-  onClose: () => void
-}) {
-  const addComment = useMusubiCommand(fileProxy, "add_comment")
-
-  const submit = (body: string, type: CritiqueType) => {
-    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).then(onClose).catch(() => undefined)
-  }
-
-  return (
-    <Composer
-      anchorLabel="whole file"
-      draftKey={draftKey}
-      pending={addComment.isPending}
-      className="m-0"
-      onSubmit={submit}
-      onCancel={onClose}
-    />
   )
 }
 
