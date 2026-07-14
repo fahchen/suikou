@@ -61,7 +61,7 @@ defmodule Suikou.Critique.Reactions do
     # second as an add/remove could hash equal; count catches the add/remove,
     # and human reaction cadence makes a same-second swap-only collision moot.
     comment_ids = select(ReviewScope.comments({:review, review_id}), [comment: c], c.id)
-    reply_ids = from(rp in Reply, where: rp.comment_id in subquery(comment_ids), select: rp.id)
+    reply_ids = select(ReviewScope.replies({:review, review_id}), [reply: rp], rp.id)
 
     query =
       from(r in Reaction,

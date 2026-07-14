@@ -1,7 +1,6 @@
 defmodule Suikou.Repo.Migrations.BackfillGitDiffCreationShas do
   use Ecto.Migration
 
-  alias Suikou.Git
   alias Suikou.Repo
 
   # The git-diff review source now pins `base_sha`/`head_sha` at creation so the
@@ -38,10 +37,15 @@ defmodule Suikou.Repo.Migrations.BackfillGitDiffCreationShas do
 
   def down, do: :ok
 
+  # Inline `git rev-parse` so the migration stays self-contained and doesn't
+  # break when app code (Suikou.Git) drifts.
   defp resolve(path, ref) when is_binary(ref) do
-    case Git.rev_parse(path, ref) do
-      {:ok, sha} -> sha
-      {:error, _reason} -> nil
+    case System.cmd("git", ["rev-parse", "--verify", "#{ref}^{commit}"],
+           cd: path,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} -> String.trim(out)
+      {_out, _code} -> nil
     end
   end
 
