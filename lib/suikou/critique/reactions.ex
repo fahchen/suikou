@@ -60,7 +60,7 @@ defmodule Suikou.Critique.Reactions do
     # ponytail: updated_at is second-precision, so a swap in the same wall-clock
     # second as an add/remove could hash equal; count catches the add/remove,
     # and human reaction cadence makes a same-second swap-only collision moot.
-    comment_ids = ReviewScope.comments({:review, review_id}) |> select([comment: c], c.id)
+    comment_ids = select(ReviewScope.comments({:review, review_id}), [comment: c], c.id)
     reply_ids = from(rp in Reply, where: rp.comment_id in subquery(comment_ids), select: rp.id)
 
     query =
