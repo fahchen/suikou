@@ -84,8 +84,13 @@ Write it into the agent's skills directory. For Claude Code:
 suikou skill -o ~/.claude/skills/suikou/SKILL.md   # --force to overwrite
 ```
 
-Or just ask the agent to install it — "install the Suikou skill for yourself"
-— and let it run the command. Restart the agent to pick it up. Point `-o` at whatever path your agent reads
+Or just ask the agent to install it — paste this prompt:
+
+```text
+Install the Suikou skill for yourself by running `suikou skill`.
+```
+
+Restart the agent to pick it up. Point `-o` at whatever path your agent reads
 skills from; with no `-o` it prints to stdout (`suikou skill > SKILL.md`).
 
 ## Configure
