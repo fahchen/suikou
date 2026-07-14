@@ -171,7 +171,7 @@ export function StatusBar({
   const blockers = review.blockers.length
 
   return (
-    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted">
+    <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 pb-[max(env(safe-area-inset-bottom)-12px,4px)] text-xs text-muted [box-sizing:content-box]">
       <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
       {stacked && (
         <>

@@ -565,7 +565,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   }, [reviewName])
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] text-ink">
       <Toolbar
         name={structure?.name ?? "…"}
         connected={connected}
