@@ -6,7 +6,7 @@ import type { ThemedToken } from "shiki"
 import { ChevronRight, Crosshair, Plus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
-import { uiStore, MONO_SIZE } from "../../stores/ui-store"
+import { uiStore, MONO_SIZE, MONO_PX } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
 import { renderMarkdownBlocks, useMermaid, type AssetContext } from "../markdown"
@@ -292,7 +292,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 type="button"
                 onClick={() => toggleFold(block.line)}
                 title={collapsed.has(block.line) ? "Expand section" : "Collapse section"}
-                style={{ marginTop: headingToggleOffset(block.heading) }}
+                style={{ marginTop: headingToggleOffset(block.heading, MONO_PX[uiStore.monoSize]) }}
                 className="flex shrink-0 items-center self-start px-2 text-faint opacity-0 transition-opacity hover:text-accent-bright focus-visible:opacity-100 group-hover/md:opacity-100 [@media(hover:none)]:opacity-100"
               >
                 <ChevronRight
@@ -333,7 +333,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
 
             const bodyNode = (
               <BlockBody
-                className={`md-body min-w-0 pb-1 pr-4 text-sm leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
+                className={`md-body min-w-0 pb-1 pr-4 ${MONO_SIZE[uiStore.monoSize]} leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
                 html={block.html}
               />
             )
@@ -740,17 +740,17 @@ function hasDraftBody(scope: string, range: Range): boolean {
 }
 
 // Top offset (px) that centers the fold chevron on a heading's first text line,
-// mirroring the heading font-size/margin scale in index.css. md-body is text-sm
-// (14px) with leading 1.6; the chevron is 14px tall.
-function headingToggleOffset(level: number): number {
+// mirroring the heading font-size/margin scale in index.css. md-body base scales
+// with the mono-size tier (basePx), leading 1.6; the chevron is basePx tall.
+function headingToggleOffset(level: number, basePx: number): number {
   const scale: Record<number, { fs: number; mt: number }> = {
     1: { fs: 1.55, mt: 0.1 },
     2: { fs: 1.28, mt: 0.7 },
     3: { fs: 1.1, mt: 0.55 },
   }
   const { fs, mt } = scale[level] ?? { fs: 1, mt: 0.5 }
-  const fsPx = fs * 14
-  return mt * fsPx + (fsPx * 1.6) / 2 - 7
+  const fsPx = fs * basePx
+  return mt * fsPx + (fsPx * 1.6) / 2 - basePx / 2
 }
 
 function loadFold(key: string): Set<number> {

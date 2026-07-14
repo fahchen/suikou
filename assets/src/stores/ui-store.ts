@@ -7,6 +7,8 @@ export type MonoSize = "small" | "default" | "large"
 /** Mono font-size tiers, aligned to the Tailwind text scale so code and diff
  * surfaces size identically per tier (small=12px, default=14px, large=16px). */
 export const MONO_SIZE: Record<MonoSize, string> = { small: "text-xs", default: "text-sm", large: "text-base" }
+/** Same tiers in px, for layout math that can't read the rendered font-size. */
+export const MONO_PX: Record<MonoSize, number> = { small: 12, default: 14, large: 16 }
 export type CommentDisplayMode = "inline" | "side" | "hidden"
 export type FileRange = "single" | "stacked"
 export type DiffStyle = "unified" | "split"
