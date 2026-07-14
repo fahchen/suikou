@@ -21,9 +21,11 @@ defmodule Suikou.Critique.Reactions do
   import Ecto.Query
 
   alias Suikou.Repo
+  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
+  alias Suikou.Schemas.Round
 
   # The unique indexes are partial (one per target kind, scoped by `WHERE`) and
   # keyed on `(target, actor)`, so the `ON CONFLICT` target must repeat those
@@ -36,6 +38,47 @@ defmodule Suikou.Critique.Reactions do
   # place (a new emoji supersedes the old one). Bump `updated_at` so the row
   # reflects the change.
   @replace_emoji {:replace, [:emoji, :updated_at]}
+
+  @doc """
+  Returns a change cursor for every reaction on a review — a `{count,
+  max_updated_at}` pair over the reactions on the review's comments and their
+  replies. Unlike a submission count it is not monotonic (deleting a reaction
+  lowers the count), so callers compare it for inequality, not growth: any
+  differing pair means a reaction was added, removed, or swapped since the last
+  read. Drives the poll wake for reaction changes.
+
+  ## Examples
+
+      Suikou.Critique.Reactions.review_reaction_version(review.id)
+      #=> {2, ~N[2026-07-14 09:00:00]}
+
+      Suikou.Critique.Reactions.review_reaction_version("00000000-0000-7000-8000-000000000000")
+      #=> {0, nil}
+
+  """
+  @spec review_reaction_version(Ecto.UUID.t()) :: {non_neg_integer(), NaiveDateTime.t() | nil}
+  def review_reaction_version(review_id) do
+    # ponytail: updated_at is second-precision, so a swap in the same wall-clock
+    # second as an add/remove could hash equal; count catches the add/remove,
+    # and human reaction cadence makes a same-second swap-only collision moot.
+    comment_ids = review_comment_ids(review_id)
+    reply_ids = from(rp in Reply, where: rp.comment_id in subquery(comment_ids), select: rp.id)
+
+    Repo.one(
+      from(r in Reaction,
+        where: r.comment_id in subquery(comment_ids) or r.reply_id in subquery(reply_ids),
+        select: {count(r.id), max(r.updated_at)}
+      )
+    )
+  end
+
+  defp review_comment_ids(review_id) do
+    from(c in Comment, as: :comment)
+    |> join(:inner, [comment: c], rd in Round, as: :round, on: c.round_id == rd.id)
+    |> join(:inner, [round: rd], a in Artifact, as: :artifact, on: rd.artifact_id == a.id)
+    |> where([artifact: a], a.review_id == ^review_id)
+    |> select([comment: c], c.id)
+  end
 
   @doc """
   Adds a human reaction to a comment, keyed by `emoji` (a string from the store

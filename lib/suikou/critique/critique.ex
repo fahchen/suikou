@@ -302,6 +302,19 @@ defmodule Suikou.Critique do
   """
   defdelegate resolve_anchor(anchor, content_lines), to: Anchor, as: :resolve
 
+  @doc """
+  Returns the review's reaction change cursor. See
+  `Suikou.Critique.Reactions.review_reaction_version/1`.
+
+  ## Examples
+
+      Suikou.Critique.review_reaction_version(review.id)
+      #=> {2, ~N[2026-07-14 09:00:00]}
+
+  """
+  @spec review_reaction_version(Ecto.UUID.t()) :: {non_neg_integer(), NaiveDateTime.t() | nil}
+  defdelegate review_reaction_version(review_id), to: Reactions
+
   defp broadcast_comment_change({:ok, %Comment{round_id: round_id}} = result) do
     {review_id, artifact_id} = Reads.scope_for_round(round_id)
     Events.review_changed(review_id, artifact_id)

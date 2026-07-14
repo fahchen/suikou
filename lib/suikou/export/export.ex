@@ -11,7 +11,8 @@ defmodule Suikou.Export do
   artifacts for a rounds scope (`:latest` default, an inclusive `{from, to}`
   range, or `:all`), carrying the monotonic `submission_version` poll cursor.
   Pending comments and pending replies are never included; exporting changes no
-  state.
+  state. Each comment and published reply carries its reactions (`actor` +
+  `emoji`), so the agent sees how the human (or itself) reacted.
   """
 
   import Ecto.Query
@@ -24,6 +25,7 @@ defmodule Suikou.Export do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Submission
@@ -42,6 +44,14 @@ defmodule Suikou.Export do
           stale: boolean()
         }
 
+  @type reaction_view :: %{actor: Reaction.actor(), emoji: Reaction.emoji()}
+
+  @type reply_view :: %{
+          author: Reply.author(),
+          body: String.t(),
+          reactions: [reaction_view()]
+        }
+
   @type comment_view :: %{
           id: Ecto.UUID.t(),
           scope: Comment.scope(),
@@ -49,7 +59,8 @@ defmodule Suikou.Export do
           body: String.t(),
           anchor: anchor_view() | nil,
           resolved_round: integer() | nil,
-          replies: [%{author: Reply.author(), body: String.t()}]
+          reactions: [reaction_view()],
+          replies: [reply_view()]
         }
 
   @type t :: %{
@@ -152,9 +163,21 @@ defmodule Suikou.Export do
     |> where([comment: c], c.status == :published)
     |> scope_rounds(latest_round, scope)
     |> order_by([comment: c], asc: c.id)
-    |> preload(replies: ^reply_thread())
+    |> preload(^comment_preload())
     |> Repo.all()
     |> Enum.map(&comment_view(&1, lines))
+  end
+
+  # Published replies in insertion order, each with their reactions, plus the
+  # comment's own reactions. Built as a runtime value because the reply preload
+  # pairs an ordering query with a nested reactions preload — a shape the
+  # compile-time `preload/2` macro rejects but the runtime form accepts.
+  defp comment_preload do
+    [replies: {reply_thread(), reactions: reaction_order()}, reactions: reaction_order()]
+  end
+
+  defp reaction_order do
+    order_by(from(r in Reaction, as: :reaction), [reaction: r], asc: r.id)
   end
 
   # A comment is visible in round N when it was authored on or before N and is
@@ -194,8 +217,21 @@ defmodule Suikou.Export do
       body: comment.body,
       anchor: tag_stale(anchor, status),
       resolved_round: comment.resolved_round,
-      replies: Enum.map(comment.replies, &%{author: &1.author, body: &1.body})
+      reactions: Enum.map(comment.reactions, &reaction_view/1),
+      replies: Enum.map(comment.replies, &reply_view/1)
     }
+  end
+
+  defp reply_view(reply) do
+    %{
+      author: reply.author,
+      body: reply.body,
+      reactions: Enum.map(reply.reactions, &reaction_view/1)
+    }
+  end
+
+  defp reaction_view(reaction) do
+    %{actor: reaction.actor, emoji: reaction.emoji}
   end
 
   # Fold staleness onto the anchor it describes: a `:located` anchor whose quote

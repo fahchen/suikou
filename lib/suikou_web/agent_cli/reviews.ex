@@ -7,6 +7,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   reflects the change live.
   """
 
+  alias Suikou.Critique
   alias Suikou.Events
   alias Suikou.Export
   alias Suikou.Projects
@@ -251,11 +252,15 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   `Suikou.Events` change topic, captures the current submission count, then blocks up to the
   poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
   wake that raises the count it emits the `export_review` snapshot for the
-  requested rounds scope (carrying the new `submission_version`); otherwise it
-  emits `%{status: "timeout", submission_version}`. The default latest-round
-  snapshot is filtered to comments the agent still owes a move on (drops resolved
-  and already-answered comments); an explicit `"rounds"` scope is returned in
-  full. Emits `%{error: "review_not_found"}` when the review is unknown.
+  requested rounds scope (carrying the new `submission_version`). A wake that
+  only changed reactions (add, remove, or emoji swap) emits the full snapshot for
+  the scope with the unchanged `submission_version`, so the agent sees the new
+  reaction even on a comment it had already addressed. Otherwise it emits
+  `%{status: "timeout", submission_version}`. The default latest-round snapshot
+  on a submission wake is filtered to comments the agent still owes a move on
+  (drops resolved and already-answered comments); an explicit `"rounds"` scope is
+  returned in full. Emits `%{error: "review_not_found"}` when the review is
+  unknown.
 
   ## Examples
 
@@ -274,8 +279,9 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       with_review(review_id, fn _review ->
         Events.subscribe(review_id)
         version = Submissions.review_submission_count(review_id)
+        reaction_version = Critique.review_reaction_version(review_id)
         deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
-        await(review_id, scope, version, deadline)
+        await(review_id, scope, version, reaction_version, deadline)
       end)
 
     AgentCLI.emit(drop_resolved_round(reply))
@@ -295,17 +301,24 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   # Blocks for what remains of the poll window. A wake that raised the submission
-  # count returns the fresh snapshot; any other wake (or a stale count) keeps
-  # waiting within the remaining time; an exhausted window reports a timeout.
-  defp await(review_id, scope, version, deadline) do
+  # count returns the working-set snapshot; a wake that only changed reactions
+  # returns the full snapshot (unfiltered, so a reaction on an already-addressed
+  # comment is still visible); any other wake keeps waiting within the remaining
+  # time; an exhausted window reports a timeout.
+  defp await(review_id, scope, version, reaction_version, deadline) do
     timeout = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
       {:review_changed, _review_id, _artifact_id} ->
-        case Submissions.review_submission_count(review_id) do
-          ^version -> await(review_id, scope, version, deadline)
-          newer when newer > version -> worthy_snapshot(review_id, scope)
-          _stale -> await(review_id, scope, version, deadline)
+        cond do
+          Submissions.review_submission_count(review_id) > version ->
+            worthy_snapshot(review_id, scope)
+
+          Critique.review_reaction_version(review_id) != reaction_version ->
+            snapshot(review_id, scope)
+
+          true ->
+            await(review_id, scope, version, reaction_version, deadline)
         end
     after
       timeout -> %{status: "timeout", submission_version: version}

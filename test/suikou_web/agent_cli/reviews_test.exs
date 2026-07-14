@@ -220,6 +220,26 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       assert Enum.map(comments, & &1["body"]) == ["open"]
       assert Enum.all?(comments, &(not Map.has_key?(&1, "resolved_round")))
     end
+
+    test "emits the full snapshot carrying reactions when a human reaction lands" do
+      round = insert(:round)
+      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+      comment = published_comment(round.id, %{body: "open"})
+      payload = Jason.encode!(%{"review_id" => review_id})
+
+      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
+
+      wait_until_waiting(task.pid)
+      {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+
+      assert %{
+               "submission_version" => 0,
+               "artifacts" => [%{"comments" => [%{"reactions" => reactions}]}]
+             } =
+               task |> Task.await() |> Jason.decode!()
+
+      assert [%{"actor" => "human", "emoji" => "agree"}] = reactions
+    end
   end
 
   defp run(payload, fun) do
@@ -228,14 +248,14 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     |> Jason.decode!()
   end
 
-  # Block until the poll task is parked in `await/4`'s `receive` — i.e. it has
+  # Block until the poll task is parked in `await/5`'s `receive` — i.e. it has
   # already subscribed and captured the version. Matching on the current stacktrace
   # (not a bare `:waiting` status) avoids racing the brief `:waiting` the earlier
   # `Repo` lookup in `poll/0` produces, before the subscription exists.
   defp wait_until_waiting(pid) do
     with {:status, :waiting} <- Process.info(pid, :status),
          {:current_stacktrace, stack} <- Process.info(pid, :current_stacktrace),
-         true <- Enum.any?(stack, &match?({CLI, :await, 4, _location}, &1)) do
+         true <- Enum.any?(stack, &match?({CLI, :await, 5, _location}, &1)) do
       :ok
     else
       _other -> wait_until_waiting(pid)
