@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, Minus, Plus, WifiOff } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
@@ -1061,23 +1061,26 @@ function Editor({
                   render={
                     <button
                       type="button"
-                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-2 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
+                      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-1.5 text-muted hover:bg-soft hover:text-ink"
                       aria-label="Choose view mode"
-                      title="View mode"
+                      title={htmlMode === "source" ? "Viewing source" : htmlMode === "comment" ? "Viewing comment" : "Viewing interactive"}
                     >
-                      {htmlMode === "source" ? "Source" : htmlMode === "comment" ? "Comment" : "Interactive"}
-                      <ChevronDown size={13} aria-hidden />
+                      {htmlMode === "source" ? <Code size={15} aria-hidden /> : htmlMode === "comment" ? <MessageSquare size={15} aria-hidden /> : <MousePointerClick size={15} aria-hidden />}
+                      <ChevronDown size={12} aria-hidden />
                     </button>
                   }
                 />
                 <DropdownMenuContent>
                   <DropdownMenuItem selected={htmlMode === "source"} onClick={() => chooseHtmlMode("source")}>
+                    <Code size={14} aria-hidden />
                     Source
                   </DropdownMenuItem>
                   <DropdownMenuItem selected={htmlMode === "comment"} onClick={() => chooseHtmlMode("comment")}>
+                    <MessageSquare size={14} aria-hidden />
                     Comment
                   </DropdownMenuItem>
                   <DropdownMenuItem selected={htmlMode === "interactive"} onClick={() => chooseHtmlMode("interactive")}>
+                    <MousePointerClick size={14} aria-hidden />
                     Interactive
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -1116,7 +1119,64 @@ function Editor({
             </div>
             {htmlMode !== "source" && (
               <>
-                <div className="inline-flex h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-xs">
+                <div className="lg:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-ctrl px-1.5 text-xs font-medium tabular-nums text-muted hover:bg-soft hover:text-ink"
+                          aria-label="Zoom"
+                          title={`Zoom ${Math.round(htmlZoom * 100)}%`}
+                        >
+                          {Math.round(htmlZoom * 100)}%
+                          <ChevronDown size={12} aria-hidden />
+                        </button>
+                      }
+                    />
+                    <DropdownMenuContent className="w-fit !min-w-0 p-1">
+                      <div className="flex h-[28px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => chooseZoom(htmlZoom - 0.1)}
+                          title="Zoom out"
+                          className="grid h-[28px] w-[34px] place-items-center text-muted hover:bg-soft"
+                        >
+                          <Minus size={13} aria-hidden />
+                        </button>
+                        <span className="h-full w-px bg-hair-strong" />
+                        <button
+                          type="button"
+                          onClick={() => chooseZoom(1)}
+                          title="Reset zoom to 100%"
+                          className="h-[28px] min-w-[48px] px-2 text-center font-medium tabular-nums text-ink hover:bg-soft"
+                        >
+                          {Math.round(htmlZoom * 100)}%
+                        </button>
+                        <span className="h-full w-px bg-hair-strong" />
+                        <button
+                          type="button"
+                          onClick={() => chooseZoom(htmlZoom + 0.1)}
+                          title="Zoom in"
+                          className="grid h-[28px] w-[34px] place-items-center text-muted hover:bg-soft"
+                        >
+                          <Plus size={13} aria-hidden />
+                        </button>
+                        <span className="h-full w-px bg-hair-strong" />
+                        <button
+                          type="button"
+                          onClick={toggleFullscreen}
+                          title="Fullscreen"
+                          aria-label="Fullscreen"
+                          className="grid h-[28px] w-[34px] place-items-center text-muted hover:bg-soft"
+                        >
+                          <Maximize2 size={13} aria-hidden />
+                        </button>
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="hidden h-[24px] items-center overflow-hidden rounded-[7px] border border-hair-strong bg-soft/60 text-xs lg:inline-flex">
                   <button
                     type="button"
                     onClick={() => chooseZoom(htmlZoom - 0.1)}
@@ -1148,7 +1208,7 @@ function Editor({
                   type="button"
                   onClick={toggleFullscreen}
                   title="Fullscreen"
-                  className="grid size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink"
+                  className="hidden size-[24px] place-items-center rounded-[7px] border border-hair-strong bg-soft/60 text-muted hover:bg-soft hover:text-ink lg:grid"
                 >
                   <Maximize2 size={13} aria-hidden />
                 </button>
