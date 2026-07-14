@@ -21,11 +21,10 @@ defmodule Suikou.Critique.Reactions do
   import Ecto.Query
 
   alias Suikou.Repo
-  alias Suikou.Schemas.Artifact
+  alias Suikou.ReviewScope
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
-  alias Suikou.Schemas.Round
 
   # The unique indexes are partial (one per target kind, scoped by `WHERE`) and
   # keyed on `(target, actor)`, so the `ON CONFLICT` target must repeat those
@@ -61,7 +60,7 @@ defmodule Suikou.Critique.Reactions do
     # ponytail: updated_at is second-precision, so a swap in the same wall-clock
     # second as an add/remove could hash equal; count catches the add/remove,
     # and human reaction cadence makes a same-second swap-only collision moot.
-    comment_ids = review_comment_ids(review_id)
+    comment_ids = ReviewScope.comments({:review, review_id}) |> select([comment: c], c.id)
     reply_ids = from(rp in Reply, where: rp.comment_id in subquery(comment_ids), select: rp.id)
 
     query =
@@ -71,14 +70,6 @@ defmodule Suikou.Critique.Reactions do
       )
 
     Repo.one(query)
-  end
-
-  defp review_comment_ids(review_id) do
-    from(c in Comment, as: :comment)
-    |> join(:inner, [comment: c], rd in Round, as: :round, on: c.round_id == rd.id)
-    |> join(:inner, [round: rd], a in Artifact, as: :artifact, on: rd.artifact_id == a.id)
-    |> where([artifact: a], a.review_id == ^review_id)
-    |> select([comment: c], c.id)
   end
 
   @doc """
