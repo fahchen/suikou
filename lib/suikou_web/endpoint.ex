@@ -25,8 +25,19 @@ defmodule SuikouWeb.Endpoint do
     gzip: not code_reloading?,
     cache_control_for_etags: "public, max-age=31536000, immutable"
 
+  # The PWA update path: sw.js is the update trigger and index.html/manifest are
+  # the unfingerprinted shell. iOS WebKit has a history of satisfying the SW
+  # update check from HTTP cache, which strands installed PWAs on stale bundles —
+  # force revalidation on every request so updates land on the next launch.
+  plug Plug.Static,
+    at: "/",
+    from: :suikou,
+    gzip: not code_reloading?,
+    only: ~w(sw.js manifest.webmanifest index.html),
+    cache_control_for_etags: "no-cache"
+
   # Serve at "/" the remaining static files from "priv/static" directory
-  # (favicon.ico, robots.txt, fonts/, images/, index.html). These are not
+  # (favicon.ico, robots.txt, fonts/, images/). These are not
   # fingerprinted, so they keep the default revalidating cache headers.
   plug Plug.Static,
     at: "/",
