@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
+import { motion } from "motion/react"
 import type { StoreProxy } from "@musubi/react"
 import type { ThemedToken } from "shiki"
 import { ChevronRight, Crosshair, Plus } from "lucide-react"
@@ -8,7 +9,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useMermaid, type AssetContext, type MarkdownBlock } from "../markdown"
+import { renderMarkdownBlocks, useMermaid, type AssetContext } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -184,21 +185,29 @@ export const MarkdownPreview = observer(function MarkdownPreview({
       persistFold(foldKey, next)
       return next
     })
-  const hidden = useMemo(() => hiddenBlocks(blocks, collapsed), [blocks, collapsed])
 
   return (
     <div className="shrink-0">
       <div ref={docRef} className="md-doc py-4">
         {(() => {
-          const rendered: ReactNode[] = []
+          // Each block becomes a "unit"; a run of code lines collapses into one
+          // fence unit. Units carry their heading level so `foldSections` can nest
+          // them into animated collapsible regions (a collapsed heading owns every
+          // unit up to the next heading of equal or higher rank).
+          const units: { key: string; node: ReactNode; headingLevel: number; line: number }[] = []
           type CodeRow = { index: number; highlight: boolean; gutter: ReactNode; body: ReactNode }
           let codeBuf: CodeRow[] = []
           let segKey = ""
           let segGroup: string | null = null
           const flushCode = () => {
             if (codeBuf.length === 0) return
-            rendered.push(
-              <div key={`fence-${segKey}`} className="md-fence">
+            const fenceLine = codeBuf[0].index
+            units.push({
+              key: `fence-${segKey}`,
+              headingLevel: 0,
+              line: fenceLine,
+              node: (
+              <div className="md-fence">
                 <div className="md-fence-nums">
                   {codeBuf.map((r) => (
                     <div key={r.index} className={`md-fence-numrow group/md flex ${r.highlight ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
@@ -215,14 +224,14 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                     ))}
                   </div>
                 </div>
-              </div>,
-            )
+              </div>
+              ),
+            })
             codeBuf = []
             segGroup = null
           }
 
           blocks.forEach((block, index) => {
-            if (hidden.has(index)) return
             const isCode = block.codeGroup != null
             const threads = threadsByBlock.get(index)
             const inDrag = drag !== null && index >= dragLo && index <= dragHi
@@ -323,10 +332,9 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               )
 
             const bodyNode = (
-              <div
+              <BlockBody
                 className={`md-body min-w-0 pb-1 pr-4 text-sm leading-[1.6] text-ink ${block.heading ? "" : "flex-1"}`}
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: block.html }}
+                html={block.html}
               />
             )
 
@@ -375,21 +383,26 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               codeBuf.push({ index, highlight: selecting || focused, gutter: gutterNode, body: bodyNode })
               if (extras) {
                 flushCode()
-                rendered.push(extras)
+                units.push({ key: `extras-${index}`, node: extras, headingLevel: 0, line: block.line })
               }
             } else {
               flushCode()
-              rendered.push(
-                <Fragment key={index}>
-                  {row}
-                  {extras}
-                </Fragment>,
-              )
+              units.push({
+                key: String(index),
+                headingLevel: block.heading ?? 0,
+                line: block.line,
+                node: (
+                  <>
+                    {row}
+                    {extras}
+                  </>
+                ),
+              })
             }
           })
 
           flushCode()
-          return rendered
+          return foldSections(units, collapsed)
         })()}
       </div>
       <ConfirmDialog
@@ -754,18 +767,61 @@ function persistFold(key: string, lines: Set<number>): void {
   else localStorage.setItem(key, JSON.stringify([...lines]))
 }
 
-// Block indices hidden because a collapsed heading owns them: everything after a
-// collapsed heading up to the next heading of equal or higher rank.
-function hiddenBlocks(blocks: MarkdownBlock[], collapsed: Set<number>): Set<number> {
-  const hidden = new Set<number>()
-  for (let i = 0; i < blocks.length; i += 1) {
-    const level = blocks[i].heading
-    if (!level || !collapsed.has(blocks[i].line)) continue
-    for (let j = i + 1; j < blocks.length; j += 1) {
-      const next = blocks[j].heading
-      if (next && next <= level) break
-      hidden.add(j)
+// The rendered markdown for a block is a stable string across re-renders, so
+// memoize the danger-set-innerHTML div: without this React re-commits the same
+// innerHTML on every parent render, which recreates any <img> inside and makes
+// it flash (a re-decode from cache under `no-cache`). `memo` short-circuits on
+// the equal `html` string, leaving the DOM (and its images) untouched.
+const BlockBody = memo(function BlockBody({ className, html }: { className: string; html: string }) {
+  return (
+    // eslint-disable-next-line react/no-danger
+    <div className={className} dangerouslySetInnerHTML={{ __html: html }} />
+  )
+})
+
+type Unit = { key: string; node: ReactNode; headingLevel: number; line: number }
+
+// Nest the flat unit list into collapsible regions: a heading owns every unit up
+// to the next heading of equal or higher rank. Each owned run is wrapped in a
+// `CollapsibleSection` keyed off the heading's collapsed state, so folding
+// animates via CSS and never unmounts the content (which would reload images).
+function foldSections(units: Unit[], collapsed: Set<number>): ReactNode[] {
+  let i = 0
+  const build = (minLevel: number): ReactNode[] => {
+    const nodes: ReactNode[] = []
+    while (i < units.length) {
+      const unit = units[i]
+      if (unit.headingLevel > 0 && unit.headingLevel <= minLevel) break
+      i += 1
+      if (unit.headingLevel > 0) {
+        const children = build(unit.headingLevel)
+        nodes.push(
+          <Fragment key={unit.key}>
+            {unit.node}
+            <CollapsibleSection open={!collapsed.has(unit.line)}>{children}</CollapsibleSection>
+          </Fragment>,
+        )
+      } else {
+        nodes.push(<Fragment key={unit.key}>{unit.node}</Fragment>)
+      }
     }
+    return nodes
   }
-  return hidden
+  return build(0)
+}
+
+// Animate open/closed by tweening height between auto and 0; content stays
+// mounted (never unmounts) so images inside a folded section don't reload.
+// `initial={false}` skips the mount animation.
+function CollapsibleSection({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <motion.div
+      className="overflow-hidden"
+      initial={false}
+      animate={{ height: open ? "auto" : 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  )
 }
