@@ -1,13 +1,13 @@
-import { markdown } from "./markdown/engine"
+import { markdown, sanitize } from "./markdown/engine"
 import { parseFrontmatter } from "./markdown/frontmatter"
 
 export { renderMarkdownBlocks } from "./markdown/blocks"
 export { useMermaid } from "./markdown/mermaid"
-export type { MarkdownBlock } from "./markdown/types"
+export type { AssetContext, MarkdownBlock } from "./markdown/types"
 
 /** Render a comment or reply body to sanitized HTML. */
 export function renderMarkdown(source: string): string {
-  return markdown.render(source)
+  return sanitize(markdown.render(source))
 }
 
 /** Extract the heading outline used by the Markdown table of contents. */

@@ -1233,6 +1233,7 @@ function Editor({
           ) : previewable && view === "preview" ? (
             <MarkdownPreview
               source={content.lines.join("\n")}
+              assetContext={{ reviewId, dir: entry.path.slice(0, entry.path.lastIndexOf("/") + 1) }}
               comments={comments}
               fileProxy={fileProxy}
               commentsProxy={commentsProxy}

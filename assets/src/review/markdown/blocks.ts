@@ -1,19 +1,19 @@
 import { renderCodeBlocks } from "./code-blocks"
-import { markdown } from "./engine"
+import { markdown, sanitize } from "./engine"
 import { parseFrontmatter, renderFrontmatterCard } from "./frontmatter"
 import { renderListBlocks } from "./list-blocks"
 import { renderTableBlocks } from "./table-blocks"
 import { findClose } from "./token-utils"
-import type { MarkdownBlock } from "./types"
+import type { AssetContext, MarkdownBlock } from "./types"
 
 export type { MarkdownBlock } from "./types"
 
 /** Split a document into source-mapped blocks used by preview comment gutters. */
-export function renderMarkdownBlocks(source: string): MarkdownBlock[] {
+export function renderMarkdownBlocks(source: string, assetContext?: AssetContext): MarkdownBlock[] {
   // A leading YAML frontmatter fence renders as a metadata card rather than body
   // prose; blank it out (line count preserved) so the rest keeps its source map.
   const front = parseFrontmatter(source)
-  const env = {}
+  const env = { assetContext }
   const tokens = markdown.parse(front ? front.blanked : source, env)
   const blocks: MarkdownBlock[] = []
   if (front) {
@@ -70,5 +70,5 @@ export function renderMarkdownBlocks(source: string): MarkdownBlock[] {
     blocks.push({ line, endLine: first.map ? first.map[1] : line, html, heading })
   }
 
-  return blocks
+  return blocks.map((block) => ({ ...block, html: sanitize(block.html, assetContext) }))
 }

@@ -1,3 +1,10 @@
+/** Where to resolve repo-relative image `src` in a previewed file. */
+export type AssetContext = {
+  reviewId: string
+  /** Directory of the previewed file, POSIX, trailing slash or "" for root. */
+  dir: string
+}
+
 export type MarkdownBlock = {
   line: number
   endLine: number

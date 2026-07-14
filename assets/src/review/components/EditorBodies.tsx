@@ -8,7 +8,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useMermaid, type MarkdownBlock } from "../markdown"
+import { renderMarkdownBlocks, useMermaid, type AssetContext, type MarkdownBlock } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -24,6 +24,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   fileProxy,
   commentsProxy,
   draftScope,
+  assetContext = null,
   readOnly = false,
   showThreads = true,
   composerMode = "inline",
@@ -36,6 +37,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   fileProxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   draftScope: string
+  assetContext?: AssetContext | null
   readOnly?: boolean
   showThreads?: boolean
   composerMode?: ComposerMode
@@ -43,7 +45,10 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   highlightedRange?: HighlightRange
   onFocusComment?: (commentId: string | null) => void
 }) {
-  const blocks = useMemo(() => renderMarkdownBlocks(source), [source])
+  const blocks = useMemo(
+    () => renderMarkdownBlocks(source, assetContext ?? undefined),
+    [source, assetContext?.reviewId, assetContext?.dir],
+  )
   const docRef = useRef<HTMLDivElement>(null)
   useMermaid(docRef, [blocks])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length

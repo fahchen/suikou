@@ -478,6 +478,7 @@ const StackedFileContent = observer(function StackedFileContent({
         previewable={previewable}
         view={view}
         file={file}
+        reviewId={reviewId}
         draftScope={draftScope}
         readOnly={readOnly}
         showThreads={showThreads}
@@ -496,6 +497,7 @@ function StackedBody({
   previewable,
   view,
   file,
+  reviewId,
   draftScope,
   readOnly,
   showThreads,
@@ -509,6 +511,7 @@ function StackedBody({
   previewable: boolean
   view: "source" | "preview"
   file: StackedFileDatum
+  reviewId: string
   draftScope: string
   readOnly: boolean
   showThreads: boolean
@@ -551,6 +554,7 @@ function StackedBody({
     return (
       <MarkdownPreview
         source={content.lines.join("\n")}
+        assetContext={{ reviewId, dir: file.path.slice(0, file.path.lastIndexOf("/") + 1) }}
         comments={file.comments}
         fileProxy={file.proxy}
         commentsProxy={file.commentsProxy}
