@@ -2,9 +2,9 @@ import { type ReactNode, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
 import {
   AlertTriangle,
-  ChevronDown,
   FileText,
   MessageSquare,
+  Send,
   Upload,
 } from "lucide-react"
 
@@ -73,9 +73,8 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
           className="w-[290px] p-[7px]"
           render={
             <button type="button" className={SUBMIT_BTN}>
-              <Upload size={14} aria-hidden />
               Submit
-              <ChevronDown size={12} className="opacity-80" aria-hidden />
+              <Send size={14} aria-hidden />
             </button>
           }
         >
@@ -94,9 +93,8 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
         onClick={() => openPanel(setSheetOpen)(true)}
         className={`lg:hidden ${SUBMIT_BTN}`}
       >
-        <Upload size={14} aria-hidden />
         Submit
-        <ChevronDown size={12} className="opacity-80" aria-hidden />
+        <Send size={14} aria-hidden />
       </button>
       <Dialog open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[86vh] sm:max-w-[360px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
