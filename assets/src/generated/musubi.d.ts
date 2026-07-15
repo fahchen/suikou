@@ -14,11 +14,12 @@ declare namespace Musubi {
 
   const Type: unique symbol
 
-  interface StoreDef<Module extends string, Shape, Commands> {
+  interface StoreDef<Module extends string, Shape, Commands, Events = {}> {
     readonly [Type]: {
       module: Module
       shape: Shape
       commands: Commands
+      events: Events
     }
   }
 
@@ -95,6 +96,7 @@ declare namespace Musubi {
       {
         artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
       },
+      {},
       {}
     >
 
@@ -185,7 +187,8 @@ declare namespace Musubi {
           }
           reply: never
         }
-      }
+      },
+      {}
     >
 
     "SuikouWeb.Stores.CounterStore": StoreDef<
@@ -200,7 +203,8 @@ declare namespace Musubi {
           }
           reply: never
         }
-      }
+      },
+      {}
     >
 
     "SuikouWeb.Stores.FileStore": StoreDef<
@@ -237,7 +241,8 @@ declare namespace Musubi {
           payload: {}
           reply: never
         }
-      }
+      },
+      {}
     >
 
     "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
@@ -373,7 +378,8 @@ declare namespace Musubi {
             error: string | null
           }
         }
-      }
+      },
+      {}
     >
 
     "SuikouWeb.Stores.ReviewBodyStore": StoreDef<
@@ -386,6 +392,7 @@ declare namespace Musubi {
         latest_round: number
         structure_version: number
       },
+      {},
       {}
     >
 
@@ -429,7 +436,8 @@ declare namespace Musubi {
           }
           reply: never
         }
-      }
+      },
+      {}
     >
   }
 }

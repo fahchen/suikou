@@ -74,7 +74,7 @@ defmodule Suikou.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      {:musubi, "~> 0.12"},
+      {:musubi, "~> 0.13.0"},
       {:ecto_typed_schema, "~> 0.2.0"},
       {:typed_structor, "~> 0.6.1"},
       {:polymorphic_embed, "~> 5.0"},
