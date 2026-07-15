@@ -156,7 +156,15 @@ export function CommentThread({
           ) : undefined
         }
         actions={
-          <div className="flex items-center justify-end gap-0.5 px-2.5 pb-2">
+          <div className="flex items-center justify-between gap-0.5 px-2.5 pb-2">
+            <div className="flex items-center gap-0.5">
+              {!pending &&
+                (comment.resolved ? (
+                  <CommentActionButton icon={RotateCcw} label="Reopen" reveal="comment-hover" onClick={reopenComment} />
+                ) : (
+                  <CommentActionButton icon={Check} label="Resolve" tone="approve" reveal="comment-hover" onClick={resolveComment} />
+                ))}
+            </div>
             {pending ? (
               <CommentActionButton icon={Pencil} label="Edit" reveal="comment-hover" onClick={() => setEditing(true)} />
             ) : canReply && !replying ? (

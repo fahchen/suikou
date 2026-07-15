@@ -155,6 +155,12 @@ export function SideCommentCard({
         }
         actions={
           <div className="mt-2 flex items-center gap-2 text-2xs font-semibold text-muted">
+            {!pending &&
+              (comment.resolved ? (
+                <CommentActionButton icon={RotateCcw} label="Reopen" size="sm" reveal="comment-hover" onClick={reopenComment} />
+              ) : (
+                <CommentActionButton icon={Check} label="Resolve" size="sm" tone="approve" reveal="comment-hover" onClick={resolveComment} />
+              ))}
             {comment.replies.length > 0 && <span className="tabular-nums">{comment.replies.length} replies</span>}
             <span className="flex-1" />
             {pending ? (
