@@ -49,7 +49,7 @@ export function CommentThread({
     : comment.scope === "artifact"
       ? "whole file"
       : "comment"
-  const anchorLabel = anchor ? `${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}L` : null
+  const anchorLabel = anchor ? `L${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}` : null
   const deleteComment = () => {
     if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
   }
@@ -106,15 +106,15 @@ export function CommentThread({
         onFocus={onFocus}
         metaLine={
           anchorLabel ? (
-            <span className="inline-flex items-center font-mono text-xs text-muted">
+            <span className="inline-flex items-center gap-1 font-mono text-xs text-muted">
               {anchorLabel}
-              {pending ? "" : ` · R${comment.authored_round}`}
+              {pending ? "" : <span className="text-muted/60 @max-[20rem]/hdr:hidden">R{comment.authored_round}</span>}
             </span>
           ) : undefined
         }
         summaryText={comment.body}
         headerActions={
-          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <div className="-mr-1 ml-auto flex shrink-0 items-center gap-0.5">
             {(!effectiveCollapsed || pending) && (
               <ConfirmDeleteIconButton
                 reveal="comment-hover"

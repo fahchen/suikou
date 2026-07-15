@@ -90,8 +90,8 @@ export function CommentCard({
         focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
-      <div className={`flex min-w-0 items-center ${headerClassName}`}>
-        <span aria-hidden className="h-[26px] w-0 shrink-0" />
+      <div className={`@container/hdr flex min-w-0 items-center ${headerClassName}`}>
+        <span aria-hidden className="-mr-1.5 h-[26px] w-0 shrink-0" />
         {collapsible && !compact && onToggleCollapse && (
           <button
             type="button"
