@@ -302,3 +302,23 @@ and re-wait. Only react when no such boundary is in force.
 5. Delete the file -> list reshapes; add a file -> it appears.
 6. Switch away and back -> no false stale mark.
 7. Before push: `cd assets && bun run build`.
+
+## Future work: reply-level reactions
+
+Today reactions anchor to a whole comment only (`comment react <comment-id>`);
+there is no way to react to an individual reply within a comment thread. The
+human asked for reply-granular reactions so an agent's work-status signal
+(👀/🤔/✅) can attach to the specific reply it concerns, not just the comment.
+
+Sketch:
+- Backend: reactions currently key on `comment_id` + `actor` + `emoji`. Extend
+  the reaction owner to also cover a reply — either a nullable `reply_id` on the
+  reaction row (a reaction belongs to a comment when `reply_id` is null, to a
+  reply otherwise) or a polymorphic reactable. Keep the one-reaction-per-actor
+  invariant scoped per target.
+- CLI: add `reply react <reply-id> --emoji <...>` and `reply unreact <reply-id>`
+  mirroring the existing comment verbs; same disjoint human/agent vocabularies.
+- Frontend: render the reaction chip on the reply row, not only the comment
+  header.
+
+Out of scope for the fs_notify feature; recorded here so it is not lost.
