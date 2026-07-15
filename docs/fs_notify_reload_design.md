@@ -257,7 +257,7 @@ path, untouched by this design:
 
 Captured here at the reviewer's request; separate from the file-watching work.
 
-### Submit button icon (`ReviewPanels.tsx`)
+### Submit button icon (`ReviewPanels.tsx`) ✅
 
 The top-right Submit button currently shows `Upload` on the left, "Submit", then a
 `ChevronDown`. Change to: drop the `ChevronDown`; replace `Upload` with `Send`
@@ -269,7 +269,7 @@ both the `lg` popover trigger and the mobile button.
 - ✅ Default the chosen verdict from the review's unresolved comments (pending
   included): any `fix_required` → `request_changes`, else any `note`/`needs_answer`
   → `comment`, else `approve`. (Refined past the original blocker-count rule.)
-- Reorder the verdict options to: **request_changes, comment, approve**.
+- ✅ Reorder the verdict options to: **request_changes, comment, approve**.
 
 ### Comment card resolve/reopen button ✅
 
