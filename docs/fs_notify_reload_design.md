@@ -83,7 +83,7 @@ changes:
 old behavior; `watch_dirs/2` already scopes to selected dirs / parent dirs, never
 the repo root, avoiding `_build` / `deps` / `node_modules` / `.git` noise.
 
-### `lib/suikou/events.ex`
+### `lib/suikou/events.ex` ✅
 
 Define `Suikou.Events.FsChange` with `TypedStructor` (fields `review_id`,
 `rel_path`, `exists?`) and broadcast/pattern-match that struct instead of the
@@ -113,35 +113,35 @@ Only the file-forwarding path calls `subscribe_fs/1`, so a disk event never
 wakes the review's other `subscribe/1` subscribers. `FileWatcher` calls
 `Events.fs_changed/3` (renamed from `files_changed/3`).
 
-### `lib/suikou_web/stores/file_store.ex`
+### `lib/suikou_web/stores/file_store.ex` ✅
 
-Drop the `disk_version` state field. Add a render-time `disk_token` and declare a
-transient event:
+Drop the `disk_version` state field. Add a render-time `disk_token`.
+
+**Deviation from the original sketch:** Musubi has no transient event / `push_event`
+channel (nor a `useMusubiEvent` client hook), so the planned live "nudge" event
+does not exist. It turned out unnecessary: the `disk_token` in `render/1` already
+covers the live case. When `ReviewBodyStore` forwards `%{disk_changed: true}`,
+`update/2` returns the socket unchanged, which re-runs `render/1`; the freshly
+recomputed token differs from the last, and that diff streams to the client on
+the normal snapshot — same channel a reconnect mount uses. One signal, both cases.
 
 ```elixir
-event :disk_changed do
-end
-
 # render/1 adds the current on-disk identity — recomputed each render, so a
-# reconnect mount re-sends the up-to-date token. nil when the path is gone.
+# disk change (or a reconnect mount that follows one) carries a fresh token.
+# The absolute path is resolved once at mount so render never hits the DB.
 defp disk_token(socket) do
-  path = Path.join(socket.assigns.project_path, socket.assigns.path)
-  case File.stat(path, time: :posix) do
+  case socket.assigns[:abs_path] && File.stat(socket.assigns.abs_path, time: :posix) do
     {:ok, %File.Stat{mtime: mtime, size: size}} -> "#{mtime}-#{size}"
-    {:error, _} -> nil
+    _absent -> nil
   end
 end
 
-# ReviewBodyStore still forwards the disk change to this child; the update runs
-# render (fresh disk_token in the snapshot) AND pushes a fire-and-forget nudge —
-# no stored state, no DB read.
+# A disk change only needs a re-render (fresh disk_token in the snapshot).
 def update(%{disk_changed: true}, socket) do
-  {:ok, Musubi.Event.push_event(socket, :disk_changed, %{})}
+  {:ok, socket}
 end
 ```
 
-The event is per-store, so its `store_id` already identifies which file changed —
-no path in the payload. `disk_token` in `render/1` is what makes reconnect safe.
 `ReviewBodyStore`'s existing `send_update(file_child, %{disk_changed: true})` is
 unchanged.
 
@@ -150,15 +150,18 @@ unchanged.
 No change: the test only exercises `changed_path/4` and the ref-counting
 lifecycle — it never injects simulated file events.
 
-## Frontend changes (new reload indicator)
+## Frontend changes (new reload indicator) ✅
 
-Two triggers set the "stale" state; either one signals it on the **file header**
-(not a top banner) and lets the reader reload from a **pre-fetched** copy:
+**Single trigger (simplified):** compare the snapshot's `disk_token` to the token
+the client loaded content at. Re-evaluated on every snapshot, so it catches both
+a live change (the `disk_changed` re-render streams a new token) and one that
+landed while the socket was down (the reconnect mount re-delivers the token).
+No separate live event — the token diff on the snapshot is the live signal.
 
-1. **Live:** subscribe to the file's `disk_changed` event with `useMusubiEvent`.
-2. **Reconnect-safe:** compare the snapshot's `disk_token` to the token the client
-   loaded content at. Re-evaluated on every snapshot, so the post-reconnect mount
-   catches a change that landed while the socket was down.
+On reload, refetch the file's current bytes (no background prefetch) and re-sync
+the token. The reader who ignores the indicator pays for no fetch; the previously
+loaded content stays on screen meanwhile, so there is no flash. Scoped to the
+single-file `Editor` (file-selection reviews), matching the watcher boundary.
 
 ### Detect-then-prefetch, reload-then-swap
 
@@ -235,11 +238,10 @@ path, untouched by this design:
   row appears / removed row disappears **automatically, no reload prompt**. Same
   mechanism the review already uses for a file opened/removed through the app; the
   watcher is just another trigger.
-- **Perceptibility:** to make the auto-applied change noticeable (not a silent row
-  shuffle), briefly highlight the added/removed entry in `FileNavigator` — a short
-  fade on the new row, strike/fade-out on a removed one. Purely visual, diffed
-  client-side from previous vs. new list; no server state. This is the *only* UI
-  affordance for structural changes — no confirm step.
+- **Perceptibility (deferred):** a brief `FileNavigator` fade on the added/removed
+  row would make the auto-applied change more noticeable. Cosmetic only — the
+  reshape already works without it — so it is left as a follow-up rather than
+  blocking the reload feature.
 - Reconnect-safe by construction: the mount re-runs `load_review_structure`, so
   the file list is always rebuilt fresh on reconnect — a create/delete during a
   disconnect shows up without any per-file token.
