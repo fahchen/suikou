@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
+import { observer } from "mobx-react-lite"
 import { Bot, Pencil, User } from "lucide-react"
 
+import { uiStore } from "../../../stores/ui-store"
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
@@ -9,7 +11,7 @@ import { Reactions } from "./Reactions"
 import type { CommentReply, CommentsStoreProxy } from "./shared"
 import { TimeAgo } from "./TimeAgo"
 
-export function Reply({
+export const Reply = observer(function Reply({
   reply,
   commentsProxy,
 }: {
@@ -52,8 +54,8 @@ export function Reply({
       >
         <div className="mb-1 flex items-center gap-1.5">
           <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
-            <span className={`grid size-[15px] place-items-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
-              {agent ? <Bot size={10} aria-hidden /> : <User size={10} aria-hidden />}
+            <span className={`grid size-[15px] place-items-center rounded-[5px] text-[10px] leading-none ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
+              {agent ? <Bot size={10} aria-hidden /> : uiStore.userEmoji ? <span aria-hidden>{uiStore.userEmoji}</span> : <User size={10} aria-hidden />}
             </span>
             {agent ? "agent" : "you"}
           </span>
@@ -87,4 +89,4 @@ export function Reply({
       </div>
     </>
   )
-}
+})

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { observer } from "mobx-react-lite"
 import { ChevronRight } from "lucide-react"
 
+import { uiStore } from "../../../stores/ui-store"
 import { Tooltip } from "../../../components/ui/tooltip"
 import { TYPE_META, type Comment } from "./shared"
 import { TimeAgo } from "./TimeAgo"
@@ -111,6 +113,7 @@ export function CommentCard({
             </span>
           </button>
         )}
+        <AuthorEmoji />
         <Tooltip
           side="top"
           content={pending ? `${meta.title}, pending comment` : meta.title}
@@ -156,6 +159,18 @@ export function CommentCard({
     </div>
   )
 }
+
+const AuthorEmoji = observer(function AuthorEmoji() {
+  if (!uiStore.userEmoji) return null
+  return (
+    <span
+      aria-hidden
+      className="grid size-[18px] shrink-0 place-items-center rounded-[5px] bg-control text-[11px] leading-none"
+    >
+      {uiStore.userEmoji}
+    </span>
+  )
+})
 
 function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean): ReactNode {
   if (!metaLine) return undefined

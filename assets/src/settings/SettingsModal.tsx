@@ -143,6 +143,26 @@ const AppearancePane = observer(function AppearancePane() {
           ]}
         />
       </Row>
+      <Row title="Your avatar" sub="An emoji shown on your comments and replies instead of the default icon.">
+        <div className="flex items-center gap-2">
+          <input
+            aria-label="Your avatar emoji"
+            value={uiStore.userEmoji}
+            onChange={(e) => uiStore.setUserEmoji(e.target.value)}
+            placeholder="🙂"
+            className="h-[34px] w-[52px] rounded-ctrl border border-hair-strong bg-canvas text-center text-lg focus:border-accent-edge focus:outline-none"
+          />
+          {uiStore.userEmoji && (
+            <button
+              type="button"
+              onClick={() => uiStore.setUserEmoji("")}
+              className="inline-flex h-[34px] items-center rounded-ctrl px-2.5 text-xs font-medium text-muted hover:bg-soft hover:text-ink"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </Row>
     </div>
   )
 })

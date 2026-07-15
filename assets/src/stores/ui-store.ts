@@ -27,6 +27,7 @@ const COMMENT_DISPLAY_KEY = "suikou-comment-display"
 const FILE_RANGE_KEY = "suikou-file-range"
 const DIFF_STYLE_KEY = "suikou-diff-style"
 const WORD_DIFF_KEY = "suikou-word-diff"
+const USER_EMOJI_KEY = "suikou-user-emoji"
 
 /** App-wide UI preferences (theme, reading density, code wrap) plus the
  * settings modal's open flag. Persisted to localStorage and applied to the
@@ -40,6 +41,7 @@ class UiStore {
   fileRange: FileRange = "single"
   diffStyle: DiffStyle = "unified"
   wordDiff = true
+  userEmoji = ""
   diffScope: DiffScope = "all"
   diffWorktree: DiffWorktree = "diff"
   settingsOpen = false
@@ -88,6 +90,13 @@ class UiStore {
   setWordDiff(on: boolean) {
     this.wordDiff = on
     localStorage.setItem(WORD_DIFF_KEY, on ? "1" : "0")
+  }
+
+  setUserEmoji(emoji: string) {
+    // Keep only the first grapheme so the avatar slot always holds one glyph.
+    this.userEmoji = [...emoji.trim()][0] ?? ""
+    if (this.userEmoji) localStorage.setItem(USER_EMOJI_KEY, this.userEmoji)
+    else localStorage.removeItem(USER_EMOJI_KEY)
   }
 
   setDiffScope(scope: DiffScope) {
@@ -146,6 +155,7 @@ class UiStore {
     const diffStyle = localStorage.getItem(DIFF_STYLE_KEY)
     if (diffStyle === "unified" || diffStyle === "split") this.diffStyle = diffStyle
     this.wordDiff = localStorage.getItem(WORD_DIFF_KEY) !== "0"
+    this.userEmoji = localStorage.getItem(USER_EMOJI_KEY) ?? ""
     this.applyTheme()
   }
 
