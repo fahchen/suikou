@@ -19,6 +19,7 @@ export type Blocker = { path: string; line: number | null }
 export type ReviewSummary = {
   perFile: { draftVerdict: Verdict | null; latestVerdict: Verdict | null; approved: boolean }[]
   verdict: Verdict | null
+  defaultVerdict: Verdict
   reviewed: number
   draftVerdicts: number
   pendingComments: number
@@ -48,10 +49,10 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
-  const [chosen, setChosen] = useState<Verdict>("comment")
+  const [chosen, setChosen] = useState<Verdict>(review.defaultVerdict)
 
   const openPanel = (set: (open: boolean) => void) => (open: boolean) => {
-    if (open) setChosen(review.verdict ?? "comment")
+    if (open) setChosen(review.defaultVerdict)
     set(open)
   }
 

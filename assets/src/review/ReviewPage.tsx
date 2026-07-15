@@ -86,6 +86,16 @@ function rollupVerdict(effective: (Verdict | null)[]): Verdict | null {
   return null
 }
 
+/** The verdict the submit panel opens on, from the review's unresolved
+ * comments (pending ones count too): any fix_required → request_changes,
+ * else any note/needs_answer → comment, else approve. */
+function defaultVerdictFor(comments: Comment[]): Verdict {
+  const unresolved = comments.filter((c) => c.status === "pending" || !c.resolved)
+  if (unresolved.some((c) => c.critique_type === "fix_required")) return "request_changes"
+  if (unresolved.some((c) => c.critique_type === "note" || c.critique_type === "needs_answer")) return "comment"
+  return "approve"
+}
+
 type PerFile = {
   path: string
   draftVerdict: Verdict | null
@@ -100,6 +110,7 @@ type RoundCompare = { from: number; to: number; resolved: number; added: number;
 type ReviewSummary = {
   perFile: PerFile[]
   verdict: Verdict | null
+  defaultVerdict: Verdict
   reviewed: number
   draftVerdicts: number
   pendingComments: number
@@ -455,6 +466,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     return {
       perFile,
       verdict: rollupVerdict(perFile.map((f) => f.draftVerdict ?? f.latestVerdict)),
+      defaultVerdict: defaultVerdictFor(entries.flatMap((e) => liveByPath.get(e.path)?.comments.items ?? [])),
       reviewed: perFile.filter((f) => (f.draftVerdict ?? f.latestVerdict) !== null).length,
       draftVerdicts: perFile.filter((f) => f.draftVerdict !== null).length,
       pendingComments: perFile.reduce((n, f) => n + f.pending, 0),
