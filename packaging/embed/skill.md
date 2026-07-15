@@ -37,6 +37,8 @@ suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
 suikou comment react       <comment-id> --emoji <eyes|thinking|check>
 suikou comment unreact     <comment-id>
+suikou reply   react       <reply-id> --emoji <eyes|thinking|check>
+suikou reply   unreact     <reply-id>
 suikou wait  <review-id> [...]          # alias for `review wait`
 suikou open                             # open the board root in the browser
 ```
@@ -201,6 +203,6 @@ A **reaction** is a single emoji an actor puts on a comment or reply — a light
 | 🤔 | `thinking` | investigating / unsure |
 | ✅ | `check` | handled |
 
-Set your reaction with `suikou comment react <comment-id> --emoji <eyes|thinking|check>` and clear it with `suikou comment unreact <comment-id>`. Both emit `{"comment_id":"0192…","error":null}` (or an `error` string — e.g. a human-vocabulary emoji, or a missing comment).
+Set your reaction on a **comment** with `suikou comment react <comment-id> --emoji <eyes|thinking|check>` and clear it with `suikou comment unreact <comment-id>` (emits `{"comment_id":"0192…","error":null}`). React on a specific **reply** with `suikou reply react <reply-id> --emoji <...>` and clear it with `suikou reply unreact <reply-id>` (emits `{"reply_id":"0192…","error":null}`). Either emits an `error` string on failure — e.g. a human-vocabulary emoji, or a missing target. Comment and reply reactions are independent; the agent holds at most one reaction per target.
 
-Intended agent flow: when you pick up a comment, `react --emoji eyes` so the human sees you're on it; switch to `--emoji thinking` while investigating; `--emoji check` when done (usually alongside your `comment reply`). One reaction per comment — a new `--emoji` **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.
+Intended agent flow: when you pick up a comment, `comment react --emoji eyes` so the human sees you're on it; switch to `--emoji thinking` while investigating; `--emoji check` when done (usually alongside your `comment reply`). Use `reply react` when your status concerns a specific reply rather than the whole comment. One reaction per target — a new `--emoji` **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.

@@ -267,4 +267,70 @@ defmodule Suikou.Critique.Reactions do
         {:ok, comment_id}
     end
   end
+
+  @doc """
+  Adds an agent reaction to a reply, keyed by `emoji` (validated through the
+  changeset against the agent emoji vocabulary). The agent holds at most one
+  reaction per reply, so reacting with a new emoji REPLACES the previous one in
+  place; repeating the same emoji leaves a single row. Returns `{:ok,
+  comment_id}` — the reply's parent comment id — so the facade can scope the
+  change event to the comment's file.
+
+  ## Examples
+
+      Suikou.Critique.Reactions.react_reply_as_agent(reply.id, "eyes")
+      #=> {:ok, reply.comment_id}
+
+      Suikou.Critique.Reactions.react_reply_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      #=> {:error, :reply_not_found}
+
+  """
+  @spec react_reply_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :reply_not_found | Ecto.Changeset.t()}
+  def react_reply_as_agent(reply_id, emoji) do
+    case Repo.get(Reply, reply_id) do
+      nil ->
+        {:error, :reply_not_found}
+
+      %Reply{comment_id: comment_id} ->
+        %Reaction{actor: :agent}
+        |> Reaction.changeset(%{reply_id: reply_id, emoji: emoji})
+        |> Repo.insert(on_conflict: @replace_emoji, conflict_target: @reply_conflict_target)
+        |> case do
+          {:ok, _reaction} -> {:ok, comment_id}
+          {:error, changeset} -> {:error, changeset}
+        end
+    end
+  end
+
+  @doc """
+  Removes the agent's reaction from a reply. The agent holds at most one reaction
+  per reply, so this clears it regardless of the `emoji` passed. A missing
+  reaction is a no-op. Returns `{:ok, comment_id}` — the reply's parent comment
+  id — so the facade can scope the change event to the comment's file.
+
+  ## Examples
+
+      Suikou.Critique.Reactions.unreact_reply_as_agent(reply.id, "eyes")
+      #=> {:ok, reply.comment_id}
+
+      Suikou.Critique.Reactions.unreact_reply_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      #=> {:error, :reply_not_found}
+
+  """
+  @spec unreact_reply_as_agent(Ecto.UUID.t(), String.t()) ::
+          {:ok, Ecto.UUID.t()} | {:error, :reply_not_found}
+  def unreact_reply_as_agent(reply_id, _emoji) do
+    case Repo.get(Reply, reply_id) do
+      nil ->
+        {:error, :reply_not_found}
+
+      %Reply{comment_id: comment_id} ->
+        from(r in Reaction, as: :reaction)
+        |> where([reaction: r], r.reply_id == ^reply_id and r.actor == :agent)
+        |> Repo.delete_all()
+
+        {:ok, comment_id}
+    end
+  end
 end

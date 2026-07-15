@@ -75,6 +75,7 @@ async function dispatch(command: string | undefined): Promise<void> {
     case "project":
     case "review":
     case "comment":
+    case "reply":
       return process.exit(await runGroupVerb(command, process.argv[3], process.argv.slice(4)))
     default:
       console.error(usage())
@@ -289,6 +290,23 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       id: { name: "comment-id", required: true },
       payload: ({ id }) => ({ comment_id: id }),
       summary: "clear your reaction on a comment (<comment-id>)"
+    }
+  },
+  reply: {
+    react: {
+      expr: "SuikouWeb.AgentCLI.Replies.react()",
+      options: { emoji: { type: "string" } },
+      id: { name: "reply-id", required: true },
+      required: ["emoji"],
+      payload: ({ id, values }) => ({ reply_id: id, emoji: values.emoji }),
+      summary: "set your work-status reaction on a reply (<reply-id> --emoji eyes|thinking|check)"
+    },
+    unreact: {
+      expr: "SuikouWeb.AgentCLI.Replies.unreact()",
+      options: {},
+      id: { name: "reply-id", required: true },
+      payload: ({ id }) => ({ reply_id: id }),
+      summary: "clear your reaction on a reply (<reply-id>)"
     }
   }
 }
