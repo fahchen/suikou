@@ -128,7 +128,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
           "resolved":false,
           "outdated":false,
           "line_anchor":true,
-          "replies":[{"author":"agent","body":"fixed in round 3"}]
+          "replies":[{"id":"0192…","author":"agent","body":"fixed in round 3"}]
         }
       ]
     }
@@ -141,6 +141,7 @@ Field notes:
 - `critique_type`: `"fix_required"` | `"needs_answer"` | `"note"`.
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
 - `comments[].id` is the **`comment-id` you pass to `comment reply`**.
+- `replies[].id` is the **`reply-id` you pass to `reply react`** / `reply unreact`.
 
 A `wait` that times out (no new submission yet) emits instead:
 ```json

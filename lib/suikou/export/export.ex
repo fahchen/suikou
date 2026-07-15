@@ -47,6 +47,7 @@ defmodule Suikou.Export do
   @type reaction_view :: %{actor: Reaction.actor(), emoji: Reaction.emoji()}
 
   @type reply_view :: %{
+          id: Ecto.UUID.t(),
           author: Reply.author(),
           body: String.t(),
           reactions: [reaction_view()]
@@ -224,6 +225,7 @@ defmodule Suikou.Export do
 
   defp reply_view(reply) do
     %{
+      id: reply.id,
       author: reply.author,
       body: reply.body,
       reactions: Enum.map(reply.reactions, &reaction_view/1)

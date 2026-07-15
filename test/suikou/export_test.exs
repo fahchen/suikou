@@ -81,13 +81,15 @@ defmodule Suikou.ExportTest do
     # The human reply is pending until the round is submitted; the agent reply
     # publishes immediately. Advancing the round publishes the pending one so
     # both surface in the export.
-    {:ok, _human} = Critique.reply_as_human(comment.id, "human reply")
-    {:ok, _agent} = Critique.reply_as_agent(comment.id, "agent reply")
+    {:ok, human} = Critique.reply_as_human(comment.id, "human reply")
+    {:ok, agent} = Critique.reply_as_agent(comment.id, "agent reply")
     advance(artifact.id, "changed\n")
 
     assert {:ok, export} = Export.export(artifact.id)
     view = Enum.find(export.comments, &(&1.id == comment.id))
     assert Enum.map(view.replies, & &1.author) == [:human, :agent]
+    # Each reply carries its id so the agent can target it with `reply react`.
+    assert Enum.map(view.replies, & &1.id) == [human.id, agent.id]
   end
 
   test "a still-open comment whose anchor moved exports flagged outdated" do
