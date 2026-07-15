@@ -5,7 +5,6 @@ import {
   FileText,
   MessageSquare,
   Send,
-  Upload,
 } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
@@ -98,7 +97,7 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
       </button>
       <Dialog open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[86vh] sm:max-w-[360px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
-          <Upload size={16} className="text-muted" aria-hidden />
+          <Send size={16} className="text-muted" aria-hidden />
           <DialogTitle className="text-sm font-bold text-ink">Finish review</DialogTitle>
         </div>
         <div className="flex min-h-0 flex-col gap-2 overflow-auto p-2">
@@ -268,7 +267,7 @@ function SubmitConfirm({
     <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[380px]">
       <div className="flex items-center gap-2.5">
         <span className={`grid size-[30px] shrink-0 place-items-center rounded-[9px] ${verdictSoft(verdict)}`}>
-          <Upload size={16} className={verdictText(verdict)} aria-hidden />
+          <Send size={16} className={verdictText(verdict)} aria-hidden />
         </span>
         <DialogTitle className="text-sm font-bold text-ink">
           Submit this review as <span className={verdictText(verdict)}>{VERDICT_META[verdict].label}</span>?
