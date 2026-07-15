@@ -53,11 +53,17 @@ export const Reply = observer(function Reply({
         }`}
       >
         <div className="mb-1 flex items-center gap-1.5">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${agent ? "text-accent-bright" : "text-text"}`}>
-            <span className={`grid size-[15px] place-items-center rounded-[5px] text-[10px] leading-none ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
-              {agent ? <Bot size={10} aria-hidden /> : uiStore.userEmoji ? <span aria-hidden>{uiStore.userEmoji}</span> : <User size={10} aria-hidden />}
+          <span className={`inline-flex items-center gap-1.5 text-xs font-bold leading-none ${agent ? "text-accent-bright" : "text-text"}`}>
+            <span className={`inline-flex size-[15px] items-center justify-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
+              {agent ? (
+                <Bot size={10} aria-hidden />
+              ) : uiStore.userEmoji ? (
+                <span aria-hidden className="block text-[11px] leading-none">{uiStore.userEmoji}</span>
+              ) : (
+                <User size={10} aria-hidden />
+              )}
             </span>
-            {agent ? "agent" : "you"}
+            <span className="leading-none">{agent ? "agent" : "you"}</span>
           </span>
           {pending && (
             <span className="inline-flex items-center rounded-full bg-amber-soft px-1.5 py-px text-2xs font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
