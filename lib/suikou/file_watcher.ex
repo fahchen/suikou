@@ -80,18 +80,18 @@ defmodule Suikou.FileWatcher do
     {dir_sels, file_sels} =
       Enum.split_with(selections, &File.dir?(Path.join(project_path, &1)))
 
-    # Run inert if the OS backend is unavailable (e.g. a CI box without
-    # inotify-tools): the watcher still ref-counts subscribers and tears down
-    # cleanly, the page just gets no live-refresh signal — J5.
-    fs =
-      case FileSystem.start_link(dirs: watch_dirs(project_path, file_sels, dir_sels)) do
-        {:ok, pid} ->
-          FileSystem.subscribe(pid)
-          pid
-
-        # {:error, _} or :ignore (no OS backend, e.g. inotify-tools missing).
-        _unavailable ->
-          nil
+    # Subscriber defaults to this GenServer; the OS watch stops automatically
+    # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
+    # burst of events an editor save fires. Run inert if watching fails (e.g. an
+    # unsupported target): the watcher still ref-counts subscribers and tears
+    # down cleanly, the page just gets no live-refresh signal — J5.
+    ref =
+      case FsNotify.watch(watch_dirs(project_path, file_sels, dir_sels),
+             recursive: true,
+             debounce: 50
+           ) do
+        {:ok, ref} -> ref
+        {:error, _reason} -> nil
       end
 
     {:ok,
@@ -101,7 +101,7 @@ defmodule Suikou.FileWatcher do
        file_sels: MapSet.new(file_sels),
        dir_sels: dir_sels,
        subs: MapSet.new(),
-       fs: fs
+       ref: ref
      }}
   end
 
@@ -136,16 +136,17 @@ defmodule Suikou.FileWatcher do
     end
   end
 
-  def handle_info({:file_event, fs, {abs_path, _events}}, %{fs: fs} = state) do
-    case changed_path(abs_path, state.project_path, state.file_sels, state.dir_sels) do
-      nil -> :ok
-      rel -> Events.files_changed(state.review_id, rel, File.exists?(abs_path))
+  # One message per event; `paths` carries every affected path (a rename is
+  # `[from, to]`), so fan each through the selection filter.
+  def handle_info({:fs_notify_event, %FsNotify.Event{paths: paths}}, state) do
+    for abs_path <- paths,
+        rel = changed_path(abs_path, state.project_path, state.file_sels, state.dir_sels),
+        rel != nil do
+      Events.files_changed(state.review_id, rel, File.exists?(abs_path))
     end
 
     {:noreply, state}
   end
-
-  def handle_info({:file_event, fs, :stop}, %{fs: fs} = state), do: {:noreply, state}
 
   defp under?(rel, dir), do: rel == dir or String.starts_with?(rel, dir <> "/")
 
