@@ -46,7 +46,9 @@ export function CommentThread({
 
   const range = anchor
     ? `line ${anchor.start_line}${anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}`
-    : "comment"
+    : comment.scope === "artifact"
+      ? "whole file"
+      : "comment"
   const anchorLabel = anchor ? `${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}L` : null
   const deleteComment = () => {
     if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
@@ -80,7 +82,7 @@ export function CommentThread({
         submitLabel="Save"
         pending={editCmd.isPending}
         chrome={!compact}
-        className={compact ? "m-0" : undefined}
+        className={compact ? "m-0" : `${className} ${INLINE_COMMENT_MAX_WIDTH_CLASS}`}
         onSubmit={(body, type) => {
           if (!commentsProxy) return
           editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).then(() => setEditing(false)).catch(() => undefined)
