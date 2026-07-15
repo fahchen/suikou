@@ -107,7 +107,7 @@ export function SideCommentCard({
         }
         headerActions={
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
-            {!collapsed && (
+            {(!collapsed || pending) && (
               <ConfirmDeleteIconButton
                 size="sm"
                 reveal="comment-hover"

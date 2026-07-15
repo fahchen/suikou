@@ -115,7 +115,7 @@ export function CommentThread({
         summaryText={comment.body}
         headerActions={
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
-            {!effectiveCollapsed && (
+            {(!effectiveCollapsed || pending) && (
               <ConfirmDeleteIconButton
                 reveal="comment-hover"
                 onConfirm={deleteComment}
