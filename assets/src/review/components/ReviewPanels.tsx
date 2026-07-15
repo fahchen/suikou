@@ -35,9 +35,9 @@ export const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
 }
 
 const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
+  { verdict: "request_changes", hint: "" },
   { verdict: "comment", hint: "no verdict" },
   { verdict: "approve", hint: "all files" },
-  { verdict: "request_changes", hint: "" },
 ]
 
 const SUBMIT_BTN =
