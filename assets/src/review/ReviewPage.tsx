@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, WifiOff } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, RotateCw, WifiOff } from "lucide-react"
 
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
@@ -439,6 +439,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // the snapshot carries a body — the same guard `fileIndex >= 0` implies.
   const fileProxy: FileStoreProxy | null = fileIndex >= 0 && snap?.body ? store.body.files[fileIndex] : null
   const commentsProxy: CommentsStoreProxy | null = fileProxy?.comments ?? null
+  // The open file's on-disk identity, streamed live. When it differs from the
+  // token the content was loaded at, the file changed on disk (see Editor).
+  const diskToken = fileIndex >= 0 ? (snap?.body?.files[fileIndex]?.disk_token ?? null) : null
 
   // Join each file's static entry (published verdict, approved) with its live
   // FileStore snapshot (draft verdict, streamed comments) so the verdict chip,
@@ -681,6 +684,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             isDiff={isDiff}
             comments={comments}
             fileProxy={fileProxy}
+            diskToken={diskToken}
             commentsProxy={commentsProxy}
             verdict={selectedLive}
             readOnly={readOnly}
@@ -855,6 +859,7 @@ function Editor({
   isDiff,
   comments,
   fileProxy,
+  diskToken,
   commentsProxy,
   verdict,
   readOnly,
@@ -876,6 +881,7 @@ function Editor({
   isDiff: boolean
   comments: Comment[]
   fileProxy: FileStoreProxy | null
+  diskToken: string | null
   commentsProxy: CommentsStoreProxy | null
   verdict: PerFile | null
   readOnly: boolean
@@ -893,7 +899,25 @@ function Editor({
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
-  const { content, toc } = useFileContent(reviewId, entry?.path ?? null, diffLens)
+  // Reload-on-disk-change: `diskToken` streams the file's live on-disk identity;
+  // `loadedToken` is what it was when this file's content was last (re)loaded.
+  // A mismatch means the file changed on disk (or changed during a WS
+  // disconnect — the reconnect snapshot re-delivers the current token). Reload
+  // bumps `reloadNonce`, refetching the bytes and re-syncing the token.
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const [loadedToken, setLoadedToken] = useState<string | null>(diskToken)
+  useEffect(() => {
+    setLoadedToken(diskToken)
+    // Seed only on file switch; a disk change to the open file must NOT reseed
+    // (that is exactly what should show as stale until an explicit reload).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.path])
+  const stale = diskToken !== null && loadedToken !== null && diskToken !== loadedToken
+  const reloadFromDisk = () => {
+    setReloadNonce((n) => n + 1)
+    setLoadedToken(diskToken)
+  }
+  const { content, toc } = useFileContent(reviewId, entry?.path ?? null, diffLens, reloadNonce)
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => (readDocView() === "source" ? "source" : "preview"))
@@ -985,7 +1009,7 @@ function Editor({
             >
               <ChangeStatusLetter status={entry.change_status ?? null} />
               <FileIcon name={name} size={13} />
-              <span className="min-w-0 truncate font-mono text-xs text-ink">{name}</span>
+              <span className={`min-w-0 truncate font-mono text-xs ${stale ? "text-amber" : "text-ink"}`}>{name}</span>
               <ChevronDown size={12} className="shrink-0 text-muted" aria-hidden />
             </button>
             <button
@@ -1015,8 +1039,8 @@ function Editor({
           <div className="hidden min-w-0 items-center gap-2 lg:flex">
             <ChangeStatusLetter status={entry.change_status ?? null} />
             <FileIcon name={name} size={14} />
-            <span className="truncate font-mono text-xs text-ink">
-              <span className="text-faint">{dir}</span>
+            <span className={`truncate font-mono text-xs ${stale ? "text-amber" : "text-ink"}`}>
+              <span className={stale ? "text-amber/70" : "text-faint"}>{dir}</span>
               {name}
             </span>
           </div>
@@ -1227,6 +1251,28 @@ function Editor({
               </>
             )}
           </>
+        )}
+        {stale && entry && (
+          <Tooltip
+            side="bottom"
+            content={
+              <>
+                <b className="font-semibold text-ink">File changed on disk</b>
+                <br />
+                Reload to load its current contents.
+              </>
+            }
+            render={
+              <button
+                type="button"
+                onClick={reloadFromDisk}
+                aria-label="File changed on disk — reload"
+                className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-amber hover:bg-amber-soft"
+              >
+                <RotateCw size={16} aria-hidden />
+              </button>
+            }
+          />
         )}
         {toc.length > 0 && !htmlFile && <TocMenu items={toc} onJump={scrollToLine} />}
         {!readOnly && entry && fileProxy && content.kind !== "loading" && content.kind !== "error" && showThreads && (

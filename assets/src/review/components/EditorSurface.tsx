@@ -45,6 +45,10 @@ export function useFileContent(
   reviewId: string,
   path: string | null,
   lens?: DiffLens,
+  // Bump to force a fresh fetch of the same URL (a reload after the file changed
+  // on disk). The effect always fetches and writes through, so re-running it is
+  // the whole invalidation — the fresh bytes overwrite the cached entry.
+  reloadNonce = 0,
 ): { content: Content; toc: OutlineItem[] } {
   const lensKey = lensQueryString(lens)
   const url = path ? fileContentUrl(reviewId, path, lensKey) : ""
@@ -137,7 +141,7 @@ export function useFileContent(
     return () => {
       cancelled = true
     }
-  }, [reviewId, path, lensKey, url])
+  }, [reviewId, path, lensKey, url, reloadNonce])
 
   return { content, toc }
 }
