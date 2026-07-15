@@ -303,22 +303,24 @@ and re-wait. Only react when no such boundary is in force.
 6. Switch away and back -> no false stale mark.
 7. Before push: `cd assets && bun run build`.
 
-## Future work: reply-level reactions
+## Future work: agent CLI verb for reply-level reactions
 
-Today reactions anchor to a whole comment only (`comment react <comment-id>`);
-there is no way to react to an individual reply within a comment thread. The
-human asked for reply-granular reactions so an agent's work-status signal
-(👀/🤔/✅) can attach to the specific reply it concerns, not just the comment.
+Reply-level reactions are **already modeled and rendered** — only the agent's
+CLI is missing the verb. The human asked for reply-granular reactions so an
+agent's work-status signal (👀/🤔/✅) can attach to the specific reply it
+concerns, not just the comment.
 
-Sketch:
-- Backend: reactions currently key on `comment_id` + `actor` + `emoji`. Extend
-  the reaction owner to also cover a reply — either a nullable `reply_id` on the
-  reaction row (a reaction belongs to a comment when `reply_id` is null, to a
-  reply otherwise) or a polymorphic reactable. Keep the one-reaction-per-actor
-  invariant scoped per target.
-- CLI: add `reply react <reply-id> --emoji <...>` and `reply unreact <reply-id>`
-  mirroring the existing comment verbs; same disjoint human/agent vocabularies.
-- Frontend: render the reaction chip on the reply row, not only the comment
-  header.
+Current state:
+- Data model (done): `reactions` carries nullable `comment_id` **and**
+  `reply_id` with a DB check constraint requiring exactly one target, and a
+  unique `(reply_id, actor)` (mirroring `(comment_id, actor)`). `Reply`
+  `has_many :reactions`. So a reply reaction is a first-class row today.
+- Frontend (done): `Reply.tsx` already renders `<Reactions target="reply"
+  targetId={reply.id} />`, so a human can react to a reply in the UI now.
+- Agent CLI (missing): the launcher only exposes `comment react`/`comment
+  unreact` on a `comment-id`. Add `reply react <reply-id> --emoji <...>` and
+  `reply unreact <reply-id>`, wired to a `SuikouWeb.AgentCLI.Replies` path that
+  builds the reaction struct with `reply_id` set (same disjoint human/agent
+  vocabularies, agent restricted to 👀/🤔/✅).
 
 Out of scope for the fs_notify feature; recorded here so it is not lost.
