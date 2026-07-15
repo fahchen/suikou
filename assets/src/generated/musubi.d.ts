@@ -410,7 +410,9 @@ declare namespace Musubi {
           }
         }
         submit_review: {
-          payload: {}
+          payload: {
+            verdict: "approve" | "request_changes" | "comment"
+          }
           reply: {
             warnings: string[]
           }

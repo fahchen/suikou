@@ -86,6 +86,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   command :submit_review do
+    payload do
+      # The review-level verdict chosen in the submit panel, applied to every
+      # minted file that carries no per-file draft verdict of its own.
+      field(:verdict, :approve | :request_changes | :comment)
+    end
+
     reply do
       field(:warnings, list(String.t()))
     end
@@ -221,11 +227,13 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   @spec handle_command(:submit_review, map(), Socket.t()) :: {:reply, map(), Socket.t()}
-  def handle_command(:submit_review, _payload, socket) do
+  def handle_command(:submit_review, payload, socket) do
+    review_verdict = payload["verdict"]
+
     warnings =
       socket.assigns.review_id
       |> Reads.list_review_artifacts()
-      |> Enum.reduce([], &submit_artifact/2)
+      |> Enum.reduce([], &submit_artifact(&1, review_verdict, &2))
 
     {:reply, %{warnings: warnings}, socket}
   end
@@ -247,8 +255,8 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
-  defp submit_artifact(%Artifact{} = artifact, warnings) do
-    case {verdict_to_submit(artifact), Rounds.latest(artifact.id)} do
+  defp submit_artifact(%Artifact{} = artifact, review_verdict, warnings) do
+    case {verdict_to_submit(artifact, review_verdict), Rounds.latest(artifact.id)} do
       {nil, _round} ->
         warnings
 
@@ -266,14 +274,12 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
-  # A file's submit verdict: its draft chip, or an implicit `comment` when it has
-  # only pending comments — so submitting a review with feedback but no verdicts
-  # still publishes that critique. Untouched files stay nil and are skipped.
-  defp verdict_to_submit(%Artifact{} = artifact) do
-    case Submissions.draft_verdict_for_artifact(artifact.id) do
-      nil -> if Submissions.comments_pending?(artifact.id), do: :comment
-      verdict -> verdict
-    end
+  # A file's submit verdict: its own per-file draft chip when set, else the
+  # review-level verdict chosen in the submit panel. So approving the whole review
+  # advances every minted file — those with an explicit draft keep it, the rest
+  # take the review verdict — and submitting publishes their pending critique.
+  defp verdict_to_submit(%Artifact{} = artifact, review_verdict) do
+    Submissions.draft_verdict_for_artifact(artifact.id) || review_verdict
   end
 
   defp review_kind(%Review{source: %GitDiff{}}), do: :diff

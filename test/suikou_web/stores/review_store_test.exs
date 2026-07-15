@@ -16,7 +16,7 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias SuikouWeb.Stores.ReviewStore
 
   describe "submit_review" do
-    test "broadcasts and advances only files with a draft verdict" do
+    test "broadcasts, advances every minted file, and publishes pending critique" do
       %{review: review} = file_selection_review(["first.md", "second.md"])
       {:ok, drafted_artifact} = Reviews.open_file(review, "first.md")
       {:ok, comment_only_artifact} = Reviews.open_file(review, "second.md")
@@ -36,14 +36,51 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
       page = mount_review(review_id)
 
-      {:ok, %{warnings: []}} = Testing.dispatch_command(page, :submit_review, %{})
+      {:ok, %{warnings: []}} =
+        Testing.dispatch_command(page, :submit_review, %{"verdict" => "comment"})
 
       assert_receive {:review_changed, ^review_id, _artifact_id}
+
+      # The drafted file keeps its own verdict; the other takes the review verdict.
+      # Both advance a round, and the review-scoped pending comment publishes.
       assert %Round{number: 1} = Rounds.latest(drafted_artifact.id)
-      assert %Round{number: 0} = Rounds.latest(comment_only_artifact.id)
+      assert Submissions.latest_verdict_for_artifact(drafted_artifact.id) == :request_changes
+      assert %Round{number: 1} = Rounds.latest(comment_only_artifact.id)
+      assert Submissions.latest_verdict_for_artifact(comment_only_artifact.id) == :comment
 
       [published] = Reads.list_comments(comment_only)
       assert %{status: :published} = published
+    end
+
+    test "applies the chosen review verdict to files that have no draft" do
+      %{review: review} = file_selection_review(["first.md"])
+      {:ok, artifact} = Reviews.open_file(review, "first.md")
+      %Artifact{review_id: review_id} = Reads.get_artifact(artifact.id)
+      Events.subscribe(review_id)
+
+      page = mount_review(review_id)
+
+      {:ok, %{warnings: _warnings}} =
+        Testing.dispatch_command(page, :submit_review, %{"verdict" => "approve"})
+
+      assert_receive {:review_changed, ^review_id, _artifact_id}
+      assert %Round{number: 1} = Rounds.latest(artifact.id)
+      assert Submissions.latest_verdict_for_artifact(artifact.id) == :approve
+    end
+
+    test "a per-file draft verdict overrides the chosen review verdict" do
+      %{review: review} = file_selection_review(["first.md"])
+      {:ok, artifact} = Reviews.open_file(review, "first.md")
+      round = Rounds.latest(artifact.id)
+      {:ok, _round} = Submissions.set_draft_verdict(round.id, :request_changes)
+      %Artifact{review_id: review_id} = Reads.get_artifact(artifact.id)
+
+      page = mount_review(review_id)
+
+      {:ok, %{warnings: _warnings}} =
+        Testing.dispatch_command(page, :submit_review, %{"verdict" => "approve"})
+
+      assert Submissions.latest_verdict_for_artifact(artifact.id) == :request_changes
     end
   end
 

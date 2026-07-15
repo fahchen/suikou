@@ -244,23 +244,6 @@ defmodule Suikou.Submissions do
     draft_verdict?(review_id) or pending_comment?(scope) or pending_reply?(scope)
   end
 
-  @doc """
-  Returns whether `artifact_id` carries any pending (not-yet-published) comment
-  or reply on its rounds. Lets the review-level submit treat a file that only
-  has comments as an implicit `comment` verdict, publishing its critique.
-
-  ## Examples
-
-      Suikou.Submissions.comments_pending?(artifact.id)
-      #=> true
-
-  """
-  @spec comments_pending?(Ecto.UUID.t()) :: boolean()
-  def comments_pending?(artifact_id) do
-    scope = {:artifact, artifact_id}
-    pending_comment?(scope) or pending_reply?(scope)
-  end
-
   defp artifact_submissions(artifact_id) do
     from(s in Submission, as: :submission)
     |> join(:inner, [submission: s], rd in Round, as: :round, on: s.round_id == rd.id)

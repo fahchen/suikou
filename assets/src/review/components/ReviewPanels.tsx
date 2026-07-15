@@ -56,7 +56,7 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
   }
 
   const run = () => {
-    void submit.dispatch({}).finally(() => {
+    void submit.dispatch({ verdict: chosen }).finally(() => {
       setConfirm(false)
       setPopoverOpen(false)
       setSheetOpen(false)
