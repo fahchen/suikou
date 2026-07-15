@@ -3,14 +3,23 @@ defmodule Suikou.EventsTest do
 
   alias Suikou.Events
 
-  describe "files_changed/3" do
-    test "broadcasts {:files_changed, review_id, rel_path, exists?} to subscribers" do
+  describe "fs_changed/3" do
+    test "broadcasts an FsChange struct to fs subscribers" do
+      review_id = "rv-#{System.unique_integer([:positive])}"
+      Events.subscribe_fs(review_id)
+
+      assert :ok = Events.fs_changed(review_id, "lib/a.ex", true)
+
+      assert_receive %Events.FsChange{review_id: ^review_id, rel_path: "lib/a.ex", exists?: true}
+    end
+
+    test "does not reach plain review subscribers" do
       review_id = "rv-#{System.unique_integer([:positive])}"
       Events.subscribe(review_id)
 
-      assert :ok = Events.files_changed(review_id, "lib/a.ex", true)
+      assert :ok = Events.fs_changed(review_id, "lib/a.ex", true)
 
-      assert_receive {:files_changed, ^review_id, "lib/a.ex", true}
+      refute_receive %Events.FsChange{}
     end
   end
 end

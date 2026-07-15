@@ -114,6 +114,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
     Events.subscribe(review_id)
+    Events.subscribe_fs(review_id)
     watch_files(review_id)
     {:ok, Socket.assign(socket, :review_id, review_id)}
   end
@@ -137,7 +138,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   defp selections(%Review{source: %GitDiff{}}), do: []
 
   @impl Musubi.Store
-  @spec handle_info(Events.message(), Socket.t()) :: {:noreply, Socket.t()}
+  @spec handle_info(Events.message() | Events.FsChange.t(), Socket.t()) :: {:noreply, Socket.t()}
   def handle_info({:review_changed, _review_id, artifact_id}, socket) do
     # The body's store id is this root's path plus the "body" segment; appending
     # is the path, not an inefficient list build.
@@ -168,7 +169,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
   # A watched file changed on disk: forward the path and whether it still exists
   # to the body, which either marks the file stale or re-derives the file list
   # (a create or delete).
-  def handle_info({:files_changed, _review_id, rel_path, exists?}, socket) do
+  def handle_info(%Events.FsChange{rel_path: rel_path, exists?: exists?}, socket) do
     # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     body = Socket.store_id(socket) ++ ["body"]
     Musubi.send_update(body, %{disk_changed: rel_path, exists: exists?})

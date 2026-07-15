@@ -12,12 +12,12 @@ defmodule Suikou.Events do
   refreshes the same way as remote tabs, so there is a single refresh path.
   """
 
+  alias Suikou.Events.FsChange
+
   @pubsub Suikou.PubSub
 
-  @typedoc "Message delivered to subscribers after a review-affecting write."
-  @type message() ::
-          {:review_changed, String.t(), String.t() | nil}
-          | {:files_changed, String.t(), String.t(), boolean()}
+  @typedoc "Message delivered to subscribers of a review's change topic."
+  @type message() :: {:review_changed, String.t(), String.t() | nil}
 
   @doc """
   Subscribes the calling process to `review_id`'s change topic.
@@ -66,26 +66,44 @@ defmodule Suikou.Events do
   end
 
   @doc """
-  Broadcasts `{:files_changed, review_id, rel_path, exists?}` to every subscriber
-  of the review, signalling that the review-relative `rel_path` changed on disk.
-  `exists?` is false when the change was a deletion, so the client can drop the
-  file rather than mark it stale.
+  Subscribes the calling process to `review_id`'s filesystem-change topic.
+
+  Separate from `subscribe/1`: only the file-forwarding path subscribes here, so
+  a disk event never wakes a review's other subscribers.
 
   ## Examples
 
-      Suikou.Events.files_changed("01HZ...", "lib/a.ex", true)
+      Suikou.Events.subscribe_fs("01HZ...")
       #=> :ok
 
   """
-  @spec files_changed(String.t(), String.t(), boolean()) :: :ok | {:error, term()}
-  def files_changed(review_id, rel_path, exists?)
+  @spec subscribe_fs(String.t()) :: :ok | {:error, term()}
+  def subscribe_fs(review_id) when is_binary(review_id) do
+    Phoenix.PubSub.subscribe(@pubsub, fs_topic(review_id))
+  end
+
+  @doc """
+  Broadcasts a `Suikou.Events.FsChange` on the review's filesystem-change topic,
+  signalling that the review-relative `rel_path` changed on disk. `exists?` is
+  false when the change was a deletion, so the client can drop the file rather
+  than mark it stale.
+
+  ## Examples
+
+      Suikou.Events.fs_changed("01HZ...", "lib/a.ex", true)
+      #=> :ok
+
+  """
+  @spec fs_changed(String.t(), String.t(), boolean()) :: :ok | {:error, term()}
+  def fs_changed(review_id, rel_path, exists?)
       when is_binary(review_id) and is_binary(rel_path) and is_boolean(exists?) do
     Phoenix.PubSub.broadcast(
       @pubsub,
-      topic(review_id),
-      {:files_changed, review_id, rel_path, exists?}
+      fs_topic(review_id),
+      %FsChange{review_id: review_id, rel_path: rel_path, exists?: exists?}
     )
   end
 
   defp topic(review_id), do: "review:" <> review_id
+  defp fs_topic(review_id), do: "review:" <> review_id <> ":fs"
 end

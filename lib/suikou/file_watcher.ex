@@ -10,7 +10,7 @@ defmodule Suikou.FileWatcher do
   It watches exactly the review's selections: a directory selection watches that
   directory (so files added under it are noticed), a file selection watches just
   that file (via its parent directory, filtering out unrelated siblings). Each
-  relevant change broadcasts `Suikou.Events.files_changed/3` with whether the
+  relevant change broadcasts `Suikou.Events.fs_changed/3` with whether the
   path still exists, so the client can add, refresh, or drop the file.
   """
 
@@ -142,7 +142,7 @@ defmodule Suikou.FileWatcher do
     for abs_path <- paths,
         rel = changed_path(abs_path, state.project_path, state.file_sels, state.dir_sels),
         rel != nil do
-      Events.files_changed(state.review_id, rel, File.exists?(abs_path))
+      Events.fs_changed(state.review_id, rel, File.exists?(abs_path))
     end
 
     {:noreply, state}

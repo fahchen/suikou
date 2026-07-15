@@ -142,11 +142,12 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
       assert_received {:musubi_send_update, ["body", "files", "art-1", "comments"], %{}}
     end
 
-    test "files_changed forwards a disk-change signal to the body" do
+    test "fs_changed forwards a disk-change signal to the body" do
       socket = %Socket{assigns: %{review_id: "rv"}}
 
-      assert {:noreply, ^socket} =
-               ReviewStore.handle_info({:files_changed, "rv", "lib/a.ex", true}, socket)
+      change = %Suikou.Events.FsChange{review_id: "rv", rel_path: "lib/a.ex", exists?: true}
+
+      assert {:noreply, ^socket} = ReviewStore.handle_info(change, socket)
 
       assert_received {:musubi_send_update, ["body"], %{disk_changed: "lib/a.ex", exists: true}}
     end

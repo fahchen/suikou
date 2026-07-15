@@ -211,7 +211,7 @@ declare namespace Musubi {
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
         latest_verdict: "approve" | "request_changes" | "comment" | null
         draft_verdict: "approve" | "request_changes" | "comment" | null
-        disk_version: number
+        disk_token: string | null
       },
       {
         set_draft_verdict: {
