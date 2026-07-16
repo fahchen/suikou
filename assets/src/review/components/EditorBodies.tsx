@@ -174,17 +174,30 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const dragLo = drag ? Math.min(drag.from, drag.to) : -1
   const dragHi = drag ? Math.max(drag.from, drag.to) : -1
 
+  // Fold state is keyed by heading text, not line number, so reloading the file
+  // (disk change) keeps a section collapsed even when edits above shift its line.
+  // ponytail: identical heading texts fold together; disambiguate by occurrence
+  // only if that collision ever bites.
   const foldKey = `suikou-fold:${draftScope}`
-  const [collapsed, setCollapsed] = useState<Set<number>>(() => loadFold(foldKey))
-  useEffect(() => setCollapsed(loadFold(foldKey)), [foldKey])
-  const toggleFold = (line: number) =>
-    setCollapsed((prev) => {
+  const [collapsedHeadings, setCollapsedHeadings] = useState<Set<string>>(() => loadFold(foldKey))
+  useEffect(() => setCollapsedHeadings(loadFold(foldKey)), [foldKey])
+  const collapsed = useMemo(() => {
+    const lines = new Set<number>()
+    for (const block of blocks) if (block.heading && collapsedHeadings.has(headingText(block.html))) lines.add(block.line)
+    return lines
+  }, [blocks, collapsedHeadings])
+  const toggleFold = (line: number) => {
+    const block = blocks.find((b) => b.line === line)
+    if (!block?.heading) return
+    const text = headingText(block.html)
+    setCollapsedHeadings((prev) => {
       const next = new Set(prev)
-      if (next.has(line)) next.delete(line)
-      else next.add(line)
+      if (next.has(text)) next.delete(text)
+      else next.add(text)
       persistFold(foldKey, next)
       return next
     })
+  }
 
   return (
     <div className="shrink-0">
@@ -753,18 +766,23 @@ function headingToggleOffset(level: number, basePx: number): number {
   return mt * fsPx + (fsPx * 1.6) / 2 - basePx / 2
 }
 
-function loadFold(key: string): Set<number> {
+// Plain text of a heading block, used as the stable fold key across reloads.
+function headingText(html: string): string {
+  return html.replace(/<[^>]*>/g, "").trim()
+}
+
+function loadFold(key: string): Set<string> {
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]")
-    return new Set(Array.isArray(value) ? value.filter((n) => typeof n === "number") : [])
+    return new Set(Array.isArray(value) ? value.filter((v) => typeof v === "string") : [])
   } catch {
     return new Set()
   }
 }
 
-function persistFold(key: string, lines: Set<number>): void {
-  if (lines.size === 0) localStorage.removeItem(key)
-  else localStorage.setItem(key, JSON.stringify([...lines]))
+function persistFold(key: string, headings: Set<string>): void {
+  if (headings.size === 0) localStorage.removeItem(key)
+  else localStorage.setItem(key, JSON.stringify([...headings]))
 }
 
 // The rendered markdown for a block is a stable string across re-renders, so
