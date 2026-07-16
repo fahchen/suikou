@@ -25,6 +25,16 @@ export type Lang =
   | "ruby"
   | "toml"
   | "gherkin"
+  | "c"
+  | "cpp"
+  | "c_sharp"
+  | "java"
+  | "php"
+  | "swift"
+  | "kotlin"
+  | "lua"
+  | "scala"
+  | "sql"
 
 const GRAMMAR_URL: Record<Lang, () => Promise<{ default: string }>> = {
   elixir: () => import("./wasm/tree-sitter-elixir.wasm?url"),
@@ -42,6 +52,16 @@ const GRAMMAR_URL: Record<Lang, () => Promise<{ default: string }>> = {
   ruby: () => import("./wasm/tree-sitter-ruby.wasm?url"),
   toml: () => import("./wasm/tree-sitter-toml.wasm?url"),
   gherkin: () => import("./wasm/tree-sitter-gherkin.wasm?url"),
+  c: () => import("./wasm/tree-sitter-c.wasm?url"),
+  cpp: () => import("./wasm/tree-sitter-cpp.wasm?url"),
+  c_sharp: () => import("./wasm/tree-sitter-c_sharp.wasm?url"),
+  java: () => import("./wasm/tree-sitter-java.wasm?url"),
+  php: () => import("./wasm/tree-sitter-php.wasm?url"),
+  swift: () => import("./wasm/tree-sitter-swift.wasm?url"),
+  kotlin: () => import("./wasm/tree-sitter-kotlin.wasm?url"),
+  lua: () => import("./wasm/tree-sitter-lua.wasm?url"),
+  scala: () => import("./wasm/tree-sitter-scala.wasm?url"),
+  sql: () => import("./wasm/tree-sitter-sql.wasm?url"),
 }
 
 const EXTENSIONS: Record<string, Lang> = {
@@ -55,6 +75,16 @@ const EXTENSIONS: Record<string, Lang> = {
   yml: "yaml", yaml: "yaml",
   css: "css", html: "html", htm: "html",
   rb: "ruby", toml: "toml", feature: "gherkin",
+  c: "c", h: "c",
+  cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp", hh: "cpp", hxx: "cpp",
+  cs: "c_sharp",
+  java: "java",
+  php: "php",
+  swift: "swift",
+  kt: "kotlin", kts: "kotlin",
+  lua: "lua",
+  scala: "scala", sc: "scala", sbt: "scala",
+  sql: "sql",
 }
 
 /** Resolves a file path to a supported outline language, or null. */
@@ -133,6 +163,39 @@ const HEADING_TYPES: Partial<Record<Lang, Set<string>>> = {
   bash: new Set(["function_definition"]),
   ruby: new Set(["module", "class", "method", "singleton_method"]),
   gherkin: new Set(["feature", "rule", "background", "scenario", "examples"]),
+  c: new Set(["function_definition", "struct_specifier", "enum_specifier", "union_specifier", "type_definition"]),
+  cpp: new Set([
+    "function_definition", "class_specifier", "struct_specifier", "enum_specifier",
+    "union_specifier", "namespace_definition", "concept_definition", "type_definition",
+  ]),
+  c_sharp: new Set([
+    "class_declaration", "interface_declaration", "struct_declaration", "enum_declaration",
+    "record_declaration", "delegate_declaration", "namespace_declaration", "method_declaration",
+    "constructor_declaration",
+  ]),
+  java: new Set([
+    "class_declaration", "interface_declaration", "enum_declaration", "record_declaration",
+    "annotation_type_declaration", "method_declaration", "constructor_declaration",
+  ]),
+  php: new Set([
+    "class_declaration", "interface_declaration", "trait_declaration", "enum_declaration",
+    "function_definition", "method_declaration", "namespace_definition",
+  ]),
+  swift: new Set([
+    "class_declaration", "protocol_declaration", "function_declaration", "init_declaration",
+    "typealias_declaration", "associatedtype_declaration", "macro_declaration", "subscript_declaration",
+  ]),
+  kotlin: new Set(["class_declaration", "object_declaration", "function_declaration"]),
+  lua: new Set(["function_declaration"]),
+  scala: new Set([
+    "class_definition", "object_definition", "trait_definition", "enum_definition",
+    "function_definition", "given_definition", "extension_definition", "type_definition",
+  ]),
+  sql: new Set([
+    "create_table", "create_view", "create_materialized_view", "create_function", "create_index",
+    "create_type", "create_schema", "create_sequence", "create_trigger", "create_role",
+    "create_database", "create_extension",
+  ]),
 }
 
 function isHeading(lang: Lang, node: Node): boolean {
