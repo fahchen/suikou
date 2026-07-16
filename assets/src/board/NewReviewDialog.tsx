@@ -161,6 +161,14 @@ export function NewReviewDialog({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
+          {review && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-muted">Review ID</span>
+              <span className="flex h-[34px] items-center rounded-ctrl border border-hair bg-soft px-3 font-mono text-xs text-faint select-all">
+                {review.id}
+              </span>
+            </div>
+          )}
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-semibold text-muted">Name</span>
             <input
