@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, ChevronsUpDown, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, Clipboard, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
@@ -279,6 +280,24 @@ function ReviewActions({
           }
         />
         <DropdownMenuContent>
+          <DropdownMenuItem
+            onClick={() => copyText(review.id, `Copied ID for “${review.name}”`, review.id)}
+          >
+            <Clipboard size={14} aria-hidden />
+            Copy review ID
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              copyText(
+                `suikou review wait ${review.id}`,
+                `Copied wait command for “${review.name}”`,
+                `suikou review wait ${review.id}`,
+              )
+            }
+          >
+            <Terminal size={14} aria-hidden />
+            Copy wait command
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(review)}>
             <Pencil size={14} aria-hidden />
             Edit review
@@ -307,6 +326,38 @@ function ReviewActions({
       />
     </>
   )
+}
+
+function copyText(text: string, message: string, description: string) {
+  writeClipboard(text).then((ok) =>
+    ok
+      ? toast.success(message, { description })
+      : toast.error("Copy failed"),
+  )
+}
+
+// navigator.clipboard only exists in a secure context (https/localhost). Over
+// plain http (e.g. Tailscale IP on a phone) it's undefined, so fall back to a
+// hidden textarea + execCommand copy.
+async function writeClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // fall through to the legacy path
+    }
+  }
+  const area = document.createElement("textarea")
+  area.value = text
+  area.setAttribute("readonly", "")
+  area.style.position = "fixed"
+  area.style.opacity = "0"
+  document.body.appendChild(area)
+  area.select()
+  const ok = document.execCommand("copy")
+  document.body.removeChild(area)
+  return ok
 }
 
 function Dot() {

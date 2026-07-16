@@ -2,6 +2,8 @@ import { useRef } from "react"
 import { createRootRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { motion } from "motion/react"
 
+import { Toaster } from "../components/ui/sonner"
+
 export const Route = createRootRoute({
   component: RootLayout,
 })
@@ -38,6 +40,7 @@ function RootLayout() {
       >
         <Outlet />
       </motion.div>
+      <Toaster position="bottom-right" />
     </div>
   )
 }
