@@ -41,14 +41,13 @@ jobs:
       - name: Run mix ci
         run: mix ci
 
-      # sync-phoenix-override pins overrides.phoenix to the vendored deps/phoenix
-      # version, collapsing phoenix off file: to a hashed registry node so the
-      # lockfile is stable. --frozen-lockfile then fails CI if phoenix was
-      # bumped in mix without regenerating bun.lock (the @musubi/* deps stay
-      # file: but resolve idempotently once phoenix is pinned).
+      # overrides.phoenix pins phoenix off its file: dep to a hashed registry
+      # node, so the lockfile is stable. --frozen-lockfile fails CI if mix bumped
+      # phoenix without updating overrides.phoenix + regenerating bun.lock (the
+      # @musubi/* deps stay file: but resolve idempotently once phoenix is pinned).
       - name: Install frontend dependencies
         working-directory: assets
-        run: bun run scripts/sync-phoenix-override.ts && bun install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Typecheck frontend
         working-directory: assets
