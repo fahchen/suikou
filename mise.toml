@@ -10,7 +10,7 @@ description = "Install Elixir deps and assets (bun)"
 run = """
 set -eu
 mix deps.get
-cd assets && bun install
+cd assets && bun run scripts/sync-phoenix-override.ts && bun install
 """
 
 # Dev = Phoenix (port 4710) + Vite (port 5173) together. Phoenix runs as a
@@ -54,7 +54,7 @@ echo "==> building frontend"
 rm -rf priv/static/assets priv/static/index.html
 # --no-save so packaging can't rewrite assets/bun.lock (the file: musubi deps
 # make bun re-resolve on every run, so --frozen-lockfile is unusable).
-cd assets && bun install --no-save && bun run build && cd ..
+cd assets && bun run scripts/sync-phoenix-override.ts && bun install --no-save && bun run build && cd ..
 
 echo "==> building release"
 MIX_ENV=prod mix release suikou --overwrite
