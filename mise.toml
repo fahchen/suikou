@@ -10,7 +10,7 @@ description = "Install Elixir deps and assets (bun)"
 run = """
 set -eu
 mix deps.get
-cd assets && bun install
+bun --cwd="$PWD/assets" install
 """
 
 # Dev = Phoenix (port 4710) + Vite (port 5173) together. Phoenix runs as a
@@ -23,7 +23,7 @@ depends = ["setup"]
 run = """
 elixir --name suikou_dev@127.0.0.1 --cookie suikou_dev -S mix phx.server &
 phx=$!
-(cd assets && bun run dev) &
+bun --cwd="$PWD/assets" run dev &
 vite=$!
 trap 'kill $phx $vite 2>/dev/null' INT TERM EXIT
 wait
@@ -58,7 +58,8 @@ mkdir -p "$(dirname "$out")"
 
 echo "==> building frontend"
 rm -rf priv/static/assets priv/static/index.html
-cd assets && bun install --frozen-lockfile && bun run build && cd ..
+bun --cwd="$PWD/assets" install --frozen-lockfile
+bun --cwd="$PWD/assets" run build
 
 echo "==> building release"
 MIX_ENV=prod mix release suikou --overwrite
@@ -71,12 +72,12 @@ count=$(ls -1 _build/prod/suikou-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
 cp _build/prod/suikou-*.tar.gz packaging/embed/server.tar.gz
 
 echo "==> compiling single-file binary"
-# cwd packaging/ so the launcher's relative ./embed/server.tar.gz import resolves.
+# --cwd packaging so the launcher's relative ./embed/server.tar.gz import resolves.
 # --no-compile-autoload-* stops the runtime from picking up a stray bunfig.toml
 # or .env in whatever directory the installed binary happens to be run from.
-cd packaging && bun build --compile \
+bun --cwd="$PWD/packaging" build --compile \
   --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
-  launcher.ts --outfile "$out" && cd ..
+  launcher.ts --outfile "$out"
 chmod 755 "$out"
 # arm64 refuses to exec an unsigned binary (SIGKILL), so ad-hoc sign it after
 # clearing quarantine attrs. The JIT entitlements are inert under ad-hoc signing
