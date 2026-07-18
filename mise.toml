@@ -41,18 +41,18 @@ run = "bun packaging/launcher.ts"
 # Package the whole app into one runnable file: a self-contained `mix release`
 # (ERTS bundled) packed and embedded into a `bun --compile` launcher that
 # unpacks and boots Phoenix at runtime. Host platform only (macOS arm64). The
-# binary is xattr-stripped + ad-hoc signed in place (macOS SIGKILLs an unsigned
-# copy). Defaults to dist/suikou (an artifact); pass OUT=<path-on-PATH> to build
-# and sign straight onto PATH, then restart the daemon (`suikou start --force`).
+# binary is xattr-stripped + ad-hoc signed in place; the ad-hoc signature is
+# embedded in the Mach-O, so copying it anywhere keeps it valid (no re-sign).
+# Defaults to dist/suikou; pass OUT=<path-on-PATH> to build straight onto PATH,
+# then restart the daemon (`suikou start --force`).
 [tasks.package]
 description = "Build the single-file executable (OUT=<path> overrides dist/suikou)"
 depends = ["setup"]
 run = """
 set -eu
 
-# OUT picks the output path. Unset -> dist/suikou (a build artifact, still needs
-# a manual cp + re-sign to install). Set -> build straight to that path (e.g. a
-# spot on PATH), signed in place, no reminder.
+# OUT picks the output path. Unset -> dist/suikou; cp it onto PATH to install
+# (the embedded signature survives the copy). Set -> build straight to PATH.
 if [ -n "${OUT:-}" ]; then out="$OUT"; else out="$PWD/dist/suikou"; fi
 mkdir -p "$(dirname "$out")"
 
@@ -78,18 +78,16 @@ cd packaging && bun build --compile \
   --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
   launcher.ts --outfile "$out" && cd ..
 chmod 755 "$out"
-# Strip quarantine attrs, then ad-hoc sign with JIT entitlements (bun's runtime
-# needs them under the hardened runtime); an unsigned copy is SIGKILLed by macOS.
+# arm64 refuses to exec an unsigned binary (SIGKILL), so ad-hoc sign it after
+# clearing quarantine attrs. The JIT entitlements are inert under ad-hoc signing
+# but keep it correct if ever hardened-runtime signed + notarized for sharing.
 xattr -c "$out"
 codesign --force --deep --entitlements packaging/entitlements.plist --sign - "$out"
 codesign --verify --verbose "$out"
 
 echo "packaged -> $out"
-# A plain build lands in dist/; cp to PATH invalidates the signature, so warn.
-# Pass OUT=<path-on-PATH> to build there directly and skip this.
+# The signature is embedded, so a plain build just needs a cp to install.
 if [ -z "${OUT:-}" ]; then
-  echo "note: this is a build artifact. To install: cp onto PATH, then re-run"
-  echo "      xattr -c <dest> && codesign --force --sign - <dest>"
-  echo "      (or rebuild with OUT=<dest> to sign in place)"
+  echo "note: cp dist/suikou onto PATH to install (signature survives the copy)"
 fi
 """
