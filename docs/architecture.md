@@ -48,7 +48,7 @@ avoid.
 | Styling | Tailwind CSS v4 | |
 | Frontend runtime / package manager | Bun | Installs deps, runs scripts, drives Vite. |
 | Frontend tooling | viteplus | Format + lint for the frontend. |
-| Backend quality | VibeKit (`mix ci`) | Strict quality suite — see [§8](#8-backend-quality-vibekit). |
+| Backend quality | VibeKit (`mix ci`) | Strict quality suite — see [§9](#9-backend-quality-vibekit). |
 
 Backend type safety is mechanical, not hand-maintained:
 
@@ -220,15 +220,25 @@ auto-generated and persisted by the launcher rather than stored in plaintext.
 - Phoenix runs the backend separately.
 - Vite proxies the Musubi socket connection through to Phoenix.
 
-## 6. Out of Scope (this stage)
+## 6. Agent CLI
 
-- **CLI** (`suikou open/diff/review/export`) — deferred. The Local Web UI
-  (Musubi + React) is the primary path first. Packaging approach (escript /
-  Burrito / thin shell) undecided.
+The single-file binary doubles as an agent CLI. Grouped verbs
+(`project list/create`, `review create/create-diff/url/open/wait`,
+`comment reply/react/unreact`) route into the *live* BEAM: the packaged binary
+runs them against its own release, and `mise run cli` routes them over
+`elixir --rpc-eval` into the running dev node instead. `review wait` long-polls
+the review's PubSub for the next submitted round, which is what lets an agent
+block until the human hands the review back.
+
+`suikou skill` prints the agent-facing CLI doc baked into the binary, so an agent
+can install the skill for itself before anything is running.
+
+## 7. Out of Scope (this stage)
+
 - Semantic/AST anchors, live-app review, review replay — see PRD *Future
   Directions*.
 
-## 7. Open Risks
+## 8. Open Risks
 
 - **Musubi is pre-1.0** (v0.7.2): breaking changes expected before 1.0. Pin the
   version and verify APIs against `hexdocs.pm/musubi` before use.
@@ -241,7 +251,7 @@ auto-generated and persisted by the launcher rather than stored in plaintext.
   architecture violations are caught only at `mix ci` time, not while editing.
   `reach.check` runs `--strict` so violations hard-fail CI.
 
-## 8. Backend Quality (VibeKit)
+## 9. Backend Quality (VibeKit)
 
 The Elixir backend's quality setup is bootstrapped by
 [**VibeKit**](https://github.com/elixir-vibe/vibe_kit), an Igniter installer

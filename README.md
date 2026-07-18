@@ -13,49 +13,50 @@ so an agent can open a review and hand it to you to sign off.
 
 ## Highlights
 
+- **Every artifact, rendered right.** Code with syntax highlighting, Markdown
+  with tables and Mermaid diagrams, HTML as a live preview, images inline — each
+  file shows in the form you actually review it in.
+- **Line-precise comments.** Select a line or a range and pin a comment to it;
+  on HTML, click any element instead. Anchors survive re-reads and diffs.
+- **Structured critique.** Every comment carries intent — a required fix, a
+  question that needs an answer, or a note — so an agent can act on it directly.
 - **File-by-file verdicts.** Every file carries its own state; a round isn't done
   until each one is judged.
-- **Anchored discussion.** Comments pin to exact lines and survive re-reads.
-- **Two review modes.** Browse whole files, or a branch/commit diff with a live
-  scope lens.
-- **Server-authoritative.** A Musubi runtime on Phoenix holds the truth; the
-  React frontend is a thin, realtime view that resumes instantly (PWA shell).
-- **Yours, on your tailnet.** Single user, single binary, no cloud. Reachable
-  from any device over Tailscale.
-
-## Develop
-
-Requires [mise](https://mise.jdx.dev) (provisions Elixir/Erlang/Bun).
-
-```sh
-mix setup        # install deps + set up the database
-mise run dev     # Phoenix (distributed node, :4710) + Vite (:5173) together
-mix precommit    # format, compile --warnings-as-errors, test — run before pushing
-```
-
-`mise run cli -- <args>` drives the agent CLI against the live dev node (e.g.
-`mise run cli -- review list --project <id>`).
+- **Two review modes.** Browse whole files, or a branch/commit diff scoped to
+  just what changed.
+- **Rendered HTML review.** HTML files render live in a sandboxed preview —
+  click any element to pin a comment to it, or flip to interactive to click
+  through the page.
+- **Round-based iteration.** Submit a round, hand it back, pick up the reply —
+  the review always resumes exactly where you left it.
+- **Agent in the loop.** A small CLI lets an agent open a review, wait for your
+  critique, reply in-thread to each comment, and flag its work status.
+- **Yours alone.** Single user, no cloud, runs on your own machine and reachable
+  from any of your devices.
 
 ## Package & install
 
+Requires [mise](https://mise.jdx.dev) (provisions Elixir/Erlang/Bun).
+
 `mise run package` builds the whole app — React frontend, a self-contained
 `mix release` (ERTS bundled), and the bun launcher — into one file at
-`dist/suikou`. It does **not** install; copy it onto your `PATH` and restart the
+`dist/suikou`. It's xattr-stripped and ad-hoc signed in place, and the signature
+is embedded in the Mach-O, so **copying it anywhere keeps it valid** — no
+re-sign step. It does **not** install; copy it onto your `PATH` and restart the
 daemon so the new binary and any `config.toml` changes take effect:
 
 ```sh
 mise run package
-suikou stop                                    # if a daemon from an older build is running
-cp dist/suikou ~/.local/bin/suikou
-xattr -c ~/.local/bin/suikou                   # drop provenance/quarantine xattrs
-codesign --force --sign - ~/.local/bin/suikou  # re-sign ad-hoc
-suikou start                                   # boots the new binary, opens the browser
+cp dist/suikou ~/.local/bin/suikou   # signature survives the copy
+suikou start --force                 # (re)boots the new binary, opens the browser
 ```
 
-The `xattr`/`codesign` steps matter: `cp` invalidates the bun binary's ad-hoc
-signature, and macOS then **SIGKILLs the copy on exec** — a silent `Killed: 9`
-with no output, before the server can even start. Re-signing the installed copy
-ad-hoc makes it runnable.
+Or build straight onto your `PATH` with `OUT=<path>`, then restart the daemon:
+
+```sh
+OUT=~/.local/bin/suikou mise run package
+suikou start --force
+```
 
 Lifecycle state lives in `~/Library/Application Support/Suikou` (independent of
 the binary), so `stop`/`start` reach the daemon across versions. Targets the
@@ -70,6 +71,21 @@ suikou stop      # stop the daemon
 suikou status    # is the daemon running, and where
 suikou skill     # print the agent CLI skill markdown (no server needed)
 ```
+
+## Develop
+
+Server-authoritative: a Musubi runtime on Phoenix (SQLite) holds the truth; the
+React frontend is a thin, realtime view that resumes instantly from a cached PWA
+shell. Reachable from any device over Tailscale.
+
+```sh
+mix setup        # install deps + set up the database
+mise run dev     # Phoenix (distributed node, :4710) + Vite (:5173) together
+mix precommit    # format, compile --warnings-as-errors, test — run before pushing
+```
+
+`mise run cli -- <args>` drives the agent CLI against the live dev node (e.g.
+`mise run cli -- review list --project <id>`).
 
 ## Install the agent skill
 

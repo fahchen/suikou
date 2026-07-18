@@ -381,10 +381,10 @@ The product intentionally maintains a narrow boundary around review and refineme
 ## CLI
 
 ```bash
-suikou open artifact.md
-suikou diff
-suikou review
-suikou export --json
+suikou review create        # open a file-selection review
+suikou review create-diff    # open a git branch/commit diff review
+suikou review wait           # long-poll for the human's next submitted round
+suikou comment reply         # reply in-thread to a comment
 ```
 
 ---
