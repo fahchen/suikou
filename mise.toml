@@ -38,23 +38,27 @@ depends = ["setup"]
 env = { SUIKOU_RPC_NODE = "suikou_dev@127.0.0.1", SUIKOU_RPC_COOKIE = "suikou_dev" }
 run = "bun packaging/launcher.ts"
 
-# Package the whole app into one runnable file at dist/suikou: a self-contained
-# `mix release` (ERTS bundled) packed and embedded into a `bun --compile`
-# launcher that unpacks and boots Phoenix at runtime. Host platform only
-# (macOS arm64). To install: copy dist/suikou onto PATH, then
-# `xattr -c` + ad-hoc `codesign --force --sign -` the copy (cp invalidates the
-# signature and macOS SIGKILLs an unsigned copy), and restart the daemon.
+# Package the whole app into one runnable file: a self-contained `mix release`
+# (ERTS bundled) packed and embedded into a `bun --compile` launcher that
+# unpacks and boots Phoenix at runtime. Host platform only (macOS arm64). The
+# binary is xattr-stripped + ad-hoc signed in place (macOS SIGKILLs an unsigned
+# copy). Defaults to dist/suikou (an artifact); pass OUT=<path-on-PATH> to build
+# and sign straight onto PATH, then restart the daemon (`suikou start --force`).
 [tasks.package]
-description = "Build the single-file dist/suikou executable"
+description = "Build the single-file executable (OUT=<path> overrides dist/suikou)"
 depends = ["setup"]
 run = """
 set -eu
 
+# OUT picks the output path. Unset -> dist/suikou (a build artifact, still needs
+# a manual cp + re-sign to install). Set -> build straight to that path (e.g. a
+# spot on PATH), signed in place, no reminder.
+if [ -n "${OUT:-}" ]; then out="$OUT"; else out="$PWD/dist/suikou"; fi
+mkdir -p "$(dirname "$out")"
+
 echo "==> building frontend"
 rm -rf priv/static/assets priv/static/index.html
-# --no-save so packaging can't rewrite assets/bun.lock (the file: musubi deps
-# make bun re-resolve on every run, so --frozen-lockfile is unusable).
-cd assets && bun install --no-save && bun run build && cd ..
+cd assets && bun install --frozen-lockfile && bun run build && cd ..
 
 echo "==> building release"
 MIX_ENV=prod mix release suikou --overwrite
@@ -67,10 +71,19 @@ count=$(ls -1 _build/prod/suikou-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
 cp _build/prod/suikou-*.tar.gz packaging/embed/server.tar.gz
 
 echo "==> compiling single-file binary"
-mkdir -p dist
 # cwd packaging/ so the launcher's relative ./embed/server.tar.gz import resolves.
-cd packaging && bun build --compile launcher.ts --outfile ../dist/suikou && cd ..
-chmod 755 dist/suikou
+cd packaging && bun build --compile launcher.ts --outfile "$out" && cd ..
+chmod 755 "$out"
+# Strip quarantine attrs and re-sign ad-hoc so macOS won't SIGKILL the binary.
+xattr -c "$out"
+codesign --force --sign - "$out"
 
-echo "packaged -> dist/suikou"
+echo "packaged -> $out"
+# A plain build lands in dist/; cp to PATH invalidates the signature, so warn.
+# Pass OUT=<path-on-PATH> to build there directly and skip this.
+if [ -z "${OUT:-}" ]; then
+  echo "note: this is a build artifact. To install: cp onto PATH, then re-run"
+  echo "      xattr -c <dest> && codesign --force --sign - <dest>"
+  echo "      (or rebuild with OUT=<dest> to sign in place)"
+fi
 """
