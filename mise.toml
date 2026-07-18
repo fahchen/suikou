@@ -1,7 +1,7 @@
 [tools]
 elixir = "1.20.0-otp-29"
 erlang = "29.0"
-bun = "latest"
+bun = "1.3.14"
 
 # Install Elixir deps and the frontend's bun deps. Prerequisite of the tasks
 # that need a resolved dep tree (dev, cli, package).
@@ -72,11 +72,17 @@ cp _build/prod/suikou-*.tar.gz packaging/embed/server.tar.gz
 
 echo "==> compiling single-file binary"
 # cwd packaging/ so the launcher's relative ./embed/server.tar.gz import resolves.
-cd packaging && bun build --compile launcher.ts --outfile "$out" && cd ..
+# --no-compile-autoload-* stops the runtime from picking up a stray bunfig.toml
+# or .env in whatever directory the installed binary happens to be run from.
+cd packaging && bun build --compile \
+  --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
+  launcher.ts --outfile "$out" && cd ..
 chmod 755 "$out"
-# Strip quarantine attrs and re-sign ad-hoc so macOS won't SIGKILL the binary.
+# Strip quarantine attrs, then ad-hoc sign with JIT entitlements (bun's runtime
+# needs them under the hardened runtime); an unsigned copy is SIGKILLed by macOS.
 xattr -c "$out"
-codesign --force --sign - "$out"
+codesign --force --deep --entitlements packaging/entitlements.plist --sign - "$out"
+codesign --verify --verbose "$out"
 
 echo "packaged -> $out"
 # A plain build lands in dist/; cp to PATH invalidates the signature, so warn.
