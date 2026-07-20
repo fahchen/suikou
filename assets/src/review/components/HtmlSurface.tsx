@@ -2,7 +2,7 @@ import { createPortal } from "react-dom"
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { Lock, X } from "lucide-react"
+import { Lock, MessageSquarePlus, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
@@ -55,6 +55,7 @@ export const HtmlView = observer(function HtmlView({
     return null
   })
   const [, setTick] = useState(0)
+  const [addingComment, setAddingComment] = useState(false)
 
   const applyOverlay = (next: HtmlOverlay | null) => {
     setOverlay(next)
@@ -65,7 +66,7 @@ export const HtmlView = observer(function HtmlView({
   const anchoredSelectors = useMemo(
     () =>
       showComments
-        ? comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : []))
+        ? Array.from(new Set(comments.flatMap((comment) => (comment.anchor?.type === "element" ? [comment.anchor.selector] : []))))
         : [],
     [comments, showComments],
   )
@@ -77,6 +78,8 @@ export const HtmlView = observer(function HtmlView({
     [comments, overlay],
   )
   const threadQuote = openThreads[0]?.anchor?.type === "element" ? openThreads[0].anchor.quote : ""
+  const quote = overlay?.kind === "compose" ? overlay.quote : threadQuote
+  const showComposer = overlay?.kind === "compose" || addingComment
   const trackSel = overlay?.selector ?? pendingRestore?.selector ?? null
   const trackRef = useRef<string | null>(trackSel)
   trackRef.current = trackSel
@@ -144,12 +147,20 @@ export const HtmlView = observer(function HtmlView({
   }, [interactive])
 
   const submit = (body: string, type: CritiqueType) => {
-    if (!fileProxy || overlay?.kind !== "compose") return
+    if (!fileProxy || !overlay) return
+    const quote = overlay.kind === "compose" ? overlay.quote : threadQuote
     addComment
-      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote: overlay.quote } })
-      .then(() => applyOverlay(null))
+      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote } })
+      .then(() => {
+        setAddingComment(false)
+        if (overlay.kind === "compose") applyOverlay(null)
+      })
       .catch(() => undefined)
   }
+
+  useEffect(() => {
+    setAddingComment(false)
+  }, [overlay?.selector, overlay?.kind])
 
   const frameRect = frameRef.current?.getBoundingClientRect()
   const overlayPos =
@@ -162,64 +173,63 @@ export const HtmlView = observer(function HtmlView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
-      <div
-        ref={frameRef}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]"
-      >
-        <span className="absolute right-2 top-2 z-10 inline-flex h-[19px] items-center gap-1 rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 text-2xs font-bold uppercase tracking-wide text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
-          <Lock size={10} aria-hidden />
-          sandboxed iframe{interactive ? " · interactive" : ""}
-        </span>
-        {hover && !interactive && (
-          <span className="pointer-events-none absolute left-2 top-2 z-20 inline-flex h-[19px] max-w-[70%] items-center truncate rounded-full bg-[oklch(20%_0.02_235/0.72)] px-2 font-mono text-2xs font-semibold text-[oklch(94%_0.01_230)] backdrop-blur-[8px]">
-            {hover.selector}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]">
+        <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-hair-strong bg-soft/60 px-2.5">
+          <span className="min-w-0 flex-1 truncate font-mono text-2xs font-semibold text-muted">
+            {hover && !interactive ? hover.selector : ""}
           </span>
-        )}
-        <iframe
-          ref={iframeRef}
-          title="HTML preview"
-          srcDoc={srcDoc}
-          sandbox="allow-scripts allow-forms allow-popups allow-modals"
-          className="block border-0 bg-white"
-          style={{
-            width: `${100 / zoom}%`,
-            height: `${100 / zoom}%`,
-            transform: `scale(${zoom})`,
-            transformOrigin: "top left",
-          }}
-        />
-        {!interactive && (
-          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-            {hover && (
-              <div
-                className="absolute rounded-[4px] bg-accent-soft ring-1 ring-inset ring-accent-edge"
-                style={{
-                  left: hover.rect.left * zoom,
-                  top: hover.rect.top * zoom,
-                  width: hover.rect.width * zoom,
-                  height: hover.rect.height * zoom,
-                }}
-              />
-            )}
-            {anchoredRects.map(({ selector, rect }) => (
-              <button
-                key={selector}
-                type="button"
-                aria-label="Open comment"
-                onMouseEnter={() => setHover({ selector, rect })}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => applyOverlay({ kind: "thread", selector, rect })}
-                style={{ left: rect.right * zoom, top: rect.top * zoom }}
-                className="group pointer-events-auto absolute grid size-[18px] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
-              >
-                <span className="relative flex size-[8px] transition-transform duration-100 group-hover:scale-[1.2]">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" />
-                  <span className="relative inline-flex size-[8px] rounded-full bg-accent shadow-[0_0_0_2px_white,0_1px_3px_oklch(0%_0_0/0.3)]" />
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+          <span className="inline-flex shrink-0 items-center gap-1 text-2xs font-bold uppercase tracking-wide text-faint">
+            <Lock size={10} aria-hidden />
+            sandboxed iframe{interactive ? " · interactive" : ""}
+          </span>
+        </div>
+        <div ref={frameRef} className="relative min-h-0 flex-1 overflow-hidden bg-white">
+          <iframe
+            ref={iframeRef}
+            title="HTML preview"
+            srcDoc={srcDoc}
+            sandbox="allow-scripts allow-forms allow-popups allow-modals"
+            className="block border-0 bg-white"
+            style={{
+              width: `${100 / zoom}%`,
+              height: `${100 / zoom}%`,
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+            }}
+          />
+          {!interactive && (
+            <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+              {hover && (
+                <div
+                  className="absolute rounded-[4px] bg-accent-soft ring-1 ring-inset ring-accent-edge"
+                  style={{
+                    left: hover.rect.left * zoom,
+                    top: hover.rect.top * zoom,
+                    width: hover.rect.width * zoom,
+                    height: hover.rect.height * zoom,
+                  }}
+                />
+              )}
+              {anchoredRects.map(({ selector, rect }) => (
+                <button
+                  key={selector}
+                  type="button"
+                  aria-label="Open comment"
+                  onMouseEnter={() => setHover({ selector, rect })}
+                  onMouseLeave={() => setHover(null)}
+                  onClick={() => applyOverlay({ kind: "thread", selector, rect })}
+                  style={{ left: rect.right * zoom, top: rect.top * zoom }}
+                  className="group pointer-events-auto absolute grid size-[18px] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
+                >
+                  <span className="relative flex size-[8px] transition-transform duration-100 group-hover:scale-[1.2]">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" />
+                    <span className="relative inline-flex size-[8px] rounded-full bg-accent shadow-[0_0_0_2px_white,0_1px_3px_oklch(0%_0_0/0.3)]" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {overlay &&
         overlayPos &&
@@ -241,35 +251,36 @@ export const HtmlView = observer(function HtmlView({
                 <X size={13} aria-hidden />
               </button>
             </div>
-            {overlay.kind === "compose" ? (
-              <div className="p-2.5">
-                {overlay.quote && (
-                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
-                    “{overlay.quote}”
-                  </div>
-                )}
+            <div className="max-h-[60vh] overflow-auto p-2.5">
+              {quote && (
+                <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                  “{quote}”
+                </div>
+              )}
+              {openThreads.map((comment) => (
+                <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" />
+              ))}
+              {showComposer ? (
                 <Composer
                   anchorLabel="this element"
                   draftKey={elDraftKey(draftScope, overlay.selector)}
                   pending={addComment.isPending}
                   chrome={false}
                   onSubmit={submit}
-                  onCancel={() => applyOverlay(null)}
-                  className="m-0"
+                  onCancel={() => (overlay.kind === "compose" ? applyOverlay(null) : setAddingComment(false))}
+                  className={openThreads.length > 0 ? "m-0 mt-2" : "m-0"}
                 />
-              </div>
-            ) : (
-              <div className="max-h-[60vh] overflow-auto p-2.5">
-                {threadQuote && (
-                  <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
-                    “{threadQuote}”
-                  </div>
-                )}
-                {openThreads.map((comment) => (
-                  <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" compact />
-                ))}
-              </div>
-            )}
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingComment(true)}
+                  className="mt-1 flex w-full items-center justify-center gap-1 rounded-ctrl border border-dashed border-hair-strong py-1.5 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
+                >
+                  <MessageSquarePlus size={13} aria-hidden />
+                  Add comment
+                </button>
+              )}
+            </div>
           </div>,
           document.body,
         )}
