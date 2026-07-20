@@ -2,7 +2,7 @@ import { createPortal } from "react-dom"
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { Lock, MessageSquarePlus, X } from "lucide-react"
+import { Crosshair, Lock, MessageSquarePlus, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
@@ -40,6 +40,7 @@ export const HtmlView = observer(function HtmlView({
   const [overlay, setOverlay] = useState<HtmlOverlay | null>(null)
   const [hover, setHover] = useState<{ selector: string; rect: ElRect } | null>(null)
   const [anchoredRects, setAnchoredRects] = useState<{ selector: string; rect: ElRect }[]>([])
+  const [rectsReported, setRectsReported] = useState(false)
   const elOpenKey = `suikou-elopen:${draftScope}`
   const [pendingRestore, setPendingRestore] = useState<{ selector: string; quote: string } | null>(() => {
     if (interactive) return null
@@ -77,6 +78,11 @@ export const HtmlView = observer(function HtmlView({
         : [],
     [comments, overlay],
   )
+  const strandedComments = useMemo(() => {
+    if (interactive || !showComments || !rectsReported) return []
+    const resolved = new Set(anchoredRects.map((item) => item.selector))
+    return comments.filter((comment) => comment.anchor?.type === "element" && !resolved.has(comment.anchor.selector))
+  }, [comments, anchoredRects, rectsReported, interactive, showComments])
   const threadQuote = openThreads[0]?.anchor?.type === "element" ? openThreads[0].anchor.quote : ""
   const quote = overlay?.kind === "compose" ? overlay.quote : threadQuote
   const showComposer = overlay?.kind === "compose" || addingComment
@@ -102,6 +108,7 @@ export const HtmlView = observer(function HtmlView({
         if (trackRef.current) post({ kind: "track", selector: trackRef.current })
       } else if (data.kind === "rects") {
         setAnchoredRects(Array.isArray(data.items) ? data.items : [])
+        setRectsReported(true)
       } else if (data.kind === "hover") {
         setHover(data.selector && data.rect ? { selector: String(data.selector), rect: data.rect } : null)
       } else if (data.kind === "pick" && data.rect) {
@@ -119,6 +126,7 @@ export const HtmlView = observer(function HtmlView({
       }
     }
     window.addEventListener("message", onMessage)
+    setRectsReported(false)
     post({ kind: "anchors", selectors: anchoredSelectors })
     return () => window.removeEventListener("message", onMessage)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,6 +147,7 @@ export const HtmlView = observer(function HtmlView({
       setOverlay(null)
       setHover(null)
       setAnchoredRects([])
+      setRectsReported(false)
       setPendingRestore(null)
     } else {
       post({ kind: "anchors", selectors: anchoredSelectors })
@@ -173,6 +182,18 @@ export const HtmlView = observer(function HtmlView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
+      {strandedComments.length > 0 && (
+        <div className="mb-[14px] max-h-[38%] shrink-0 overflow-auto rounded-panel border border-hair-strong bg-soft/40 p-2">
+          <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            <Crosshair size={12} className="text-accent" aria-hidden />
+            Stranded {strandedComments.length === 1 ? "comment" : "comments"}
+            <span className="font-normal normal-case tracking-normal text-faint">· element no longer in the page</span>
+          </div>
+          {strandedComments.map((comment) => (
+            <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="my-1" />
+          ))}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm">
         <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-hair-strong bg-surface px-2.5">
           <Lock size={11} className="shrink-0 text-faint" aria-hidden />
