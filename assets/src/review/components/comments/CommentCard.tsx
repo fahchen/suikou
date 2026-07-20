@@ -12,7 +12,6 @@ export function CommentCard({
   className,
   headerClassName = "gap-1.5 px-3 py-2",
   focused = false,
-  compact = false,
   collapsible = false,
   collapsed = false,
   onToggleCollapse,
@@ -33,7 +32,6 @@ export function CommentCard({
   className: string
   headerClassName?: string
   focused?: boolean
-  compact?: boolean
   collapsible?: boolean
   collapsed?: boolean
   onToggleCollapse?: () => void
@@ -92,7 +90,7 @@ export function CommentCard({
     >
       <div className={`@container/hdr flex min-w-0 items-center ${headerClassName}`}>
         <span aria-hidden className="-mr-1.5 h-[26px] w-0 shrink-0" />
-        {collapsible && !compact && onToggleCollapse && (
+        {collapsible && onToggleCollapse && (
           <button
             type="button"
             aria-label={collapsed ? "Expand comment" : "Collapse comment"}

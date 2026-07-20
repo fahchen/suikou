@@ -14,14 +14,12 @@ export function CommentThread({
   comment,
   commentsProxy,
   className = "my-1.5 ml-14 mr-3.5",
-  compact = false,
   focused = false,
   onFocus,
 }: {
   comment: Comment
   commentsProxy: CommentsStoreProxy | null
   className?: string
-  compact?: boolean
   focused?: boolean
   onFocus?: () => void
 }) {
@@ -35,14 +33,13 @@ export function CommentThread({
   const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(inlineThreadCollapsedKey(comment.id)) === "1")
   const hasPendingReply = comment.replies.some((reply) => reply.status === "pending")
-  const effectiveCollapsed = compact ? false : collapsed
 
   useEffect(() => {
-    if (compact) return
     localStorage.setItem(inlineThreadCollapsedKey(comment.id), collapsed ? "1" : "0")
-  }, [collapsed, comment.id, compact])
+  }, [collapsed, comment.id])
 
   const range = anchor
     ? `line ${anchor.start_line}${anchor.end_line > anchor.start_line ? `–${anchor.end_line}` : ""}`
@@ -51,14 +48,14 @@ export function CommentThread({
       : "comment"
   const anchorLabel = anchor ? `L${anchor.start_line}${anchor.end_line > anchor.start_line ? `-${anchor.end_line}` : ""}` : null
   const deleteComment = () => {
-    if (commentsProxy) deleteCmd.dispatch({ comment_id: comment.id }).catch(() => undefined)
+    if (commentsProxy) setRemoving(true)
   }
   const resolveComment = () => {
     if (!commentsProxy) return
     resolveCmd
       .dispatch({ comment_id: comment.id })
       .then(() => {
-        if (!compact) setCollapsed(true)
+        setCollapsed(true)
       })
       .catch(() => undefined)
   }
@@ -67,7 +64,7 @@ export function CommentThread({
     unresolveCmd
       .dispatch({ comment_id: comment.id })
       .then(() => {
-        if (!compact) setCollapsed(false)
+        setCollapsed(false)
       })
       .catch(() => undefined)
   }
@@ -81,8 +78,7 @@ export function CommentThread({
         initialBody={comment.body}
         submitLabel="Save"
         pending={editCmd.isPending}
-        chrome={!compact}
-        className={compact ? "m-0" : `${className} ${INLINE_COMMENT_MAX_WIDTH_CLASS}`}
+        className={`${className} ${INLINE_COMMENT_MAX_WIDTH_CLASS}`}
         onSubmit={(body, type) => {
           if (!commentsProxy) return
           editCmd.dispatch({ comment_id: comment.id, body, critique_type: type }).then(() => setEditing(false)).catch(() => undefined)
@@ -93,15 +89,26 @@ export function CommentThread({
   }
 
   return (
-    <>
+    <div
+      className={`grid transition-all duration-200 ease-out ${className} ${INLINE_COMMENT_MAX_WIDTH_CLASS}`}
+      style={{
+        gridTemplateRows: removing ? "0fr" : "1fr",
+        opacity: removing ? 0 : 1,
+        ...(removing ? { marginTop: 0, marginBottom: 0 } : {}),
+      }}
+      onTransitionEnd={(event) => {
+        if (removing && event.propertyName === "opacity" && commentsProxy)
+          deleteCmd.dispatch({ comment_id: comment.id }).catch(() => setRemoving(false))
+      }}
+    >
+      <div className="min-h-0 overflow-hidden">
         <CommentCard
         comment={comment}
-        className={`${className} ${compact ? "" : INLINE_COMMENT_MAX_WIDTH_CLASS}`.trim()}
+        className=""
         headerClassName="gap-1.5 px-3 py-2"
-        compact={compact}
         focused={focused}
-        collapsible={!compact}
-        collapsed={effectiveCollapsed}
+        collapsible
+        collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((value) => !value)}
         onFocus={onFocus}
         metaLine={
@@ -115,7 +122,7 @@ export function CommentThread({
         summaryText={comment.body}
         headerActions={
           <div className="-mr-1 ml-auto flex shrink-0 items-center gap-0.5">
-            {(!effectiveCollapsed || pending) && (
+            {(!collapsed || pending) && (
               <ConfirmDeleteIconButton
                 reveal="comment-hover"
                 onConfirm={deleteComment}
@@ -191,6 +198,7 @@ export function CommentThread({
           ) : undefined
         }
       />
-    </>
+      </div>
+    </div>
   )
 }
