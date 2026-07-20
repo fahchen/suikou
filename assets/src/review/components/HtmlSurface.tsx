@@ -57,6 +57,17 @@ export const HtmlView = observer(function HtmlView({
   })
   const [, setTick] = useState(0)
   const [addingComment, setAddingComment] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [screenHeight, setScreenHeight] = useState(0)
+
+  useEffect(() => {
+    const container = rootRef.current?.parentElement
+    if (!container) return
+    const observer = new ResizeObserver(() => setScreenHeight(container.clientHeight))
+    observer.observe(container)
+    setScreenHeight(container.clientHeight)
+    return () => observer.disconnect()
+  }, [])
 
   const applyOverlay = (next: HtmlOverlay | null) => {
     setOverlay(next)
@@ -181,7 +192,7 @@ export const HtmlView = observer(function HtmlView({
       : null
 
   return (
-    <div className="flex shrink-0 grow flex-col bg-editor p-[14px]">
+    <div ref={rootRef} className="flex shrink-0 flex-col bg-editor p-[14px]">
       {strandedComments.length > 0 && (
         <div className="mb-[14px] shrink-0 rounded-panel border border-hair-strong bg-soft/40 p-2">
           <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -194,7 +205,10 @@ export const HtmlView = observer(function HtmlView({
           ))}
         </div>
       )}
-      <div className="flex min-h-[80svh] shrink-0 grow flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm">
+      <div
+        className="flex min-h-[60svh] shrink-0 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm"
+        style={{ minHeight: screenHeight ? screenHeight - 28 : undefined }}
+      >
         <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-hair-strong bg-surface px-2.5">
           <Lock size={11} className="shrink-0 text-faint" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-mono text-2xs">

@@ -994,7 +994,7 @@ function Editor({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
-      <div className="flex h-[42px] shrink-0 items-center gap-2 px-4">
+      <div className="flex h-[42px] shrink-0 items-center gap-2 border-b border-hair px-4">
         {entry && filePosition ? (
           <div className="flex min-w-0 flex-1 items-center gap-1 lg:hidden">
             <button
