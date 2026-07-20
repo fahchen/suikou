@@ -1301,18 +1301,30 @@ function Editor({
         </div>
       )}
       {entry && htmlFile && htmlMode !== "source" && content.kind === "text" ? (
-        <HtmlView
-          key={entry.path}
-          source={content.lines.join("\n")}
-          mode={htmlMode}
-          zoom={htmlZoom}
-          frameRef={htmlFrameRef}
-          showComments={showComments}
-          comments={comments}
-          fileProxy={fileProxy}
-          commentsProxy={commentsProxy}
-          draftScope={`${reviewId}:${entry.path}`}
-        />
+        <>
+          {showThreads && fileProxy && (
+            <ArtifactComments
+              comments={comments}
+              fileProxy={fileProxy}
+              commentsProxy={commentsProxy}
+              draftScope={`${reviewId}:${entry.path}`}
+              composing={!readOnly && artifactComposing}
+              onClose={() => setArtifactComposing(false)}
+            />
+          )}
+          <HtmlView
+            key={entry.path}
+            source={content.lines.join("\n")}
+            mode={htmlMode}
+            zoom={htmlZoom}
+            frameRef={htmlFrameRef}
+            showComments={showComments}
+            comments={comments}
+            fileProxy={fileProxy}
+            commentsProxy={commentsProxy}
+            draftScope={`${reviewId}:${entry.path}`}
+          />
+        </>
       ) : (
         <div
           className="flex min-h-0 flex-1 flex-col overflow-auto"
