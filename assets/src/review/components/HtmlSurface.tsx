@@ -173,17 +173,20 @@ export const HtmlView = observer(function HtmlView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-white shadow-[0_1px_3px_oklch(50%_0.02_250/0.12)]">
-        <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-hair-strong bg-soft/60 px-2.5">
-          <span className="min-w-0 flex-1 truncate font-mono text-2xs font-semibold text-muted">
-            {hover && !interactive ? hover.selector : ""}
-          </span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-2xs font-bold uppercase tracking-wide text-faint">
-            <Lock size={10} aria-hidden />
-            sandboxed iframe{interactive ? " · interactive" : ""}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm">
+        <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-hair-strong bg-surface px-2.5">
+          <Lock size={11} className="shrink-0 text-faint" aria-hidden />
+          <span className="min-w-0 flex-1 truncate font-mono text-2xs">
+            {interactive ? (
+              <span className="text-faint">Interactive preview · comments paused</span>
+            ) : hover ? (
+              <span className="text-ink">{hover.selector}</span>
+            ) : (
+              <span className="text-faint">Sandboxed preview · click any element to comment</span>
+            )}
           </span>
         </div>
-        <div ref={frameRef} className="relative min-h-0 flex-1 overflow-hidden bg-white">
+        <div ref={frameRef} className="relative min-h-0 flex-1 overflow-hidden bg-canvas">
           <iframe
             ref={iframeRef}
             title="HTML preview"
