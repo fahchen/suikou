@@ -845,11 +845,19 @@ function ArtifactComments({
 }
 
 const HTML_ZOOM_KEY = "suikou-html-zoom"
+const HTML_MODE_KEY = "suikou-html-mode"
+type HtmlMode = "source" | "comment" | "interactive"
 
 /** The reader's remembered html zoom, kept across files and reloads. */
 function readHtmlZoom(): number {
   const value = Number(localStorage.getItem(HTML_ZOOM_KEY))
   return value >= 0.1 && value <= 2 ? value : 1
+}
+
+/** The reader's remembered html sub-mode, kept across files and reloads. */
+function readHtmlMode(): HtmlMode {
+  const value = localStorage.getItem(HTML_MODE_KEY)
+  return value === "source" || value === "interactive" ? value : "comment"
 }
 
 function Editor({
@@ -921,9 +929,7 @@ function Editor({
   const previewable = entry ? /\.(md|markdown)$/i.test(entry.path) : false
   const htmlFile = entry ? /\.html?$/i.test(entry.path) : false
   const [view, setView] = useState<"source" | "preview">(() => (readDocView() === "source" ? "source" : "preview"))
-  const [htmlMode, setHtmlMode] = useState<"source" | "comment" | "interactive">(() =>
-    readDocView() === "source" ? "source" : "comment",
-  )
+  const [htmlMode, setHtmlMode] = useState<HtmlMode>(() => readHtmlMode())
   const [htmlZoom, setHtmlZoom] = useState(() => readHtmlZoom())
   const htmlFrameRef = useRef<HTMLDivElement | null>(null)
   const [artifactComposing, setArtifactComposing] = useState(false)
@@ -946,13 +952,13 @@ function Editor({
   }, [entry?.path, fileProxy])
 
   // Every renderable file opens in the reader's remembered Source-vs-rendered
-  // choice; a plain file has only Source. html resets its sub-mode to Comment
-  // (zoom is kept across files). A file-comment composer left open with unsaved
-  // text reopens on reload, like a line composer. Re-runs when the file changes.
+  // choice; a plain file has only Source. html keeps its own remembered sub-mode
+  // and zoom across files. A file-comment composer left open with unsaved text
+  // reopens on reload, like a line composer. Re-runs when the file changes.
   useEffect(() => {
     const pref = readDocView()
     setView(previewable ? (pref === "source" ? "source" : "preview") : "source")
-    setHtmlMode(pref === "source" ? "source" : "comment")
+    setHtmlMode(readHtmlMode())
     setArtifactComposing(entry ? hasArtifactDraftBody(`${reviewId}:${entry.path}`) : false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry])
@@ -974,8 +980,9 @@ function Editor({
     setView(next)
     writeDocView(next === "source" ? "source" : "rendered")
   }
-  const chooseHtmlMode = (next: "source" | "comment" | "interactive") => {
+  const chooseHtmlMode = (next: HtmlMode) => {
     setHtmlMode(next)
+    localStorage.setItem(HTML_MODE_KEY, next)
     writeDocView(next === "source" ? "source" : "rendered")
   }
 
