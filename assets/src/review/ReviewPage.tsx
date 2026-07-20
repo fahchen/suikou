@@ -851,7 +851,7 @@ type HtmlMode = "source" | "comment" | "interactive"
 /** The reader's remembered html zoom, kept across files and reloads. */
 function readHtmlZoom(): number {
   const value = Number(localStorage.getItem(HTML_ZOOM_KEY))
-  return value >= 0.1 && value <= 2 ? value : 1
+  return Number.isFinite(value) && value > 0 ? clampZoom(value) : 1
 }
 
 /** The reader's remembered html sub-mode, kept across files and reloads. */

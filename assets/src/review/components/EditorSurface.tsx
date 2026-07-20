@@ -247,7 +247,9 @@ export function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line
   )
 }
 
-export const clampZoom = (zoom: number): number => Math.min(2, Math.max(0.1, Math.round(zoom * 10) / 10))
+// Floor at 20%: below that the responsive preview simulates a >5x-wide viewport
+// whose full-frame layer OOM-crashes the iOS WebKit tile budget.
+export const clampZoom = (zoom: number): number => Math.min(2, Math.max(0.2, Math.round(zoom * 10) / 10))
 
 const DOC_VIEW_KEY = "suikou-doc-view"
 
