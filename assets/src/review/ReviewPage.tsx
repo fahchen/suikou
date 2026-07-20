@@ -1308,7 +1308,14 @@ function Editor({
         </div>
       )}
       {entry && htmlFile && htmlMode !== "source" && content.kind === "text" ? (
-        <>
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-auto bg-editor"
+          data-review-scroll
+          onPointerDownCapture={(event) => {
+            if ((event.target as Element).closest("[data-thread-card]")) return
+            onClearFocus()
+          }}
+        >
           {showThreads && fileProxy && (
             <ArtifactComments
               comments={comments}
@@ -1331,7 +1338,7 @@ function Editor({
             commentsProxy={commentsProxy}
             draftScope={`${reviewId}:${entry.path}`}
           />
-        </>
+        </div>
       ) : (
         <div
           className="flex min-h-0 flex-1 flex-col overflow-auto"

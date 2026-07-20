@@ -181,9 +181,9 @@ export const HtmlView = observer(function HtmlView({
       : null
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-editor p-[14px]">
+    <div className="flex shrink-0 grow flex-col bg-editor p-[14px]">
       {strandedComments.length > 0 && (
-        <div className="mb-[14px] max-h-[38%] shrink-0 overflow-auto rounded-panel border border-hair-strong bg-soft/40 p-2">
+        <div className="mb-[14px] shrink-0 rounded-panel border border-hair-strong bg-soft/40 p-2">
           <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
             <Crosshair size={12} className="text-accent" aria-hidden />
             Stranded {strandedComments.length === 1 ? "comment" : "comments"}
@@ -194,7 +194,7 @@ export const HtmlView = observer(function HtmlView({
           ))}
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm">
+      <div className="flex min-h-[80svh] shrink-0 grow flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm">
         <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-hair-strong bg-surface px-2.5">
           <Lock size={11} className="shrink-0 text-faint" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-mono text-2xs">
