@@ -231,7 +231,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                 <div className="md-fence-scroll">
                   <div className="md-fence-track">
                     {codeBuf.map((r) => (
-                      <div key={r.index} className={`md-fence-coderow ${r.highlight ? "bg-accent-soft" : ""}`}>
+                      <div key={r.index} data-review-block={r.index} className={`md-fence-coderow ${r.highlight ? "bg-accent-soft" : ""}`}>
                         {r.body}
                       </div>
                     ))}
@@ -352,7 +352,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
             )
 
             const row = (
-              <div key={index} className={`group/md flex ${selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
+              <div key={index} data-review-block={index} className={`group/md flex ${selecting || focused ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
                 {gutterNode}
                 {bodyNode}
                 {foldToggle}
