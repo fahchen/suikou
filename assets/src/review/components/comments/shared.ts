@@ -22,9 +22,19 @@ export const REACTION_EMOJI: Record<HumanReactionEmoji, string> = {
   strong_disagree: "❌",
 }
 
-/** Render a reaction chip's glyph: a human key resolves through the map, an agent
- * glyph is already the emoji, so pass it through. */
-export const reactionGlyph = (emoji: string): string => REACTION_EMOJI[emoji as HumanReactionEmoji] ?? emoji
+/** Common shortcode words an agent may send instead of the glyph itself. */
+const AGENT_ALIAS: Record<string, string> = {
+  eyes: "\u{1F440}",
+  thinking: "\u{1F914}",
+  check: "✅",
+  white_check_mark: "✅",
+}
+
+/** Render a reaction chip's glyph: a human key resolves through the map, a known
+ * agent shortcode word resolves through the alias, any other agent glyph is
+ * already the emoji, so pass it through. */
+export const reactionGlyph = (emoji: string): string =>
+  REACTION_EMOJI[emoji as HumanReactionEmoji] ?? AGENT_ALIAS[emoji] ?? emoji
 
 export const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
 export const INLINE_COMMENT_MAX_WIDTH_CLASS = "max-w-[760px]"
