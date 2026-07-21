@@ -1142,6 +1142,15 @@
   background: color-mix(in oklab, var(--ink-3) 8%, transparent);
   font-weight: 680;
 }
+/* Task list items (`- [ ]` / `- [x]`) drop the bullet for the checkbox. */
+.md-doc .md-task-item {
+  list-style: none;
+}
+.md-doc .md-task {
+  margin-right: 0.5em;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
 .md-doc .md-body img {
   max-width: 100%;
   border-radius: 8px;

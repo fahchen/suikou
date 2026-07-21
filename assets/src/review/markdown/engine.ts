@@ -52,6 +52,35 @@ export function sanitize(html: string, ctx?: AssetContext): string {
   }
 }
 
+// GFM-style task list items: `- [ ]` / `- [x]` become a disabled checkbox in
+// front of the item text. Runs after inline parsing so the marker is stripped
+// from the first text node and a checkbox is prepended to the same inline token,
+// which flows through the per-item block renderer unchanged.
+markdown.core.ruler.after("inline", "task_lists", (state) => {
+  const tokens = state.tokens
+  for (let i = 2; i < tokens.length; i++) {
+    const inline = tokens[i]
+    if (
+      inline.type !== "inline" ||
+      tokens[i - 1].type !== "paragraph_open" ||
+      tokens[i - 2].type !== "list_item_open"
+    ) {
+      continue
+    }
+    const match = /^\[([ xX])\]\s+/.exec(inline.content)
+    const first = inline.children?.[0]
+    if (!match || !first || first.type !== "text") continue
+
+    first.content = first.content.replace(/^\[([ xX])\]\s+/, "")
+    inline.content = inline.content.slice(match[0].length)
+
+    const box = new state.Token("html_inline", "", 0)
+    box.content = `<input class="md-task" type="checkbox" disabled${match[1] === " " ? "" : " checked"}> `
+    inline.children!.unshift(box)
+    tokens[i - 2].attrJoin("class", "md-task-item")
+  }
+})
+
 const defaultImage =
   markdown.renderer.rules.image ??
   ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
