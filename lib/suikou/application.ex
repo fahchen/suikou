@@ -17,6 +17,10 @@ defmodule Suikou.Application do
       # ref-counted by the connected review stores (see Suikou.FileWatcher).
       {Registry, keys: :unique, name: Suikou.FileWatcher.Registry},
       {DynamicSupervisor, name: Suikou.FileWatcher.Supervisor},
+      # Live presence of agent CLI `wait` calls, keyed by review_id. Each blocking
+      # wait registers one entry for its lifetime; the count powers the review
+      # footer's "waiting" indicator. Duplicate keys: many agents wait at once.
+      {Registry, keys: :duplicate, name: Suikou.WaitingRegistry},
       # Start to serve requests, typically the last entry
       SuikouWeb.Endpoint
     ]

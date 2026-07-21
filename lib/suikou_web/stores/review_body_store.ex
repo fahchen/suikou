@@ -24,6 +24,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   alias Musubi.AsyncResult
   alias Musubi.Child
   alias Musubi.Socket
+  alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Schemas.Review
@@ -55,12 +56,24 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     # `load_review_structure` so the chrome and per-file identity stay current.
     # Comments, counts, and verdicts stream live and never touch this.
     field(:structure_version, integer())
+
+    # How many agent CLIs are blocked in `wait` on this review right now. The
+    # footer shows a live "waiting" indicator when it is positive. The root
+    # forwards `%{waiting_count: n}` updates from `Suikou.Events`.
+    field(:waiting_count, integer())
   end
 
   @impl Musubi.Store
   @spec init(Socket.t()) :: {:ok, Socket.t()}
   def init(socket) do
-    {:ok, socket |> Socket.assign(:structure_version, 0) |> reload_aggregates() |> load_files()}
+    waiting = Events.waiting_count(socket.assigns.review_id)
+
+    {:ok,
+     socket
+     |> Socket.assign(:structure_version, 0)
+     |> Socket.assign(:waiting_count, waiting)
+     |> reload_aggregates()
+     |> load_files()}
   end
 
   @impl Musubi.Store
@@ -113,7 +126,8 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
       round_summaries: summaries,
       selected_round: socket.assigns[:round_number] || latest,
       latest_round: latest,
-      structure_version: socket.assigns[:structure_version] || 0
+      structure_version: socket.assigns[:structure_version] || 0,
+      waiting_count: socket.assigns[:waiting_count] || 0
     }
   end
 

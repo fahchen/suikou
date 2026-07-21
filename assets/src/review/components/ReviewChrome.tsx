@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { StoreProxy } from "@musubi/react"
 import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
@@ -170,6 +170,7 @@ export function StatusBar({
 }) {
   const total = review.perFile.length
   const blockers = review.blockers.length
+  const waiting = useStickyWaiting(review.waiting)
 
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted [box-sizing:content-box]">
@@ -205,6 +206,19 @@ export function StatusBar({
           </span>
         </>
       )}
+      {waiting > 0 && (
+        <>
+          <StatusDot />
+          <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-accent">
+            <span
+              className="size-[7px] animate-pulse rounded-full bg-accent shadow-[0_0_0_2.5px_var(--accent-soft)]"
+              aria-hidden
+            />
+            <span className="tabular-nums">{waiting}</span>
+            <span className="hidden sm:inline">waiting</span>
+          </span>
+        </>
+      )}
       <span className="inline-flex shrink-0 items-center gap-1.5">
         <span
           className={`size-[7px] rounded-full ${connected ? "bg-approve shadow-[0_0_0_2.5px_var(--approve-soft)]" : "bg-amber shadow-[0_0_0_2.5px_var(--amber-soft)]"}`}
@@ -214,6 +228,31 @@ export function StatusBar({
       </span>
     </div>
   )
+}
+
+// Keeps the "waiting" indicator lit for a short grace period after the count
+// drops to zero, so the sub-second gap between one `wait` call timing out and
+// the launcher re-issuing the next one does not blink the badge every cycle.
+function useStickyWaiting(count: number): number {
+  const [display, setDisplay] = useState(count)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+    if (count > 0) {
+      setDisplay(count)
+    } else {
+      timer.current = setTimeout(() => setDisplay(0), 3000)
+    }
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
+  }, [count])
+
+  return display
 }
 
 function StatusDot() {

@@ -315,7 +315,16 @@ defmodule SuikouWeb.AgentCLI.Reviews do
           worthy_snapshot(review_id, scope)
         else
           deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
-          await(review_id, scope, threshold, reaction_version, deadline)
+          # Register waiter presence for the footer indicator only while blocked.
+          # A hard kill mid-wait skips the `after` unregister, but the Registry
+          # auto-drops the dead pid and the next poll's register rebroadcasts.
+          Events.register_waiting(review_id)
+
+          try do
+            await(review_id, scope, threshold, reaction_version, deadline)
+          after
+            Events.unregister_waiting(review_id)
+          end
         end
       end)
 

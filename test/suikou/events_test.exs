@@ -22,4 +22,21 @@ defmodule Suikou.EventsTest do
       refute_receive %Events.FsChange{}
     end
   end
+
+  describe "waiter presence" do
+    test "register/unregister move the count and broadcast it" do
+      review_id = "rv-#{System.unique_integer([:positive])}"
+      Events.subscribe(review_id)
+
+      assert Events.waiting_count(review_id) == 0
+
+      assert :ok = Events.register_waiting(review_id)
+      assert_receive {:waiting_changed, ^review_id, 1}
+      assert Events.waiting_count(review_id) == 1
+
+      assert :ok = Events.unregister_waiting(review_id)
+      assert_receive {:waiting_changed, ^review_id, 0}
+      assert Events.waiting_count(review_id) == 0
+    end
+  end
 end

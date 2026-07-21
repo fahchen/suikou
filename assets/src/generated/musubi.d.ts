@@ -391,6 +391,7 @@ declare namespace Musubi {
         selected_round: number
         latest_round: number
         structure_version: number
+        waiting_count: number
       },
       {},
       {}

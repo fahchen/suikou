@@ -118,6 +118,7 @@ type ReviewSummary = {
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
+  waiting: number
 }
 
 function useDesktopLayout(): boolean {
@@ -477,6 +478,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       allApproved: perFile.length > 0 && perFile.every((f) => f.approved),
       unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockers.length,
       hasUnpublished: snap?.body?.has_unpublished ?? false,
+      waiting: snap?.body?.waiting_count ?? 0,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, snap])

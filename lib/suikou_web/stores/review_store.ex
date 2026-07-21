@@ -166,6 +166,15 @@ defmodule SuikouWeb.Stores.ReviewStore do
     {:noreply, socket}
   end
 
+  # An agent CLI started or stopped waiting on this review: forward the live
+  # count to the body, which surfaces it in the footer's "waiting" indicator.
+  def handle_info({:waiting_changed, _review_id, count}, socket) do
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+    body = Socket.store_id(socket) ++ ["body"]
+    Musubi.send_update(body, %{waiting_count: count})
+    {:noreply, socket}
+  end
+
   # A watched file changed on disk: forward the path and whether it still exists
   # to the body, which either marks the file stale or re-derives the file list
   # (a create or delete).

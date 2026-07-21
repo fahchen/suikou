@@ -16,8 +16,12 @@ defmodule Suikou.Events do
 
   @pubsub Suikou.PubSub
 
+  @waiting_registry Suikou.WaitingRegistry
+
   @typedoc "Message delivered to subscribers of a review's change topic."
-  @type message() :: {:review_changed, String.t(), String.t() | nil}
+  @type message() ::
+          {:review_changed, String.t(), String.t() | nil}
+          | {:waiting_changed, String.t(), non_neg_integer()}
 
   @doc """
   Subscribes the calling process to `review_id`'s change topic.
@@ -101,6 +105,64 @@ defmodule Suikou.Events do
       @pubsub,
       fs_topic(review_id),
       %FsChange{review_id: review_id, rel_path: rel_path, exists?: exists?}
+    )
+  end
+
+  @doc """
+  Registers the calling process as an active waiter on `review_id` for the
+  duration of the process (or until `unregister_waiting/1`), then broadcasts the
+  new waiter count. The `Suikou.WaitingRegistry` auto-drops the entry when the
+  process dies.
+
+  ## Examples
+
+      Suikou.Events.register_waiting("01HZ...")
+      #=> :ok
+
+  """
+  @spec register_waiting(String.t()) :: :ok
+  def register_waiting(review_id) when is_binary(review_id) do
+    {:ok, _pid} = Registry.register(@waiting_registry, review_id, nil)
+    broadcast_waiting(review_id)
+    :ok
+  end
+
+  @doc """
+  Removes the calling process's waiter registration for `review_id` and
+  broadcasts the new count. Safe to call even if not registered.
+
+  ## Examples
+
+      Suikou.Events.unregister_waiting("01HZ...")
+      #=> :ok
+
+  """
+  @spec unregister_waiting(String.t()) :: :ok
+  def unregister_waiting(review_id) when is_binary(review_id) do
+    Registry.unregister(@waiting_registry, review_id)
+    broadcast_waiting(review_id)
+    :ok
+  end
+
+  @doc """
+  Returns how many processes are currently waiting on `review_id`.
+
+  ## Examples
+
+      Suikou.Events.waiting_count("01HZ...")
+      #=> 0
+
+  """
+  @spec waiting_count(String.t()) :: non_neg_integer()
+  def waiting_count(review_id) when is_binary(review_id) do
+    Registry.count_match(@waiting_registry, review_id, nil)
+  end
+
+  defp broadcast_waiting(review_id) do
+    Phoenix.PubSub.broadcast(
+      @pubsub,
+      topic(review_id),
+      {:waiting_changed, review_id, waiting_count(review_id)}
     )
   end
 

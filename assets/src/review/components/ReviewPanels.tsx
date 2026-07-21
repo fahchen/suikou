@@ -26,6 +26,7 @@ export type ReviewSummary = {
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
+  waiting: number
 }
 
 export const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
