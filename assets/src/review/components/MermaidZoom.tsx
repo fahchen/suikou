@@ -109,7 +109,7 @@ export function MermaidZoom({ docRef }: { docRef: RefObject<HTMLElement | null> 
         }}
         aria-label="Close preview"
         title="Close"
-        className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-full bg-surface text-muted shadow-[0_8px_24px_oklch(0%_0_0/0.28)] ring-1 ring-hair-strong transition-[color,background-color,box-shadow,transform] duration-150 ease-out hover:bg-soft hover:text-ink hover:shadow-[0_10px_28px_oklch(0%_0_0/0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-edge active:scale-95 motion-reduce:transition-none"
+        className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-ctrl bg-surface text-muted shadow-[0_8px_24px_oklch(0%_0_0/0.28)] ring-1 ring-hair-strong transition-[color,background-color,box-shadow,transform] duration-150 ease-out hover:bg-soft hover:text-ink hover:shadow-[0_10px_28px_oklch(0%_0_0/0.34)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-edge active:scale-95 motion-reduce:transition-none"
       >
         <X size={16} />
       </button>
