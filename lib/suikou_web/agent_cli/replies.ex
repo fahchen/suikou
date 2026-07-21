@@ -15,13 +15,13 @@ defmodule SuikouWeb.AgentCLI.Replies do
   @doc """
   Sets the agent's work-status reaction on a reply from `%{"reply_id", "emoji"}`
   and emits `%{reply_id}` or `%{error}`. The agent holds at most one reaction per
-  reply, so a new emoji replaces the previous one. `emoji` must be an
-  agent-vocabulary key (`eyes` / `thinking` / `check`); a human-vocabulary key is
-  rejected. `Suikou.Critique.react_reply_as_agent/2` emits the review change event.
+  reply, so a new emoji replaces the previous one. `emoji` may be any emoji glyph
+  (a free-form work-status signal — e.g. 👀 / 🤔 / ✅).
+  `Suikou.Critique.react_reply_as_agent/2` emits the review change event.
 
   ## Examples
 
-      # stdin: {"reply_id": "0192…", "emoji": "eyes"}
+      # stdin: {"reply_id": "0192…", "emoji": "👀"}
       SuikouWeb.AgentCLI.Replies.react()
       #=> :ok  # emits {"reply_id":"0192…","error":null}
 

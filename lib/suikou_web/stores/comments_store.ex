@@ -88,7 +88,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
       field(
         :emoji,
-        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+        :strong_agree | :agree | :disagree | :strong_disagree
       )
     end
   end
@@ -99,7 +99,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
       field(
         :emoji,
-        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+        :strong_agree | :agree | :disagree | :strong_disagree
       )
     end
   end
@@ -110,7 +110,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
       field(
         :emoji,
-        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+        :strong_agree | :agree | :disagree | :strong_disagree
       )
     end
   end
@@ -121,7 +121,7 @@ defmodule SuikouWeb.Stores.CommentsStore do
 
       field(
         :emoji,
-        :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+        :strong_agree | :agree | :disagree | :strong_disagree
       )
     end
   end

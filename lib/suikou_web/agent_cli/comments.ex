@@ -43,13 +43,13 @@ defmodule SuikouWeb.AgentCLI.Comments do
   @doc """
   Sets the agent's work-status reaction on a comment from `%{"comment_id",
   "emoji"}` and emits `%{comment_id}` or `%{error}`. The agent holds at most one
-  reaction per comment, so a new emoji replaces the previous one. `emoji` must be
-  an agent-vocabulary key (`eyes` / `thinking` / `check`); a human-vocabulary key
-  is rejected. `Suikou.Critique.react_as_agent/2` emits the review change event.
+  reaction per comment, so a new emoji replaces the previous one. `emoji` may be
+  any emoji glyph (a free-form work-status signal — e.g. 👀 / 🤔 / ✅);
+  `Suikou.Critique.react_as_agent/2` emits the review change event.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…", "emoji": "eyes"}
+      # stdin: {"comment_id": "0192…", "emoji": "👀"}
       SuikouWeb.AgentCLI.Comments.react()
       #=> :ok  # emits {"comment_id":"0192…","error":null}
 

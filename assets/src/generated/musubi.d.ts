@@ -103,7 +103,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.CommentsStore": StoreDef<
       "SuikouWeb.Stores.CommentsStore",
       {
-        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string; reactions: Array<{ emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"; count: number; mine: boolean }> }>; reactions: Array<{ emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"; count: number; mine: boolean }> }>
+        items: Array<{ id: string; scope: "review" | "artifact" | "located"; critique_type: "fix_required" | "needs_answer" | "note"; status: "pending" | "published"; body: string; resolved: boolean; resolved_round: number | null; outdated: boolean; drifted: boolean; authored_round: number; inserted_at: string; anchor: { type: "line_range"; start_line: number; end_line: number; quote: string } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number; quote: string } | { type: "element"; selector: string; quote: string } | null; replies: Array<{ id: string; author: "human" | "agent"; status: "pending" | "published"; body: string; inserted_at: string; reactions: Array<{ emoji: string; actor: "human" | "agent"; count: number; mine: boolean }> }>; reactions: Array<{ emoji: string; actor: "human" | "agent"; count: number; mine: boolean }> }>
       },
       {
         edit_comment: {
@@ -162,28 +162,28 @@ declare namespace Musubi {
         add_reaction: {
           payload: {
             comment_id: string
-            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"
+            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree"
           }
           reply: never
         }
         remove_reaction: {
           payload: {
             comment_id: string
-            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"
+            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree"
           }
           reply: never
         }
         add_reply_reaction: {
           payload: {
             reply_id: string
-            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"
+            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree"
           }
           reply: never
         }
         remove_reply_reaction: {
           payload: {
             reply_id: string
-            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree" | "eyes" | "thinking" | "check"
+            emoji: "strong_agree" | "agree" | "disagree" | "strong_disagree"
           }
           reply: never
         }

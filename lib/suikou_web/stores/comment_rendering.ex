@@ -118,14 +118,28 @@ defmodule SuikouWeb.Stores.CommentRendering do
   end
 
   # Aggregate a comment's reactions into per-emoji chips: the count across every
-  # actor and whether the human is among them (drives the "mine" toggle state),
-  # ordered by the canonical emoji order so chips stay stable across renders.
+  # actor, the chip's actor (human/agent vocabularies are disjoint, so a glyph
+  # belongs to exactly one), and whether the human is among them (drives the
+  # "mine" toggle state). Human chips sort first in canonical key order; agent
+  # chips (free-form glyphs) follow, ordered by glyph so chips stay stable.
   defp render_reactions(reactions) do
+    human_order = Reaction.human_emojis()
+
     reactions
     |> Enum.group_by(& &1.emoji)
-    |> Enum.map(fn {emoji, group} ->
-      %{emoji: emoji, count: length(group), mine: Enum.any?(group, &(&1.actor == :human))}
+    |> Enum.map(fn {emoji, [%{actor: actor} | _rest] = group} ->
+      %{
+        emoji: emoji,
+        actor: actor,
+        count: length(group),
+        mine: Enum.any?(group, &(&1.actor == :human))
+      }
     end)
-    |> Enum.sort_by(&Enum.find_index(Reaction.emojis(), fn e -> e == &1.emoji end))
+    |> Enum.sort_by(fn %{emoji: emoji} ->
+      case Enum.find_index(human_order, &(&1 == emoji)) do
+        nil -> {1, emoji}
+        index -> {0, index}
+      end
+    end)
   end
 end

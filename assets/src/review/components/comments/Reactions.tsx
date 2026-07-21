@@ -5,12 +5,11 @@ import { Bot, SmilePlus } from "lucide-react"
 import { useMusubiCommand } from "../../../musubi"
 import { Popover } from "../../../components/ui/popover"
 import {
-  AGENT_REACTIONS,
   HUMAN_REACTIONS,
-  REACTION_EMOJI,
+  reactionGlyph,
   type CommentReaction,
   type CommentsStoreProxy,
-  type ReactionEmoji,
+  type HumanReactionEmoji,
 } from "./shared"
 
 type Target = "comment" | "reply"
@@ -21,7 +20,7 @@ const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
 
 /** Reactions on a comment or reply. Humans pick from an approval/opposition
  * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
- * Agent work-status reactions (`AGENT_REACTIONS`) render as read-only chips
+ * Agent reactions (any glyph, `actor === "agent"`) render as read-only chips
  * badged with a bot avatar — the human can't add or remove them. */
 export function Reactions({
   reactions,
@@ -43,7 +42,7 @@ export function Reactions({
   const [open, setOpen] = useState(false)
   const mine = new Map(reactions.map((reaction) => [reaction.emoji, reaction.mine]))
 
-  const toggle = (emoji: ReactionEmoji, event: MouseEvent) => {
+  const toggle = (emoji: HumanReactionEmoji, event: MouseEvent) => {
     event.stopPropagation()
     if (!commentsProxy) return
     if (target === "reply") {
@@ -61,7 +60,7 @@ export function Reactions({
           added or removed later animate, with layout easing neighbours over. */}
       <AnimatePresence initial={false}>
         {reactions.map((reaction) =>
-          AGENT_REACTIONS.includes(reaction.emoji) ? (
+          reaction.actor === "agent" ? (
             <motion.span
               key={reaction.emoji}
               layout
@@ -72,7 +71,7 @@ export function Reactions({
               title="Agent reaction"
               className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
             >
-              <span className="text-xs leading-none">{REACTION_EMOJI[reaction.emoji]}</span>
+              <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
               <Bot size={11} className="text-accent-bright" aria-hidden />
               {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
             </motion.span>
@@ -86,14 +85,14 @@ export function Reactions({
               transition={CHIP_TRANSITION}
               type="button"
               aria-pressed={reaction.mine}
-              onClick={(event) => toggle(reaction.emoji, event)}
+              onClick={(event) => toggle(reaction.emoji as HumanReactionEmoji, event)}
               className={`inline-flex h-[22px] items-center rounded-full px-2 text-xs leading-none ring-1 ring-inset transition-colors ${
                 reaction.mine
                   ? "bg-accent-soft text-accent-bright ring-accent-edge"
                   : "bg-soft text-muted ring-hair-strong hover:text-ink"
               }`}
             >
-              {REACTION_EMOJI[reaction.emoji]}
+              {reactionGlyph(reaction.emoji)}
             </motion.button>
           ),
         )}
@@ -131,7 +130,7 @@ export function Reactions({
                 mine.get(emoji) ? "bg-accent-soft ring-1 ring-inset ring-accent-edge" : ""
               }`}
             >
-              {REACTION_EMOJI[emoji]}
+              {reactionGlyph(emoji)}
             </button>
           ))}
         </div>

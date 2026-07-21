@@ -6,28 +6,25 @@ type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Store
 export type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][number]
 export type CommentReply = Comment["replies"][number]
 export type CommentReaction = Comment["reactions"][number]
-export type ReactionEmoji = CommentReaction["emoji"]
+/** Human reaction keys are a fixed scale; an agent chip's `emoji` is a free-form glyph. */
+export type HumanReactionEmoji = "strong_agree" | "agree" | "disagree" | "strong_disagree"
 export type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
 export type CritiqueType = "fix_required" | "needs_answer" | "note"
 
-/** Canonical reaction order (matches the backend `Reaction.emojis/0`). */
-export const REACTION_ORDER: ReactionEmoji[] = ["strong_agree", "agree", "disagree", "strong_disagree", "eyes", "thinking", "check"]
+/** The human picker's canonical order (matches the backend `Reaction.human_emojis/0`). */
+export const HUMAN_REACTIONS: HumanReactionEmoji[] = ["strong_agree", "agree", "disagree", "strong_disagree"]
 
-export const REACTION_EMOJI: Record<ReactionEmoji, string> = {
+/** Human keys map to glyphs; agent chips carry the glyph directly and render it verbatim. */
+export const REACTION_EMOJI: Record<HumanReactionEmoji, string> = {
   strong_agree: "\u{1F4AF}",
   agree: "\u{1F44D}",
   disagree: "\u{1F44E}",
   strong_disagree: "❌",
-  eyes: "\u{1F440}",
-  thinking: "\u{1F914}",
-  check: "✅",
 }
 
-/** Humans express an approval/opposition scale; agents signal work status. The
- * two sets are disjoint, so an agent-set emoji chip always came from an agent
- * (drives the bot-avatar treatment) and the human picker only offers its own. */
-export const HUMAN_REACTIONS: ReactionEmoji[] = ["strong_agree", "agree", "disagree", "strong_disagree"]
-export const AGENT_REACTIONS: ReactionEmoji[] = ["eyes", "thinking", "check"]
+/** Render a reaction chip's glyph: a human key resolves through the map, an agent
+ * glyph is already the emoji, so pass it through. */
+export const reactionGlyph = (emoji: string): string => REACTION_EMOJI[emoji as HumanReactionEmoji] ?? emoji
 
 export const inlineThreadCollapsedKey = (commentId: string): string => `suikou-thread-collapsed:${commentId}`
 export const INLINE_COMMENT_MAX_WIDTH_CLASS = "max-w-[760px]"

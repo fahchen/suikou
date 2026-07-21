@@ -6,9 +6,10 @@ defmodule Suikou.Critique.Reactions do
   carry an `actor`).
 
   The human path (comments and replies) is driven by the UI store command; the
-  agent path (comments only) is driven by the facade. The two actors draw from
-  disjoint emoji vocabularies (human and agent emojis), enforced by the
-  changeset. Each actor holds at most
+  agent path (comments only) is driven by the facade. The human reacts from a
+  fixed four-emoji vocabulary; the agent reacts with any emoji glyph (a
+  free-form work-status signal), both enforced by the changeset. Each actor
+  holds at most
   ONE reaction per target: a `(target_id, actor)` pair is unique, so picking a
   new emoji REPLACES the actor's previous one in place (`on_conflict: {:replace,
   ...}`) rather than adding a row, and re-picking the same emoji is handled by the
@@ -139,18 +140,18 @@ defmodule Suikou.Critique.Reactions do
   end
 
   @doc """
-  Adds an agent reaction to a comment, keyed by `emoji` (validated through the
-  changeset against the agent emoji vocabulary). The agent holds at most one
+  Adds an agent reaction to a comment, keyed by `emoji` (any glyph, validated
+  through the changeset). The agent holds at most one
   reaction per comment, so reacting with a new emoji REPLACES the previous one in
   place; repeating the same emoji leaves a single row. Returns `{:ok,
   comment_id}` so the facade can scope the change event to the comment's file.
 
   ## Examples
 
-      Suikou.Critique.Reactions.react_as_agent(comment.id, "eyes")
+      Suikou.Critique.Reactions.react_as_agent(comment.id, "👀")
       #=> {:ok, comment.id}
 
-      Suikou.Critique.Reactions.react_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      Suikou.Critique.Reactions.react_as_agent("00000000-0000-7000-8000-000000000000", "👀")
       #=> {:error, :comment_not_found}
 
   """
@@ -180,10 +181,10 @@ defmodule Suikou.Critique.Reactions do
 
   ## Examples
 
-      Suikou.Critique.Reactions.unreact_as_agent(comment.id, "eyes")
+      Suikou.Critique.Reactions.unreact_as_agent(comment.id, "👀")
       #=> {:ok, comment.id}
 
-      Suikou.Critique.Reactions.unreact_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      Suikou.Critique.Reactions.unreact_as_agent("00000000-0000-7000-8000-000000000000", "👀")
       #=> {:error, :comment_not_found}
 
   """
@@ -269,8 +270,8 @@ defmodule Suikou.Critique.Reactions do
   end
 
   @doc """
-  Adds an agent reaction to a reply, keyed by `emoji` (validated through the
-  changeset against the agent emoji vocabulary). The agent holds at most one
+  Adds an agent reaction to a reply, keyed by `emoji` (any glyph, validated
+  through the changeset). The agent holds at most one
   reaction per reply, so reacting with a new emoji REPLACES the previous one in
   place; repeating the same emoji leaves a single row. Returns `{:ok,
   comment_id}` — the reply's parent comment id — so the facade can scope the
@@ -278,10 +279,10 @@ defmodule Suikou.Critique.Reactions do
 
   ## Examples
 
-      Suikou.Critique.Reactions.react_reply_as_agent(reply.id, "eyes")
+      Suikou.Critique.Reactions.react_reply_as_agent(reply.id, "👀")
       #=> {:ok, reply.comment_id}
 
-      Suikou.Critique.Reactions.react_reply_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      Suikou.Critique.Reactions.react_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀")
       #=> {:error, :reply_not_found}
 
   """
@@ -311,10 +312,10 @@ defmodule Suikou.Critique.Reactions do
 
   ## Examples
 
-      Suikou.Critique.Reactions.unreact_reply_as_agent(reply.id, "eyes")
+      Suikou.Critique.Reactions.unreact_reply_as_agent(reply.id, "👀")
       #=> {:ok, reply.comment_id}
 
-      Suikou.Critique.Reactions.unreact_reply_as_agent("00000000-0000-7000-8000-000000000000", "eyes")
+      Suikou.Critique.Reactions.unreact_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀")
       #=> {:error, :reply_not_found}
 
   """

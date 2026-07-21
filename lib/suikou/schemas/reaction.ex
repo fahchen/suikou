@@ -11,6 +11,10 @@ defmodule Suikou.Schemas.Reaction do
   Each actor holds at most one reaction per target: a `(comment_id, actor)` pair
   (or `(reply_id, actor)`) is unique, so picking a new emoji replaces the actor's
   previous one in place rather than adding a row.
+
+  The human vocabulary is a fixed approval/opposition scale (`human_emojis/0`);
+  the agent may react with **any** emoji glyph (a free-form work-status signal),
+  so `emoji` is stored as a plain string rather than an enum.
   """
 
   use Suikou.Schema
@@ -18,17 +22,15 @@ defmodule Suikou.Schemas.Reaction do
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
 
-  @emojis [:strong_agree, :agree, :disagree, :strong_disagree, :eyes, :thinking, :check]
-  @human_emojis [:strong_agree, :agree, :disagree, :strong_disagree]
-  @agent_emojis [:eyes, :thinking, :check]
+  @human_emojis ~w(strong_agree agree disagree strong_disagree)
+  @agent_emoji_max_bytes 32
   @actors [:human, :agent]
 
-  @type emoji() ::
-          :strong_agree | :agree | :disagree | :strong_disagree | :eyes | :thinking | :check
+  @type emoji() :: String.t()
   @type actor() :: :human | :agent
 
   typed_schema "reactions" do
-    field :emoji, Ecto.Enum, values: @emojis, typed: [null: false]
+    field :emoji, :string, typed: [null: false]
     field :actor, Ecto.Enum, values: @actors, typed: [null: false]
 
     belongs_to :comment, Comment
@@ -38,27 +40,28 @@ defmodule Suikou.Schemas.Reaction do
   end
 
   @doc """
-  Returns the allowed reaction emojis in canonical order. The frontend maps each
-  key to its emoji glyph and renders reaction chips in this order.
+  Returns the fixed human reaction keys in canonical order. The frontend maps
+  each key to its emoji glyph and renders human reaction chips in this order;
+  agent chips carry a free-form glyph and render it verbatim.
 
   ## Examples
 
-      iex> Suikou.Schemas.Reaction.emojis()
-      [:strong_agree, :agree, :disagree, :strong_disagree, :eyes, :thinking, :check]
+      iex> Suikou.Schemas.Reaction.human_emojis()
+      ["strong_agree", "agree", "disagree", "strong_disagree"]
 
   """
-  @spec emojis() :: [emoji()]
-  def emojis, do: @emojis
+  @spec human_emojis() :: [String.t()]
+  def human_emojis, do: @human_emojis
 
   @doc """
   Builds a changeset for a reaction on `reaction` (a struct that already carries
   the programmatic `actor`, set when the struct is built), casting `comment_id`,
   `reply_id`, and `emoji` from `params`. A reaction targets exactly one of a
   comment or a reply; this changeset-level check mirrors the DB constraint.
-  `emoji` arrives as a string from the store payload; the `Ecto.Enum` field
-  validates and coerces it to the atom. The emoji must also belong to the
-  reaction's actor vocabulary (human or agent emojis), which are disjoint, so a
-  human cannot apply an agent emoji and vice versa.
+  `emoji` arrives as a string. A **human** reaction must be one of the fixed
+  approval/opposition keys (`human_emojis/0`); an **agent** reaction may be any
+  non-empty glyph up to #{@agent_emoji_max_bytes} bytes, so the agent can signal
+  work status with whatever emoji it likes.
 
   ## Examples
 
@@ -71,7 +74,7 @@ defmodule Suikou.Schemas.Reaction do
       true
 
       iex> reaction = %Suikou.Schemas.Reaction{actor: :agent}
-      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "eyes"}).valid?
+      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "🚀"}).valid?
       true
 
       iex> reaction = %Suikou.Schemas.Reaction{actor: :human}
@@ -83,11 +86,11 @@ defmodule Suikou.Schemas.Reaction do
       false
 
       iex> reaction = %Suikou.Schemas.Reaction{actor: :human}
-      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "eyes"}).valid?
+      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "🚀"}).valid?
       false
 
-      iex> reaction = %Suikou.Schemas.Reaction{actor: :human}
-      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "nope"}).valid?
+      iex> reaction = %Suikou.Schemas.Reaction{actor: :agent}
+      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: ""}).valid?
       false
 
   """
@@ -100,22 +103,12 @@ defmodule Suikou.Schemas.Reaction do
     |> validate_emoji_for_actor(reaction.actor)
   end
 
-  defp validate_emoji_for_actor(changeset, actor) do
-    allowed =
-      case actor do
-        :human -> @human_emojis
-        :agent -> @agent_emojis
-      end
+  defp validate_emoji_for_actor(changeset, :human) do
+    validate_inclusion(changeset, :emoji, @human_emojis, message: "not allowed for this actor")
+  end
 
-    case get_field(changeset, :emoji) do
-      nil ->
-        changeset
-
-      emoji ->
-        if emoji in allowed,
-          do: changeset,
-          else: add_error(changeset, :emoji, "not allowed for this actor")
-    end
+  defp validate_emoji_for_actor(changeset, :agent) do
+    validate_length(changeset, :emoji, min: 1, max: @agent_emoji_max_bytes, count: :bytes)
   end
 
   defp validate_exactly_one_target(changeset) do
