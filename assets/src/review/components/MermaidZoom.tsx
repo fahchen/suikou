@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react"
-import { Minus, Plus, X } from "lucide-react"
+import { X } from "lucide-react"
 
 const MIN_SCALE = 0.2
 const MAX_SCALE = 8
@@ -7,16 +7,19 @@ const STEP = 1.2
 
 /**
  * Opens a fullscreen preview when a rendered mermaid diagram inside `docRef` is
- * clicked, with zoom (buttons + wheel) and drag-to-pan. Renders nothing until a
- * diagram is opened. The SVG is lifted from the already-rendered placeholder, so
- * it keeps the live theme CSS variables it was drawn with.
+ * clicked. Zoom is manual — mouse wheel or two-finger pinch — plus drag-to-pan.
+ * Renders nothing until a diagram is opened. The SVG is lifted from the
+ * already-rendered placeholder and the overlay uses the app background, so the
+ * preview looks identical to the diagram in the document.
  */
 export function MermaidZoom({ docRef }: { docRef: RefObject<HTMLElement | null> }) {
   const [svg, setSvg] = useState<string | null>(null)
   const [scale, setScale] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const dragOrigin = useRef<{ x: number; y: number } | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinch = useRef<{ dist: number; scale: number } | null>(null)
+  const panOrigin = useRef<{ x: number; y: number } | null>(null)
 
   const open = svg !== null
 
@@ -59,12 +62,15 @@ export function MermaidZoom({ docRef }: { docRef: RefObject<HTMLElement | null> 
 
   if (!open) return null
 
-  const zoom = (factor: number) => setScale((s) => clamp(s * factor))
+  const pointerDist = () => {
+    const [a, b] = [...pointers.current.values()]
+    return Math.hypot(a.x - b.x, a.y - b.y)
+  }
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-canvas"
       onClick={() => setSvg(null)}
     >
       <div
@@ -72,39 +78,54 @@ export function MermaidZoom({ docRef }: { docRef: RefObject<HTMLElement | null> 
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => {
-          dragOrigin.current = { x: event.clientX - pan.x, y: event.clientY - pan.y }
           event.currentTarget.setPointerCapture(event.pointerId)
+          pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+          if (pointers.current.size === 2) {
+            pinch.current = { dist: pointerDist(), scale }
+            panOrigin.current = null
+          } else if (pointers.current.size === 1) {
+            panOrigin.current = { x: event.clientX - pan.x, y: event.clientY - pan.y }
+          }
         }}
         onPointerMove={(event) => {
-          if (dragOrigin.current) setPan({ x: event.clientX - dragOrigin.current.x, y: event.clientY - dragOrigin.current.y })
+          if (!pointers.current.has(event.pointerId)) return
+          pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+          if (pointers.current.size >= 2 && pinch.current) {
+            const dist = pointerDist()
+            if (pinch.current.dist > 0) setScale(clamp(pinch.current.scale * (dist / pinch.current.dist)))
+          } else if (panOrigin.current) {
+            setPan({ x: event.clientX - panOrigin.current.x, y: event.clientY - panOrigin.current.y })
+          }
         }}
-        onPointerUp={() => {
-          dragOrigin.current = null
-        }}
+        onPointerUp={(event) => releasePointer(event.pointerId)}
+        onPointerCancel={(event) => releasePointer(event.pointerId)}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
-      <div
-        className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-surface px-1.5 py-1 shadow-lg ring-1 ring-hair-strong"
-        onClick={(event) => event.stopPropagation()}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          setSvg(null)
+        }}
+        title="Close"
+        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-muted shadow-lg ring-1 ring-hair-strong transition-colors hover:bg-soft hover:text-ink"
       >
-        <button type="button" onClick={() => zoom(1 / STEP)} title="Zoom out" className={controlClass}>
-          <Minus size={16} />
-        </button>
-        <span className="w-12 text-center text-xs tabular-nums text-muted">{Math.round(scale * 100)}%</span>
-        <button type="button" onClick={() => zoom(STEP)} title="Zoom in" className={controlClass}>
-          <Plus size={16} />
-        </button>
-        <div className="mx-1 h-4 w-px bg-hair-strong" />
-        <button type="button" onClick={() => setSvg(null)} title="Close" className={controlClass}>
-          <X size={16} />
-        </button>
-      </div>
+        <X size={16} />
+      </button>
     </div>
   )
-}
 
-const controlClass =
-  "flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-soft hover:text-ink"
+  function releasePointer(id: number) {
+    pointers.current.delete(id)
+    pinch.current = null
+    if (pointers.current.size === 1) {
+      const [p] = [...pointers.current.values()]
+      panOrigin.current = { x: p.x - pan.x, y: p.y - pan.y }
+    } else if (pointers.current.size === 0) {
+      panOrigin.current = null
+    }
+  }
+}
 
 function clamp(scale: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
