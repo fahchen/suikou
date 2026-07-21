@@ -1151,6 +1151,21 @@
   vertical-align: middle;
   accent-color: var(--accent);
 }
+
+/* Single shared horizontal scrollbar for an overflowing per-row table group. */
+.md-doc .md-table-hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 1px 0 2px;
+  scrollbar-width: thin;
+}
+.md-doc .md-table-hscroll::-webkit-scrollbar {
+  height: 8px;
+}
+.md-doc .md-table-hscroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--hair-strong);
+}
 .md-doc .md-body img {
   max-width: 100%;
   border-radius: 8px;

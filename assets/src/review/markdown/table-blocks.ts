@@ -28,13 +28,15 @@ export function renderTableBlocks(
           .map((token) => token.content)
       : []
 
+  const gid = tokens[tableOpen].map?.[0] ?? tableOpen
+
   if (headerRow.trim()) {
     const token = tokens[theadOpen]
     const label = escapeAttribute(`Table columns: ${headers.join(", ")}`)
     blocks.push({
       line: (token.map?.[0] ?? 0) + 1,
       endLine: token.map?.[1] ?? (token.map?.[0] ?? 0) + 1,
-      html: `<table class="md-table-block" aria-label="${label}"><thead>${headerRow}</thead></table>`,
+      html: `<table class="md-table-block" data-md-table="${gid}" aria-label="${label}"><thead>${headerRow}</thead></table>`,
     })
   }
 
@@ -50,7 +52,7 @@ export function renderTableBlocks(
     blocks.push({
       line: (token.map?.[0] ?? 0) + 1,
       endLine: token.map?.[1] ?? (token.map?.[0] ?? 0) + 1,
-      html: `<table class="md-table-block md-table-row" aria-label="${label}"><tbody>${html}</tbody></table>`,
+      html: `<table class="md-table-block md-table-row" data-md-table="${gid}" aria-label="${label}"><tbody>${html}</tbody></table>`,
     })
   })
 

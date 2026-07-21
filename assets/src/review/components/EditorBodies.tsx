@@ -9,7 +9,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE, MONO_PX } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useMermaid, type AssetContext } from "../markdown"
+import { renderMarkdownBlocks, useMermaid, useTableSync, type AssetContext } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -53,6 +53,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   )
   const docRef = useRef<HTMLDivElement>(null)
   useMermaid(docRef, [blocks])
+  useTableSync(docRef, [blocks])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
 
