@@ -13,6 +13,7 @@ import { renderMarkdownBlocks, useMermaid, type AssetContext } from "../markdown
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
+import { MermaidZoom } from "./MermaidZoom"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type Range = { start: number; end: number }
@@ -430,6 +431,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
           setSwitchTo(null)
         }}
       />
+      <MermaidZoom docRef={docRef} />
     </div>
   )
 })

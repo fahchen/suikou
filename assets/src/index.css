@@ -1146,3 +1146,6 @@
   max-width: 100%;
   border-radius: 8px;
 }
+.md-doc .mermaid-diagram svg {
+  cursor: zoom-in;
+}
