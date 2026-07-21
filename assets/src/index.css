@@ -1147,7 +1147,10 @@
   list-style: none;
 }
 .md-doc .md-task {
-  margin-right: 0.5em;
+  display: inline-block;
+  width: 1em;
+  margin-left: -1.35em;
+  margin-right: 0.35em;
   vertical-align: middle;
   accent-color: var(--accent);
 }
