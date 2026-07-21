@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import { renderMarkdownBlocks } from "./markdown"
 import { parseFrontmatter } from "./markdown/frontmatter"
+import { decodeMermaidSource } from "./markdown/mermaid"
 
 describe("renderMarkdownBlocks", () => {
   test("renders each table row as an independently anchored block", () => {
@@ -66,11 +67,16 @@ describe("renderMarkdownBlocks", () => {
     expect(blocks[1].html).toContain("md-code-last")
   })
 
-  test("keeps mermaid fences as a single block", () => {
+  test("keeps mermaid fences as a single block carrying the encoded source", () => {
     const blocks = renderMarkdownBlocks(["```mermaid", "graph TD", "  A --> B", "```"].join("\n"))
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0].html).toContain("mermaid-diagram")
+    // Sanitization drops any attribute value with a raw newline, so the
+    // multi-line source must survive base64-encoded in data-mermaid.
+    expect(blocks[0].html).not.toMatch(/data-mermaid="[^"]*\n/)
+    const encoded = blocks[0].html.match(/data-mermaid="([^"]*)"/)?.[1] ?? ""
+    expect(decodeMermaidSource(encoded)).toBe("graph TD\n  A --> B\n")
   })
 
   test("lifts leading frontmatter into a metadata card and keeps body line maps", () => {

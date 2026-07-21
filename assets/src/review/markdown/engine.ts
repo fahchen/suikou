@@ -5,6 +5,7 @@ import { full as emoji } from "markdown-it-emoji"
 import footnote from "markdown-it-footnote"
 import sub from "markdown-it-sub"
 import sup from "markdown-it-sup"
+import { encodeMermaidSource } from "./mermaid"
 import type { AssetContext } from "./types"
 
 // One renderer is shared by document previews and comment bodies. Embedded HTML
@@ -94,9 +95,10 @@ markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
 
   // Mermaid fences render to an SVG diagram client-side (lazy `useMermaid`
   // hydration) so the heavy layout lib stays out of the base bundle. Emit a
-  // placeholder carrying the source; the hook fills in the SVG after mount.
+  // placeholder carrying the base64 source (raw newlines don't survive
+  // sanitization); the hook decodes it and fills in the SVG after mount.
   if (info === "mermaid") {
-    return `<div class="mermaid-diagram my-3 flex justify-center overflow-x-auto" data-mermaid="${markdown.utils.escapeHtml(token.content)}"></div>`
+    return `<div class="mermaid-diagram my-3 flex justify-center overflow-x-auto" data-mermaid="${encodeMermaidSource(token.content)}"></div>`
   }
 
   if (info !== "suggestion") {
