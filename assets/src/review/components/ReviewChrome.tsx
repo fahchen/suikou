@@ -206,26 +206,24 @@ export function StatusBar({
           </span>
         </>
       )}
-      {waiting > 0 && (
-        <>
-          <StatusDot />
-          <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-accent">
-            <span
-              className="size-[7px] animate-pulse rounded-full bg-accent shadow-[0_0_0_2.5px_var(--accent-soft)]"
-              aria-hidden
-            />
-            <span className="tabular-nums">{waiting}</span>
-            <span className="hidden sm:inline">waiting</span>
-          </span>
-        </>
+      {waiting > 0 ? (
+        <span className="inline-flex shrink-0 animate-pulse items-center gap-1.5 font-medium text-accent">
+          <span
+            className="size-[7px] rounded-full bg-accent shadow-[0_0_0_2.5px_var(--accent-soft)]"
+            aria-hidden
+          />
+          <span className="tabular-nums">{waiting}</span>
+          <span className="hidden sm:inline">waiting</span>
+        </span>
+      ) : (
+        <span className="inline-flex shrink-0 items-center gap-1.5">
+          <span
+            className={`size-[7px] rounded-full ${connected ? "bg-approve shadow-[0_0_0_2.5px_var(--approve-soft)]" : "bg-amber shadow-[0_0_0_2.5px_var(--amber-soft)]"}`}
+            aria-hidden
+          />
+          <span className="hidden sm:inline">{connected ? "connected" : "reconnecting…"}</span>
+        </span>
       )}
-      <span className="inline-flex shrink-0 items-center gap-1.5">
-        <span
-          className={`size-[7px] rounded-full ${connected ? "bg-approve shadow-[0_0_0_2.5px_var(--approve-soft)]" : "bg-amber shadow-[0_0_0_2.5px_var(--amber-soft)]"}`}
-          aria-hidden
-        />
-        <span className="hidden sm:inline">{connected ? "connected" : "reconnecting…"}</span>
-      </span>
     </div>
   )
 }
