@@ -8,6 +8,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias Suikou.Reads
   alias Suikou.Reviews
   alias Suikou.Schemas.Artifact
+  alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI.Reviews, as: CLI
   alias SuikouWeb.Endpoint
@@ -41,6 +42,23 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
       assert is_binary(id)
       assert_receive :board_changed
+    end
+
+    @tag :tmp_dir
+    test "creates a git-diff review from base_ref/head_ref", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
+      {:ok, project} = Suikou.Projects.register_project(%{name: "Diff", path: dir})
+
+      payload = %{
+        "project_id" => project.id,
+        "name" => "Topic vs main",
+        "base_ref" => "main",
+        "head_ref" => "topic"
+      }
+
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{source: %GitDiff{base_ref: "main", head_ref: "topic"}} = Reviews.get_review(id)
     end
 
     test "emits project_not_found for an unknown project" do
@@ -195,6 +213,28 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                task |> Task.await() |> Jason.decode!()
     end
 
+    test "returns at once when the target round is already submitted" do
+      round = insert(:round)
+      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+      {:ok, _result} = Submissions.submit(round.id, :comment)
+
+      assert %{"review_id" => ^review_id, "submission_version" => 1} =
+               run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/0)
+    end
+
+    test "blocks for a future target round, then emits it on submission" do
+      round = insert(:round)
+      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+      payload = Jason.encode!(%{"review_id" => review_id, "until_round" => 1})
+
+      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
+
+      wait_until_waiting(task.pid)
+      {:ok, _result} = Submissions.submit(round.id, :comment)
+
+      assert %{"submission_version" => 1} = task |> Task.await() |> Jason.decode!()
+    end
+
     test "the default snapshot drops resolved and already-answered comments" do
       round = insert(:round)
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
@@ -260,5 +300,34 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     else
       _other -> wait_until_waiting(pid)
     end
+  end
+
+  defp init_repo!(dir) do
+    File.mkdir_p!(dir)
+    git!(dir, ["init", "-q", "-b", "main", "."])
+    File.write!(Path.join(dir, "seed.txt"), "seed\n")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "seed"])
+  end
+
+  defp branch!(dir, name, edit) when is_function(edit, 0) do
+    git!(dir, ["checkout", "-q", "-b", name])
+    edit.()
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "topic"])
+  end
+
+  defp git!(dir, args) do
+    env = [
+      {"GIT_AUTHOR_NAME", "Test"},
+      {"GIT_AUTHOR_EMAIL", "test@example.com"},
+      {"GIT_COMMITTER_NAME", "Test"},
+      {"GIT_COMMITTER_EMAIL", "test@example.com"},
+      {"GIT_CONFIG_GLOBAL", "/dev/null"},
+      {"GIT_CONFIG_SYSTEM", "/dev/null"}
+    ]
+
+    {_out, 0} = System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true)
+    :ok
   end
 end

@@ -55,12 +55,18 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
-  Creates a file-selection review from `%{"project_id", "name", "selections"}`
-  and emits `%{review_id}` or `%{error}`. Broadcasts the board on success.
+  Creates a review and emits `%{review_id}` or `%{error}`, broadcasting the board
+  on success. The source is chosen by payload shape: `"base_ref"`/`"head_ref"`
+  present builds a git-diff review, otherwise `"selections"` builds a
+  file-selection review. Reads `%{"project_id", "name", …}`.
 
   ## Examples
 
       # stdin: {"project_id": "0192…", "name": "Spec", "selections": ["docs"]}
+      SuikouWeb.AgentCLI.Reviews.create()
+      #=> :ok  # emits {"review_id":"0192…","error":null}
+
+      # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic"}
       SuikouWeb.AgentCLI.Reviews.create()
       #=> :ok  # emits {"review_id":"0192…","error":null}
 
@@ -71,40 +77,19 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
     reply =
       with_project(payload["project_id"], fn project ->
-        params = %{name: payload["name"], selections: payload["selections"]}
-        created_review(Reviews.create_review(project, params))
+        created_review(create_source(project, payload))
       end)
 
     AgentCLI.emit(reply)
   end
 
-  @doc """
-  Creates a git-diff review from `%{"project_id", "name", "base_ref", "head_ref"}`
-  and emits `%{review_id}` or `%{error}`. Broadcasts the board on success.
+  defp create_source(project, %{"base_ref" => base, "head_ref" => head} = payload)
+       when is_binary(base) and is_binary(head) do
+    Reviews.create_diff_review(project, %{name: payload["name"], base_ref: base, head_ref: head})
+  end
 
-  ## Examples
-
-      # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic"}
-      SuikouWeb.AgentCLI.Reviews.create_diff()
-      #=> :ok  # emits {"review_id":"0192…","error":null}
-
-  """
-  @spec create_diff() :: :ok
-  def create_diff do
-    payload = AgentCLI.read_payload()
-
-    reply =
-      with_project(payload["project_id"], fn project ->
-        params = %{
-          name: payload["name"],
-          base_ref: payload["base_ref"],
-          head_ref: payload["head_ref"]
-        }
-
-        created_review(Reviews.create_diff_review(project, params))
-      end)
-
-    AgentCLI.emit(reply)
+  defp create_source(project, payload) do
+    Reviews.create_review(project, %{name: payload["name"], selections: payload["selections"]})
   end
 
   @doc """
@@ -210,6 +195,42 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
+  Adds paths to a review's file selection from `%{"review_id", "files"}` (union,
+  incremental — the caller sends only the paths to add) and emits `%{error}`.
+  Broadcasts the board on success.
+
+  ## Examples
+
+      # stdin: {"review_id": "0192…", "files": ["lib/new.ex"]}
+      SuikouWeb.AgentCLI.Reviews.add_files()
+      #=> :ok  # emits {"error":null}
+
+  """
+  @spec add_files() :: :ok
+  def add_files do
+    payload = AgentCLI.read_payload()
+    AgentCLI.emit(mutate(payload["review_id"], &Reviews.add_files(&1, payload["files"])))
+  end
+
+  @doc """
+  Removes paths from a review's file selection from `%{"review_id", "files"}`
+  (incremental — the caller sends only the paths to remove) and emits `%{error}`.
+  Broadcasts the board on success.
+
+  ## Examples
+
+      # stdin: {"review_id": "0192…", "files": ["lib/old.ex"]}
+      SuikouWeb.AgentCLI.Reviews.remove_files()
+      #=> :ok  # emits {"error":null}
+
+  """
+  @spec remove_files() :: :ok
+  def remove_files do
+    payload = AgentCLI.read_payload()
+    AgentCLI.emit(mutate(payload["review_id"], &Reviews.remove_files(&1, payload["files"])))
+  end
+
+  @doc """
   Deletes a review from `%{"review_id"}` and emits `%{error}`. Broadcasts the
   board on success.
 
@@ -248,23 +269,31 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
-  Waits for the next submission on `%{"review_id"}`. Subscribes to the review's
-  `Suikou.Events` change topic, captures the current submission count, then blocks up to the
+  Waits on `%{"review_id"}` for a submission round. An optional `"until_round"`
+  names the round the agent wants to see; when that round has already been
+  submitted at call time (`submission count >= until_round`) the snapshot returns
+  at once — otherwise the call blocks until it lands. Absent `"until_round"`, it
+  waits for the *next* submission past the current count (the prior behavior).
+  Agents should pass the round they expect (last processed round + 1) so a round
+  that landed between calls returns immediately instead of blocking for the one
+  after it.
+
+  Subscribes to the review's `Suikou.Events` change topic, then blocks up to the
   poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
-  wake that raises the count it emits the `export_review` snapshot for the
-  requested rounds scope (carrying the new `submission_version`). A wake that
-  only changed reactions (add, remove, or emoji swap) emits the full snapshot for
-  the scope with the unchanged `submission_version`, so the agent sees the new
-  reaction even on a comment it had already addressed. Otherwise it emits
-  `%{status: "timeout", submission_version}`. The default latest-round snapshot
-  on a submission wake is filtered to comments the agent still owes a move on
-  (drops resolved and already-answered comments); an explicit `"rounds"` scope is
-  returned in full. Emits `%{error: "review_not_found"}` when the review is
-  unknown.
+  wake that reaches the target round it emits the `export_review` snapshot for the
+  requested rounds scope; `submission_version` carries the latest round number. A
+  wake that only changed reactions (add, remove, or emoji swap) emits the full
+  snapshot for the scope with the unchanged `submission_version`, so the agent
+  sees the new reaction even on a comment it had already addressed. Otherwise it
+  emits `%{status: "timeout", submission_version}` carrying the current round
+  count. The default latest-round snapshot on a submission wake is filtered to
+  comments the agent still owes a move on (drops resolved and already-answered
+  comments); an explicit `"rounds"` scope is returned in full. Emits
+  `%{error: "review_not_found"}` when the review is unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…"}
+      # stdin: {"review_id": "0192…", "until_round": 2}
       SuikouWeb.AgentCLI.Reviews.wait()
       #=> :ok  # emits {"status":"timeout","submission_version":1} or the snapshot on a wake
 
@@ -278,13 +307,32 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     reply =
       with_review(review_id, fn _review ->
         Events.subscribe(review_id)
-        version = Submissions.review_submission_count(review_id)
+        count = Submissions.review_submission_count(review_id)
         reaction_version = Critique.review_reaction_version(review_id)
-        deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
-        await(review_id, scope, version, reaction_version, deadline)
+        threshold = wait_threshold(payload, count)
+
+        if count > threshold do
+          worthy_snapshot(review_id, scope)
+        else
+          deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
+          await(review_id, scope, threshold, reaction_version, deadline)
+        end
       end)
 
     AgentCLI.emit(drop_resolved_round(reply))
+  end
+
+  # The optional `"until_round"` names the submission round the agent is waiting to
+  # see. The wait wakes once the review's submission count reaches it, so the
+  # threshold is the round *below* it: `count > threshold` means that round
+  # already landed and the call returns the snapshot at once (no block). Absent,
+  # the threshold is the current count, so the wait blocks for the next
+  # submission — the prior behavior.
+  defp wait_threshold(payload, current_count) do
+    case payload["until_round"] do
+      round when is_integer(round) and round > 0 -> round - 1
+      _absent -> current_count
+    end
   end
 
   # The server-configured window caps how long a single call blocks. An optional
@@ -305,23 +353,24 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   # returns the full snapshot (unfiltered, so a reaction on an already-addressed
   # comment is still visible); any other wake keeps waiting within the remaining
   # time; an exhausted window reports a timeout.
-  defp await(review_id, scope, version, reaction_version, deadline) do
+  defp await(review_id, scope, threshold, reaction_version, deadline) do
     timeout = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
       {:review_changed, _review_id, _artifact_id} ->
         cond do
-          Submissions.review_submission_count(review_id) > version ->
+          Submissions.review_submission_count(review_id) > threshold ->
             worthy_snapshot(review_id, scope)
 
           Critique.review_reaction_version(review_id) != reaction_version ->
             snapshot(review_id, scope)
 
           true ->
-            await(review_id, scope, version, reaction_version, deadline)
+            await(review_id, scope, threshold, reaction_version, deadline)
         end
     after
-      timeout -> %{status: "timeout", submission_version: version}
+      timeout ->
+        %{status: "timeout", submission_version: Submissions.review_submission_count(review_id)}
     end
   end
 

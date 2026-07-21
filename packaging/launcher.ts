@@ -70,6 +70,11 @@ async function dispatch(command: string | undefined): Promise<void> {
       // Top-level `open` is reserved for the board root; review-scoped opening is
       // `review open <review-id>`.
       return process.exit(await openRoot())
+    case "version":
+    case "--version":
+    case "-v":
+      console.log(buildId())
+      return process.exit(0)
     case "skill":
       return process.exit(await emitSkill(process.argv.slice(3)))
     case "project":
@@ -102,8 +107,12 @@ type CommandSpec = {
   id?: { name: string; required: boolean }
   // Required flag names; missing ones produce a friendly error.
   required?: string[]
-  // Builds the JSON payload sent on stdin from the parsed id + flag values.
-  payload: (ctx: { id?: string; values: Values }) => Record<string, unknown>
+  // When set, the verb needs at least one positional file/path arg; zero is a
+  // usage error (guards against e.g. a bare `set-files <id>` silently clearing).
+  requireFiles?: boolean
+  // Builds the JSON payload sent on stdin from the parsed id, flag values, and
+  // any positional file/path args (positionals after the id slot).
+  payload: (ctx: { id?: string; values: Values; files: string[] }) => Record<string, unknown>
   // One-line usage summary for `help`.
   summary: string
   // poll loops instead of a single round-trip.
@@ -112,15 +121,37 @@ type CommandSpec = {
   open?: boolean
 }
 
-// `--files a,b,c` → ["a","b","c"], trimming empties. ponytail: plain split, no
-// quoting/escaping — paths with commas aren't a real use case here.
-function splitFiles(values: Values): string[] {
-  const raw = values.files
-  if (typeof raw !== "string") return []
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+// File/path args arrive as positionals (space-separated, the natural shell form)
+// so `file1 file2 file3` all land — the old single `--files` flag silently kept
+// only the first space-separated token. No comma-splitting: a comma is a legal
+// filename character, so a real `foo,bar.md` must survive as one path rather than
+// be split silently. One token = one path; trim/drop empties only.
+function fileArgs(files: string[]): string[] {
+  return files.map((s) => s.trim()).filter((s) => s.length > 0)
+}
+
+// `review create` picks its source from what's supplied: `--diff base..head`
+// (git-diff) XOR positional files (file-selection). Requires exactly one.
+function createSource(values: Values, files: string[]): Record<string, unknown> {
+  const diff = typeof values.diff === "string" ? values.diff : undefined
+  const base = { project_id: values.project, name: values.name }
+
+  if (diff !== undefined) {
+    if (files.length > 0) throw new UsageError("give either files or --diff, not both")
+    const match = diff.match(/^(.+?)\.\.(.+)$/)
+    if (!match) throw new UsageError(`invalid --diff ${diff}; expected base..head`)
+    return { ...base, base_ref: match[1], head_ref: match[2] }
+  }
+
+  if (files.length === 0) throw new UsageError("expected file args or --diff base..head")
+  return { ...base, selections: files }
+}
+
+// `react` takes its emoji as the single positional after the id. The agent may
+// use any emoji glyph; the three suggested below (👀 🤔 ✅) are just conventions.
+function reactEmoji(files: string[]): string {
+  if (files.length !== 1) throw new UsageError("expected exactly one emoji (e.g. 👀 working / 🤔 unsure / ✅ done)")
+  return files[0]
 }
 
 // The `rounds` payload value the backend `scope/1` reads: omit (→ :latest) when
@@ -144,6 +175,19 @@ function roundsPayload(values: Values): { rounds?: unknown } {
 const roundsOptions: ParseOptions = {
   rounds: { type: "string" },
   all: { type: "boolean" }
+}
+
+// The `until_round` payload the backend `wait` reads: the submission round the
+// agent expects, so a round already submitted at call time returns at once.
+// Omitted when --until-round is absent.
+function untilRoundPayload(values: Values): { until_round?: number } {
+  const raw = typeof values["until-round"] === "string" ? values["until-round"] : undefined
+  if (raw === undefined) return {}
+  const round = Number(raw)
+  if (!Number.isInteger(round) || round < 1) {
+    throw new UsageError(`invalid --until-round ${raw}; expected a positive integer`)
+  }
+  return { until_round: round }
 }
 
 const registry: Record<string, Record<string, CommandSpec>> = {
@@ -172,32 +216,12 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     create: {
       expr: "SuikouWeb.AgentCLI.Reviews.create()",
-      options: { project: { type: "string" }, name: { type: "string" }, files: { type: "string" } },
+      options: { project: { type: "string" }, name: { type: "string" }, diff: { type: "string" } },
       required: ["project", "name"],
-      // --files maps to the `selections` payload key (file-selection review).
-      payload: ({ values }) => ({
-        project_id: values.project,
-        name: values.name,
-        selections: splitFiles(values)
-      }),
-      summary: "create a file-selection review (--project --name --files a,b,c)"
-    },
-    "create-diff": {
-      expr: "SuikouWeb.AgentCLI.Reviews.create_diff()",
-      options: {
-        project: { type: "string" },
-        name: { type: "string" },
-        base: { type: "string" },
-        head: { type: "string" }
-      },
-      required: ["project", "name", "base", "head"],
-      payload: ({ values }) => ({
-        project_id: values.project,
-        name: values.name,
-        base_ref: values.base,
-        head_ref: values.head
-      }),
-      summary: "create a git-diff review (--project --name --base --head)"
+      // Source is chosen by what's given: positional files → file-selection;
+      // `--diff base..head` → git-diff. Exactly one; createSource enforces it.
+      payload: ({ values, files }) => createSource(values, files),
+      summary: "create a review (--project --name; file1 file2 … | --diff base..head)"
     },
     show: {
       expr: "SuikouWeb.AgentCLI.Reviews.show()",
@@ -206,7 +230,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       payload: ({ id }) => ({ review_id: id }),
       summary: "show a review's metadata and files (<review-id>)"
     },
-    files: {
+    "list-files": {
       expr: "SuikouWeb.AgentCLI.Reviews.files()",
       options: {},
       id: { name: "review-id", required: true },
@@ -239,11 +263,31 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     "set-files": {
       expr: "SuikouWeb.AgentCLI.Reviews.set_files()",
-      options: { files: { type: "string" } },
+      options: {},
       id: { name: "review-id", required: true },
-      // Here --files maps to the `files` payload key (NOT `selections`).
-      payload: ({ id, values }) => ({ review_id: id, files: splitFiles(values) }),
-      summary: "replace a review's file selection (<review-id> --files a,b,c)"
+      requireFiles: true,
+      // Positional files replace the whole selection. Requiring ≥1 stops a bare
+      // `set-files <id>` from silently wiping it — use `delete` to drop a review.
+      payload: ({ id, files }) => ({ review_id: id, files }),
+      summary: "replace a review's file selection (<review-id> file1 file2 …)"
+    },
+    "add-files": {
+      expr: "SuikouWeb.AgentCLI.Reviews.add_files()",
+      options: {},
+      id: { name: "review-id", required: true },
+      requireFiles: true,
+      // Incremental: only the paths to add, unioned into the existing selection.
+      payload: ({ id, files }) => ({ review_id: id, files }),
+      summary: "add files to a review's selection (<review-id> file1 file2 …)"
+    },
+    "remove-files": {
+      expr: "SuikouWeb.AgentCLI.Reviews.remove_files()",
+      options: {},
+      id: { name: "review-id", required: true },
+      requireFiles: true,
+      // Incremental: only the paths to drop from the existing selection.
+      payload: ({ id, files }) => ({ review_id: id, files }),
+      summary: "remove files from a review's selection (<review-id> file1 file2 …)"
     },
     delete: {
       expr: "SuikouWeb.AgentCLI.Reviews.delete()",
@@ -261,11 +305,12 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     wait: {
       expr: "SuikouWeb.AgentCLI.Reviews.wait()",
-      options: { ...roundsOptions, timeout: { type: "string" } },
+      options: { ...roundsOptions, "until-round": { type: "string" }, timeout: { type: "string" } },
       id: { name: "review-id", required: true },
-      payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values) }),
+      payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values), ...untilRoundPayload(values) }),
       poll: true,
-      summary: "wait for the next submission (<review-id> [--rounds a-b] [--all] [--timeout secs])"
+      summary:
+        "wait for a submission round (<review-id> [--until-round N] [--rounds a-b] [--all] [--timeout secs])"
     }
   },
   comment: {
@@ -278,11 +323,10 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     react: {
       expr: "SuikouWeb.AgentCLI.Comments.react()",
-      options: { emoji: { type: "string" } },
+      options: {},
       id: { name: "comment-id", required: true },
-      required: ["emoji"],
-      payload: ({ id, values }) => ({ comment_id: id, emoji: values.emoji }),
-      summary: "set your work-status reaction on a comment (<comment-id> --emoji eyes|thinking|check)"
+      payload: ({ id, files }) => ({ comment_id: id, emoji: reactEmoji(files) }),
+      summary: "set your work-status reaction on a comment (<comment-id> <emoji>)"
     },
     unreact: {
       expr: "SuikouWeb.AgentCLI.Comments.unreact()",
@@ -295,11 +339,10 @@ const registry: Record<string, Record<string, CommandSpec>> = {
   reply: {
     react: {
       expr: "SuikouWeb.AgentCLI.Replies.react()",
-      options: { emoji: { type: "string" } },
+      options: {},
       id: { name: "reply-id", required: true },
-      required: ["emoji"],
-      payload: ({ id, values }) => ({ reply_id: id, emoji: values.emoji }),
-      summary: "set your work-status reaction on a reply (<reply-id> --emoji eyes|thinking|check)"
+      payload: ({ id, files }) => ({ reply_id: id, emoji: reactEmoji(files) }),
+      summary: "set your work-status reaction on a reply (<reply-id> <emoji>)"
     },
     unreact: {
       expr: "SuikouWeb.AgentCLI.Replies.unreact()",
@@ -309,6 +352,14 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       summary: "clear your reaction on a reply (<reply-id>)"
     }
   }
+}
+
+// Build identifier: bun bakes a content hash before the embedded tarball's final
+// extension (server.tar-<hash>.gz), so the sanitized basename uniquely names this
+// binary's build. Needs no server/extraction — doubles as the extraction cache
+// key. ponytail: content hash, not semver; swap in a real version if one appears.
+function buildId(): string {
+  return basename(serverTarball).replace(/[^a-zA-Z0-9]+/g, "-")
 }
 
 // A bad invocation (unknown verb, missing flag/id, malformed --rounds). Carries a
@@ -355,7 +406,13 @@ async function runGroupVerb(group: string, verb: string | undefined, argv: strin
       if (values[flag] === undefined) throw new UsageError(`missing required --${flag}`)
     }
 
-    const payload = spec.payload({ id, values })
+    // File/path args are the positionals after the id slot (or all of them when
+    // the verb takes no id, e.g. `review create`), trimmed of empties.
+    const files = fileArgs(spec.id ? positionals.slice(1) : positionals)
+    if (spec.requireFiles && files.length === 0) {
+      throw new UsageError("expected at least one file/path argument")
+    }
+    const payload = spec.payload({ id, values, files })
     if (group === "comment" && verb === "reply") {
       payload.body = await resolveBody(values)
     }
@@ -606,6 +663,7 @@ function usage(group?: string, verb?: string): string {
     "  stop|status         background daemon control\n" +
     "  open                open the Suikou board in the browser\n" +
     "  wait <review-id>    alias for `review wait`\n" +
+    "  version             print the build identifier\n" +
     "  skill [-o <path>]   output the agent CLI skill markdown"
   const groups = Object.entries(registry)
     .map(([g, verbs]) =>
@@ -881,9 +939,7 @@ function urlForPort(p: number): string {
 // binary extracts fresh while the persisted DB and secret (kept at the base dir)
 // survive across versions.
 async function ensureExtracted(): Promise<string> {
-  // bun inserts a content hash before the final extension (server.tar-<hash>.gz),
-  // so the whole basename is build-unique; sanitize it into a tidy dir name.
-  const key = basename(serverTarball).replace(/[^a-zA-Z0-9]+/g, "-")
+  const key = buildId()
   const runtime = join(base, "runtime")
   const dest = join(runtime, key)
   const binPath = join(dest, "suikou", "bin", "suikou")

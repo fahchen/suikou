@@ -23,27 +23,33 @@ the human starts it — `suikou` (foreground, opens the browser) or `suikou star
 suikou project list
 suikou project create      --name <name> --path <path>
 suikou review  list        --project <project-id>
-suikou review  create      --project <id> --name <name> --files <a,b,c>
-suikou review  create-diff --project <id> --name <name> --base <ref> --head <ref>
+suikou review  create      --project <id> --name <name> (file1 file2 … | --diff <base>..<head>)
 suikou review  show        <review-id>
-suikou review  files       <review-id>
+suikou review  list-files  <review-id>
 suikou review  url         <review-id>
 suikou review  open        <review-id>
 suikou review  rename      <review-id> --name <name>
-suikou review  set-files   <review-id> --files <a,b,c>
+suikou review  set-files   <review-id> file1 file2 …
+suikou review  add-files   <review-id> file1 file2 …
+suikou review  remove-files <review-id> file1 file2 …
 suikou review  delete      <review-id>
 suikou review  export      <review-id> [--rounds <a-b>] [--all]
-suikou review  wait        <review-id> [--rounds <a-b>] [--all] [--timeout <secs>]
+suikou review  wait        <review-id> [--until-round <n>] [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
-suikou comment react       <comment-id> --emoji <eyes|thinking|check>
+suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
-suikou reply   react       <reply-id> --emoji <eyes|thinking|check>
+suikou reply   react       <reply-id> <emoji>
 suikou reply   unreact     <reply-id>
 suikou wait  <review-id> [...]          # alias for `review wait`
 suikou open                             # open the board root in the browser
+suikou version                          # print the build identifier
 ```
 
-- `--files` is **comma-separated** paths (trimmed; empties dropped), e.g. `--files lib/a.ex,lib/b.ex,README.md`. Paths are relative to the project's root path.
+- **Files are positional args**, space-separated: `create … lib/a.ex lib/b.ex README.md`. One token = one path (no comma-splitting — a comma is a legal filename char). Paths are relative to the project's root path. Prefix with `--` if a path starts with `-`.
+- `create` builds a **file-selection** review from positional files, or a **git-diff** review from `--diff <base>..<head>` — give exactly one (both/neither errors).
+- `set-files` / `add-files` / `remove-files` each need **at least one** path — a bare `set-files <id>` errors rather than silently clearing. To drop a whole review use `delete`.
+- `react` takes the emoji as a positional: `comment react <id> 👀`. The agent may use **any** emoji glyph — 👀 / 🤔 / ✅ are just the suggested work-status convention.
+- `set-files` **replaces** the whole selection; `add-files` / `remove-files` are **incremental** — pass only the paths to add or drop, not the full list.
 - `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
 
 ## Rounds scope
@@ -75,7 +81,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 ```
 `kind` is `"file_selection"` (then `selections` lists its paths) or `"git_diff"` (then `selections` is `[]`).
 
-`review create` / `review create-diff`
+`review create` (file-selection or git-diff)
 ```json
 {"review_id":"0192…","error":null}
 ```
@@ -85,7 +91,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 {"id":"0192…","name":"Spec","kind":"file_selection","selections":["docs"],"files":[{"path":"doc.md","artifact_id":null}],"error":null}
 ```
 
-`review files`
+`review list-files`
 ```json
 {"files":[{"path":"doc.md","artifact_id":null}],"error":null}
 ```
@@ -95,7 +101,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 {"url":"https://suikou.example/reviews/0192…","error":null}
 ```
 
-`review rename` / `set-files` / `delete` (`error` is `null` on success, else an error atom string like `"review_not_found"`)
+`review rename` / `set-files` / `add-files` / `remove-files` / `delete` (`error` is `null` on success, else an error atom string like `"review_not_found"` or `"not_a_file_selection"`)
 ```json
 {"error":null}
 ```
@@ -149,6 +155,8 @@ A `wait` that times out (no new submission yet) emits instead:
 ```
 Without `--timeout`, `wait` blocks across rounds until a submission lands (each backend call blocks ~25 s and the launcher re-issues automatically — no work from you). With `--timeout <secs>`, it gives up after that wall-clock budget and prints this timeout line.
 
+**`--until-round <n>` — target a specific round (prefer it).** Pass the round you expect (the round you last processed **+ 1**). If that round has *already* been submitted when you call, `wait` returns its snapshot immediately instead of blocking for the round after it; otherwise it blocks until that round lands. This closes the race where a round arrives between your reply and your re-wait. `submission_version` in every snapshot is the latest round number. `--until-round` is a wake target (state), independent of the `--rounds` content scope above.
+
 `comment reply`
 ```json
 {"reply_id":"0192…","error":null}
@@ -158,18 +166,19 @@ Without `--timeout`, `wait` blocks across rounds until a submission lands (each 
 
 1. **Resolve the project.** `project list`, then get the current repo root (`git rev-parse --show-toplevel`) and match it against `projects[].path`. If one matches, use its `id`. **If none matches, stop and ask the human** whether to register it — only on a yes run `suikou project create --name <repo-name> --path <abs-repo-path>`. **Never auto-create a project.** Then decide the files / diff to submit.
 2. **Create the review.**
-   - file selection: `suikou review create --project <id> --name "<name>" --files a,b,c`
-   - git diff: `suikou review create-diff --project <id> --name "<name>" --base <ref> --head <ref>`
+   - file selection: `suikou review create --project <id> --name "<name>" lib/a.ex lib/b.ex README.md`
+     - later, adjust the selection without re-listing everything: `suikou review add-files <review-id> lib/c.ex` or `suikou review remove-files <review-id> lib/a.ex`
+   - git diff: `suikou review create --project <id> --name "<name>" --diff <base>..<head>`
    - Capture `review_id` from the result.
    - **Show the human the URL.** Run `suikou review url <review-id>` and surface the `url`. Offer to open it; only run `suikou review open <review-id>` if the human says yes — never open unprompted.
-3. **Wait for the human.** `suikou review wait <review-id>` (or `suikou wait <review-id>`). This **blocks** until a human submits verdicts/comments, then prints the critique snapshot above. It keeps waiting across rounds with no work from you. Add `--timeout <secs>` only if you want it to give up and print a `timeout` line.
+3. **Wait for the human.** `suikou review wait <review-id> --until-round 1` (or `suikou wait <review-id> --until-round 1`). This **blocks** until a human submits round 1, then prints the critique snapshot above — or returns at once if that round already landed. Pass `--until-round` with the round you expect; it keeps waiting across rounds with no work from you. Add `--timeout <secs>` only if you want it to give up and print a `timeout` line.
 4. **Read & fix.** Walk `artifacts[].comments[]`. Address each one in the code (use `anchor.start_line`/`quote` to locate it, unless `outdated`). Skip comments already `resolved` if you want, but you may still reply.
 5. **Reply per addressed comment.** Write your reply markdown to a file and:
    ```
    suikou comment reply <comment-id> --body-file reply.md
    ```
    (or pipe it on stdin). One call per comment.
-6. **Re-wait for the next round.** `suikou review wait <review-id>` again. The wake is server-managed via the monotonic `submission_version` cursor (captured fresh at the start of each call), so re-waiting **never misses a round** that landed between your calls. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
+6. **Re-wait for the next round.** `suikou review wait <review-id> --until-round <last-round + 1>`. Passing the round you expect makes re-waiting **never miss a round** that landed between your reply and this call — it returns that round's snapshot immediately rather than blocking for the one after. Track the round from the snapshot's `submission_version`. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
 
 ## Boundary — agent may ONLY reply (BDR-0018)
 
@@ -196,14 +205,14 @@ A **reaction** is a single emoji an actor puts on a comment or reply — a light
 | 👎 | `disagree` | disagree |
 | ❌ | `strong_disagree` | strongly oppose |
 
-**Agent** — your work-status signal on a human's comment:
+**Agent** — a free-form work-status signal on a human's comment. You may use **any** emoji glyph; pick whatever fits the moment. The common convention:
 
-| emoji | key | meaning |
-|-------|-----|---------|
-| 👀 | `eyes` | seen it, working on it now |
-| 🤔 | `thinking` | investigating / unsure |
-| ✅ | `check` | handled |
+| emoji | meaning |
+|-------|---------|
+| 👀 | seen it, working on it now |
+| 🤔 | investigating / unsure |
+| ✅ | handled |
 
-Set your reaction on a **comment** with `suikou comment react <comment-id> --emoji <eyes|thinking|check>` and clear it with `suikou comment unreact <comment-id>` (emits `{"comment_id":"0192…","error":null}`). React on a specific **reply** with `suikou reply react <reply-id> --emoji <...>` and clear it with `suikou reply unreact <reply-id>` (emits `{"reply_id":"0192…","error":null}`). Either emits an `error` string on failure — e.g. a human-vocabulary emoji, or a missing target. Comment and reply reactions are independent; the agent holds at most one reaction per target.
+Set your reaction on a **comment** with `suikou comment react <comment-id> <emoji>` (the emoji glyph is the positional arg) and clear it with `suikou comment unreact <comment-id>` (emits `{"comment_id":"0192…","error":null}`). React on a specific **reply** with `suikou reply react <reply-id> <emoji>` and clear it with `suikou reply unreact <reply-id>` (emits `{"reply_id":"0192…","error":null}`). Either emits an `error` string on failure — e.g. a missing target, or a human-vocabulary key (💯/👍/👎/❌ are the human's; use an emoji glyph instead). Comment and reply reactions are independent; the agent holds at most one reaction per target.
 
-Intended agent flow: when you pick up a comment, `comment react --emoji eyes` so the human sees you're on it; switch to `--emoji thinking` while investigating; `--emoji check` when done (usually alongside your `comment reply`). Use `reply react` when your status concerns a specific reply rather than the whole comment. One reaction per target — a new `--emoji` **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.
+Intended agent flow: when you pick up a comment, react 👀 so the human sees you're on it; switch to 🤔 while investigating; ✅ when done (usually alongside your `comment reply`). Move the emoji as your progress changes — and reach for a more specific glyph when it communicates better (🐛 found the bug, 🚧 mid-fix, 🎉 shipped). Use `reply react` when your status concerns a specific reply rather than the whole comment. One reaction per target — a new emoji **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.

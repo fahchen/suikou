@@ -145,6 +145,43 @@ defmodule Suikou.ReviewsTest do
     end
   end
 
+  describe "add_files/2 and remove_files/2" do
+    @tag :tmp_dir
+    test "add_files unions new paths into the selection", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      File.write!(Path.join(dir, "spec.md"), "# Spec\n")
+      review = review_with(dir, ["plan.md"])
+
+      assert {:ok, _review} = Reviews.add_files(review, ["spec.md"])
+      assert Reviews.get_review(review.id).source.selection_paths == ["plan.md", "spec.md"]
+    end
+
+    @tag :tmp_dir
+    test "add_files de-duplicates an already-selected path", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      review = review_with(dir, ["plan.md"])
+
+      assert {:ok, _review} = Reviews.add_files(review, ["plan.md"])
+      assert Reviews.get_review(review.id).source.selection_paths == ["plan.md"]
+    end
+
+    @tag :tmp_dir
+    test "remove_files drops the given paths", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      File.write!(Path.join(dir, "spec.md"), "# Spec\n")
+      review = review_with(dir, ["plan.md", "spec.md"])
+
+      assert {:ok, _review} = Reviews.remove_files(review, ["spec.md"])
+      assert Reviews.get_review(review.id).source.selection_paths == ["plan.md"]
+    end
+
+    test "both error for a git-diff review" do
+      review = %Suikou.Schemas.Review{source: %GitDiff{}}
+      assert {:error, :not_a_file_selection} = Reviews.add_files(review, ["a"])
+      assert {:error, :not_a_file_selection} = Reviews.remove_files(review, ["a"])
+    end
+  end
+
   describe "list_files/1" do
     @tag :tmp_dir
     test "expands the selection, reporting opened vs unopened files", %{tmp_dir: dir} do

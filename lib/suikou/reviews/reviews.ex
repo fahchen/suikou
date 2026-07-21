@@ -217,6 +217,46 @@ defmodule Suikou.Reviews do
   def remove_file(%Review{source: %GitDiff{}}, _path), do: {:error, :not_a_file_selection}
 
   @doc """
+  Adds paths to a file-selection review's selection (union, de-duplicated),
+  restoring soft-removed artifacts a newly-covered path brings back. An
+  incremental edit — the caller passes only the paths to add, not the whole
+  selection. Errors for diff reviews, whose file list is derived from the diff.
+
+  ## Examples
+
+      Suikou.Reviews.add_files(review, ["docs", "readme.md"])
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec add_files(Review.t(), [String.t()]) ::
+          {:ok, Review.t()} | {:error, :not_a_file_selection}
+  def add_files(%Review{source: %FileSelection{selection_paths: paths}} = review, added) do
+    set_selection(review, Enum.uniq(paths ++ added))
+  end
+
+  def add_files(%Review{source: %GitDiff{}}, _added), do: {:error, :not_a_file_selection}
+
+  @doc """
+  Drops paths from a file-selection review's selection, soft-removing any minted
+  artifacts (history preserved). An incremental edit — the caller passes only the
+  paths to remove. Literal-path removal, like `remove_file/2`. Errors for diff
+  reviews.
+
+  ## Examples
+
+      Suikou.Reviews.remove_files(review, ["docs/old.md", "stale.md"])
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec remove_files(Review.t(), [String.t()]) ::
+          {:ok, Review.t()} | {:error, :not_a_file_selection}
+  def remove_files(%Review{source: %FileSelection{selection_paths: paths}} = review, removed) do
+    set_selection(review, paths -- removed)
+  end
+
+  def remove_files(%Review{source: %GitDiff{}}, _removed), do: {:error, :not_a_file_selection}
+
+  @doc """
   Opens a covered file in the review, returning its artifact — minting it (round
   0) on first open, restoring it if it was soft-removed, or returning the
   existing one. Rejects a path not covered by the stored selection.
