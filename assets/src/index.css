@@ -1132,6 +1132,7 @@
   border: 1px solid var(--hair-strong);
   padding: 4px 10px;
   text-align: left;
+  vertical-align: top;
 }
 /* Data-row mini-tables: remove top border so adjacent rows don't double up. */
 .md-table-row td {
