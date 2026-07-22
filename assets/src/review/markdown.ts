@@ -4,6 +4,7 @@ import { parseFrontmatter } from "./markdown/frontmatter"
 export { renderMarkdownBlocks } from "./markdown/blocks"
 export { useMermaid } from "./markdown/mermaid"
 export { useTableSync } from "./markdown/table-sync"
+export { useCodeSync } from "./markdown/code-sync"
 export type { AssetContext, MarkdownBlock } from "./markdown/types"
 
 /** Render a comment or reply body to sanitized HTML. */
