@@ -223,7 +223,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               headingLevel: 0,
               line: fenceLine,
               node: (
-              <div className="md-fence">
+              <div className="md-fence" data-code-group={segGroup ?? ""}>
                 <div className="md-fence-nums">
                   {codeBuf.map((r) => (
                     <div key={r.index} className={`md-fence-numrow group/md flex ${r.highlight ? "bg-accent-soft" : "hover:bg-soft/40"}`}>

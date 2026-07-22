@@ -1,13 +1,13 @@
 import { useEffect, type RefObject } from "react"
 
-// A per-line code fence already scrolls as one native container: every row
-// lives in a single `.md-fence-track` inside `.md-fence-scroll`, so long lines
-// move together for free (unlike the wide tables, which are separate `<table>`
-// elements and need a translateX driver). The only thing missing for parity is
-// a *visible* scrollbar — the native one is hidden — so this adds the same
-// top bar the tables use, two-way synced with the native scroller and offset by
-// the line-number gutter. Native overflow already handles wheel and touch
-// momentum, so there is nothing else to wire.
+// A per-line code fence scrolls as one native container (every row shares a
+// single `.md-fence-track` inside `.md-fence-scroll`), so its rows stay in sync
+// for free. But a comment or composer landing mid-fence splits the block into
+// several `.md-fence` segments (above and below the thread), each its own
+// scroller — so they would scroll independently. This groups every segment that
+// shares a `data-code-group` and drives them from one visible bar: all segments
+// are forced to the same scroll extent and one scrollbar (offset by the
+// line-number gutter, matching the wide-table treatment) moves them together.
 export function useCodeSync(ref: RefObject<HTMLElement | null>, deps: unknown[]) {
   useEffect(() => {
     const root = ref.current
@@ -16,7 +16,14 @@ export function useCodeSync(ref: RefObject<HTMLElement | null>, deps: unknown[])
     const cleanups: (() => void)[] = []
     const layout = () => {
       for (const cleanup of cleanups.splice(0)) cleanup()
-      for (const fence of root.querySelectorAll<HTMLElement>(".md-fence")) attachBar(fence, cleanups)
+      const groups = new Map<string, HTMLElement[]>()
+      for (const fence of root.querySelectorAll<HTMLElement>(".md-fence[data-code-group]")) {
+        const gid = fence.dataset.codeGroup ?? ""
+        const bucket = groups.get(gid)
+        if (bucket) bucket.push(fence)
+        else groups.set(gid, [fence])
+      }
+      for (const fences of groups.values()) attachGroup(fences, cleanups)
     }
 
     layout()
@@ -29,35 +36,60 @@ export function useCodeSync(ref: RefObject<HTMLElement | null>, deps: unknown[])
   }, deps)
 }
 
-function attachBar(fence: HTMLElement, cleanups: (() => void)[]) {
-  const scroll = fence.querySelector<HTMLElement>(".md-fence-scroll")
-  if (!scroll || scroll.scrollWidth <= scroll.clientWidth) return
+function attachGroup(fences: HTMLElement[], cleanups: (() => void)[]) {
+  const scrollers: HTMLElement[] = []
+  const tracks: HTMLElement[] = []
+  for (const fence of fences) {
+    const scroll = fence.querySelector<HTMLElement>(".md-fence-scroll")
+    const track = scroll?.querySelector<HTMLElement>(".md-fence-track")
+    if (scroll && track) {
+      scroll.style.overflowX = "auto"
+      track.style.minWidth = ""
+      scrollers.push(scroll)
+      tracks.push(track)
+    }
+  }
+  if (scrollers.length === 0) return
 
-  const gutter = fence.querySelector<HTMLElement>(".md-fence-nums")?.getBoundingClientRect().width ?? 0
+  // The longest line across every segment sets the shared scroll extent; forcing
+  // each track to it makes the segments' scrollLeft ranges line up.
+  const extent = Math.max(...scrollers.map((s) => s.scrollWidth))
+  if (extent <= scrollers[0].clientWidth) return
+  for (const track of tracks) track.style.minWidth = `${extent}px`
+
+  const first = fences[0]
+  const gutter = first.querySelector<HTMLElement>(".md-fence-nums")?.getBoundingClientRect().width ?? 0
   const bar = document.createElement("div")
   bar.dataset.syncBar = "1"
   bar.className = "md-table-hscroll"
   bar.style.marginLeft = `${gutter}px`
   bar.style.marginRight = "1rem"
   const spacer = document.createElement("div")
-  spacer.style.width = `${scroll.scrollWidth}px`
+  spacer.style.width = `${extent}px`
   spacer.style.height = "1px"
   bar.appendChild(spacer)
-  fence.parentNode?.insertBefore(bar, fence)
+  first.parentNode?.insertBefore(bar, first)
 
-  // Two-way sync needs no guard: writing an already-equal scrollLeft fires no
-  // scroll event, so the pair converges in one hop instead of ping-ponging.
-  const mirror = (from: HTMLElement, to: HTMLElement) => () => {
-    to.scrollLeft = from.scrollLeft
+  // No feedback guard needed: writing an already-equal scrollLeft fires no
+  // scroll event, so the bar and every segment converge in one hop.
+  const fromBar = () => {
+    for (const scroll of scrollers) scroll.scrollLeft = bar.scrollLeft
   }
-  const onBar = mirror(bar, scroll)
-  const onScroll = mirror(scroll, bar)
-  bar.addEventListener("scroll", onBar)
-  scroll.addEventListener("scroll", onScroll)
+  // A programmatic `bar.scrollLeft =` fires the bar's scroll event only on the
+  // next frame, so drive the sibling segments here too — they must move in the
+  // same frame as the one the user is dragging, not a frame behind.
+  const fromScroll = (origin: HTMLElement) => () => {
+    bar.scrollLeft = origin.scrollLeft
+    for (const scroll of scrollers) if (scroll !== origin) scroll.scrollLeft = origin.scrollLeft
+  }
+  const handlers = scrollers.map((scroll) => fromScroll(scroll))
+  bar.addEventListener("scroll", fromBar)
+  scrollers.forEach((scroll, i) => scroll.addEventListener("scroll", handlers[i]))
 
   cleanups.push(() => {
-    bar.removeEventListener("scroll", onBar)
-    scroll.removeEventListener("scroll", onScroll)
+    bar.removeEventListener("scroll", fromBar)
+    scrollers.forEach((scroll, i) => scroll.removeEventListener("scroll", handlers[i]))
     bar.remove()
+    for (const track of tracks) track.style.minWidth = ""
   })
 }
