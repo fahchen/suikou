@@ -63,6 +63,8 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
 
 `--all` and `--rounds` are mutually exclusive.
 
+**`--rounds` is content scope, NOT a wait target.** `wait --rounds 1` does not wait for round 1 — it waits for the *next* submission (blocking forever if none comes) and merely scopes the eventual snapshot to round 1. To wait for a specific round use `--until-round <n>` (below).
+
 ## JSON output shapes
 
 `project list`
@@ -153,9 +155,9 @@ A `wait` that times out (no new submission yet) emits instead:
 ```json
 {"status":"timeout","submission_version":1}
 ```
-Without `--timeout`, `wait` blocks across rounds until a submission lands (each backend call blocks ~25 s and the launcher re-issues automatically — no work from you). With `--timeout <secs>`, it gives up after that wall-clock budget and prints this timeout line.
+**Almost always pass `--until-round <n>` — the round you expect** (the round you last processed **+ 1**, or `1` for the first wait). If that round has *already* been submitted when you call, `wait` returns its snapshot immediately instead of blocking for the round after it; otherwise it blocks until that round lands. This closes the race where a round arrives between your reply and your re-wait. `submission_version` in every snapshot is the latest round number. `--until-round` is a wake target (state), independent of the `--rounds` content scope above.
 
-**`--until-round <n>` — target a specific round (prefer it).** Pass the round you expect (the round you last processed **+ 1**). If that round has *already* been submitted when you call, `wait` returns its snapshot immediately instead of blocking for the round after it; otherwise it blocks until that round lands. This closes the race where a round arrives between your reply and your re-wait. `submission_version` in every snapshot is the latest round number. `--until-round` is a wake target (state), independent of the `--rounds` content scope above.
+Without `--until-round`, `wait` targets the *next* submission past the current count — so calling it right after a round already landed blocks for the round after, not the one you just got. Without `--timeout`, it blocks across rounds until a submission lands (each backend call blocks ~25 s and the launcher re-issues automatically — no work from you). With `--timeout <secs>`, it gives up after that wall-clock budget and prints this timeout line.
 
 `comment reply`
 ```json
