@@ -9,7 +9,7 @@ import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE, MONO_PX } from "../../stores/ui-store"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Popover } from "../../components/ui/popover"
-import { renderMarkdownBlocks, useCodeSync, useMermaid, useTableSync, type AssetContext } from "../markdown"
+import { renderMarkdownBlocks, useCodeHighlight, useCodeSync, useMermaid, useTableSync, type AssetContext } from "../markdown"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
@@ -54,7 +54,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const docRef = useRef<HTMLDivElement>(null)
   useMermaid(docRef, [blocks])
   useTableSync(docRef, [blocks])
-  useCodeSync(docRef, [blocks])
+  useCodeHighlight(docRef, [blocks])
   const gutter = String(blocks.length ? blocks[blocks.length - 1].endLine : 1).length
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
 
@@ -80,6 +80,12 @@ export const MarkdownPreview = observer(function MarkdownPreview({
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
   const draftRef = useRef<Range | null>(draft)
   draftRef.current = draft
+
+  // Inline threads and the composer split a code fence into separate `.md-fence`
+  // segments (each its own scroller). Those arrive after mount, so re-run the sync
+  // when they change — not just on `blocks` — or late segments stay unclipped and
+  // scroll independently.
+  useCodeSync(docRef, [blocks, threadsByBlock, draft])
   const dragRef = useRef(drag)
   dragRef.current = drag
   const openKey = `suikou-composer:${draftScope}`
