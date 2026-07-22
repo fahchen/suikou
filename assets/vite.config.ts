@@ -16,12 +16,15 @@ export default defineConfig({
     // from cache instead of refetching index.html + JS over the network.
     VitePWA({
       registerType: "autoUpdate",
-      // sw.js + manifest.webmanifest land at priv/static root. The Phoenix
-      // endpoint's "/" Plug.Static only serves files listed in static_paths(),
-      // and SpaController treats anything else as a client route and returns the
-      // SPA shell — so both names are registered there. inlineWorkboxRuntime
-      // keeps the workbox runtime inside sw.js so there's no hashed second file
-      // to register.
+      // Inline the SW registration into index.html. Emitting a separate
+      // registerSW.js would land at priv/static root, where the Phoenix "/"
+      // Plug.Static only serves files listed in static_paths() — SpaController
+      // would swallow /registerSW.js and return the SPA shell, so the browser
+      // parses HTML as JS ("Unexpected token '<'"). Inlining sidesteps that.
+      // sw.js + manifest.webmanifest still land at the root and are registered
+      // in static_paths(). inlineWorkboxRuntime keeps the workbox runtime inside
+      // sw.js so there's no hashed second file to register.
+      injectRegister: "inline",
       workbox: {
         inlineWorkboxRuntime: true,
         // Precache only the shell (index.html + entry CSS). The JS lives in
