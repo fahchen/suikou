@@ -71,12 +71,25 @@ export function CommentCard({
       data-side-comment-id={comment.id}
       role={onFocus ? "button" : undefined}
       tabIndex={onFocus ? 0 : undefined}
-      onClick={onFocus}
+      onClick={
+        onFocus
+          ? () => {
+              // A drag that selected text also fires click; don't steal focus
+              // mid-selection or the re-render drops the user's highlight.
+              if (!window.getSelection()?.isCollapsed) return
+              onFocus()
+            }
+          : undefined
+      }
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
       onKeyDown={
         onFocus
           ? (event) => {
+              // Only the card itself activates on Space/Enter; a keystroke
+              // bubbling up from the composer or another control must pass
+              // through (otherwise the reply box can't type a space).
+              if (event.target !== event.currentTarget) return
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
                 onFocus()
