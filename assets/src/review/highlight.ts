@@ -32,7 +32,8 @@ const EXT_LANG: Record<string, string> = {
 }
 
 function langFor(ext: string): string {
-  return EXT_LANG[ext.toLowerCase()] ?? "text"
+  const key = ext.toLowerCase()
+  return EXT_LANG[key] ?? (key in bundledLanguages ? key : "text")
 }
 
 /** Tokenize source into lines of themed tokens whose colors are `var(--shiki-*)`.
