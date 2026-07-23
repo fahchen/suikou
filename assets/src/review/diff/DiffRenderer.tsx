@@ -642,9 +642,8 @@ function UnifiedRow({
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
   const wrap = useContext(DiffWrapContext)
-  const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono ${mono.size} ${rowClass}${outline}`} style={{ lineHeight: `${mono.leading}px` }}>
+    <MonoRow className={`${rowClass}${outline}`}>
       <StickyLead>
         {sides.old && (
           <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
@@ -656,7 +655,7 @@ function UnifiedRow({
       <code className={`min-w-0 flex-1 pl-2.5 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
-    </div>
+    </MonoRow>
   )
 }
 
@@ -853,16 +852,15 @@ function SplitCell({
   const rowTokens = lookupTokens(line, tokens)
   const segments = lookupWordSegments(line, wordDiff)
   const wrap = useContext(DiffWrapContext)
-  const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono ${mono.size} ${rowClass}${outline}`} style={{ lineHeight: `${mono.leading}px` }}>
+    <MonoRow className={`${rowClass}${outline}`}>
       <StickyLead>
         <Gutter value={lineNo} side={side} line={cell.number} />
       </StickyLead>
       <code className={`min-w-0 flex-1 pl-2.5 pr-3 text-text ${wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre"}`}>
         <TokenLine tokens={rowTokens} fallback={line.content} segments={segments} kind={line.kind} />
       </code>
-    </div>
+    </MonoRow>
   )
 }
 
@@ -909,6 +907,19 @@ function inActiveRange(select: DiffSelect, side: "old" | "new", line: number): b
  * through no matter the row's tint. */
 function StickyLead({ children }: { children: React.ReactNode }) {
   return <div className="sticky left-0 z-[1] flex items-start self-stretch bg-canvas">{children}</div>
+}
+
+/** One diff row: the flex container carrying the ambient mono font-size tier
+ * and an absolute px line-height, shared by both gutter and code cell so the
+ * line numbers stay aligned with the code across every size. `className`
+ * layers on the row's add/del surface and selection outline. */
+function MonoRow({ className = "", children }: { className?: string; children: React.ReactNode }) {
+  const mono = useContext(DiffMonoContext)
+  return (
+    <div className={`flex items-start font-mono ${mono.size} ${className}`} style={{ lineHeight: `${mono.leading}px` }}>
+      {children}
+    </div>
+  )
 }
 
 function TokenLine({
