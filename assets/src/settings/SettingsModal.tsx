@@ -140,6 +140,7 @@ const AppearancePane = observer(function AppearancePane() {
             ["small", "Small"],
             ["default", "Default"],
             ["large", "Large"],
+            ["xlarge", "XL"],
           ]}
         />
       </Row>

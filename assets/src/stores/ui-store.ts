@@ -3,12 +3,13 @@ import { makeAutoObservable } from "mobx"
 import { THEMES, type ThemeName } from "../themes"
 
 export type Density = "compact" | "comfortable" | "loose"
-export type MonoSize = "small" | "default" | "large"
+export type MonoSize = "small" | "default" | "large" | "xlarge"
 /** Mono font-size tiers, aligned to the Tailwind text scale so code and diff
- * surfaces size identically per tier (small=12px, default=14px, large=16px). */
-export const MONO_SIZE: Record<MonoSize, string> = { small: "text-xs", default: "text-sm", large: "text-base" }
+ * surfaces size identically per tier (small=12px, default=16px, large=18px,
+ * xlarge=20px). */
+export const MONO_SIZE: Record<MonoSize, string> = { small: "text-xs", default: "text-base", large: "text-lg", xlarge: "text-xl" }
 /** Same tiers in px, for layout math that can't read the rendered font-size. */
-export const MONO_PX: Record<MonoSize, number> = { small: 12, default: 14, large: 16 }
+export const MONO_PX: Record<MonoSize, number> = { small: 12, default: 16, large: 18, xlarge: 20 }
 export type CommentDisplayMode = "inline" | "side" | "hidden"
 export type FileRange = "single" | "stacked"
 export type DiffStyle = "unified" | "split"
@@ -144,7 +145,7 @@ class UiStore {
       this.density = density
     }
     const mono = localStorage.getItem(MONO_KEY)
-    if (mono === "small" || mono === "default" || mono === "large") this.monoSize = mono
+    if (mono === "small" || mono === "default" || mono === "large" || mono === "xlarge") this.monoSize = mono
     this.codeWrap = localStorage.getItem(WRAP_KEY) === "1"
     const commentDisplay = localStorage.getItem(COMMENT_DISPLAY_KEY)
     if (commentDisplay === "inline" || commentDisplay === "side" || commentDisplay === "hidden") {
