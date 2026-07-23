@@ -166,6 +166,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
       if (current) {
         const lo = Math.min(current.from, current.to)
         const hi = Math.max(current.from, current.to)
+        if (composerMode === "popover" && current.from !== current.to) swallowNextClick()
         requestOpen({ start: blocks[lo].line, end: blocks[hi].endLine })
       }
     }
@@ -332,7 +333,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                     if (next) requestOpen({ start: block.line, end: block.endLine })
                     else if (composerOpen) close()
                   }}
-                  side="right"
+                  side="bottom"
                   align="start"
                   chrome={false}
                   className="w-[330px] p-0"
@@ -569,7 +570,10 @@ export const Source = observer(function Source({
       const current = dragRef.current
       cancel()
       if (event.button !== 0) return
-      if (current) requestOpen({ start: Math.min(current.from, current.to), end: Math.max(current.from, current.to) })
+      if (current) {
+        if (composerMode === "popover" && current.from !== current.to) swallowNextClick()
+        requestOpen({ start: Math.min(current.from, current.to), end: Math.max(current.from, current.to) })
+      }
     }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", up)
@@ -669,7 +673,7 @@ export const Source = observer(function Source({
                     if (next) requestOpen({ start: lineNo, end: lineNo })
                     else if (composerOpen) close()
                   }}
-                  side="right"
+                  side="bottom"
                   align="start"
                   chrome={false}
                   className="w-[330px] p-0"
@@ -735,6 +739,19 @@ export const Source = observer(function Source({
     </div>
   )
 })
+
+// A drag that starts and ends on different gutter targets concludes with a
+// synthesized `click` on the two targets' common ancestor. In popover mode Base
+// UI reads that click as an outside press and dismisses the composer the drag
+// just opened, so swallow the one click that immediately follows.
+function swallowNextClick(): void {
+  const swallow = (event: MouseEvent) => {
+    event.stopPropagation()
+    window.removeEventListener("click", swallow, true)
+  }
+  window.addEventListener("click", swallow, true)
+  setTimeout(() => window.removeEventListener("click", swallow, true))
+}
 
 function sameRange(a: Range, b: Range): boolean {
   return a.start === b.start && a.end === b.end
