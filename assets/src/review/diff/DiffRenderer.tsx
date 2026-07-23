@@ -5,7 +5,7 @@ import { diffWords } from "diff"
 import { ChevronDown, ChevronUp, Plus, UnfoldVertical } from "lucide-react"
 
 import { highlightLines } from "../highlight"
-import { uiStore, MONO_SIZE } from "../../stores/ui-store"
+import { uiStore, MONO_SIZE, MONO_PX } from "../../stores/ui-store"
 import { parseDiffPatch, type DiffFile, type DiffHunk, type DiffLine } from "./parse"
 
 export type DiffAnnotation<Meta = unknown> = {
@@ -57,9 +57,14 @@ const DiffSelectContext = createContext<DiffSelect | null>(null)
  * pick up the source view's wrap preference without prop-drilling. */
 const DiffWrapContext = createContext<boolean>(true)
 
-/** Mono font-size tier (a Tailwind text-* class) shared with every code row so
- * diff cells match the source view's Mono size setting. */
-const DiffMonoContext = createContext<string>(MONO_SIZE.default)
+/** Mono font-size tier shared with every code row so diff cells match the
+ * source view's Mono size setting. `leading` is an absolute px line-height
+ * applied to both the code cell and the (smaller-font) line-number gutter so
+ * their line boxes stay the same height and the numbers align with the code
+ * across every size tier. */
+type DiffMono = { size: string; leading: number }
+const monoLeading = (px: number): number => Math.round(px * 1.6)
+const DiffMonoContext = createContext<DiffMono>({ size: MONO_SIZE.default, leading: monoLeading(MONO_PX.default) })
 
 /** Which sides a file actually spans. A pure add (new file) has no old side, a
  * pure delete no new side — the renderer drops the always-empty gutter so a new
@@ -145,7 +150,11 @@ export const DiffRenderer = observer(function DiffRenderer<A>(props: DiffRendere
       </div>
     </div>
   )
-  const sized = <DiffMonoContext.Provider value={MONO_SIZE[uiStore.monoSize]}>{body}</DiffMonoContext.Provider>
+  const sized = (
+    <DiffMonoContext.Provider value={{ size: MONO_SIZE[uiStore.monoSize], leading: monoLeading(MONO_PX[uiStore.monoSize]) }}>
+      {body}
+    </DiffMonoContext.Provider>
+  )
   const wrapped = <DiffWrapContext.Provider value={effectiveWrap}>{sized}</DiffWrapContext.Provider>
   return select ? <DiffSelectContext.Provider value={select}>{wrapped}</DiffSelectContext.Provider> : wrapped
 }) as <A>(props: DiffRendererProps<A>) => React.ReactElement
@@ -635,7 +644,7 @@ function UnifiedRow({
   const wrap = useContext(DiffWrapContext)
   const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono ${mono} ${rowClass}${outline}`}>
+    <div className={`flex items-start font-mono ${mono.size} ${rowClass}${outline}`} style={{ lineHeight: `${mono.leading}px` }}>
       <StickyLead>
         {sides.old && (
           <Gutter value={oldNo} side={line.kind === "del" ? "old" : undefined} line={line.kind === "del" ? line.oldLine : undefined} />
@@ -846,7 +855,7 @@ function SplitCell({
   const wrap = useContext(DiffWrapContext)
   const mono = useContext(DiffMonoContext)
   return (
-    <div className={`flex items-start font-mono ${mono} ${rowClass}${outline}`}>
+    <div className={`flex items-start font-mono ${mono.size} ${rowClass}${outline}`} style={{ lineHeight: `${mono.leading}px` }}>
       <StickyLead>
         <Gutter value={lineNo} side={side} line={cell.number} />
       </StickyLead>
@@ -861,7 +870,7 @@ function SplitCell({
 
 function Gutter({ value, side, line }: { value: string; side?: "old" | "new"; line?: number }) {
   const select = useContext(DiffSelectContext)
-  const base = "w-[38px] shrink-0 select-none pr-1.5 text-right font-mono text-2xs tabular-nums leading-[1.6]"
+  const base = "w-[38px] shrink-0 select-none pr-1.5 text-right font-mono text-2xs tabular-nums"
   if (!select || side === undefined || line === undefined || value === "") {
     return <span className={`${base} text-faint`}>{value}</span>
   }
