@@ -7,12 +7,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Hina+Mincho&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { background: #ffffff; }
-  /* Full-bleed square (no radius): iOS rounds it, Android frames it on a plate.
-     Not declared `maskable` — a full-bleed grid has no safe zone, so a circular
-     mask would clip the corner glyphs. */
+  /* Transparent page so the rounded corners screenshot with alpha, not white. */
+  html, body { background: transparent; }
+  /* Rounded-rect tile (transparent corners): the mark carries its own radius so
+     it reads as a rounded icon on tabs, home screens, and launchers alike.
+     Not declared `maskable` — the seal grid fills the rect with no safe zone, so
+     a circular mask would clip the corner glyphs. */
   #icon {
     width: 512px; height: 512px; overflow: hidden; display: flex;
+    border-radius: 96px;
     font-family: "Hina Mincho", serif;
   }
   .col {

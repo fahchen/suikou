@@ -55,10 +55,9 @@ export default defineConfig({
         // first-paint canvas so launch is seamless, not a vermilion flash.
         theme_color: "#12181c",
         background_color: "#12181c",
-        // Icons are full-bleed (the 2x2 seal grid runs edge to edge), so they
-        // carry no maskable safe zone — declaring `maskable` would let Android's
-        // circular mask clip the corner glyphs. Ship `any` only; the system
-        // frames it on its own plate without cropping.
+        // Icons are rounded-rect with transparent corners — they carry their own
+        // radius rather than a maskable safe zone, so ship `any` only. Declaring
+        // `maskable` would let Android's circular mask clip the corner glyphs.
         icons: [
           { src: "/favicon.ico", sizes: "any", type: "image/x-icon" },
           { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
