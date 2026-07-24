@@ -165,6 +165,13 @@ function Board({ store }: { store: BoardStore }) {
   const projects = board?.projects ?? []
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
+  useEffect(() => {
+    document.title = selected ? `${selected.name} · Suikou` : "Suikou"
+    return () => {
+      document.title = "Suikou"
+    }
+  }, [selected?.name])
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ink">
       <Toolbar

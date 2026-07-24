@@ -590,12 +590,13 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const stackedSide = stacked && commentDisplay === "side"
 
   const reviewName = structure?.name
+  const currentFile = navSelected ? (navSelected.split("/").pop() || navSelected) : null
   useEffect(() => {
-    document.title = reviewName ? `${reviewName} · Suikou` : "Suikou"
+    document.title = [currentFile, reviewName, "Suikou"].filter(Boolean).join(" · ")
     return () => {
       document.title = "Suikou"
     }
-  }, [reviewName])
+  }, [currentFile, reviewName])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] text-ink">
