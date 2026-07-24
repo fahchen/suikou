@@ -106,6 +106,11 @@ export default defineConfig({
     host: true,
     allowedHosts: [".ts.net"],
     proxy: {
+      // App icons live in priv/static (served by Phoenix), not in a Vite
+      // publicDir, so forward them to resolve the favicon on the dev origin too.
+      "^/(favicon\\.ico|icon-\\d+\\.png)$": {
+        target: "http://localhost:4710"
+      },
       "/socket": {
         target: "ws://localhost:4710",
         ws: true
