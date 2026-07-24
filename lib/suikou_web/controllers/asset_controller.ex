@@ -15,6 +15,7 @@ defmodule SuikouWeb.AssetController do
   use SuikouWeb, :controller
 
   alias Suikou.Artifacts
+  alias Suikou.ChangesWatcher
   alias Suikou.Reviews
   alias Suikou.Schemas.Review
 
@@ -86,7 +87,7 @@ defmodule SuikouWeb.AssetController do
     case parse_lens(params) do
       {:ok, lens} ->
         case Reviews.get_review(review_id) do
-          %Review{} = review -> serve_review_path(conn, review, path, lens)
+          %Review{} -> serve_review_path(conn, review_id, path, lens)
           nil -> send_resp(conn, 404, "")
         end
 
@@ -170,7 +171,7 @@ defmodule SuikouWeb.AssetController do
     case parse_lens(params) do
       {:ok, lens} ->
         case Reviews.get_review(review_id) do
-          %Review{} = review -> json(conn, %{files: Reviews.list_files(review, lens)})
+          %Review{} -> json(conn, %{files: ChangesWatcher.list_files(review_id, lens)})
           nil -> send_resp(conn, 404, "")
         end
 
@@ -182,8 +183,8 @@ defmodule SuikouWeb.AssetController do
     end
   end
 
-  defp serve_review_path(conn, %Review{} = review, path, lens) do
-    case Reviews.fetch_content_by_path(review, path, lens) do
+  defp serve_review_path(conn, review_id, path, lens) do
+    case ChangesWatcher.fetch_content(review_id, path, lens) do
       {:ok, source} ->
         serve_content(conn, source)
 

@@ -178,6 +178,9 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   end
 
   defp load_files(socket) do
+    # First list on connect: compute directly in the async task, never through
+    # ChangesWatcher's single-process call — the watcher caches only the later
+    # HTTP lens-switch reads.
     case Reviews.get_review(socket.assigns.review_id) do
       %Review{} = review ->
         socket

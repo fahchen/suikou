@@ -4,17 +4,19 @@ defmodule SuikouWeb.Stores.ReviewStore do
 
   It owns only the `review_id` and the review-wide commands (`submit_review`,
   `remove_file`), and mounts a single `SuikouWeb.Stores.ReviewBodyStore` child
-  that owns the review chrome, file list, and aggregates. It subscribes to the
-  review's `Suikou.Events` change topic at mount and forwards every change to the
-  body child via `Musubi.send_update/2`, so a mutation on any page refreshes the
-  tree. The domain contexts emit the event after each persisted write, so the
-  writer's own page refreshes through the same path as every other open tab.
+  that owns the review chrome, file list, and aggregates. At mount it subscribes
+  to the review's `Suikou.ChangesWatcher` — the review's sole `Suikou.Events`
+  subscriber — which relays every change here; it forwards each to the body child
+  via `Musubi.send_update/2`, so a mutation on any page refreshes the tree. The
+  domain contexts emit the event after each persisted write, so the writer's own
+  page refreshes through the same path as every other open tab.
   """
 
   use Musubi.Store, root: true
 
   alias Musubi.Child
   alias Musubi.Socket
+  alias Suikou.ChangesWatcher
   alias Suikou.Events
   alias Suikou.FileWatcher
   alias Suikou.Reads
@@ -113,8 +115,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
   @spec mount(map(), Socket.t()) :: {:ok, Socket.t()}
   def mount(params, socket) do
     review_id = Map.fetch!(params, "review_id")
-    Events.subscribe(review_id)
-    Events.subscribe_fs(review_id)
+    # ChangesWatcher is the review's sole Events subscriber; it relays every
+    # change back here, so this store never subscribes to PubSub directly.
+    ChangesWatcher.subscribe(review_id)
     watch_files(review_id)
     {:ok, Socket.assign(socket, :review_id, review_id)}
   end
@@ -207,6 +210,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
     reply =
       case Reviews.get_review(review_id) do
         %Review{} = review ->
+          # First list on connect: compute directly (per-store, non-blocking),
+          # never through ChangesWatcher's single-process call — the watcher
+          # caches only the later HTTP lens-switch reads.
           entries = Reviews.list_files(review)
 
           %{

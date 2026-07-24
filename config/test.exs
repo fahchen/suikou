@@ -30,3 +30,7 @@ config :phoenix,
 # Keep the agent CLI poll window short so its timeout branch is exercised
 # without a 25 s wait. The wake test drives a real submission within the window.
 config :suikou, :agent_cli_poll_window_ms, 200
+
+# Short grace window so Suikou.ChangesWatcher's ref-count teardown is exercised
+# without a 30 s wait.
+config :suikou, :changes_watcher_grace_ms, 100
