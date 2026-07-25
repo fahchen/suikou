@@ -207,14 +207,21 @@ A **reaction** is a single emoji an actor puts on a comment or reply — a light
 | 👎 | `disagree` | disagree |
 | ❌ | `strong_disagree` | strongly oppose |
 
-**Agent** — a free-form work-status signal on a human's comment. You may use **any** emoji glyph; pick whatever fits the moment. The common convention:
+**Agent** — a free-form work-status signal on a human's comment or reply. You may use **any** emoji glyph, and you're encouraged to **vary** it: reach for the glyph that best captures *this* moment rather than defaulting to the same one every time. The table below is a starting palette, not a fixed set — a well-chosen 🐛 / 🚧 / 🎉 / 🔍 / 🧪 / ⏳ communicates far more than 👀 on repeat.
 
 | emoji | meaning |
 |-------|---------|
 | 👀 | seen it, working on it now |
 | 🤔 | investigating / unsure |
+| 🔍 | digging into the code |
+| 🐛 | reproduced / found the bug |
+| 🚧 | mid-fix, change in progress |
+| 🧪 | testing / verifying |
 | ✅ | handled |
+| 🎉 | shipped |
 
 Set your reaction on a **comment** with `suikou comment react <comment-id> <emoji>` (the emoji glyph is the positional arg) and clear it with `suikou comment unreact <comment-id>` (emits `{"comment_id":"0192…","error":null}`). React on a specific **reply** with `suikou reply react <reply-id> <emoji>` and clear it with `suikou reply unreact <reply-id>` (emits `{"reply_id":"0192…","error":null}`). Either emits an `error` string on failure — e.g. a missing target, or a human-vocabulary key (💯/👍/👎/❌ are the human's; use an emoji glyph instead). Comment and reply reactions are independent; the agent holds at most one reaction per target.
 
-Intended agent flow: when you pick up a comment, react 👀 so the human sees you're on it; switch to 🤔 while investigating; ✅ when done (usually alongside your `comment reply`). Move the emoji as your progress changes — and reach for a more specific glyph when it communicates better (🐛 found the bug, 🚧 mid-fix, 🎉 shipped). Use `reply react` when your status concerns a specific reply rather than the whole comment. One reaction per target — a new emoji **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.
+Intended agent flow: when you pick up a comment, react 👀 so the human sees you're on it; switch to 🤔 / 🔍 while investigating; 🐛 when you reproduce it; 🚧 / 🧪 while fixing and verifying; ✅ or 🎉 when done (usually alongside your `comment reply`). **Move the emoji every time your progress changes** — a reaction that never updates reads as stale, and repeating the same glyph tells the human nothing new. Vary it to match the actual step you're on.
+
+React at the **right granularity**: put the emoji on the whole **comment** while you work the thread, but when your status concerns one specific **reply** (yours or the human's), react on that reply with `reply react <reply-id> <emoji>` so the signal lands where it belongs. Comment and reply reactions are independent, so you can carry one on each. One reaction per target — a new emoji **replaces** the old, so you don't need to unreact between states. Reacting is optional and never a substitute for the reply that carries your actual result.
