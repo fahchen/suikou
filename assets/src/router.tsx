@@ -1,7 +1,8 @@
 import { createRouter, type ErrorComponentProps } from "@tanstack/react-router"
-import { AlertTriangle, Compass } from "lucide-react"
+import { AlertTriangle, Compass, RefreshCw } from "lucide-react"
 
 import { FileNotice } from "./review/components/EditorSurface"
+import { reloadForFreshShell, staleShellError } from "./lib/stale-shell"
 import { routeTree } from "./routeTree.gen"
 
 export const router = createRouter({
@@ -33,6 +34,18 @@ function NotFoundPage() {
 }
 
 function RouteErrorPage({ error }: ErrorComponentProps) {
+  // A chunk this tab's shell expects but the deployed build no longer ships:
+  // reload onto the current one rather than blaming the user's page. Rate-limited
+  // inside, so a build that really is missing the chunk falls through to the
+  // error below instead of reloading on a loop.
+  if (staleShellError(error) && reloadForFreshShell()) {
+    return (
+      <div className="grid h-screen place-items-center bg-canvas">
+        <FileNotice icon={RefreshCw} title="Updating…" body="A newer version is loading." />
+      </div>
+    )
+  }
+
   return (
     <div className="grid h-screen place-items-center bg-canvas">
       <FileNotice
