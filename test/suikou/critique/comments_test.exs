@@ -288,4 +288,113 @@ defmodule Suikou.Critique.CommentsTest do
                Critique.resolve_comment("00000000-0000-7000-8000-000000000000")
     end
   end
+
+  describe "add_comment_as_agent/2" do
+    test "publishes on the artifact's latest round under the agent's name" do
+      round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
+
+      assert {:ok, comment} =
+               Critique.add_comment_as_agent(
+                 %{
+                   artifact_id: round.artifact_id,
+                   scope: :located,
+                   anchor: %{type: "line_range", start_line: 10, end_line: 12},
+                   critique_type: :fix_required,
+                   body: "off by one"
+                 },
+                 Critique.agent_identity("Codex", "🤖")
+               )
+
+      assert %Comment{
+               author: :agent,
+               author_name: "Codex",
+               author_icon: "🤖",
+               status: :published,
+               round_id: round_id,
+               authored_round: 0,
+               anchor: %LineRange{start_line: 10, end_line: 12}
+             } = comment
+
+      assert round_id == round.id
+    end
+
+    test "an agent that names itself nothing writes an anonymous comment" do
+      round = insert(:round)
+
+      assert {:ok, %Comment{author: :agent, author_name: "", author_icon: ""}} =
+               Critique.add_comment_as_agent(
+                 %{
+                   artifact_id: round.artifact_id,
+                   scope: :artifact,
+                   critique_type: :note,
+                   body: "x"
+                 },
+                 Critique.agent_identity(nil, nil)
+               )
+    end
+
+    test "the comment lands on the newest round, not the one the agent last saw" do
+      round = insert(:round)
+      %{round: latest} = advance(round.artifact_id, "v1\n")
+
+      assert {:ok, %Comment{round_id: round_id, authored_round: 1}} =
+               Critique.add_comment_as_agent(
+                 %{
+                   artifact_id: round.artifact_id,
+                   scope: :artifact,
+                   critique_type: :note,
+                   body: "x"
+                 },
+                 Critique.agent_identity("Codex", nil)
+               )
+
+      assert round_id == latest.id
+    end
+
+    test "an unknown artifact is rejected" do
+      assert {:error, :artifact_not_found} =
+               Critique.add_comment_as_agent(
+                 %{
+                   artifact_id: "00000000-0000-7000-8000-000000000000",
+                   scope: :artifact,
+                   critique_type: :note,
+                   body: "x"
+                 },
+                 Critique.agent_identity("Codex", nil)
+               )
+    end
+
+    test "an empty body is rejected" do
+      round = insert(:round)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Critique.add_comment_as_agent(
+                 %{
+                   artifact_id: round.artifact_id,
+                   scope: :artifact,
+                   critique_type: :note,
+                   body: "  "
+                 },
+                 Critique.agent_identity("Codex", nil)
+               )
+    end
+
+    test "an agent may resolve its own comment, and the human may reopen it" do
+      round = insert(:round)
+
+      {:ok, comment} =
+        Critique.add_comment_as_agent(
+          %{
+            artifact_id: round.artifact_id,
+            scope: :artifact,
+            critique_type: :fix_required,
+            body: "x"
+          },
+          Critique.agent_identity("Codex", nil)
+        )
+
+      assert {:ok, %Comment{resolved_round: 0}} = Critique.resolve_comment(comment.id)
+      assert {:ok, %Comment{resolved_round: nil}} = Critique.unresolve_comment(comment.id)
+    end
+  end
 end

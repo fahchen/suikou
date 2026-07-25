@@ -1,7 +1,12 @@
 defmodule Suikou.Critique.Comments do
   @moduledoc """
-  Authoring and lifecycle of human critique. New comments attach to the latest
-  round only; a `:located` comment captures its quoted source on creation.
+  Authoring and lifecycle of critique. New comments attach to the latest round
+  only; a `:located` comment captures its quoted source on creation.
+
+  The human authors through `add/1`, an agent through `add_as_agent/1` (see
+  BDR-0026). They differ in two ways: an agent names itself on the call, and its
+  comment is published immediately rather than waiting on a submit — an agent has
+  no draft stage to batch into.
 
   A comment is Draft while pending, Open once published, and Resolved once a
   `resolved_round` is set. Editing is confined to the Draft stage, while
@@ -12,6 +17,7 @@ defmodule Suikou.Critique.Comments do
 
   alias Suikou.Artifacts
   alias Suikou.Critique.Anchor
+  alias Suikou.Critique.Identity
   alias Suikou.Reads
   alias Suikou.Repo
   alias Suikou.Rounds
@@ -55,13 +61,60 @@ defmodule Suikou.Critique.Comments do
         {:error, :not_latest_round}
 
       true ->
-        with {:ok, params} <- put_anchor(params, round) do
-          params
-          |> Map.put(:authored_round, round.number)
-          |> Comment.author_changeset()
-          |> Repo.insert()
-        end
+        insert(%Comment{}, params, round)
     end
+  end
+
+  @doc """
+  Adds `identity`'s critique to an artifact's latest round, published
+  immediately. Takes the same shape as `add/1` but targets the artifact rather
+  than a round — an agent reads `artifact_id` out of an export and never sees a
+  round id.
+
+  ## Examples
+
+      Suikou.Critique.Comments.add_as_agent(%{artifact_id: artifact.id, scope: :artifact, critique_type: :fix_required, body: "leaks a file handle"}, %{name: "Codex", icon: "🤖"})
+      #=> {:ok, %Suikou.Schemas.Comment{author: :agent, status: :published}}
+
+      Suikou.Critique.Comments.add_as_agent(%{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :artifact, critique_type: :note, body: "x"}, %{name: "", icon: ""})
+      #=> {:error, :artifact_not_found}
+
+  """
+  @spec add_as_agent(map(), Identity.t()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :artifact_not_found
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
+  def add_as_agent(params, identity) do
+    case Rounds.latest(params[:artifact_id]) do
+      %Round{} = round ->
+        insert(agent_comment(identity), Map.put(params, :round_id, round.id), round)
+
+      nil ->
+        {:error, :artifact_not_found}
+    end
+  end
+
+  defp insert(comment, params, round) do
+    with {:ok, params} <- put_anchor(params, round) do
+      comment
+      |> Comment.author_changeset(Map.put(params, :authored_round, round.number))
+      |> Repo.insert()
+    end
+  end
+
+  # An agent has no draft stage to batch into, so its comment is born published
+  # and is visible to the human — and to the other agents — at once.
+  defp agent_comment(identity) do
+    %Comment{
+      author: :agent,
+      author_name: identity.name,
+      author_icon: identity.icon,
+      status: :published
+    }
   end
 
   @doc """

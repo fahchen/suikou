@@ -6,6 +6,9 @@ defmodule Suikou.Critique.DiscussionTest do
   alias Suikou.Critique
   alias Suikou.Schemas.Reply
 
+  # These cover the single-agent behaviour, where the caller supplies no name.
+  @anonymous %{name: "", icon: ""}
+
   test "the reviewer can reply to a thread", %{comment: comment} do
     comment_id = comment.id
 
@@ -17,12 +20,12 @@ defmodule Suikou.Critique.DiscussionTest do
     comment_id = comment.id
 
     assert {:ok, %{comment_id: ^comment_id, author: :agent}} =
-             Critique.reply_as_agent(comment.id, "fixed in next round")
+             Critique.reply_as_agent(comment.id, "fixed in next round", @anonymous)
   end
 
   test "a reply requires an existing comment so neither party can mint a top-level comment" do
     assert {:error, :comment_not_found} =
-             Critique.reply_as_agent("00000000-0000-7000-8000-000000000000", "x")
+             Critique.reply_as_agent("00000000-0000-7000-8000-000000000000", "x", @anonymous)
 
     assert {:error, :comment_not_found} =
              Critique.reply_as_human("00000000-0000-7000-8000-000000000000", "x")
@@ -32,12 +35,12 @@ defmodule Suikou.Critique.DiscussionTest do
 
   test "an empty reply body is rejected", %{comment: comment} do
     assert {:error, %Ecto.Changeset{}} = Critique.reply_as_human(comment.id, "   ")
-    assert {:error, %Ecto.Changeset{}} = Critique.reply_as_agent(comment.id, "")
+    assert {:error, %Ecto.Changeset{}} = Critique.reply_as_agent(comment.id, "", @anonymous)
   end
 
   test "both parties' replies attach to the same thread", %{comment: comment} do
     {:ok, _human} = Critique.reply_as_human(comment.id, "from human")
-    {:ok, _agent} = Critique.reply_as_agent(comment.id, "from agent")
+    {:ok, _agent} = Critique.reply_as_agent(comment.id, "from agent", @anonymous)
 
     authors =
       from(r in Reply, as: :reply)
@@ -63,20 +66,47 @@ defmodule Suikou.Critique.DiscussionTest do
   end
 
   test "editing a published reply is rejected", %{comment: comment} do
-    {:ok, reply} = Critique.reply_as_agent(comment.id, "published")
+    {:ok, reply} = Critique.reply_as_agent(comment.id, "published", @anonymous)
 
     assert {:error, :not_editable} = Critique.edit_reply(reply.id, "revised")
   end
 
   test "deleting an agent reply is rejected", %{comment: comment} do
-    {:ok, reply} = Critique.reply_as_agent(comment.id, "published")
+    {:ok, reply} = Critique.reply_as_agent(comment.id, "published", @anonymous)
 
     assert {:error, :not_editable} = Critique.delete_reply(reply.id)
+  end
+
+  test "a named agent's reply records its name and icon", %{comment: comment} do
+    assert {:ok, %Reply{author: :agent, author_name: "Codex", author_icon: "🤖"}} =
+             Critique.reply_as_agent(comment.id, "on it", Critique.agent_identity("Codex", "🤖"))
+  end
+
+  test "an agent replies to another agent's comment", %{round: round} do
+    {:ok, theirs} =
+      Critique.add_comment_as_agent(
+        %{
+          artifact_id: round.artifact_id,
+          scope: :artifact,
+          critique_type: :fix_required,
+          body: "this leaks"
+        },
+        Critique.agent_identity("Codex", "🤖")
+      )
+
+    assert {:ok, %Reply{comment_id: comment_id, author_name: "Claude"}} =
+             Critique.reply_as_agent(
+               theirs.id,
+               "disagree",
+               Critique.agent_identity("Claude", "🪄")
+             )
+
+    assert comment_id == theirs.id
   end
 
   setup do
     round = insert(:round)
     comment = published_comment(round.id)
-    %{comment: comment}
+    %{comment: comment, round: round}
   end
 end

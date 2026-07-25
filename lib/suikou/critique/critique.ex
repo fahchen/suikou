@@ -1,7 +1,11 @@
 defmodule Suikou.Critique do
   @moduledoc """
-  Public API for the critique domain: human comment authoring and lifecycle, and
-  threaded discussion.
+  Public API for the critique domain: comment authoring and lifecycle, and
+  threaded discussion, for the human reviewer and for every reviewing agent.
+
+  Agent-facing calls take an `Suikou.Critique.Identity` built by
+  `agent_identity/2`, since several agents work one review at a time and each
+  writes under its own name.
 
   This facade is the only module other layers may call; its internal submodules
   are reachable only from within the domain.
@@ -11,11 +15,21 @@ defmodule Suikou.Critique do
   alias Suikou.Critique.Anchor
   alias Suikou.Critique.Comments
   alias Suikou.Critique.Discussion
+  alias Suikou.Critique.Identity
   alias Suikou.Critique.Reactions
   alias Suikou.Events
   alias Suikou.Reads
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
+
+  @typedoc "Which kind of reviewer wrote something."
+  @type author_kind() :: :human | :agent
+
+  @typedoc "A normalized agent identity, as built by `agent_identity/2`."
+  @type identity() :: Identity.t()
+
+  @typedoc "The author shape emitted to agents and to the client."
+  @type author_view() :: Identity.view()
 
   @doc """
   Adds a pending critique to the latest round. See
@@ -37,6 +51,53 @@ defmodule Suikou.Critique do
              | Artifacts.read_content_error()
              | Artifacts.content_source_error()}
   def add_comment(params), do: params |> Comments.add() |> broadcast_comment_change()
+
+  @doc """
+  Normalizes an agent's self-supplied name and icon into the identity every
+  other agent-facing call takes. See `Suikou.Critique.Identity.agent/2`.
+
+  ## Examples
+
+      Suikou.Critique.agent_identity("Codex", "🤖")
+      #=> %{name: "Codex", icon: "🤖"}
+
+  """
+  @spec agent_identity(String.t() | nil, String.t() | nil) :: identity()
+  defdelegate agent_identity(name, icon), to: Identity, as: :agent
+
+  @doc """
+  Builds the author shape the export and the client render. See
+  `Suikou.Critique.Identity.view/3`.
+
+  ## Examples
+
+      Suikou.Critique.author_view(:agent, "Codex", "🤖")
+      #=> %{kind: :agent, name: "Codex", icon: "🤖"}
+
+  """
+  @spec author_view(author_kind(), String.t(), String.t()) :: author_view()
+  defdelegate author_view(kind, name, icon), to: Identity, as: :view
+
+  @doc """
+  Adds an agent's critique to an artifact's latest round, published immediately.
+  See `Suikou.Critique.Comments.add_as_agent/2`.
+
+  ## Examples
+
+      Suikou.Critique.add_comment_as_agent(%{artifact_id: artifact.id, scope: :artifact, critique_type: :note, body: "ok"}, %{name: "Codex", icon: "🤖"})
+      #=> {:ok, %Suikou.Schemas.Comment{author: :agent, status: :published}}
+
+  """
+  @spec add_comment_as_agent(map(), Identity.t()) ::
+          {:ok, Comment.t()}
+          | {:error,
+             Ecto.Changeset.t()
+             | :artifact_not_found
+             | :unknown_anchor_type
+             | Artifacts.read_content_error()
+             | Artifacts.content_source_error()}
+  def add_comment_as_agent(params, identity),
+    do: params |> Comments.add_as_agent(identity) |> broadcast_comment_change()
 
   @doc """
   Edits a Draft (pending) comment's body. See `Suikou.Critique.Comments.edit/2`.
@@ -158,18 +219,18 @@ defmodule Suikou.Critique do
 
   @doc """
   Appends an agent reply to an Open comment. See
-  `Suikou.Critique.Discussion.reply_as_agent/2`.
+  `Suikou.Critique.Discussion.reply_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.reply_as_agent(comment.id, "fixed")
+      Suikou.Critique.reply_as_agent(comment.id, "fixed", %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Reply{author: :agent, status: :published}}
 
   """
-  @spec reply_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec reply_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_open}
-  def reply_as_agent(comment_id, body),
-    do: comment_id |> Discussion.reply_as_agent(body) |> broadcast_reply_change()
+  def reply_as_agent(comment_id, body, identity),
+    do: comment_id |> Discussion.reply_as_agent(body, identity) |> broadcast_reply_change()
 
   @doc """
   Edits a human's own pending reply. See `Suikou.Critique.Discussion.edit_reply/2`.
@@ -231,33 +292,33 @@ defmodule Suikou.Critique do
 
   @doc """
   Adds an agent emoji reaction to a comment, keyed by `emoji`. See
-  `Suikou.Critique.Reactions.react_as_agent/2`.
+  `Suikou.Critique.Reactions.react_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.react_as_agent(comment.id, "eyes")
+      Suikou.Critique.react_as_agent(comment.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, comment.id}
 
   """
-  @spec react_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec react_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Ecto.UUID.t()} | {:error, :comment_not_found | Ecto.Changeset.t()}
-  def react_as_agent(comment_id, emoji),
-    do: comment_id |> Reactions.react_as_agent(emoji) |> broadcast_reaction_change()
+  def react_as_agent(comment_id, emoji, identity),
+    do: comment_id |> Reactions.react_as_agent(emoji, identity) |> broadcast_reaction_change()
 
   @doc """
   Removes an agent emoji reaction from a comment, keyed by `emoji`. See
-  `Suikou.Critique.Reactions.unreact_as_agent/2`.
+  `Suikou.Critique.Reactions.unreact_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.unreact_as_agent(comment.id, "eyes")
+      Suikou.Critique.unreact_as_agent(comment.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, comment.id}
 
   """
-  @spec unreact_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec unreact_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Ecto.UUID.t()} | {:error, :comment_not_found}
-  def unreact_as_agent(comment_id, emoji),
-    do: comment_id |> Reactions.unreact_as_agent(emoji) |> broadcast_reaction_change()
+  def unreact_as_agent(comment_id, emoji, identity),
+    do: comment_id |> Reactions.unreact_as_agent(emoji, identity) |> broadcast_reaction_change()
 
   @doc """
   Adds a human emoji reaction to a reply, keyed by `emoji`. See
@@ -291,33 +352,36 @@ defmodule Suikou.Critique do
 
   @doc """
   Adds an agent emoji reaction to a reply, keyed by `emoji`. See
-  `Suikou.Critique.Reactions.react_reply_as_agent/2`.
+  `Suikou.Critique.Reactions.react_reply_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.react_reply_as_agent(reply.id, "eyes")
+      Suikou.Critique.react_reply_as_agent(reply.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, reply.comment_id}
 
   """
-  @spec react_reply_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec react_reply_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Ecto.UUID.t()} | {:error, :reply_not_found | Ecto.Changeset.t()}
-  def react_reply_as_agent(reply_id, emoji),
-    do: reply_id |> Reactions.react_reply_as_agent(emoji) |> broadcast_reaction_change()
+  def react_reply_as_agent(reply_id, emoji, identity),
+    do: reply_id |> Reactions.react_reply_as_agent(emoji, identity) |> broadcast_reaction_change()
 
   @doc """
   Removes an agent emoji reaction from a reply, keyed by `emoji`. See
-  `Suikou.Critique.Reactions.unreact_reply_as_agent/2`.
+  `Suikou.Critique.Reactions.unreact_reply_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.unreact_reply_as_agent(reply.id, "eyes")
+      Suikou.Critique.unreact_reply_as_agent(reply.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, reply.comment_id}
 
   """
-  @spec unreact_reply_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec unreact_reply_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Ecto.UUID.t()} | {:error, :reply_not_found}
-  def unreact_reply_as_agent(reply_id, emoji),
-    do: reply_id |> Reactions.unreact_reply_as_agent(emoji) |> broadcast_reaction_change()
+  def unreact_reply_as_agent(reply_id, emoji, identity),
+    do:
+      reply_id
+      |> Reactions.unreact_reply_as_agent(emoji, identity)
+      |> broadcast_reaction_change()
 
   @doc """
   Resolves a stored line anchor against the live file's `content_lines`,

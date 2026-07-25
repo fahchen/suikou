@@ -1,19 +1,22 @@
 defmodule Suikou.Critique.Discussion do
   @moduledoc """
-  Threaded replies on a comment. The human reviewer authors top-level critique
-  (see `Suikou.Critique.Comments`); the agent has no authoring path and reaches a
-  thread only through `reply_as_agent/2` (see BDR-0007). Both reply paths require
-  an existing comment, so neither can mint a top-level comment.
+  Threaded replies on a comment. Both the human and any number of agents reply;
+  an agent goes through `reply_as_agent/3`, naming itself so a thread with
+  several agents in it stays legible (see BDR-0026). A reply always targets an
+  existing comment — top-level critique is authored in
+  `Suikou.Critique.Comments`.
 
-  Replies are state-gated by the comment's lifecycle. The agent may reply only to
-  an Open comment (published, unresolved); a Draft or Resolved target is rejected.
-  A human may reply to an Open or Resolved comment — replying to a Resolved one
-  auto-reopens it (clearing `resolved_round`) so the thread's last word is the
-  human's. A human reply is created pending and publishes on the next submit; an
-  agent reply is published immediately. A human may edit or delete only their own
-  pending reply; published replies are immutable.
+  Replies are state-gated by the comment's lifecycle. An agent may reply only to
+  an Open comment (published, unresolved) — whoever authored it, so agents answer
+  each other's critique as well as the human's; a Draft or Resolved target is
+  rejected. A human may reply to an Open or Resolved comment — replying to a
+  Resolved one auto-reopens it (clearing `resolved_round`) so the thread's last
+  word is the human's. A human reply is created pending and publishes on the next
+  submit; an agent reply is published immediately. A human may edit or delete only
+  their own pending reply; published replies are immutable.
   """
 
+  alias Suikou.Critique.Identity
   alias Suikou.Repo
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
@@ -47,27 +50,28 @@ defmodule Suikou.Critique.Discussion do
   end
 
   @doc """
-  Appends an agent reply to an Open comment (published, unresolved). A Draft or
-  Resolved target is rejected. The reply is published immediately.
+  Appends `identity`'s agent reply to an Open comment (published, unresolved),
+  whether the human or another agent authored it. A Draft or Resolved target is
+  rejected. The reply is published immediately.
 
   ## Examples
 
-      Suikou.Critique.Discussion.reply_as_agent(open_comment.id, "fixed")
+      Suikou.Critique.Discussion.reply_as_agent(open_comment.id, "fixed", %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Reply{author: :agent, status: :published}}
 
-      Suikou.Critique.Discussion.reply_as_agent(resolved_comment.id, "fixed")
+      Suikou.Critique.Discussion.reply_as_agent(resolved_comment.id, "fixed", %{name: "", icon: ""})
       #=> {:error, :not_open}
 
   """
-  @spec reply_as_agent(Ecto.UUID.t(), String.t()) ::
+  @spec reply_as_agent(Ecto.UUID.t(), String.t(), Identity.t()) ::
           {:ok, Reply.t()} | {:error, Ecto.Changeset.t() | :comment_not_found | :not_open}
-  def reply_as_agent(comment_id, body) do
+  def reply_as_agent(comment_id, body, identity) do
     case Repo.get(Comment, comment_id) do
       nil ->
         {:error, :comment_not_found}
 
       %Comment{status: :published, resolved_round: nil} = comment ->
-        insert_reply(comment, :agent, :published, body)
+        insert_reply(comment, agent_reply(identity), body)
 
       %Comment{} ->
         {:error, :not_open}
@@ -114,10 +118,12 @@ defmodule Suikou.Critique.Discussion do
     end
   end
 
+  # The human reviews anonymously, so their reply keeps the schema's blank
+  # identity — only agents name themselves.
   defp append_human_reply(comment, body) do
     comment
     |> reopen_if_resolved()
-    |> insert_reply!(:human, :pending, body)
+    |> insert_reply!(%Reply{author: :human, status: :pending}, body)
   end
 
   defp reopen_if_resolved(%Comment{resolved_round: nil} = comment), do: comment
@@ -126,15 +132,24 @@ defmodule Suikou.Critique.Discussion do
     comment |> Comment.reopen_changeset() |> Repo.update!()
   end
 
-  defp insert_reply(comment, author, status, body) do
-    %Reply{author: author, status: status}
+  defp agent_reply(identity) do
+    %Reply{
+      author: :agent,
+      author_name: identity.name,
+      author_icon: identity.icon,
+      status: :published
+    }
+  end
+
+  defp insert_reply(comment, reply, body) do
+    reply
     |> Reply.changeset(%{comment_id: comment.id, body: body})
     |> Repo.insert()
   end
 
-  defp insert_reply!(comment, author, status, body) do
-    case insert_reply(comment, author, status, body) do
-      {:ok, reply} -> reply
+  defp insert_reply!(comment, reply, body) do
+    case insert_reply(comment, reply, body) do
+      {:ok, inserted} -> inserted
       {:error, changeset} -> Repo.rollback(changeset)
     end
   end

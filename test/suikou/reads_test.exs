@@ -6,6 +6,9 @@ defmodule Suikou.ReadsTest do
   alias Suikou.Critique
   alias Suikou.Reads
 
+  # These cover the single-agent behaviour, where the caller supplies no name.
+  @anonymous %{name: "", icon: ""}
+
   doctest Suikou.Reads, import: true
 
   describe "list_artifacts/0" do
@@ -74,7 +77,7 @@ defmodule Suikou.ReadsTest do
       round = insert(:round)
       comment = published_comment(round.id)
       {:ok, _h} = Critique.reply_as_human(comment.id, "human")
-      {:ok, _a} = Critique.reply_as_agent(comment.id, "agent")
+      {:ok, _a} = Critique.reply_as_agent(comment.id, "agent", @anonymous)
 
       comment_id = comment.id
       loaded = Reads.get_comment(comment.id)
