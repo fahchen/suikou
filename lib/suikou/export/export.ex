@@ -12,7 +12,13 @@ defmodule Suikou.Export do
   range, or `:all`), carrying the monotonic `submission_version` poll cursor.
   Pending comments and pending replies are never included; exporting changes no
   state. Each comment and published reply carries its reactions (`actor` +
-  `emoji`), so the agent sees how the human (or itself) reacted.
+  `emoji`), so the agent sees how the human (or another agent) reacted.
+
+  Every comment, reply, and reaction names who wrote it: an `author` / `actor`
+  of `%{kind, name, icon}` (see `Suikou.Critique.author_view/3`). With several agents
+  reviewing one round, an agent reading this snapshot has to tell its own
+  critique from a peer's before deciding what it owes a move on; `kind` alone
+  cannot. The human reviews anonymously, so their `name` and `icon` are `nil`.
   """
 
   import Ecto.Query
@@ -44,11 +50,11 @@ defmodule Suikou.Export do
           stale: boolean()
         }
 
-  @type reaction_view :: %{actor: Reaction.actor(), emoji: Reaction.emoji()}
+  @type reaction_view :: %{actor: Critique.author_view(), emoji: Reaction.emoji()}
 
   @type reply_view :: %{
           id: Ecto.UUID.t(),
-          author: Reply.author(),
+          author: Critique.author_view(),
           body: String.t(),
           reactions: [reaction_view()]
         }
@@ -57,6 +63,7 @@ defmodule Suikou.Export do
           id: Ecto.UUID.t(),
           scope: Comment.scope(),
           critique_type: Comment.critique_type(),
+          author: Critique.author_view(),
           body: String.t(),
           anchor: anchor_view() | nil,
           resolved_round: integer() | nil,
@@ -215,6 +222,7 @@ defmodule Suikou.Export do
       id: comment.id,
       scope: comment.scope,
       critique_type: comment.critique_type,
+      author: Critique.author_view(comment.author, comment.author_name, comment.author_icon),
       body: comment.body,
       anchor: tag_stale(anchor, status),
       resolved_round: comment.resolved_round,
@@ -226,14 +234,17 @@ defmodule Suikou.Export do
   defp reply_view(reply) do
     %{
       id: reply.id,
-      author: reply.author,
+      author: Critique.author_view(reply.author, reply.author_name, reply.author_icon),
       body: reply.body,
       reactions: Enum.map(reply.reactions, &reaction_view/1)
     }
   end
 
   defp reaction_view(reaction) do
-    %{actor: reaction.actor, emoji: reaction.emoji}
+    %{
+      actor: Critique.author_view(reaction.actor, reaction.actor_name, reaction.actor_icon),
+      emoji: reaction.emoji
+    }
   end
 
   # Fold staleness onto the anchor it describes: a `:located` anchor whose quote

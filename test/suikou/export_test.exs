@@ -7,6 +7,9 @@ defmodule Suikou.ExportTest do
   alias Suikou.Export
   alias Suikou.Submissions
 
+  # These cover the single-agent behaviour, where the caller supplies no name.
+  @anonymous %{name: "", icon: ""}
+
   test "published comments on the latest round are exported, resolved and open alike" do
     round = insert(:round)
     artifact = round.artifact
@@ -82,14 +85,57 @@ defmodule Suikou.ExportTest do
     # publishes immediately. Advancing the round publishes the pending one so
     # both surface in the export.
     {:ok, human} = Critique.reply_as_human(comment.id, "human reply")
-    {:ok, agent} = Critique.reply_as_agent(comment.id, "agent reply")
+    {:ok, agent} = Critique.reply_as_agent(comment.id, "agent reply", @anonymous)
     advance(artifact.id, "changed\n")
 
     assert {:ok, export} = Export.export(artifact.id)
     view = Enum.find(export.comments, &(&1.id == comment.id))
-    assert Enum.map(view.replies, & &1.author) == [:human, :agent]
+    assert [%{kind: :human}, %{kind: :agent}] = Enum.map(view.replies, & &1.author)
     # Each reply carries its id so the agent can target it with `reply react`.
     assert Enum.map(view.replies, & &1.id) == [human.id, agent.id]
+  end
+
+  test "each comment, reply, and reaction names its author" do
+    round = insert(:round)
+    artifact = round.artifact
+    codex = Critique.agent_identity("Codex", "🤖")
+
+    {:ok, comment} =
+      Critique.add_comment_as_agent(
+        %{
+          artifact_id: artifact.id,
+          scope: :artifact,
+          critique_type: :fix_required,
+          body: "leaks"
+        },
+        codex
+      )
+
+    {:ok, _reply} =
+      Critique.reply_as_agent(comment.id, "agreed", Critique.agent_identity("Claude", "🪄"))
+
+    {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", codex)
+
+    assert {:ok, %{comments: [view]}} = Export.export(artifact.id)
+
+    assert %{
+             author: %{kind: :agent, name: "Codex", icon: "🤖"},
+             replies: [%{author: %{kind: :agent, name: "Claude", icon: "🪄"}}],
+             reactions: [%{actor: %{kind: :agent, name: "Codex", icon: "🤖"}, emoji: "👀"}]
+           } = view
+  end
+
+  test "the human's anonymity survives the round trip as nil, not an empty string" do
+    round = insert(:round)
+    comment = published_comment(round.id)
+    {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
+
+    assert {:ok, %{comments: [view]}} = Export.export(round.artifact.id)
+
+    assert %{
+             author: %{kind: :human, name: nil, icon: nil},
+             reactions: [%{actor: %{kind: :human, name: nil, icon: nil}}]
+           } = view
   end
 
   test "a still-open comment whose anchor moved exports flagged outdated" do
