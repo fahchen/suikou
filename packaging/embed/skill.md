@@ -59,22 +59,26 @@ suikou version                          # print the build identifier
 
 ## Who you are (`--as` / `--icon`)
 
-Several agents review one review at a time, so **every comment, reply, and reaction records who wrote it**. Name yourself:
+Several agents review one review at a time, so **every comment, reply, and reaction records who wrote it**. `--as` is **required** on every write — a nameless one is refused before anything is stored.
 
 ```
 suikou comment add <review-id> --path lib/a.ex --as Codex --icon 🤖 --body-file finding.md
 ```
 
-Or set it once for your whole session and drop the flags:
+Set it once for your whole session and drop the flags:
 
 ```
 export SUIKOU_AGENT_NAME=Codex
 export SUIKOU_AGENT_ICON=🤖
 ```
 
-An explicit `--as` beats the environment. Omitting both writes anonymously, which is fine when you are the only agent on a review — but with more than one, an unnamed thread is unreadable and `wait` cannot tell your last word from a peer's.
+An explicit `--as` beats the environment.
 
-Pass `--as` to `wait` too: the working set it returns is filtered to what **you** still owe a move on, so another agent's unanswered critique still wakes you.
+**Pick your own name.** It is a handle, not your model — `Codex`, `perf-reviewer`, `second-pass` are all fine. Pick one and keep it for the whole review, so a thread reads as a conversation rather than a pile of anonymous notes. `--icon` is one optional emoji that renders beside it.
+
+**`human` is reserved.** It is the reviewer's name (any capitalisation), and claiming it is rejected — nothing you write can be mistaken for theirs.
+
+`wait` takes no `--as`: it blocks on the human publishing a round, not on any one comment.
 
 ## Rounds scope
 
@@ -153,7 +157,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
           "id":"0192…",
           "scope":"located",
           "critique_type":"fix_required",
-          "author":{"kind":"human","name":null,"icon":null},
+          "author":{"kind":"human","name":"human","icon":null},
           "body":"this needs a guard clause",
           "anchor":{"start_line":12,"end_line":14,"quote":"def foo(x)"},
           "original_round":2,
@@ -174,7 +178,7 @@ Field notes:
 - `scope`: `"review"` | `"artifact"` | `"located"`. Only `"located"` comments have a non-null `anchor`.
 - `critique_type`: `"fix_required"` | `"needs_answer"` | `"note"`.
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
-- `author` / `actor`: `{"kind":"human"|"agent","name":…,"icon":…}`. `name` and `icon` are `null` for the human (who reviews anonymously) and for an agent that wrote without `--as`. **Check the name before answering** — a comment from another agent is a peer's finding, and one under your own name is your own work coming back.
+- `author` / `actor`: `{"kind":"human"|"agent","name":…,"icon":…}`. The human is always `"human"` with a `null` icon; an agent carries the name it wrote under. **Check the name before answering** — a comment from another agent is a peer's finding, one under your own name is your own work coming back, and one from `human` is the reviewer.
 - `comments[].id` is the **`comment-id` you pass to `comment reply`** / `comment resolve`.
 - `replies[].id` is the **`reply-id` you pass to `reply react`** / `reply unreact`.
 
@@ -222,7 +226,7 @@ When you are brought in to **review** a review someone else opened (rather than 
 2. `suikou review list-files <review-id>` for the paths, then `suikou review export <review-id>` for the comments already there. Read the files themselves from disk — you have the repo.
 3. Post each finding with `suikou comment add <review-id> --path lib/a.ex --type fix_required --line 12-14 --body-file finding.md`. Anchor it to the lines it is about; an unanchored finding is much harder to act on.
 4. Read the other reviewers' comments before adding your own. If you agree, react rather than restate it. If you disagree, `comment reply` on **their** comment and say why — that is the discussion the human is here to adjudicate.
-5. `suikou review wait <review-id> --as <your name>` blocks until there is something for **you**: it filters out what you already had the last word on, but a peer's unanswered comment still wakes you.
+5. `suikou review wait <review-id>` blocks until the **human** publishes their round — it waits on the review, not on any one comment, so it takes no `--as`. The snapshot it returns drops what an agent already answered; a peer's unanswered finding is still in it.
 
 Two agents converging on the same finding is noise; two agents disagreeing about it in one thread is the point.
 

@@ -15,7 +15,9 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
 
   describe "add/0" do
     test "mints the file's artifact and publishes under the calling agent's name" do
-      %{review: review, path: path} = covered_file(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
+      %{review: review, path: path} =
+        covered_file(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
+
       review_id = review.id
       Events.subscribe(review_id)
 
@@ -58,7 +60,8 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                      "path" => path,
                      "scope" => "artifact",
                      "critique_type" => "note",
-                     "body" => body
+                     "body" => body,
+                     "as" => "Codex"
                    },
                    &Comments.add/0
                  )
@@ -68,10 +71,10 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       assert Repo.aggregate(Comment, :count) == 2
     end
 
-    test "an unnamed agent authors anonymously" do
+    test "an unnamed agent is refused before anything is written" do
       %{review: review, path: path} = covered_file("line 1\n")
 
-      assert %{"comment_id" => id, "error" => nil} =
+      assert %{"comment_id" => nil, "error" => "agent_name_required"} =
                run(
                  %{
                    "review_id" => review.id,
@@ -83,7 +86,26 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                  &Comments.add/0
                )
 
-      assert %Comment{author: :agent, author_name: "", author_icon: ""} = Repo.get!(Comment, id)
+      assert Repo.aggregate(Comment, :count) == 0
+    end
+
+    test "an agent claiming the reviewer's name is refused" do
+      %{review: review, path: path} = covered_file("line 1\n")
+
+      assert %{"comment_id" => nil, "error" => "agent_name_reserved"} =
+               run(
+                 %{
+                   "review_id" => review.id,
+                   "path" => path,
+                   "scope" => "artifact",
+                   "critique_type" => "note",
+                   "body" => "x",
+                   "as" => "human"
+                 },
+                 &Comments.add/0
+               )
+
+      assert Repo.aggregate(Comment, :count) == 0
     end
 
     test "emits review_not_found for an unknown review" do
@@ -94,7 +116,8 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "path" => "a.md",
                    "scope" => "artifact",
                    "critique_type" => "note",
-                   "body" => "x"
+                   "body" => "x",
+                   "as" => "Codex"
                  },
                  &Comments.add/0
                )
@@ -110,7 +133,8 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "path" => "nowhere.md",
                    "scope" => "artifact",
                    "critique_type" => "note",
-                   "body" => "x"
+                   "body" => "x",
+                   "as" => "Codex"
                  },
                  &Comments.add/0
                )
@@ -152,7 +176,10 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       Events.subscribe(review_id)
 
       assert %{"reply_id" => id, "error" => nil} =
-               run(%{"comment_id" => comment.id, "body" => "fixed"}, &Comments.reply/0)
+               run(
+                 %{"comment_id" => comment.id, "body" => "fixed", "as" => "Codex"},
+                 &Comments.reply/0
+               )
 
       assert is_binary(id)
       assert_receive {:review_changed, ^review_id, _artifact_id}
@@ -160,7 +187,10 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
 
     test "emits comment_not_found for an unknown comment" do
       assert %{"reply_id" => nil, "error" => "comment_not_found"} =
-               run(%{"comment_id" => Ecto.UUID.generate(), "body" => "x"}, &Comments.reply/0)
+               run(
+                 %{"comment_id" => Ecto.UUID.generate(), "body" => "x", "as" => "Codex"},
+                 &Comments.reply/0
+               )
     end
   end
 

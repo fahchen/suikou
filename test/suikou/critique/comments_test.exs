@@ -302,7 +302,7 @@ defmodule Suikou.Critique.CommentsTest do
                    critique_type: :fix_required,
                    body: "off by one"
                  },
-                 Critique.agent_identity("Codex", "🤖")
+                 agent("Codex", "🤖")
                )
 
       assert %Comment{
@@ -318,10 +318,18 @@ defmodule Suikou.Critique.CommentsTest do
       assert round_id == round.id
     end
 
-    test "an agent that names itself nothing writes an anonymous comment" do
+    test "an agent must name itself, and may not claim the reviewer's name" do
+      assert {:error, :agent_name_required} = Critique.agent_identity(nil, nil)
+      assert {:error, :agent_name_required} = Critique.agent_identity("  ", "🤖")
+      # Case-insensitive: the reviewer's name is theirs however it is spelled.
+      assert {:error, :agent_name_reserved} = Critique.agent_identity("Human", "🤖")
+      assert {:error, :agent_name_reserved} = Critique.agent_identity("human", nil)
+    end
+
+    test "an agent writing without an icon still records its name" do
       round = insert(:round)
 
-      assert {:ok, %Comment{author: :agent, author_name: "", author_icon: ""}} =
+      assert {:ok, %Comment{author: :agent, author_name: "Codex", author_icon: ""}} =
                Critique.add_comment_as_agent(
                  %{
                    artifact_id: round.artifact_id,
@@ -329,7 +337,7 @@ defmodule Suikou.Critique.CommentsTest do
                    critique_type: :note,
                    body: "x"
                  },
-                 Critique.agent_identity(nil, nil)
+                 agent("Codex")
                )
     end
 
@@ -345,7 +353,7 @@ defmodule Suikou.Critique.CommentsTest do
                    critique_type: :note,
                    body: "x"
                  },
-                 Critique.agent_identity("Codex", nil)
+                 agent("Codex", nil)
                )
 
       assert round_id == latest.id
@@ -360,7 +368,7 @@ defmodule Suikou.Critique.CommentsTest do
                    critique_type: :note,
                    body: "x"
                  },
-                 Critique.agent_identity("Codex", nil)
+                 agent("Codex", nil)
                )
     end
 
@@ -375,7 +383,7 @@ defmodule Suikou.Critique.CommentsTest do
                    critique_type: :note,
                    body: "  "
                  },
-                 Critique.agent_identity("Codex", nil)
+                 agent("Codex", nil)
                )
     end
 
@@ -390,11 +398,16 @@ defmodule Suikou.Critique.CommentsTest do
             critique_type: :fix_required,
             body: "x"
           },
-          Critique.agent_identity("Codex", nil)
+          agent("Codex", nil)
         )
 
       assert {:ok, %Comment{resolved_round: 0}} = Critique.resolve_comment(comment.id)
       assert {:ok, %Comment{resolved_round: nil}} = Critique.unresolve_comment(comment.id)
     end
+  end
+
+  defp agent(name, icon \\ nil) do
+    {:ok, identity} = Critique.agent_identity(name, icon)
+    identity
   end
 end

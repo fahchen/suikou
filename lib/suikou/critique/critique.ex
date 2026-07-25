@@ -28,6 +28,9 @@ defmodule Suikou.Critique do
   @typedoc "A normalized agent identity, as built by `agent_identity/2`."
   @type identity() :: Identity.t()
 
+  @typedoc "Why a self-supplied agent name was refused."
+  @type identity_error() :: Identity.error()
+
   @typedoc "The author shape emitted to agents and to the client."
   @type author_view() :: Identity.view()
 
@@ -54,15 +57,20 @@ defmodule Suikou.Critique do
 
   @doc """
   Normalizes an agent's self-supplied name and icon into the identity every
-  other agent-facing call takes. See `Suikou.Critique.Identity.agent/2`.
+  other agent-facing call takes, rejecting a missing name or the reviewer's
+  reserved one. See `Suikou.Critique.Identity.agent/2`.
 
   ## Examples
 
       Suikou.Critique.agent_identity("Codex", "🤖")
-      #=> %{name: "Codex", icon: "🤖"}
+      #=> {:ok, %{name: "Codex", icon: "🤖"}}
+
+      Suikou.Critique.agent_identity(nil, nil)
+      #=> {:error, :agent_name_required}
 
   """
-  @spec agent_identity(String.t() | nil, String.t() | nil) :: identity()
+  @spec agent_identity(String.t() | nil, String.t() | nil) ::
+          {:ok, identity()} | {:error, Identity.error()}
   defdelegate agent_identity(name, icon), to: Identity, as: :agent
 
   @doc """

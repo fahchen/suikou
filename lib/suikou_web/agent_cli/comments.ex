@@ -52,7 +52,8 @@ defmodule SuikouWeb.AgentCLI.Comments do
   end
 
   defp author(payload) do
-    with {:ok, %Review{} = review} <- fetch_review(payload["review_id"]),
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, %Review{} = review} <- fetch_review(payload["review_id"]),
          {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, payload["path"]) do
       Critique.add_comment_as_agent(
         %{
@@ -62,7 +63,7 @@ defmodule SuikouWeb.AgentCLI.Comments do
           body: payload["body"],
           anchor: payload["anchor"]
         },
-        AgentCLI.identity(payload)
+        identity
       )
     end
   end
@@ -91,20 +92,16 @@ defmodule SuikouWeb.AgentCLI.Comments do
   def reply do
     payload = AgentCLI.read_payload()
 
-    reply =
-      case Critique.reply_as_agent(
-             payload["comment_id"],
-             payload["body"],
-             AgentCLI.identity(payload)
-           ) do
-        {:ok, %Reply{} = reply} ->
-          %{reply_id: reply.id, error: nil}
-
-        {:error, reason} ->
-          %{reply_id: nil, error: AgentCLI.error(reason)}
+    result =
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, %Reply{} = reply} <-
+             Critique.reply_as_agent(payload["comment_id"], payload["body"], identity) do
+        %{reply_id: reply.id, error: nil}
+      else
+        {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
       end
 
-    AgentCLI.emit(reply)
+    AgentCLI.emit(result)
   end
 
   @doc """
@@ -163,12 +160,11 @@ defmodule SuikouWeb.AgentCLI.Comments do
     payload = AgentCLI.read_payload()
 
     result =
-      case Critique.react_as_agent(
-             payload["comment_id"],
-             payload["emoji"],
-             AgentCLI.identity(payload)
-           ) do
-        {:ok, comment_id} -> %{comment_id: comment_id, error: nil}
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, comment_id} <-
+             Critique.react_as_agent(payload["comment_id"], payload["emoji"], identity) do
+        %{comment_id: comment_id, error: nil}
+      else
         {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
       end
 
@@ -192,12 +188,11 @@ defmodule SuikouWeb.AgentCLI.Comments do
     payload = AgentCLI.read_payload()
 
     result =
-      case Critique.unreact_as_agent(
-             payload["comment_id"],
-             payload["emoji"],
-             AgentCLI.identity(payload)
-           ) do
-        {:ok, comment_id} -> %{comment_id: comment_id, error: nil}
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, comment_id} <-
+             Critique.unreact_as_agent(payload["comment_id"], payload["emoji"], identity) do
+        %{comment_id: comment_id, error: nil}
+      else
         {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
       end
 

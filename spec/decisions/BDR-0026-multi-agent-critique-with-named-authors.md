@@ -3,7 +3,7 @@ id: BDR-0026
 title: Agents author critique under their own name
 status: accepted
 date: 2026-07-25
-summary: Any number of agents review alongside the human, authoring top-level comments, replies and reactions under a self-supplied name and icon; only submitting a round and approval stay the human's
+summary: Any number of agents review alongside the human, authoring top-level comments, replies and reactions under a required, self-chosen name; the human keeps one reserved fixed name, and submitting a round and approval stay theirs
 ---
 
 ## Scope
@@ -23,16 +23,17 @@ and with the human: one finds the bug, another argues the fix is wrong, the huma
 adjudicates. Two things block that. An agent cannot open a comment, so a finding
 has nowhere to live except a reply to something the human already thought of. And
 every agent row reads as `author: :agent`, so a thread with three agents in it is
-an undifferentiated wall — the reader cannot tell a claim from its rebuttal, and
-an agent polling `wait` cannot tell its own last word from a peer's.
+an undifferentiated wall — neither the human nor an agent reading it back can
+tell a claim from its rebuttal.
 
 ## Behaviours Considered
 
 ### Option A: Named authors, denormalized per row
-An agent names itself on each command (`--as`, `--icon`); the name and icon are
-stored on the comment, reply, or reaction row. Any agent may author a top-level
-comment, published immediately, and may resolve any comment. The human keeps the
-round and the verdict.
+An agent names itself on each command (`--as`, `--icon`) — the name is required
+and is the agent's own choice, not its model — and it is stored on the comment,
+reply, or reaction row. The human has one fixed reserved name that no agent may
+claim. Any agent may author a top-level comment, published immediately, and may
+resolve any comment. The human keeps the round and the verdict.
 
 ### Option B: A registered participant roster
 Agents register once into a `participants` table and reference it by id. Rows
@@ -70,18 +71,26 @@ reply path already auto-reopens on a human reply.
 agent has no draft stage to batch — it does not gain the agent a say in when a
 round closes.
 
-*Anonymity is the default, not an error*: a missing name stores `""`. The human
-reviews anonymously by design (there is one human and the UI already knows who
-they are), and an agent that omits `--as` behaves exactly as it did before this
-decision, which keeps every existing skill and script working.
+*A name is required of agents, fixed for the human*: the whole point is telling
+speakers apart, and an unnamed row defeats it — so a write without `--as` is
+refused at the boundary, before anything is stored. The human is the opposite
+case: there is exactly one of them, so they need no per-call name and get a
+reserved one (`"human"`) instead. An agent claiming it is refused, so nothing an
+agent writes can be mistaken for the reviewer's own word. The name an agent picks
+is its own — a handle, a role, anything but the reserved one; tying it to the
+model would collapse two agents of the same model into one voice.
+
+*`wait` is not identity-scoped*: it blocks on the human publishing a round, not
+on any one comment, so it takes no name. Its working set drops what an agent
+already answered — which agent does not change whether the round has landed.
 
 ## Consequences
 
 - `Suikou.Export` emits `author` / `actor` as `%{kind, name, icon}` instead of a
   bare `:human | :agent`. Agents parsing an export see a shape change.
-- `wait`'s working-set filter is per-caller: with `--as`, a comment is dropped
-  only when *that* agent had the last word, so a peer's unanswered critique still
-  wakes it. Without `--as` the old single-agent behaviour is preserved.
+- `wait` is unchanged: it still blocks on a submission and still drops comments
+  an agent already answered. An agent-authored comment nobody has answered is in
+  the working set, which is what makes a peer's finding reachable.
 - A reaction's uniqueness key widens from `(target, actor)` to
   `(target, actor, actor_name)`, so two agents can hold their own reactions on
   one comment.

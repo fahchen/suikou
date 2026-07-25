@@ -32,12 +32,11 @@ defmodule SuikouWeb.AgentCLI.Replies do
     payload = AgentCLI.read_payload()
 
     result =
-      case Critique.react_reply_as_agent(
-             payload["reply_id"],
-             payload["emoji"],
-             AgentCLI.identity(payload)
-           ) do
-        {:ok, _comment_id} -> %{reply_id: payload["reply_id"], error: nil}
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, _comment_id} <-
+             Critique.react_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
+        %{reply_id: payload["reply_id"], error: nil}
+      else
         {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
       end
 
@@ -61,12 +60,11 @@ defmodule SuikouWeb.AgentCLI.Replies do
     payload = AgentCLI.read_payload()
 
     result =
-      case Critique.unreact_reply_as_agent(
-             payload["reply_id"],
-             payload["emoji"],
-             AgentCLI.identity(payload)
-           ) do
-        {:ok, _comment_id} -> %{reply_id: payload["reply_id"], error: nil}
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, _comment_id} <-
+             Critique.unreact_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
+        %{reply_id: payload["reply_id"], error: nil}
+      else
         {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
       end
 

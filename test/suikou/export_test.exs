@@ -7,8 +7,8 @@ defmodule Suikou.ExportTest do
   alias Suikou.Export
   alias Suikou.Submissions
 
-  # These cover the single-agent behaviour, where the caller supplies no name.
-  @anonymous %{name: "", icon: ""}
+  # The reviewing agent these cases write as; the name is required.
+  @agent %{name: "Codex", icon: "\u{1F916}"}
 
   test "published comments on the latest round are exported, resolved and open alike" do
     round = insert(:round)
@@ -85,7 +85,7 @@ defmodule Suikou.ExportTest do
     # publishes immediately. Advancing the round publishes the pending one so
     # both surface in the export.
     {:ok, human} = Critique.reply_as_human(comment.id, "human reply")
-    {:ok, agent} = Critique.reply_as_agent(comment.id, "agent reply", @anonymous)
+    {:ok, agent} = Critique.reply_as_agent(comment.id, "agent reply", @agent)
     advance(artifact.id, "changed\n")
 
     assert {:ok, export} = Export.export(artifact.id)
@@ -98,7 +98,7 @@ defmodule Suikou.ExportTest do
   test "each comment, reply, and reaction names its author" do
     round = insert(:round)
     artifact = round.artifact
-    codex = Critique.agent_identity("Codex", "🤖")
+    codex = agent("Codex", "🤖")
 
     {:ok, comment} =
       Critique.add_comment_as_agent(
@@ -112,7 +112,7 @@ defmodule Suikou.ExportTest do
       )
 
     {:ok, _reply} =
-      Critique.reply_as_agent(comment.id, "agreed", Critique.agent_identity("Claude", "🪄"))
+      Critique.reply_as_agent(comment.id, "agreed", agent("Claude", "🪄"))
 
     {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", codex)
 
@@ -125,16 +125,17 @@ defmodule Suikou.ExportTest do
            } = view
   end
 
-  test "the human's anonymity survives the round trip as nil, not an empty string" do
+  test "the human always answers under their reserved name" do
     round = insert(:round)
     comment = published_comment(round.id)
     {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
 
     assert {:ok, %{comments: [view]}} = Export.export(round.artifact.id)
 
+    # No icon: the human's glyph is a local display preference, not review state.
     assert %{
-             author: %{kind: :human, name: nil, icon: nil},
-             reactions: [%{actor: %{kind: :human, name: nil, icon: nil}}]
+             author: %{kind: :human, name: "human", icon: nil},
+             reactions: [%{actor: %{kind: :human, name: "human", icon: nil}}]
            } = view
   end
 
@@ -259,5 +260,10 @@ defmodule Suikou.ExportTest do
   defp latest_comment_ids(artifact_id) do
     {:ok, export} = Export.export(artifact_id)
     Enum.map(export.comments, & &1.id)
+  end
+
+  defp agent(name, icon) do
+    {:ok, identity} = Critique.agent_identity(name, icon)
+    identity
   end
 end

@@ -81,9 +81,10 @@ Feature: Authoring structured critique
       When the reviewer tries to add a comment on round 1
       Then the comment is rejected
 
-  # Agents review alongside the human. An agent's comment names its author and is
-  # published on write — an agent has no draft stage to submit, and submitting the
-  # round stays the human's (see BDR-0026, BDR-0018).
+  # Agents review alongside the human. An agent's comment names its author — a
+  # name it chose, never the reviewer's reserved one — and is published on write:
+  # an agent has no draft stage to submit, and submitting the round stays the
+  # human's (see BDR-0026, BDR-0018).
   Rule: An agent authors comments under its own name
 
     Scenario: A named agent's comment carries its name and icon
@@ -98,4 +99,12 @@ Feature: Authoring structured critique
 
     Scenario: An agent commenting on an unknown artifact is rejected
       When an agent adds a comment on an artifact that does not exist
+      Then the comment is rejected
+
+    Scenario: A comment with no author name is rejected
+      When an agent with no name adds a comment on the artifact
+      Then the comment is rejected
+
+    Scenario: An agent may not author under the reviewer's reserved name
+      When an agent named "human" adds a comment on the artifact
       Then the comment is rejected

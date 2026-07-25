@@ -5,13 +5,15 @@ import { uiStore } from "../../../stores/ui-store"
 import type { CommentAuthor } from "./shared"
 
 /** Avatar chip + name for whoever wrote a comment or reply. Several agents review
- * one review at a time, so an agent renders under the name and glyph it passed on
- * the command; only when it stayed anonymous does it fall back to the generic bot.
- * The human reviews anonymously — their glyph is the local Appearance preference.
+ * one review at a time, so an agent renders under the name and glyph it named
+ * itself with; rows written before names were required fall back to the generic
+ * bot. The human is "you" here rather than the server's reserved name — there is
+ * one human and it is the person reading — and their glyph is the local
+ * Appearance preference.
  *
  * `sm` (thread replies) always labels the speaker, since a reply is only legible
- * next to the ones around it. `md` (a comment header) labels only a named agent —
- * the header is a dense row and the human is the unmarked default there. */
+ * next to the ones around it. `md` (a comment header) labels only an agent — the
+ * header is a dense row and the human is the unmarked default there. */
 export const AuthorBadge = observer(function AuthorBadge({
   author,
   size = "md",
@@ -21,7 +23,8 @@ export const AuthorBadge = observer(function AuthorBadge({
 }) {
   const agent = author.kind === "agent"
   const iconSize = size === "sm" ? 10 : 11
-  const label = size === "sm" ? author.name ?? (agent ? "agent" : "you") : agent ? author.name : null
+  const name = agent ? author.name ?? "agent" : "you"
+  const label = size === "sm" || agent ? name : null
 
   // A comment header with no agent and no chosen glyph has nothing to say: the
   // human is the unmarked default, so leave the row as tight as it was.

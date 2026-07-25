@@ -39,19 +39,19 @@ defmodule SuikouWeb.AgentCLI do
   Reads the calling agent's identity off a payload's `"as"` / `"icon"` keys.
 
   Several agents review one review at a time, so every write a command makes is
-  attributed to the name the agent passed. Both keys are optional: an agent that
-  omits them writes anonymously, which is what every pre-existing caller does.
+  attributed to the name the agent passed. `"as"` is required and may not be the
+  reviewer's reserved name; `"icon"` is optional.
 
   ## Examples
 
       SuikouWeb.AgentCLI.identity(%{"as" => "Codex", "icon" => "🤖"})
-      #=> %{name: "Codex", icon: "🤖"}
+      #=> {:ok, %{name: "Codex", icon: "🤖"}}
 
       SuikouWeb.AgentCLI.identity(%{})
-      #=> %{name: "", icon: ""}
+      #=> {:error, :agent_name_required}
 
   """
-  @spec identity(payload()) :: Critique.identity()
+  @spec identity(payload()) :: {:ok, Critique.identity()} | {:error, Critique.identity_error()}
   def identity(payload) do
     Critique.agent_identity(payload["as"], payload["icon"])
   end

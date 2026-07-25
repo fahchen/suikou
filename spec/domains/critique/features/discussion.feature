@@ -16,8 +16,8 @@ Feature: Threaded discussion
       And the reply is authored by the human reviewer
 
   # Several agents review one review at a time, so a reply records which agent
-  # wrote it — the name and icon the agent supplied on the call. An agent that
-  # supplies none replies anonymously (see BDR-0026).
+  # wrote it — the name the agent chose for itself, plus an optional icon. The
+  # name is required, and the reviewer's own name is reserved (see BDR-0026).
   Rule: An agent replies under its own name
 
     Scenario: Agent replies to a comment thread
@@ -35,6 +35,14 @@ Feature: Threaded discussion
       When an agent named "Claude" replies to that comment
       Then the reply is attached to that comment's thread
       And the reply is attributed to "Claude"
+
+    Scenario: A reply with no author name is rejected
+      When an agent with no name replies to the comment
+      Then the attempt is rejected
+
+    Scenario: An agent may not reply under the reviewer's reserved name
+      When an agent named "human" replies to the comment
+      Then the attempt is rejected
 
   # Replies are gated by the comment's lifecycle. A human reply is created pending
   # and publishes on the next submit; an agent reply publishes immediately

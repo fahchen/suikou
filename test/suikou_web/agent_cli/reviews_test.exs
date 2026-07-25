@@ -14,8 +14,8 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias SuikouWeb.Endpoint
   alias SuikouWeb.Stores.BoardBroadcast
 
-  # These cover the single-agent behaviour, where the caller supplies no name.
-  @anonymous %{name: "", icon: ""}
+  # The reviewing agent these cases write as; the name is required.
+  @agent %{name: "Codex", icon: "\u{1F916}"}
 
   describe "list/0" do
     test "emits a project's reviews" do
@@ -243,7 +243,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
 
       answered = published_comment(round.id, %{body: "answered"})
-      {:ok, _agent} = Critique.reply_as_agent(answered.id, "fixed", @anonymous)
+      {:ok, _agent} = Critique.reply_as_agent(answered.id, "fixed", @agent)
       published_comment(round.id, %{body: "open"})
 
       # Advance once so both comments carry forward; the wake submission below
@@ -281,22 +281,21 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
              } =
                task |> Task.await() |> Jason.decode!()
 
-      assert [%{"actor" => %{"kind" => "human", "name" => nil}, "emoji" => "agree"}] = reactions
+      assert [%{"actor" => %{"kind" => "human", "name" => "human"}, "emoji" => "agree"}] =
+               reactions
     end
 
-    test "the working set is per-agent: a peer's last word still owes you a move" do
+    test "an agent-authored comment nobody answered is still owed a move" do
       round = insert(:round)
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
 
-      # Codex answered this one; Claude has not, so it is still Claude's to work.
-      answered = published_comment(round.id, %{body: "answered by Codex"})
+      # Answered by an agent: the human owes the next move, not an agent.
+      answered = published_comment(round.id, %{body: "answered"})
+      {:ok, _reply} = Critique.reply_as_agent(answered.id, "fixed", agent("Codex", "🤖"))
 
-      {:ok, _reply} =
-        Critique.reply_as_agent(answered.id, "fixed", Critique.agent_identity("Codex", "🤖"))
-
-      # Claude's own comment: nobody has replied, so Claude already had the last
-      # word on it and owes itself nothing.
-      {:ok, _mine} =
+      # A peer agent's finding with no reply yet — the wait is for the human's
+      # round, but this is work the loop still has to pick up.
+      {:ok, _theirs} =
         Critique.add_comment_as_agent(
           %{
             artifact_id: round.artifact_id,
@@ -304,29 +303,15 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
             critique_type: :note,
             body: "raised by Claude"
           },
-          Critique.agent_identity("Claude", "🪄")
+          agent("Claude", "🪄")
         )
 
       {:ok, _result} = Submissions.submit(round.id, :comment)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
-               run(%{"review_id" => review_id, "until_round" => 1, "as" => "Claude"}, &CLI.wait/0)
-
-      assert Enum.map(comments, & &1["body"]) == ["answered by Codex"]
-    end
-
-    test "an unnamed caller still treats any agent's last word as its own" do
-      round = insert(:round)
-      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
-      answered = published_comment(round.id, %{body: "answered"})
-
-      {:ok, _reply} =
-        Critique.reply_as_agent(answered.id, "fixed", Critique.agent_identity("Codex", "🤖"))
-
-      {:ok, _result} = Submissions.submit(round.id, :comment)
-
-      assert %{"artifacts" => [%{"comments" => []}]} =
                run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/0)
+
+      assert Enum.map(comments, & &1["body"]) == ["raised by Claude"]
     end
   end
 
@@ -336,14 +321,14 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     |> Jason.decode!()
   end
 
-  # Block until the poll task is parked in `await/6`'s `receive` — i.e. it has
+  # Block until the poll task is parked in `await/5`'s `receive` — i.e. it has
   # already subscribed and captured the version. Matching on the current stacktrace
   # (not a bare `:waiting` status) avoids racing the brief `:waiting` the earlier
   # `Repo` lookup in `poll/0` produces, before the subscription exists.
   defp wait_until_waiting(pid) do
     with {:status, :waiting} <- Process.info(pid, :status),
          {:current_stacktrace, stack} <- Process.info(pid, :current_stacktrace),
-         true <- Enum.any?(stack, &match?({CLI, :await, 6, _location}, &1)) do
+         true <- Enum.any?(stack, &match?({CLI, :await, 5, _location}, &1)) do
       :ok
     else
       _other -> wait_until_waiting(pid)
@@ -377,5 +362,10 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
     {_out, 0} = System.cmd("git", args, cd: dir, env: env, stderr_to_stdout: true)
     :ok
+  end
+
+  defp agent(name, icon) do
+    {:ok, identity} = Critique.agent_identity(name, icon)
+    identity
   end
 end

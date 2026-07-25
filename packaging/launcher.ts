@@ -115,9 +115,9 @@ type CommandSpec = {
   payload: (ctx: { id?: string; values: Values; files: string[] }) => Record<string, unknown>
   // One-line usage summary for `help`.
   summary: string
-  // The verb writes as the calling agent, so it takes --as/--icon and forwards
-  // them on the payload. Several agents review one review at a time and every
-  // comment, reply, and reaction records which one wrote it.
+  // The verb writes as the calling agent, so it requires --as (plus an optional
+  // --icon) and forwards them on the payload. Several agents review one review at
+  // a time and every comment, reply, and reaction records which one wrote it.
   identity?: boolean
   // The verb takes a markdown body from --body | --body-file | stdin, resolved
   // asynchronously after the payload is built.
@@ -187,16 +187,21 @@ const roundsOptions: ParseOptions = {
 // Who is writing. Every verb that records something carries these so a review
 // with several agents in it stays readable. SUIKOU_AGENT_NAME / _ICON let an
 // agent set its identity once for its whole session instead of repeating the
-// flags; the explicit flag still wins.
+// flags; the explicit flag still wins. A name is required — the server refuses an
+// unnamed write, and catching it here costs a round trip less. "human" is the
+// reviewer's, and the server refuses that too.
 const identityOptions: ParseOptions = {
   as: { type: "string" },
   icon: { type: "string" }
 }
 
-function identityPayload(values: Values): { as?: string; icon?: string } {
+function identityPayload(values: Values): { as: string; icon?: string } {
   const as = typeof values.as === "string" ? values.as : process.env.SUIKOU_AGENT_NAME
   const icon = typeof values.icon === "string" ? values.icon : process.env.SUIKOU_AGENT_ICON
-  return { ...(as ? { as } : {}), ...(icon ? { icon } : {}) }
+  if (!as?.trim()) {
+    throw new UsageError("missing required --as <name>; name yourself (or set SUIKOU_AGENT_NAME)")
+  }
+  return { as, ...(icon ? { icon } : {}) }
 }
 
 // The anchor payload for `comment add`, from `--line N-M` (a file's line range)
@@ -382,9 +387,6 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       options: { ...roundsOptions, "until-round": { type: "string" }, timeout: { type: "string" } },
       id: { name: "review-id", required: true },
       payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values), ...untilRoundPayload(values) }),
-      // --as narrows the working set to what *this* agent still owes a move on,
-      // so a peer agent's unanswered critique still wakes it.
-      identity: true,
       poll: true,
       summary:
         "wait for a submission round (<review-id> [--until-round N] [--rounds a-b] [--all] [--timeout secs])"

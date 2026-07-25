@@ -8,8 +8,8 @@ defmodule Suikou.Critique.ReactionsTest do
   alias Suikou.Schemas.Reaction
   alias SuikouWeb.Stores.CommentRendering
 
-  # These cover the single-agent behaviour, where the caller supplies no name.
-  @anonymous %{name: "", icon: ""}
+  # The reviewing agent these cases write as; the name is required.
+  @agent %{name: "Codex", icon: "\u{1F916}"}
 
   describe "react_as_human/2" do
     test "adds a reaction row", %{comment: comment} do
@@ -38,7 +38,7 @@ defmodule Suikou.Critique.ReactionsTest do
 
     test "a human and an agent reaction on the same comment coexist", %{comment: comment} do
       assert {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
 
       assert Repo.aggregate(Reaction, :count) == 2
     end
@@ -76,7 +76,7 @@ defmodule Suikou.Critique.ReactionsTest do
 
     test "leaves the agent's reaction on the same comment intact", %{comment: comment} do
       {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
-      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
 
       assert {:ok, _comment_id} = Critique.unreact_as_human(comment.id, "agree")
 
@@ -94,42 +94,42 @@ defmodule Suikou.Critique.ReactionsTest do
     test "adds an agent reaction row", %{comment: comment} do
       comment_id = comment.id
 
-      assert {:ok, ^comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+      assert {:ok, ^comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
 
       assert [%Reaction{emoji: "👀", actor: :agent}] =
                Repo.all(Reaction)
     end
 
     test "accepts any emoji glyph the agent chooses", %{comment: comment} do
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "🚀", @anonymous)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "🚀", @agent)
 
       assert [%Reaction{emoji: "🚀", actor: :agent}] = Repo.all(Reaction)
     end
 
     test "reacting with the same emoji and actor leaves a single row", %{comment: comment} do
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
 
       assert Repo.aggregate(Reaction, :count) == 1
     end
 
     test "reacting with a new emoji replaces the actor's previous one", %{comment: comment} do
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
-      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "🤔", @anonymous)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
+      assert {:ok, _comment_id} = Critique.react_as_agent(comment.id, "🤔", @agent)
 
       assert [%Reaction{emoji: "🤔", actor: :agent}] =
                Repo.all(Reaction)
     end
 
     test "reacting with an empty emoji is rejected", %{comment: comment} do
-      assert {:error, %Ecto.Changeset{}} = Critique.react_as_agent(comment.id, "", @anonymous)
+      assert {:error, %Ecto.Changeset{}} = Critique.react_as_agent(comment.id, "", @agent)
 
       assert Repo.aggregate(Reaction, :count) == 0
     end
 
     test "reacting to a missing comment is rejected" do
       assert {:error, :comment_not_found} =
-               Critique.react_as_agent("00000000-0000-7000-8000-000000000000", "👀", @anonymous)
+               Critique.react_as_agent("00000000-0000-7000-8000-000000000000", "👀", @agent)
 
       assert Repo.aggregate(Reaction, :count) == 0
     end
@@ -137,26 +137,26 @@ defmodule Suikou.Critique.ReactionsTest do
 
   describe "unreact_as_agent/3" do
     test "removes the matching agent reaction", %{comment: comment} do
-      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @agent)
 
       comment_id = comment.id
-      assert {:ok, ^comment_id} = Critique.unreact_as_agent(comment.id, "👀", @anonymous)
+      assert {:ok, ^comment_id} = Critique.unreact_as_agent(comment.id, "👀", @agent)
       assert Repo.aggregate(Reaction, :count) == 0
     end
 
     test "unreacting to a missing comment is rejected" do
       assert {:error, :comment_not_found} =
-               Critique.unreact_as_agent("00000000-0000-7000-8000-000000000000", "👀", @anonymous)
+               Critique.unreact_as_agent("00000000-0000-7000-8000-000000000000", "👀", @agent)
     end
   end
 
   describe "several agents on one target" do
     test "each named agent holds its own reaction on the same comment", %{comment: comment} do
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.react_as_agent(comment.id, "👀", agent("Codex", "🤖"))
 
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "🤔", Critique.agent_identity("Claude", "🪄"))
+        Critique.react_as_agent(comment.id, "🤔", agent("Claude", "🪄"))
 
       assert [
                %Reaction{actor_name: "Claude", emoji: "🤔"},
@@ -166,11 +166,11 @@ defmodule Suikou.Critique.ReactionsTest do
     end
 
     test "swapping one agent's emoji leaves the other's alone", %{comment: comment} do
-      codex = Critique.agent_identity("Codex", "🤖")
+      codex = agent("Codex", "🤖")
       {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", codex)
 
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "🤔", Critique.agent_identity("Claude", "🪄"))
+        Critique.react_as_agent(comment.id, "🤔", agent("Claude", "🪄"))
 
       {:ok, _comment_id} = Critique.react_as_agent(comment.id, "✅", codex)
 
@@ -183,33 +183,33 @@ defmodule Suikou.Critique.ReactionsTest do
 
     test "unreacting removes only the calling agent's row", %{comment: comment} do
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.react_as_agent(comment.id, "👀", agent("Codex", "🤖"))
 
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "🤔", Critique.agent_identity("Claude", "🪄"))
+        Critique.react_as_agent(comment.id, "🤔", agent("Claude", "🪄"))
 
       {:ok, _comment_id} =
-        Critique.unreact_as_agent(comment.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.unreact_as_agent(comment.id, "👀", agent("Codex", "🤖"))
 
       assert [%Reaction{actor_name: "Claude"}] = Repo.all(Reaction)
     end
 
     test "a changed icon rides along when an agent swaps its emoji", %{comment: comment} do
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.react_as_agent(comment.id, "👀", agent("Codex", "🤖"))
 
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "✅", Critique.agent_identity("Codex", "🦾"))
+        Critique.react_as_agent(comment.id, "✅", agent("Codex", "🦾"))
 
       assert [%Reaction{emoji: "✅", actor_icon: "🦾"}] = Repo.all(Reaction)
     end
 
     test "each named agent holds its own reaction on the same reply", %{reply: reply} do
       {:ok, _comment_id} =
-        Critique.react_reply_as_agent(reply.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.react_reply_as_agent(reply.id, "👀", agent("Codex", "🤖"))
 
       {:ok, _comment_id} =
-        Critique.react_reply_as_agent(reply.id, "🤔", Critique.agent_identity("Claude", "🪄"))
+        Critique.react_reply_as_agent(reply.id, "🤔", agent("Claude", "🪄"))
 
       assert Repo.aggregate(Reaction, :count) == 2
     end
@@ -281,7 +281,7 @@ defmodule Suikou.Critique.ReactionsTest do
          %{comment: comment, reply: reply} do
       comment_id = comment.id
 
-      assert {:ok, ^comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @anonymous)
+      assert {:ok, ^comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @agent)
 
       reply_id = reply.id
 
@@ -292,15 +292,15 @@ defmodule Suikou.Critique.ReactionsTest do
     test "reacting with a new emoji replaces the agent's previous one", %{reply: reply} do
       reply_id = reply.id
 
-      assert {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @anonymous)
-      assert {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "🤔", @anonymous)
+      assert {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @agent)
+      assert {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "🤔", @agent)
 
       assert [%Reaction{emoji: "🤔", actor: :agent, reply_id: ^reply_id}] =
                Repo.all(Reaction)
     end
 
     test "an empty emoji is rejected", %{reply: reply} do
-      assert {:error, %Ecto.Changeset{}} = Critique.react_reply_as_agent(reply.id, "", @anonymous)
+      assert {:error, %Ecto.Changeset{}} = Critique.react_reply_as_agent(reply.id, "", @agent)
       assert Repo.aggregate(Reaction, :count) == 0
     end
 
@@ -309,7 +309,7 @@ defmodule Suikou.Critique.ReactionsTest do
                Critique.react_reply_as_agent(
                  "00000000-0000-7000-8000-000000000000",
                  "👀",
-                 @anonymous
+                 @agent
                )
 
       assert Repo.aggregate(Reaction, :count) == 0
@@ -319,20 +319,20 @@ defmodule Suikou.Critique.ReactionsTest do
   describe "unreact_reply_as_agent/3" do
     test "removes the agent's reaction and returns the parent comment id",
          %{comment: comment, reply: reply} do
-      {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @anonymous)
+      {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @agent)
 
       comment_id = comment.id
-      assert {:ok, ^comment_id} = Critique.unreact_reply_as_agent(reply.id, "👀", @anonymous)
+      assert {:ok, ^comment_id} = Critique.unreact_reply_as_agent(reply.id, "👀", @agent)
       assert Repo.aggregate(Reaction, :count) == 0
     end
 
     test "the agent and human each hold their own reaction on a reply", %{reply: reply} do
       {:ok, _comment_id} = Critique.react_reply_as_human(reply.id, "agree")
-      {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @anonymous)
+      {:ok, _comment_id} = Critique.react_reply_as_agent(reply.id, "👀", @agent)
 
       assert Repo.aggregate(Reaction, :count) == 2
 
-      assert {:ok, _comment_id} = Critique.unreact_reply_as_agent(reply.id, "👀", @anonymous)
+      assert {:ok, _comment_id} = Critique.unreact_reply_as_agent(reply.id, "👀", @agent)
 
       assert [%Reaction{actor: :human, emoji: "agree"}] = Repo.all(Reaction)
     end
@@ -342,7 +342,7 @@ defmodule Suikou.Critique.ReactionsTest do
                Critique.unreact_reply_as_agent(
                  "00000000-0000-7000-8000-000000000000",
                  "👀",
-                 @anonymous
+                 @agent
                )
     end
   end
@@ -456,10 +456,10 @@ defmodule Suikou.Critique.ReactionsTest do
 
     test "one chip names every agent behind its count", %{comment: comment} do
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "👀", Critique.agent_identity("Codex", "🤖"))
+        Critique.react_as_agent(comment.id, "👀", agent("Codex", "🤖"))
 
       {:ok, _comment_id} =
-        Critique.react_as_agent(comment.id, "👀", Critique.agent_identity("Claude", "🪄"))
+        Critique.react_as_agent(comment.id, "👀", agent("Claude", "🪄"))
 
       rendered = comment.id |> Reads.get_comment() |> CommentRendering.render_comment(nil)
 
@@ -467,22 +467,22 @@ defmodule Suikou.Critique.ReactionsTest do
       assert Enum.sort(Enum.map(by, & &1.name)) == ["Claude", "Codex"]
     end
 
-    test "an anonymous reactor contributes no name to the chip", %{comment: comment} do
-      {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", @anonymous)
+    test "the human contributes no name to their chip", %{comment: comment} do
       {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
 
       rendered = comment.id |> Reads.get_comment() |> CommentRendering.render_comment(nil)
 
-      assert %{reactions: [%{emoji: "agree", by: []}, %{emoji: "👀", by: []}]} = rendered
+      # `mine` is what tells the client the human is in the group, not a name.
+      assert %{reactions: [%{emoji: "agree", by: [], mine: true}]} = rendered
     end
 
     test "a comment and its replies carry their author identity", %{comment: comment} do
       {:ok, _reply} =
-        Critique.reply_as_agent(comment.id, "on it", Critique.agent_identity("Codex", "🤖"))
+        Critique.reply_as_agent(comment.id, "on it", agent("Codex", "🤖"))
 
       rendered = comment.id |> Reads.get_comment() |> CommentRendering.render_comment(nil)
 
-      assert %{author: %{kind: :human, name: nil, icon: nil}, replies: replies} = rendered
+      assert %{author: %{kind: :human, name: "human", icon: nil}, replies: replies} = rendered
 
       assert %{author: %{kind: :agent, name: "Codex", icon: "🤖"}} = List.last(replies)
     end
@@ -510,7 +510,12 @@ defmodule Suikou.Critique.ReactionsTest do
   setup do
     round = insert(:round)
     comment = published_comment(round.id)
-    {:ok, reply} = Critique.reply_as_agent(comment.id, "on it", @anonymous)
+    {:ok, reply} = Critique.reply_as_agent(comment.id, "on it", @agent)
     %{comment: comment, reply: reply}
+  end
+
+  defp agent(name, icon) do
+    {:ok, identity} = Critique.agent_identity(name, icon)
+    identity
   end
 end
