@@ -16,17 +16,24 @@ export default defineConfig({
     // from cache instead of refetching index.html + JS over the network.
     VitePWA({
       registerType: "autoUpdate",
-      // Inline the SW registration into index.html. Emitting a separate
-      // registerSW.js would land at priv/static root, where the Phoenix "/"
-      // Plug.Static only serves files listed in static_paths() — SpaController
-      // would swallow /registerSW.js and return the SPA shell, so the browser
-      // parses HTML as JS ("Unexpected token '<'"). Inlining sidesteps that.
-      // sw.js + manifest.webmanifest still land at the root and are registered
-      // in static_paths(). inlineWorkboxRuntime keeps the workbox runtime inside
-      // sw.js so there's no hashed second file to register.
-      injectRegister: "inline",
+      // Registration lives in main.tsx via `virtual:pwa-register`, so this plugin
+      // emits nothing itself. The obvious alternatives both fail here: a separate
+      // registerSW.js lands at priv/static root, where the Phoenix "/" Plug.Static
+      // only serves files listed in static_paths() — SpaController would swallow
+      // it and return the SPA shell, so the browser parses HTML as JS ("Unexpected
+      // token '<'"). "inline" avoids that but emits a bare register() call with
+      // none of autoUpdate's reload-on-new-worker logic, which left stale tabs
+      // stranded on a shell whose chunks the next build had already deleted.
+      // Importing the virtual module bundles that logic into the hashed app JS —
+      // no extra file for Phoenix to serve, and the update actually applies.
+      injectRegister: null,
       workbox: {
         inlineWorkboxRuntime: true,
+        // Take over pages that are already open. skipWaiting alone activates the
+        // new worker but leaves existing tabs driven by the old one, still being
+        // served the previous index.html — which points at chunk hashes this
+        // build has removed.
+        clientsClaim: true,
         // Layer the Web Push push/notificationclick handlers onto the generated
         // sw.js. push-sw.js is a committed static file (priv/static), kept out of
         // the build so this tuned app-shell config stays intact.
