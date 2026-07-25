@@ -79,7 +79,8 @@ defmodule Suikou.MixProject do
       {:typed_structor, "~> 0.6.1"},
       {:polymorphic_embed, "~> 5.0"},
       {:toml, "~> 0.7.0"},
-      {:fs_notify, "~> 0.1.0"}
+      {:fs_notify, "~> 0.1.0"},
+      {:web_push_elixir, "~> 0.8.0"}
     ]
   end
 

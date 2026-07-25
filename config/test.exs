@@ -34,3 +34,15 @@ config :suikou, :agent_cli_poll_window_ms, 200
 # Short grace window so Suikou.ChangesWatcher's ref-count teardown is exercised
 # without a 30 s wait.
 config :suikou, :changes_watcher_grace_ms, 100
+
+# VAPID keys so Web Push code can build a payload in tests without hitting the
+# network (the actual send is integration-only). Reuses the dev keypair.
+config :web_push_elixir,
+  vapid_public_key:
+    "BLiXBMI2l2H9kAphcv5HSzv-Pl6giTrFYs7ALi6tHE1b8dpyRlkhrn_ErjXsvE3YgxP-mbUDkbKmQHmhd4N8Rwk",
+  vapid_private_key: "smmCUOgWEdsYVrLJ3a3yLT1jaLF74hGsQgYfg5OTlYo",
+  vapid_subject: "mailto:suikou@example.com"
+
+# Stub the Web Push sender so Suikou.Push.notify/1 exercises its delivery and
+# prune paths without any network — the stub decides by endpoint (see the module).
+config :suikou, :web_push_sender, {Suikou.PushSenderStub, :send_notification}

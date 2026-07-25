@@ -49,6 +49,17 @@ config :suikou, SuikouWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :suikou, dev_routes: true
 
+# Web Push VAPID keys for the PWA review notifications. Dev-only, localhost-scoped
+# keypair — Push API only runs in a secure context (HTTPS or localhost), so these
+# are exercised only via the desktop app on http://localhost. Production generates
+# and persists its own keypair in the launcher (passed as VAPID_* env). Regenerate
+# with `mix generate.vapid.keys`.
+config :web_push_elixir,
+  vapid_public_key:
+    "BLiXBMI2l2H9kAphcv5HSzv-Pl6giTrFYs7ALi6tHE1b8dpyRlkhrn_ErjXsvE3YgxP-mbUDkbKmQHmhd4N8Rwk",
+  vapid_private_key: "smmCUOgWEdsYVrLJ3a3yLT1jaLF74hGsQgYfg5OTlYo",
+  vapid_subject: "mailto:pwa@suikou.ai"
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 

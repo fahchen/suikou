@@ -109,6 +109,26 @@ if config_env() == :prod do
   url_scheme = user_config["url_scheme"] || "http"
   url_port = user_config["url_port"] || http_port
 
+  # Web Push VAPID credentials for PWA review notifications, all three required to
+  # deliver one push:
+  #
+  #   * private key — signs the ES256 JWT in each push's `authorization` header,
+  #     proving to the push service that we sent it.
+  #   * public key  — travels in the `crypto-key` header so that service can verify
+  #     the signature, and is served to the browser (`/api/push/config`) as the
+  #     `applicationServerKey` it subscribes with.
+  #   * subject     — the VAPID `sub` contact the service can reach us at. Must be a
+  #     real mailto:/https: URL; Apple rejects a localhost one with 403 BadJwtToken.
+  #
+  # The launcher generates and persists the keypair (like SECRET_KEY_BASE), passing
+  # it here as env so it stays stable across restarts — it is baked into every
+  # stored subscription, so regenerating silently orphans all of them. The subject
+  # is the one piece a user picks, hence config.toml, defaulting to the project's.
+  config :web_push_elixir,
+    vapid_public_key: System.fetch_env!("VAPID_PUBLIC_KEY"),
+    vapid_private_key: System.fetch_env!("VAPID_PRIVATE_KEY"),
+    vapid_subject: user_config["notification_subject"] || "mailto:pwa@suikou.ai"
+
   config :suikou, SuikouWeb.Endpoint,
     url: [host: host, scheme: url_scheme, port: url_port],
     # A tailnet peer reaches this by raw IP *or* MagicDNS name (varies per device),
