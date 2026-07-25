@@ -115,3 +115,44 @@ Runtime config is read once at boot from `~/.config/suikou/config.toml` (package
 build only; dev/test ignore it). Every key is optional and documented inline in
 [`config.toml.example`](config.toml.example) — copy it, edit, then
 `suikou stop && suikou start` to apply.
+
+## Notifications
+
+An agent can push a notification asking you to come review — `suikou review
+notify <review-id> --message "…"` delivers a Web Push to every browser you've
+opted in, and tapping it opens the review. Opt in **per browser** under
+**Settings → Notifications**; the subscription lives in that browser only.
+
+Web Push runs only in a **secure context** — HTTPS, or `localhost`. Two cases:
+
+- **Desktop, this machine.** The app opens on `http://localhost:<port>`, which
+  already counts as secure — enable the toggle and you're done. No VAPID setup
+  needed; the launcher generates and persists the keypair on first run.
+- **Phone (or any other device) over the tailnet.** Plain HTTP over a MagicDNS
+  name is *not* a secure context, so the toggle stays disabled there. Front the
+  app with HTTPS so the browser trusts it:
+
+  ```sh
+  # Publish the local server over HTTPS at your MagicDNS name (adjust the port to
+  # your config.toml `port`; see `tailscale serve --help` for your version).
+  tailscale serve --bg 47100
+  ```
+
+  This stays **private to your tailnet** — it is not `tailscale funnel`, so
+  nothing is exposed to the public internet. Then point generated links at that
+  HTTPS front in `config.toml`:
+
+  ```toml
+  url_scheme = "https"
+  url_port = 443
+  ```
+
+  Restart (`suikou stop && suikou start`), open the app at
+  `https://<your-magicdns-name>/` on the phone, install the PWA, and enable the
+  toggle. `suikou review notify` reports `delivered` — how many browsers accepted
+  the push (`0` means nobody has opted in yet).
+
+Pushes identify their sender by a VAPID contact address, defaulting to the
+project's (`mailto:pwa@suikou.ai`). Set `notification_subject` in `config.toml` to
+be reached directly instead; it must stay a real address, since Apple refuses a
+localhost one.

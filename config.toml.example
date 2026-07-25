@@ -24,6 +24,17 @@
 # url_scheme = "https"
 # url_port = 443
 
+# VAPID `sub` claim for Web Push review notifications — a contact the push service
+# can reach about your pushes (a mailto: or https: URL). The default is the project
+# address, which every push service accepts; override it to be reached directly.
+# It must stay a real address: a localhost one is refused by Apple (403 BadJwtToken).
+# The VAPID keypair itself is generated and stored by the launcher automatically.
+# Note: push reaches a browser only over a secure context (HTTPS or localhost) —
+# set url_scheme/url_port above and front the app with TLS to use them off this
+# machine. Opt in per browser under Settings → Notifications.
+# Default: "mailto:pwa@suikou.ai".
+# notification_subject = "mailto:you@example.com"
+
 # WebSocket origin check for the Musubi socket.
 #   false                      accept any origin
 #   ["//host-a", "//host-b"]   allow only these origins ("//host" matches any
