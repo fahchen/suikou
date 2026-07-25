@@ -1133,6 +1133,9 @@
   padding: 4px 10px;
   text-align: left;
   vertical-align: top;
+  /* Columns are squeezed to fit (see useTableSync), so a long unbreakable token
+     — a URL, a hash — has to break rather than push past its column. */
+  overflow-wrap: anywhere;
 }
 /* Data-row mini-tables: remove top border so adjacent rows don't double up. */
 .md-table-row td {
