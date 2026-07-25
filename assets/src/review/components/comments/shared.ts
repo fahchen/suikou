@@ -6,6 +6,9 @@ type ReviewSnapshot = StoreSnapshot<"SuikouWeb.Stores.ReviewStore", Musubi.Store
 export type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][number]
 export type CommentReply = Comment["replies"][number]
 export type CommentReaction = Comment["reactions"][number]
+/** Who wrote a comment or reply: the kind styles the row, `name`/`icon` name the
+ * individual agent and are null for the human, who reviews anonymously. */
+export type CommentAuthor = Comment["author"]
 /** Human reaction keys are a fixed scale; an agent chip's `emoji` is a free-form glyph. */
 export type HumanReactionEmoji = "strong_agree" | "agree" | "disagree" | "strong_disagree"
 export type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>

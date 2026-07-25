@@ -14,6 +14,14 @@ import {
 
 type Target = "comment" | "reply"
 
+/** Name the agents behind an agent chip; an anonymous reactor has no name to show. */
+const agentChipTitle = (reaction: CommentReaction): string =>
+  reaction.by.length > 0 ? `Reacted by ${reaction.by.map((actor) => actor.name).join(", ")}` : "Agent reaction"
+
+/** One named agent with a glyph badges the chip with it instead of the generic bot. */
+const soleAuthorIcon = (reaction: CommentReaction): string | null =>
+  reaction.by.length === 1 && reaction.by[0].icon ? reaction.by[0].icon : null
+
 const CHIP_ENTER = { scale: 0.6, opacity: 0 }
 const CHIP_SHOWN = { scale: 1, opacity: 1 }
 const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
@@ -21,7 +29,9 @@ const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
 /** Reactions on a comment or reply. Humans pick from an approval/opposition
  * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
  * Agent reactions (any glyph, `actor === "agent"`) render as read-only chips
- * badged with a bot avatar — the human can't add or remove them. */
+ * badged with the reacting agent's glyph — the human can't add or remove them.
+ * Several agents can land on the same emoji, so the chip's badge and title name
+ * who is behind the count. */
 export function Reactions({
   reactions,
   targetId,
@@ -68,11 +78,15 @@ export function Reactions({
               animate={CHIP_SHOWN}
               exit={CHIP_ENTER}
               transition={CHIP_TRANSITION}
-              title="Agent reaction"
+              title={agentChipTitle(reaction)}
               className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
             >
               <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
-              <Bot size={11} className="text-accent-bright" aria-hidden />
+              {soleAuthorIcon(reaction) ? (
+                <span aria-hidden className="text-[11px] leading-none">{soleAuthorIcon(reaction)}</span>
+              ) : (
+                <Bot size={11} className="text-accent-bright" aria-hidden />
+              )}
               {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
             </motion.span>
           ) : (

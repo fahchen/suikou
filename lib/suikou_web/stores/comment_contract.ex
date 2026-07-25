@@ -53,6 +53,7 @@ defmodule SuikouWeb.Stores.CommentContract do
         scope: :review | :artifact | :located,
         critique_type: :fix_required | :needs_answer | :note,
         status: :pending | :published,
+        author: unquote(author_type_ast()),
         body: String.t(),
         resolved: boolean(),
         resolved_round: integer() | nil,
@@ -64,26 +65,36 @@ defmodule SuikouWeb.Stores.CommentContract do
         replies:
           list(%{
             id: String.t(),
-            author: :human | :agent,
+            author: unquote(author_type_ast()),
             status: :pending | :published,
             body: String.t(),
             inserted_at: String.t(),
-            reactions:
-              list(%{
-                emoji: String.t(),
-                actor: :human | :agent,
-                count: integer(),
-                mine: boolean()
-              })
+            reactions: unquote(reactions_type_ast())
           }),
-        reactions:
-          list(%{
-            emoji: String.t(),
-            actor: :human | :agent,
-            count: integer(),
-            mine: boolean()
-          })
+        reactions: unquote(reactions_type_ast())
       }
+    end
+  end
+
+  # Who wrote a comment or reply. `kind` styles the row; `name`/`icon` name the
+  # individual agent, and are `nil` for the human, who reviews anonymously.
+  defp author_type_ast do
+    quote do
+      %{kind: :human | :agent, name: String.t() | nil, icon: String.t() | nil}
+    end
+  end
+
+  # `by` lists the named agents behind the count — several agents can pick the
+  # same glyph, so the count alone would not say who.
+  defp reactions_type_ast do
+    quote do
+      list(%{
+        emoji: String.t(),
+        actor: :human | :agent,
+        count: integer(),
+        mine: boolean(),
+        by: list(%{name: String.t(), icon: String.t()})
+      })
     end
   end
 

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
-import { Bot, Pencil, User } from "lucide-react"
+import { Pencil } from "lucide-react"
 
-import { uiStore } from "../../../stores/ui-store"
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
+import { AuthorBadge } from "./AuthorBadge"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { Composer } from "./Composer"
 import { Reactions } from "./Reactions"
@@ -18,7 +18,7 @@ export const Reply = observer(function Reply({
   reply: CommentReply
   commentsProxy: CommentsStoreProxy | null
 }) {
-  const agent = reply.author === "agent"
+  const agent = reply.author.kind === "agent"
   const pending = reply.status === "pending"
   const bodyHtml = useMemo(() => renderMarkdown(reply.body), [reply.body])
   const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_reply")
@@ -53,18 +53,7 @@ export const Reply = observer(function Reply({
         }`}
       >
         <div className="mb-1 flex items-center gap-1.5">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-bold leading-none ${agent ? "text-accent-bright" : "text-text"}`}>
-            <span className={`inline-flex size-[15px] items-center justify-center rounded-[5px] ${agent ? "bg-accent text-on-accent" : "bg-control text-muted"}`}>
-              {agent ? (
-                <Bot size={10} aria-hidden />
-              ) : uiStore.userEmoji ? (
-                <span aria-hidden className="block text-[11px] leading-none">{uiStore.userEmoji}</span>
-              ) : (
-                <User size={10} aria-hidden />
-              )}
-            </span>
-            <span className="leading-none">{agent ? "agent" : "you"}</span>
-          </span>
+          <AuthorBadge author={reply.author} size="sm" />
           {pending && (
             <span className="inline-flex items-center rounded-full bg-amber-soft px-1.5 py-px text-2xs font-bold tracking-wide text-amber ring-1 ring-inset ring-amber-edge">
               pending

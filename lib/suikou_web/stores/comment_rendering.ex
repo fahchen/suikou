@@ -76,6 +76,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
       scope: comment.scope,
       critique_type: comment.critique_type,
       status: comment.status,
+      author: Critique.author_view(comment.author, comment.author_name, comment.author_icon),
       body: comment.body,
       resolved: not is_nil(comment.resolved_round),
       resolved_round: comment.resolved_round,
@@ -109,7 +110,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
   defp render_reply(%Reply{} = reply) do
     %{
       id: reply.id,
-      author: reply.author,
+      author: Critique.author_view(reply.author, reply.author_name, reply.author_icon),
       status: reply.status,
       body: reply.body,
       inserted_at: Iso8601.utc(reply.inserted_at),
@@ -119,9 +120,11 @@ defmodule SuikouWeb.Stores.CommentRendering do
 
   # Aggregate a comment's reactions into per-emoji chips: the count across every
   # actor, the chip's actor (human/agent vocabularies are disjoint, so a glyph
-  # belongs to exactly one), and whether the human is among them (drives the
-  # "mine" toggle state). Human chips sort first in canonical key order; agent
-  # chips (free-form glyphs) follow, ordered by glyph so chips stay stable.
+  # belongs to exactly one), whether the human is among them (drives the "mine"
+  # toggle state), and `by` — the named agents behind the count, since several
+  # agents can land on the same glyph and a bare count would not say who. Human
+  # chips sort first in canonical key order; agent chips (free-form glyphs)
+  # follow, ordered by glyph so chips stay stable.
   defp render_reactions(reactions) do
     human_order = Reaction.human_emojis()
 
@@ -132,7 +135,8 @@ defmodule SuikouWeb.Stores.CommentRendering do
         emoji: emoji,
         actor: actor,
         count: length(group),
-        mine: Enum.any?(group, &(&1.actor == :human))
+        mine: Enum.any?(group, &(&1.actor == :human)),
+        by: named_actors(group)
       }
     end)
     |> Enum.sort_by(fn %{emoji: emoji} ->
@@ -141,5 +145,13 @@ defmodule SuikouWeb.Stores.CommentRendering do
         index -> {0, index}
       end
     end)
+  end
+
+  # Only agents name themselves, so the human — anonymous by design — contributes
+  # nothing here; `mine` is what tells the client the human is in the group.
+  defp named_actors(group) do
+    for %Reaction{actor_name: name} = reaction <- group, name != "" do
+      %{name: name, icon: reaction.actor_icon}
+    end
   end
 end
