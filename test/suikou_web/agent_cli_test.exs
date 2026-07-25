@@ -46,5 +46,32 @@ defmodule SuikouWeb.AgentCLITest do
 
       assert AgentCLI.error(changeset) == "name can't be blank"
     end
+
+    test "reaches into an embed, which holds a comment anchor's errors" do
+      changeset =
+        Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{
+          round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f",
+          scope: :located,
+          critique_type: :note,
+          body: "x",
+          authored_round: 0,
+          anchor: %{__type__: "line_range", start_line: 0, end_line: 0, quote: ""}
+        })
+
+      refute changeset.valid?
+      # The comment itself is fine, so a top-level-only read would say nothing at
+      # all and the agent would get an empty error string.
+      assert changeset.errors == []
+      assert AgentCLI.error(changeset) =~ "anchor.start_line must be greater than 0"
+    end
+
+    test "interpolates a message's options rather than leaking the template" do
+      changeset =
+        %Suikou.Schemas.Project{}
+        |> Ecto.Changeset.change(%{name: "x"})
+        |> Ecto.Changeset.validate_length(:name, min: 3)
+
+      assert AgentCLI.error(changeset) == "name should be at least 3 character(s)"
+    end
   end
 end

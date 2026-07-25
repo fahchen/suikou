@@ -123,6 +123,26 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                )
     end
 
+    test "a rejected anchor reports which field, not an empty error string" do
+      %{review: review, path: path} = covered_file("line 1\nline 2\n")
+
+      assert %{"comment_id" => nil, "error" => error} =
+               run(
+                 %{
+                   "review_id" => review.id,
+                   "path" => path,
+                   "scope" => "located",
+                   "critique_type" => "note",
+                   "body" => "x",
+                   "anchor" => %{"type" => "line_range", "start_line" => 0, "end_line" => 0},
+                   "as" => "Codex"
+                 },
+                 &Comments.add/0
+               )
+
+      assert error =~ "anchor.start_line"
+    end
+
     test "emits not_covered for a path outside the review's selection" do
       %{review: review} = covered_file("line 1\n")
 
