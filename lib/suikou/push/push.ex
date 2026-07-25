@@ -66,8 +66,9 @@ defmodule Suikou.Push do
   Pushes `notification` (`:title`, `:body`, `:url`) to every subscription and
   returns `{:ok, delivered}` — the count the push services accepted. The payload
   is JSON the service worker reads in its `push` handler. Subscriptions the
-  service reports as expired are deleted; other transport/HTTP errors are logged
-  and skipped so one dead endpoint can't fail the fan-out.
+  service reports as expired are deleted; a subscriber that errors or is
+  unreachable is logged and skipped, keeping its row — being unreachable says
+  nothing about whether the subscription is still valid.
 
   ## Examples
 
@@ -109,7 +110,11 @@ defmodule Suikou.Push do
 
     {module, function} = @sender
 
-    case apply(module, function, [payload, message]) do
+    # web_push_elixir 0.8.0 only matches HTTP responses, so a transport failure
+    # (Apple timing out, DNS, a reset) raises CaseClauseError instead of returning
+    # an error tuple. Rescue it here: one unreachable subscriber must not abort the
+    # fan-out and lose the pushes queued behind it.
+    case safe_send(module, function, payload, message) do
       {:ok, _response} ->
         :ok
 
@@ -123,5 +128,15 @@ defmodule Suikou.Push do
 
         :error
     end
+  end
+
+  defp safe_send(module, function, payload, message) do
+    apply(module, function, [payload, message])
+  rescue
+    # CaseClauseError: web_push_elixir 0.8.0 matches only HTTP responses, so a
+    # transport failure (a timeout, DNS, a reset) falls off the end of its case.
+    # ArgumentError: a row whose stored keys no longer decode as base64url.
+    # Both are one subscriber's problem, not the batch's.
+    error in [CaseClauseError, ArgumentError] -> {:error, Exception.message(error)}
   end
 end

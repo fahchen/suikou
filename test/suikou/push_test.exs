@@ -54,5 +54,15 @@ defmodule Suikou.PushTest do
     test "returns zero when there are no subscriptions" do
       assert {:ok, 0} = Push.notify(%{title: "Spec", body: "Ready", url: "https://s/reviews/1"})
     end
+
+    test "keeps delivering when a subscriber's send raises, and keeps that row" do
+      {:ok, _boom} = Push.subscribe(%{endpoint: "https://push/boom", p256dh: "BPk", auth: "tBH"})
+      {:ok, _live} = Push.subscribe(%{endpoint: "https://push/live", p256dh: "BPk", auth: "tBH"})
+
+      assert {:ok, 1} = Push.notify(%{title: "Spec", body: "Ready", url: "https://s/reviews/1"})
+      # A transport failure says nothing about the subscription's validity, so the
+      # row survives for the next attempt — unlike an expired one.
+      assert [_boom, _live] = Repo.all(PushSubscription)
+    end
   end
 end
