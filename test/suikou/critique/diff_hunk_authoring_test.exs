@@ -42,6 +42,28 @@ defmodule Suikou.Critique.DiffHunkAuthoringTest do
                }
              } = comment
     end
+
+    @tag :tmp_dir
+    test "a line-range anchor on a diff artifact is rejected, not stored dead", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "one\ntwo\nthree\n") end)
+
+      review = diff_review_with(dir, "main", "topic")
+      {:ok, artifact} = Reviews.open_file(review, "a.txt")
+      round = Rounds.latest(artifact.id)
+
+      # It would capture its quote from the working-tree file while the artifact
+      # renders as a diff, so the anchor could never resolve — the mirror of
+      # `diff_hunk` being rejected on a file artifact.
+      assert {:error, :unknown_anchor_type} =
+               Critique.add_comment(%{
+                 round_id: round.id,
+                 scope: :located,
+                 anchor: %{type: "line_range", start_line: 1, end_line: 2},
+                 critique_type: :note,
+                 body: "wrong anchor kind"
+               })
+    end
   end
 
   defp diff_review_with(dir, base, head) do

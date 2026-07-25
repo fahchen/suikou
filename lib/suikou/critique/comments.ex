@@ -385,12 +385,26 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
+  # Mirrors `build_diff_hunk/2`'s rejection of a file source: a line range on a
+  # git-diff artifact would capture its quote from the working-tree file while
+  # the artifact renders as a diff, so the anchor could never resolve and the
+  # comment would read as permanently outdated. Reject it instead of storing a
+  # dead anchor — the caller wants a `diff_hunk` here.
   defp build_line_range(anchor_params, round) do
     start_line = anchor_field(anchor_params, :start_line)
     end_line = anchor_field(anchor_params, :end_line)
 
-    with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
-      {:ok, Anchor.capture(content, start_line, end_line)}
+    case Artifacts.content_source(round.artifact_id) do
+      {:ok, {:file, _path}} ->
+        with {:ok, content} <- Artifacts.read_content(round.artifact_id) do
+          {:ok, Anchor.capture(content, start_line, end_line)}
+        end
+
+      {:ok, {:inline, _diff, "text/x-diff"}} ->
+        {:error, :unknown_anchor_type}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
