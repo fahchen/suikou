@@ -1,4 +1,5 @@
 import { PaneHead } from "./pane-parts"
+import { BUILD_INFO } from "../../build-info"
 import { BrandMark, BRAND_SERIF } from "../../brand/BrandMark"
 
 export function AboutPane() {
@@ -33,6 +34,34 @@ export function AboutPane() {
           」，煉之未定，引手作勢，「推敲」遂出於此。
         </figcaption>
       </figure>
+      <BuildRow />
     </div>
+  )
+}
+
+/** What this bundle was built from. Worth showing because the app updates itself
+ * in the background: without it there is no way to tell whether the page in
+ * front of you is the build you just made. */
+function BuildRow() {
+  const { commit, subject, dirty, builtAt } = BUILD_INFO
+
+  return (
+    <dl className="max-w-[52ch] border-t border-hair pt-4 text-xs">
+      <div className="flex gap-3 py-1">
+        <dt className="w-[72px] shrink-0 text-faint">Build</dt>
+        <dd className="font-mono text-ink">
+          {commit}
+          {dirty && <span className="ml-1.5 text-amber">uncommitted</span>}
+        </dd>
+      </div>
+      <div className="flex gap-3 py-1">
+        <dt className="w-[72px] shrink-0 text-faint">Commit</dt>
+        <dd className="min-w-0 leading-[1.45] text-muted">{subject}</dd>
+      </div>
+      <div className="flex gap-3 py-1">
+        <dt className="w-[72px] shrink-0 text-faint">Built</dt>
+        <dd className="text-muted">{new Date(builtAt).toLocaleString()}</dd>
+      </div>
+    </dl>
   )
 }

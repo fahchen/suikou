@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
 import { defineConfig } from "vite"
@@ -6,7 +7,37 @@ import tailwindcss from "@tailwindcss/vite"
 import { tanstackRouter } from "@tanstack/router-plugin/vite"
 import { VitePWA } from "vite-plugin-pwa"
 
+// What this bundle was built from, stamped in at build time and shown under
+// Settings → About. Answers "is the thing I'm looking at the thing I just
+// built?" — the question every one of these fixes started with. A build from a
+// source tarball has no git, so every field degrades to "unknown" rather than
+// failing the build.
+function buildInfo() {
+  const git = (...args: string[]) => {
+    try {
+      return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()
+    } catch {
+      return ""
+    }
+  }
+
+  const commit = git("rev-parse", "--short", "HEAD")
+  return {
+    commit: commit || "unknown",
+    // The subject line says what this build actually contains — far quicker to
+    // place than a hash you would have to go and look up.
+    subject: git("log", "-1", "--format=%s") || "unknown",
+    // Marks a build made from edits that were never committed, so a stack trace
+    // from it is not blamed on the commit it merely sat next to.
+    dirty: git("status", "--porcelain") !== "",
+    builtAt: new Date().toISOString(),
+  }
+}
+
 export default defineConfig({
+  define: {
+    __BUILD_INFO__: JSON.stringify(buildInfo()),
+  },
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
