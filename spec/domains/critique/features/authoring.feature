@@ -1,8 +1,8 @@
 @critique
 Feature: Authoring structured critique
-  As a human reviewer
+  As a human reviewer or a reviewing agent
   I want to leave structured comments on a markdown artifact
-  So that the agent can understand and act on my feedback
+  So that the work's problems are recorded where they happened
 
   Background:
     Given Suikou is running locally
@@ -79,4 +79,23 @@ Feature: Authoring structured critique
     Scenario: Commenting on a superseded round is rejected
       Given the artifact is at round 2
       When the reviewer tries to add a comment on round 1
+      Then the comment is rejected
+
+  # Agents review alongside the human. An agent's comment names its author and is
+  # published on write — an agent has no draft stage to submit, and submitting the
+  # round stays the human's (see BDR-0026, BDR-0018).
+  Rule: An agent authors comments under its own name
+
+    Scenario: A named agent's comment carries its name and icon
+      When an agent named "Codex" with icon "🤖" adds a comment on the artifact
+      Then the comment is attributed to "Codex"
+      And the comment carries the icon "🤖"
+
+    Scenario: An agent's comment is published immediately
+      When an agent adds a comment on the artifact
+      Then the comment is published
+      And the comment is attached to the artifact's latest round
+
+    Scenario: An agent commenting on an unknown artifact is rejected
+      When an agent adds a comment on an artifact that does not exist
       Then the comment is rejected

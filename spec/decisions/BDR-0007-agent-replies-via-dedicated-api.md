@@ -1,10 +1,17 @@
 ---
 id: BDR-0007
 title: Agent participates in threads only through a dedicated reply API
-status: accepted
+status: superseded
+superseded_by: BDR-0026
 date: 2026-06-06
 summary: The agent may reply to existing comment threads via a reply API distinct from comment authoring, but never authors top-level comments or touches approval
 ---
+
+> **Superseded by [[BDR-0026-multi-agent-critique-with-named-authors]].** The
+> reply channel stands, but the reply-*only* boundary does not: agents now review
+> alongside the human and author top-level comments under their own name. What
+> BDR-0007 protected — the human's sole authority over the round and the verdict
+> — is preserved there.
 
 ## Scope
 

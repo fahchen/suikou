@@ -79,9 +79,10 @@ publishes its review and creates **round 1** (the next draft). The reviewer
 refreshes a draft round's content by re-snapshotting the file from disk after
 the agent edits it.
 
-**The agent only replies.** It may post replies to published comments via the
-dedicated reply API (BDR-0007, unchanged). It never submits content and never
-advances a round.
+**The agent never advances a round.** It may post comments and replies (see
+[[BDR-0026-multi-agent-critique-with-named-authors]], which lifted the
+reply-only boundary this originally stated), but it never submits content and
+never advances a round.
 
 ## Rejected Alternatives
 

@@ -36,7 +36,10 @@ suikou review  delete      <review-id>
 suikou review  export      <review-id> [--rounds <a-b>] [--all]
 suikou review  wait        <review-id> [--until-round <n>] [--rounds <a-b>] [--all] [--timeout <secs>]
 suikou review  notify      <review-id> [--message <text>]
+suikou comment add         <artifact-id> [--type note|fix_required|needs_answer] [--line <n>-<m> | --hunk old|new:<n>-<m> | --review-wide] (--body <text> | --body-file <path> | stdin)
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
+suikou comment resolve     <comment-id>
+suikou comment unresolve   <comment-id>
 suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
 suikou reply   react       <reply-id> <emoji>
@@ -51,7 +54,27 @@ suikou version                          # print the build identifier
 - `set-files` / `add-files` / `remove-files` each need **at least one** path — a bare `set-files <id>` errors rather than silently clearing. To drop a whole review use `delete`.
 - `react` takes the emoji as a positional: `comment react <id> 👀`. The agent may use **any** emoji glyph — 👀 / 🤔 / ✅ are just the suggested work-status convention.
 - `set-files` **replaces** the whole selection; `add-files` / `remove-files` are **incremental** — pass only the paths to add or drop, not the full list.
-- `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
+- `comment add` / `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
+- `comment add` takes the **`artifact-id`** from an export (`artifacts[].artifact_id`), not a review id. Its scope follows what you point at: `--line 12-14` (a file's lines) or `--hunk new:12-14` (a diff artifact's hunk) makes it line-scoped, `--review-wide` lifts it off the file, and the default sits on the file as a whole.
+
+## Who you are (`--as` / `--icon`)
+
+Several agents review one review at a time, so **every comment, reply, and reaction records who wrote it**. Name yourself:
+
+```
+suikou comment add <artifact-id> --as Codex --icon 🤖 --body-file finding.md
+```
+
+Or set it once for your whole session and drop the flags:
+
+```
+export SUIKOU_AGENT_NAME=Codex
+export SUIKOU_AGENT_ICON=🤖
+```
+
+An explicit `--as` beats the environment. Omitting both writes anonymously, which is fine when you are the only agent on a review — but with more than one, an unnamed thread is unreadable and `wait` cannot tell your last word from a peer's.
+
+Pass `--as` to `wait` too: the working set it returns is filtered to what **you** still owe a move on, so another agent's unanswered critique still wakes you.
 
 ## Rounds scope
 
@@ -130,6 +153,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
           "id":"0192…",
           "scope":"located",
           "critique_type":"fix_required",
+          "author":{"kind":"human","name":null,"icon":null},
           "body":"this needs a guard clause",
           "anchor":{"start_line":12,"end_line":14,"quote":"def foo(x)"},
           "original_round":2,
@@ -137,7 +161,8 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
           "resolved":false,
           "outdated":false,
           "line_anchor":true,
-          "replies":[{"id":"0192…","author":"agent","body":"fixed in round 3"}]
+          "reactions":[{"emoji":"👀","actor":{"kind":"agent","name":"Codex","icon":"🤖"}}],
+          "replies":[{"id":"0192…","author":{"kind":"agent","name":"Codex","icon":"🤖"},"body":"fixed in round 3"}]
         }
       ]
     }
@@ -149,8 +174,10 @@ Field notes:
 - `scope`: `"review"` | `"artifact"` | `"located"`. Only `"located"` comments have a non-null `anchor`.
 - `critique_type`: `"fix_required"` | `"needs_answer"` | `"note"`.
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
-- `comments[].id` is the **`comment-id` you pass to `comment reply`**.
+- `author` / `actor`: `{"kind":"human"|"agent","name":…,"icon":…}`. `name` and `icon` are `null` for the human (who reviews anonymously) and for an agent that wrote without `--as`. **Check the name before answering** — a comment from another agent is a peer's finding, and one under your own name is your own work coming back.
+- `comments[].id` is the **`comment-id` you pass to `comment reply`** / `comment resolve`.
 - `replies[].id` is the **`reply-id` you pass to `reply react`** / `reply unreact`.
+- `artifacts[].artifact_id` is the **`artifact-id` you pass to `comment add`**.
 
 A `wait` that times out (no new submission yet) emits instead:
 ```json
@@ -188,6 +215,18 @@ Without `--until-round`, `wait` targets the *next* submission past the current c
    (or pipe it on stdin). One call per comment.
 6. **Re-wait for the next round.** `suikou review wait <review-id> --until-round <last-round + 1>`. Passing the round you expect makes re-waiting **never miss a round** that landed between your reply and this call — it returns that round's snapshot immediately rather than blocking for the one after. Track the round from the snapshot's `submission_version`. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
 
+## Reviewing as one of several agents
+
+When you are brought in to **review** a review someone else opened (rather than to answer critique on your own work), name yourself and work the other side of the loop:
+
+1. `export SUIKOU_AGENT_NAME=<your name>` and `export SUIKOU_AGENT_ICON=<one emoji>` so every write is attributed.
+2. `suikou review export <review-id>` for the current state — read `artifacts[].artifact_id`, the file contents from disk, and the comments already there.
+3. Post each finding with `suikou comment add <artifact-id> --type fix_required --line 12-14 --body-file finding.md`. Anchor it to the lines it is about; an unanchored finding is much harder to act on.
+4. Read the other reviewers' comments before adding your own. If you agree, react rather than restate it. If you disagree, `comment reply` on **their** comment and say why — that is the discussion the human is here to adjudicate.
+5. `suikou review wait <review-id> --as <your name>` blocks until there is something for **you**: it filters out what you already had the last word on, but a peer's unanswered comment still wakes you.
+
+Two agents converging on the same finding is noise; two agents disagreeing about it in one thread is the point.
+
 ## Notifying the human (optional)
 
 `suikou review notify <review-id> --message "<body>"` pushes a notification to every browser the human opted in on (Settings → Notifications). Its title is the review name and clicking it opens that review, so `--message` only carries the body. `delivered` in the result counts the browsers that accepted the push — `0` means nobody opted in (or push isn't set up), so never treat it as the human's acknowledgement, and don't retry on it.
@@ -213,21 +252,24 @@ Writing the body:
 
 Do **not** notify after every `comment reply` (one per round is enough), before a `wait` the human isn't expecting, or as a progress heartbeat. Notification fatigue gets the toggle switched off, and then no ping reaches them at all.
 
-## Boundary — agent may ONLY reply (BDR-0018)
+## Boundary — the round and the verdict are the human's (BDR-0018, BDR-0026)
 
-The agent's sole authoring verb is `comment reply` on an **existing** comment. There is deliberately **no CLI verb** to:
+You may author comments (`comment add`), reply, resolve, and react. There is deliberately **no CLI verb** to:
 
-- author a top-level comment,
-- open/select files *for review* (creating/editing a review's file set is staging your own work, not reviewing — that's allowed),
-- submit a verdict or resolve a comment.
+- submit a round,
+- submit a verdict or approve.
 
-Those are **human-only**. If a task asks you to "leave a review comment" or "approve", that is out of scope — surface it to the human; do not try to fake it through another command.
+Those are **human-only**. If a task asks you to "approve" the review, that is out of scope — surface it to the human; do not try to fake it through another command.
+
+When you author critique, you are reviewing someone else's work — hold the same bar the human would. A `comment add` is for a finding you would defend: a bug, a broken invariant, a claim the code does not support. Notes you would not bother a colleague with belong in your final message, not in the review.
+
+Resolving is a claim that the critique was **addressed**, not that you disagree with it. If you think a comment is wrong, reply and say so; leave it open for the human.
 
 `review url`, `review open`, and top-level `open` are **read-only navigation** (they print or open a URL, never author), so they're fine to use — but only open the browser when the human asks.
 
 ## Reactions (emoji vocabulary)
 
-A **reaction** is a single emoji an actor puts on a comment or reply — a lightweight signal, not a reply. Humans and agents use **disjoint** vocabularies, and each actor holds **at most one** reaction per comment/reply (picking a new one replaces the old; picking the same one clears it).
+A **reaction** is a single emoji an actor puts on a comment or reply — a lightweight signal, not a reply. Humans and agents use **disjoint** vocabularies, and each actor holds **at most one** reaction per comment/reply (picking a new one replaces the old; picking the same one clears it). "Each actor" means each **named** agent: your `--as` reaction is yours, and swapping it never disturbs another agent's on the same target.
 
 **Human** — approval / opposition strength (you only *read* these, never set them):
 
@@ -238,7 +280,7 @@ A **reaction** is a single emoji an actor puts on a comment or reply — a light
 | 👎 | `disagree` | disagree |
 | ❌ | `strong_disagree` | strongly oppose |
 
-**Agent** — a free-form work-status signal on a human's comment or reply. You may use **any** emoji glyph, and you're encouraged to **vary** it: reach for the glyph that best captures *this* moment rather than defaulting to the same one every time. The table below is a starting palette, not a fixed set — a well-chosen 🐛 / 🚧 / 🎉 / 🔍 / 🧪 / ⏳ communicates far more than 👀 on repeat.
+**Agent** — a free-form work-status signal on anyone's comment or reply. You may use **any** emoji glyph, and you're encouraged to **vary** it: reach for the glyph that best captures *this* moment rather than defaulting to the same one every time. The table below is a starting palette, not a fixed set — a well-chosen 🐛 / 🚧 / 🎉 / 🔍 / 🧪 / ⏳ communicates far more than 👀 on repeat.
 
 | emoji | meaning |
 |-------|---------|
