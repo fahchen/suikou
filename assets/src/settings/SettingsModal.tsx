@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
-import { Check, Info, Palette, SlidersHorizontal, X } from "lucide-react"
+import { Bell, Check, Info, Palette, SlidersHorizontal, X } from "lucide-react"
 
+import * as push from "../lib/push"
 import { BrandMark, BRAND_SERIF } from "../brand/BrandMark"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { Segmented } from "../components/ui/segmented"
@@ -21,11 +22,12 @@ const THEME_GROUPS = [
   },
 ]
 
-type Pane = "appearance" | "review" | "about"
+type Pane = "appearance" | "review" | "notifications" | "about"
 
 const NAV: { id: Pane; label: string; icon: ReactNode }[] = [
   { id: "appearance", label: "Appearance", icon: <Palette size={16} aria-hidden /> },
   { id: "review", label: "Review defaults", icon: <SlidersHorizontal size={16} aria-hidden /> },
+  { id: "notifications", label: "Notifications", icon: <Bell size={16} aria-hidden /> },
   { id: "about", label: "About", icon: <Info size={16} aria-hidden /> },
 ]
 
@@ -78,6 +80,7 @@ export const SettingsModal = observer(function SettingsModal() {
           <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
             {pane === "appearance" && <AppearancePane />}
             {pane === "review" && <ReviewDefaultsPane />}
+            {pane === "notifications" && <NotificationsPane />}
             {pane === "about" && <AboutPane />}
           </div>
         </div>
@@ -213,6 +216,67 @@ const ReviewDefaultsPane = observer(function ReviewDefaultsPane() {
     </div>
   )
 })
+
+const NOTIF_HINT: Record<"unsupported" | "denied", string> = {
+  unsupported:
+    "Needs a secure context. Over the tailnet, front the app with HTTPS (tailscale serve); plain HTTP and the dev server carry no push.",
+  denied: "Blocked. Allow notifications for this site in your browser settings, then reload.",
+}
+
+function NotificationsPane() {
+  const [reason, setReason] = useState(push.unavailableReason())
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    push.isSubscribed().then((subscribed) => {
+      if (active) setEnabled(subscribed)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const onChange = async (next: boolean) => {
+    setBusy(true)
+    try {
+      if (next) {
+        setEnabled(await push.enable())
+      } else {
+        await push.disable()
+        setEnabled(false)
+      }
+    } finally {
+      setReason(push.unavailableReason())
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PaneHead
+        title="Notifications"
+        lede="Let an agent ping you to come review. Opt in per device — the subscription lives in this browser."
+      />
+      <Row
+        title="Review notifications"
+        sub={
+          reason
+            ? NOTIF_HINT[reason]
+            : "Show a system notification when an agent asks you to review a change."
+        }
+      >
+        <Switch
+          aria-label="Review notifications"
+          checked={enabled}
+          disabled={reason !== null || busy}
+          onCheckedChange={onChange}
+        />
+      </Row>
+    </div>
+  )
+}
 
 function AboutPane() {
   return (
