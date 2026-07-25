@@ -289,7 +289,12 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                   requestOpen({ start: block.line, end: block.endLine })
                 }}
                 style={{
-                  minWidth: `${gutter + 2}ch`,
+                  // Room for the document's widest line number *plus* the px-3
+                  // padding. Sizing by digits alone let a two-digit number push
+                  // past the minimum while a one-digit one sat on it, so the body
+                  // beside it started at a different x on every other row — most
+                  // visible on tables, where each row is its own element.
+                  minWidth: `calc(${gutter}ch + 1.5rem)`,
                   touchAction: "none",
                 }}
                 title="Comment on this block — drag or shift-click for a range"
@@ -650,7 +655,9 @@ export const Source = observer(function Source({
               if (event.shiftKey || composerMode === "popover" || event.detail !== 0) return
               requestOpen({ start: lineNo, end: lineNo })
             }}
-            style={{ minWidth: `${gutter + 2}ch`, touchAction: "none" }}
+            // Digits plus the px-3 padding, so every line's body starts at the
+            // same x — see the markdown gutter above.
+            style={{ minWidth: `calc(${gutter}ch + 1.5rem)`, touchAction: "none" }}
             title="Comment on this line — drag or shift-click for a range"
             className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
               selecting || focused
