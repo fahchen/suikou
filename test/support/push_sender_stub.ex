@@ -37,6 +37,12 @@ defmodule Suikou.PushSenderStub do
       String.contains?(endpoint, "boom") ->
         raise CaseClauseError, term: {:req_request, %{reason: :timeout}}
 
+      # A push service that accepted the connection and then went quiet. Sleeps
+      # past :web_push_timeout_ms so the caller abandons it; nothing waits on this
+      # process, so there is no state to synchronize with instead.
+      String.contains?(endpoint, "stalled") ->
+        Process.sleep(:infinity)
+
       true ->
         {:ok, %{}}
     end

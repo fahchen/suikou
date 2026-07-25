@@ -55,6 +55,17 @@ defmodule Suikou.PushTest do
       assert {:ok, 0} = Push.notify(%{title: "Spec", body: "Ready", url: "https://s/reviews/1"})
     end
 
+    test "abandons a subscriber that never answers, and keeps that row" do
+      {:ok, _stalled} =
+        Push.subscribe(%{endpoint: "https://push/stalled", p256dh: "BPk", auth: "tBH"})
+
+      {:ok, _live} = Push.subscribe(%{endpoint: "https://push/live", p256dh: "BPk", auth: "tBH"})
+
+      assert {:ok, 1} = Push.notify(%{title: "Spec", body: "Ready", url: "https://s/reviews/1"})
+      # Silence is not proof the subscription is gone — only a 404/410 is.
+      assert [_stalled, _live] = Repo.all(PushSubscription)
+    end
+
     test "keeps delivering when a subscriber's send raises, and keeps that row" do
       {:ok, _boom} = Push.subscribe(%{endpoint: "https://push/boom", p256dh: "BPk", auth: "tBH"})
       {:ok, _live} = Push.subscribe(%{endpoint: "https://push/live", p256dh: "BPk", auth: "tBH"})

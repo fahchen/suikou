@@ -46,3 +46,7 @@ config :web_push_elixir,
 # Stub the Web Push sender so Suikou.Push.notify/1 exercises its delivery and
 # prune paths without any network — the stub decides by endpoint (see the module).
 config :suikou, :web_push_sender, {Suikou.PushSenderStub, :send_notification}
+
+# Short send timeout so the abandon-a-stalled-subscriber path is exercised in
+# milliseconds rather than the 5 s a real one waits.
+config :suikou, :web_push_timeout_ms, 50

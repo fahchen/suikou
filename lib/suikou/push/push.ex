@@ -22,6 +22,11 @@ defmodule Suikou.Push do
   # Production compiles the real library call with zero runtime indirection.
   @sender Application.compile_env(:suikou, :web_push_sender, {WebPushElixir, :send_notification})
 
+  # How long one subscriber's push may take before it is abandoned. A push service
+  # that has gone quiet must not hold a notify open; the subscription is kept and
+  # the next notify tries again. Shortened in config/test.exs.
+  @send_timeout_ms Application.compile_env(:suikou, :web_push_timeout_ms, 5_000)
+
   @doc """
   Records a browser subscription, keyed by its push `endpoint`. Re-subscribing an
   existing endpoint replaces its keys in place (a browser may rotate them).
@@ -70,6 +75,10 @@ defmodule Suikou.Push do
   unreachable is logged and skipped, keeping its row — being unreachable says
   nothing about whether the subscription is still valid.
 
+  Each push is a round-trip to an external service, so they run concurrently: one
+  subscriber whose push service is slow would otherwise hold up everyone behind
+  it for its whole timeout.
+
   ## Examples
 
       Suikou.Push.notify(%{title: "Spec", body: "Ready for review", url: "https://s/reviews/1"})
@@ -83,22 +92,39 @@ defmodule Suikou.Push do
     query = from s in PushSubscription, as: :push_subscription
     subscriptions = Repo.all(query)
 
-    delivered =
-      Enum.reduce(subscriptions, 0, fn subscription, acc ->
-        case deliver(subscription, message) do
-          :ok ->
-            acc + 1
+    # `deliver/2` never raises, which is what makes this safe: a task that did
+    # would take the caller down with it. Repo writes stay in this process — a
+    # task doesn't inherit the caller's checked-out connection.
+    outcomes =
+      subscriptions
+      |> Task.async_stream(&{&1, deliver(&1, message)},
+        timeout: @send_timeout_ms,
+        on_timeout: :kill_task,
+        zip_input_on_exit: true,
+        ordered: false
+      )
+      |> Enum.map(&outcome/1)
 
-          :expired ->
-            Repo.delete(subscription)
-            acc
+    prune(for {subscription, :expired} <- outcomes, do: subscription.id)
 
-          :error ->
-            acc
-        end
-      end)
+    {:ok, Enum.count(outcomes, fn {_subscription, outcome} -> outcome == :ok end)}
+  end
 
-    {:ok, delivered}
+  # A killed task means the push service never answered in time. That says nothing
+  # about the subscription, so it counts as a skip and the row stays.
+  defp outcome({:ok, delivered}), do: delivered
+
+  defp outcome({:exit, {%PushSubscription{} = subscription, reason}}) do
+    Logger.warning("web push timed out for #{subscription.endpoint}: #{inspect(reason)}")
+    {subscription, :error}
+  end
+
+  defp prune([]), do: :ok
+
+  defp prune(ids) do
+    query = from s in PushSubscription, as: :push_subscription, where: s.id in ^ids
+    Repo.delete_all(query)
+    :ok
   end
 
   defp deliver(%PushSubscription{} = subscription, message) do
