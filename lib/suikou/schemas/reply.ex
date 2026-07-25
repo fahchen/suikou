@@ -4,7 +4,8 @@ defmodule Suikou.Schemas.Reply do
   agents reply, so `author` says which kind wrote it and `author_name` /
   `author_icon` name the individual agent — with several agents in one thread,
   "the agent said this" no longer identifies a speaker. Both are `""` for the
-  human, who reviews anonymously.
+  human, who supplies no name: there is one of them, and
+  `Suikou.Critique.Identity` gives them a fixed reserved name on the way out.
 
   Replies share the comment lifecycle: a human reply is `:pending` until its
   round is submitted, an agent reply is `:published` immediately. `author`, the

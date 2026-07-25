@@ -76,8 +76,9 @@ defmodule SuikouWeb.Stores.CommentContract do
     end
   end
 
-  # Who wrote a comment or reply. `kind` styles the row; `name`/`icon` name the
-  # individual agent, and are `nil` for the human, who reviews anonymously.
+  # Who wrote a comment or reply. `kind` styles the row; `name` is the agent's
+  # own or the human's fixed reserved one, and `icon` is the agent's glyph —
+  # `nil` for the human, whose glyph is a local display preference.
   defp author_type_ast do
     quote do
       %{kind: :human | :agent, name: String.t() | nil, icon: String.t() | nil}

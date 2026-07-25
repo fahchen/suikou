@@ -59,7 +59,7 @@ defmodule Suikou.Critique.Discussion do
       Suikou.Critique.Discussion.reply_as_agent(open_comment.id, "fixed", %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Reply{author: :agent, status: :published}}
 
-      Suikou.Critique.Discussion.reply_as_agent(resolved_comment.id, "fixed", %{name: "", icon: ""})
+      Suikou.Critique.Discussion.reply_as_agent(resolved_comment.id, "fixed", %{name: "Codex", icon: "🤖"})
       #=> {:error, :not_open}
 
   """

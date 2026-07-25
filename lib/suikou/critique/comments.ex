@@ -3,7 +3,7 @@ defmodule Suikou.Critique.Comments do
   Authoring and lifecycle of critique. New comments attach to the latest round
   only; a `:located` comment captures its quoted source on creation.
 
-  The human authors through `add/1`, an agent through `add_as_agent/1` (see
+  The human authors through `add/1`, an agent through `add_as_agent/2` (see
   BDR-0026). They differ in two ways: an agent names itself on the call, and its
   comment is published immediately rather than waiting on a submit — an agent has
   no draft stage to batch into.
@@ -76,7 +76,7 @@ defmodule Suikou.Critique.Comments do
       Suikou.Critique.Comments.add_as_agent(%{artifact_id: artifact.id, scope: :artifact, critique_type: :fix_required, body: "leaks a file handle"}, %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Comment{author: :agent, status: :published}}
 
-      Suikou.Critique.Comments.add_as_agent(%{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :artifact, critique_type: :note, body: "x"}, %{name: "", icon: ""})
+      Suikou.Critique.Comments.add_as_agent(%{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :artifact, critique_type: :note, body: "x"}, %{name: "Codex", icon: "🤖"})
       #=> {:error, :artifact_not_found}
 
   """

@@ -3,7 +3,8 @@ defmodule Suikou.Schemas.Reaction do
   An emoji an actor applies to a comment or a reply. Both the human reviewer and
   any number of agents may react, so a reaction carries an `actor` (which kind)
   plus `actor_name` / `actor_icon` (which agent). Both are `""` for the human,
-  who reviews anonymously.
+  who supplies no name: there is one of them, and `Suikou.Critique.Identity`
+  gives them a fixed reserved name on the way out.
 
   A reaction targets exactly one of a comment or a reply: `comment_id` and
   `reply_id` are both nullable, but a DB check constraint requires exactly one to

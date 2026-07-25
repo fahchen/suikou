@@ -30,8 +30,20 @@ defmodule Suikou.Repo.Migrations.AuthorIdentityOnCritique do
     # One reaction per *identity* per target, not per actor kind: two agents
     # reacting on the same comment are two rows, while one agent switching emoji
     # still replaces its own. The human keeps a single slot via its empty name.
-    drop unique_index(:reactions, [:comment_id, :actor], name: :reactions_comment_actor)
-    drop unique_index(:reactions, [:reply_id, :actor], name: :reactions_reply_actor)
+    #
+    # The dropped indexes repeat their `where:` so the reverse `create` restores
+    # them partial. Without it a rollback would rebuild them unscoped, and the
+    # prior code's `ON CONFLICT (…) WHERE reply_id IS NULL` would no longer match
+    # any index — every reaction insert would raise.
+    drop unique_index(:reactions, [:comment_id, :actor],
+           where: "reply_id IS NULL",
+           name: :reactions_comment_actor
+         )
+
+    drop unique_index(:reactions, [:reply_id, :actor],
+           where: "comment_id IS NULL",
+           name: :reactions_reply_actor
+         )
 
     create unique_index(:reactions, [:comment_id, :actor, :actor_name],
              where: "reply_id IS NULL",

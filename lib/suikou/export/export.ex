@@ -18,7 +18,8 @@ defmodule Suikou.Export do
   of `%{kind, name, icon}` (see `Suikou.Critique.author_view/3`). With several agents
   reviewing one round, an agent reading this snapshot has to tell its own
   critique from a peer's before deciding what it owes a move on; `kind` alone
-  cannot. The human reviews anonymously, so their `name` and `icon` are `nil`.
+  cannot. The human always answers under their reserved name and carries no
+  icon — their glyph is a local display preference, not review state.
   """
 
   import Ecto.Query

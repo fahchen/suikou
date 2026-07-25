@@ -69,8 +69,9 @@ export function Reactions({
       {/* initial={false} so chips present on first render don't pop; only chips
           added or removed later animate, with layout easing neighbours over. */}
       <AnimatePresence initial={false}>
-        {reactions.map((reaction) =>
-          reaction.actor === "agent" ? (
+        {reactions.map((reaction) => {
+          const badge = soleAuthorIcon(reaction)
+          return reaction.actor === "agent" ? (
             <motion.span
               key={reaction.emoji}
               layout
@@ -82,8 +83,8 @@ export function Reactions({
               className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
             >
               <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
-              {soleAuthorIcon(reaction) ? (
-                <span aria-hidden className="text-[11px] leading-none">{soleAuthorIcon(reaction)}</span>
+              {badge ? (
+                <span aria-hidden className="text-[11px] leading-none">{badge}</span>
               ) : (
                 <Bot size={11} className="text-accent-bright" aria-hidden />
               )}
@@ -108,8 +109,8 @@ export function Reactions({
             >
               {reactionGlyph(reaction.emoji)}
             </motion.button>
-          ),
-        )}
+          )
+        })}
       </AnimatePresence>
       <Popover
         open={open}

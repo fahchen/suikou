@@ -7,8 +7,9 @@ defmodule Suikou.Schemas.Comment do
   BDR-0026). `author` says which kind wrote it, and `author_name`/`author_icon`
   name the individual agent — several agents review the same round, so
   "an agent said this" is not enough to follow a thread. They are set by the
-  authoring path, never cast from input, and are `""` for the human, who reviews
-  anonymously.
+  authoring path, never cast from input. An agent must supply a name; the human
+  supplies none and stores `""`, since there is exactly one of them and
+  `Suikou.Critique.Identity` gives them a fixed reserved name on the way out.
 
   A comment is a single row across every round. Its per-round visibility is
   derived from `authored_round` (the round it was created in; denormalized and

@@ -157,7 +157,7 @@ defmodule Suikou.Critique.Reactions do
       Suikou.Critique.Reactions.react_as_agent(comment.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, comment.id}
 
-      Suikou.Critique.Reactions.react_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "", icon: ""})
+      Suikou.Critique.Reactions.react_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "Codex", icon: "🤖"})
       #=> {:error, :comment_not_found}
 
   """
@@ -192,7 +192,7 @@ defmodule Suikou.Critique.Reactions do
       Suikou.Critique.Reactions.unreact_as_agent(comment.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, comment.id}
 
-      Suikou.Critique.Reactions.unreact_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "", icon: ""})
+      Suikou.Critique.Reactions.unreact_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "Codex", icon: "🤖"})
       #=> {:error, :comment_not_found}
 
   """
@@ -293,7 +293,7 @@ defmodule Suikou.Critique.Reactions do
       Suikou.Critique.Reactions.react_reply_as_agent(reply.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, reply.comment_id}
 
-      Suikou.Critique.Reactions.react_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "", icon: ""})
+      Suikou.Critique.Reactions.react_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "Codex", icon: "🤖"})
       #=> {:error, :reply_not_found}
 
   """
@@ -328,7 +328,7 @@ defmodule Suikou.Critique.Reactions do
       Suikou.Critique.Reactions.unreact_reply_as_agent(reply.id, "👀", %{name: "Codex", icon: "🤖"})
       #=> {:ok, reply.comment_id}
 
-      Suikou.Critique.Reactions.unreact_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "", icon: ""})
+      Suikou.Critique.Reactions.unreact_reply_as_agent("00000000-0000-7000-8000-000000000000", "👀", %{name: "Codex", icon: "🤖"})
       #=> {:error, :reply_not_found}
 
   """
