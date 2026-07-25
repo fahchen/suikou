@@ -1,5 +1,6 @@
 import { makeAutoObservable } from "mobx"
 
+import { errorLogStore } from "./error-log-store"
 import { THEMES, type ThemeName } from "../themes"
 
 export type Density = "compact" | "comfortable" | "loose"
@@ -29,6 +30,7 @@ const FILE_RANGE_KEY = "suikou-file-range"
 const DIFF_STYLE_KEY = "suikou-diff-style"
 const WORD_DIFF_KEY = "suikou-word-diff"
 const USER_EMOJI_KEY = "suikou-user-emoji"
+const ERROR_LOG_KEY = "suikou-error-log"
 
 /** App-wide UI preferences (theme, reading density, code wrap) plus the
  * settings modal's open flag. Persisted to localStorage and applied to the
@@ -43,6 +45,7 @@ class UiStore {
   diffStyle: DiffStyle = "unified"
   wordDiff = true
   userEmoji = ""
+  errorLog = false
   diffScope: DiffScope = "all"
   diffWorktree: DiffWorktree = "diff"
   settingsOpen = false
@@ -98,6 +101,23 @@ class UiStore {
     this.userEmoji = [...emoji.trim()][0] ?? ""
     if (this.userEmoji) localStorage.setItem(USER_EMOJI_KEY, this.userEmoji)
     else localStorage.removeItem(USER_EMOJI_KEY)
+  }
+
+  setErrorLog(on: boolean) {
+    this.errorLog = on
+    localStorage.setItem(ERROR_LOG_KEY, on ? "1" : "0")
+
+    if (on) {
+      errorLogStore.listen()
+      return
+    }
+
+    // Stop before clearing: clearing alone would empty the list while the
+    // listeners kept refilling it, invisibly, with the tab now hidden. Discard
+    // what was collected too — keeping stack traces for a reader who asked to
+    // stop recording them serves nobody.
+    errorLogStore.stop()
+    errorLogStore.clear()
   }
 
   setDiffScope(scope: DiffScope) {
@@ -157,6 +177,10 @@ class UiStore {
     if (diffStyle === "unified" || diffStyle === "split") this.diffStyle = diffStyle
     this.wordDiff = localStorage.getItem(WORD_DIFF_KEY) !== "0"
     this.userEmoji = localStorage.getItem(USER_EMOJI_KEY) ?? ""
+    this.errorLog = localStorage.getItem(ERROR_LOG_KEY) === "1"
+    // Attach before first paint when it was already on, so an error thrown
+    // during startup — the kind worth catching — is not missed.
+    if (this.errorLog) errorLogStore.listen()
     this.applyTheme()
   }
 

@@ -1,8 +1,12 @@
-import { PaneHead } from "./pane-parts"
+import { observer } from "mobx-react-lite"
+
+import { PaneHead, Row } from "./pane-parts"
 import { BUILD_INFO } from "../../build-info"
 import { BrandMark, BRAND_SERIF } from "../../brand/BrandMark"
+import { Switch } from "../../components/ui/switch"
+import { uiStore } from "../../stores/ui-store"
 
-export function AboutPane() {
+export const AboutPane = observer(function AboutPane() {
   return (
     <div className="flex flex-col gap-4">
       <PaneHead title="About" lede="" />
@@ -35,9 +39,21 @@ export function AboutPane() {
         </figcaption>
       </figure>
       <BuildRow />
+      <div className="border-t border-hair pt-4">
+        <Row
+          title="Collect error logs"
+          sub="Keeps the last 50 errors this browser hits, in an Errors tab. Stored here only — nothing is sent anywhere."
+        >
+          <Switch
+            aria-label="Collect error logs"
+            checked={uiStore.errorLog}
+            onCheckedChange={(v) => uiStore.setErrorLog(v)}
+          />
+        </Row>
+      </div>
     </div>
   )
-}
+})
 
 /** What this bundle was built from. Worth showing because the app updates itself
  * in the background: without it there is no way to tell whether the page in

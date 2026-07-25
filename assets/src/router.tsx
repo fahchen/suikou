@@ -3,6 +3,7 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react"
 
 import { FileNotice } from "./review/components/EditorSurface"
 import { reloadForFreshShell, staleShellError } from "./lib/stale-shell"
+import { errorLogStore } from "./stores/error-log-store"
 import { routeTree } from "./routeTree.gen"
 
 export const router = createRouter({
@@ -34,6 +35,17 @@ function NotFoundPage() {
 }
 
 function RouteErrorPage({ error }: ErrorComponentProps) {
+  // A render failure never reaches the window listeners, so the boundary is the
+  // only place it can be recorded. Logged before the stale-shell branch below,
+  // which navigates away and would otherwise lose it. `record` ignores this
+  // while collecting is off, so there is nothing to check here.
+  errorLogStore.record({
+    kind: "render",
+    message: error.message,
+    source: "route error boundary",
+    stack: error.stack ?? "",
+  })
+
   // A chunk this tab's shell expects but the deployed build no longer ships:
   // reload onto the current one rather than blaming the user's page. Rate-limited
   // inside, so a build that really is missing the chunk falls through to the
