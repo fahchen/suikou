@@ -19,6 +19,13 @@ defmodule SuikouWeb.Router do
     get "/review/:review_id/commits", AssetController, :commits
     get "/review/:review_id/files", AssetController, :files
 
+    # PWA Web Push: the frontend reads the push config (VAPID key + whether the
+    # subject is set), then registers/drops its browser subscription. Placed
+    # before the catch-all so the GET isn't swallowed.
+    get "/push/config", PushController, :config
+    post "/push/subscribe", PushController, :subscribe
+    delete "/push/subscribe", PushController, :unsubscribe
+
     # Unmatched API paths 404 here under :asset (no :accepts), so a JSON client
     # gets 404 instead of the 406 the :browser pipeline would raise on Accept.
     get "/*path", SpaController, :not_found
