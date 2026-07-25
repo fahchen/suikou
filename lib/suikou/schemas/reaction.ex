@@ -1,16 +1,18 @@
 defmodule Suikou.Schemas.Reaction do
   @moduledoc """
   An emoji an actor applies to a comment or a reply. Both the human reviewer and
-  the agent may react (see BDR-0018's deliberate extension of the "agent may only
-  reply" boundary), so a reaction carries an `actor`.
+  any number of agents may react, so a reaction carries an `actor` (which kind)
+  plus `actor_name` / `actor_icon` (which agent). Both are `""` for the human,
+  who reviews anonymously.
 
   A reaction targets exactly one of a comment or a reply: `comment_id` and
   `reply_id` are both nullable, but a DB check constraint requires exactly one to
-  be set, mirrored by `changeset/2`. `actor` is set by the reaction path when the
-  struct is built, never cast from input; `emoji` and the target id are cast.
-  Each actor holds at most one reaction per target: a `(comment_id, actor)` pair
-  (or `(reply_id, actor)`) is unique, so picking a new emoji replaces the actor's
-  previous one in place rather than adding a row.
+  be set, mirrored by `changeset/2`. `actor` and the identity fields are set by
+  the reaction path when the struct is built, never cast from input; `emoji` and
+  the target id are cast. Each *identity* holds at most one reaction per target:
+  a `(comment_id, actor, actor_name)` triple (or `(reply_id, …)`) is unique, so
+  picking a new emoji replaces that agent's previous one in place, while a
+  second agent's reaction is a row of its own.
 
   The human vocabulary is a fixed approval/opposition scale (`human_emojis/0`);
   the agent may react with **any** emoji glyph (a free-form work-status signal),
@@ -32,6 +34,8 @@ defmodule Suikou.Schemas.Reaction do
   typed_schema "reactions" do
     field :emoji, :string, typed: [null: false]
     field :actor, Ecto.Enum, values: @actors, typed: [null: false]
+    field :actor_name, :string, default: "", typed: [null: false]
+    field :actor_icon, :string, default: "", typed: [null: false]
 
     belongs_to :comment, Comment
     belongs_to :reply, Reply

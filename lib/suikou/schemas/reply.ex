@@ -1,11 +1,14 @@
 defmodule Suikou.Schemas.Reply do
   @moduledoc """
-  A reply in a comment's thread. The human reviewer authors comments and
-  replies; the agent may only reply, via a dedicated reply path.
+  A reply in a comment's thread. Both the human reviewer and any number of
+  agents reply, so `author` says which kind wrote it and `author_name` /
+  `author_icon` name the individual agent — with several agents in one thread,
+  "the agent said this" no longer identifies a speaker. Both are `""` for the
+  human, who reviews anonymously.
 
   Replies share the comment lifecycle: a human reply is `:pending` until its
-  round is submitted, an agent reply is `:published` immediately. `author` and
-  `status` are set by the reply path, never cast from input.
+  round is submitted, an agent reply is `:published` immediately. `author`, the
+  identity fields, and `status` are set by the reply path, never cast from input.
   """
 
   use Suikou.Schema
@@ -21,6 +24,8 @@ defmodule Suikou.Schemas.Reply do
 
   typed_schema "replies" do
     field :author, Ecto.Enum, values: @authors, typed: [null: false]
+    field :author_name, :string, default: "", typed: [null: false]
+    field :author_icon, :string, default: "", typed: [null: false]
     field :body, :string, typed: [null: false]
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
 

@@ -1,7 +1,14 @@
 defmodule Suikou.Schemas.Comment do
   @moduledoc """
-  A unit of structured human critique: a scope, a critique type, a body,
-  lifecycle status, and optional line anchor.
+  A unit of structured critique: a scope, a critique type, a body, lifecycle
+  status, and optional line anchor.
+
+  Both the human reviewer and any number of agents author comments (see
+  BDR-0026). `author` says which kind wrote it, and `author_name`/`author_icon`
+  name the individual agent — several agents review the same round, so
+  "an agent said this" is not enough to follow a thread. They are set by the
+  authoring path, never cast from input, and are `""` for the human, who reviews
+  anonymously.
 
   A comment is a single row across every round. Its per-round visibility is
   derived from `authored_round` (the round it was created in; denormalized and
@@ -24,15 +31,20 @@ defmodule Suikou.Schemas.Comment do
   @scopes [:review, :artifact, :located]
   @critique_types [:fix_required, :needs_answer, :note]
   @statuses [:pending, :published]
+  @authors [:human, :agent]
 
   @anchor_types [line_range: LineRange, diff_hunk: DiffHunk, element: Element]
 
   @type scope() :: :review | :artifact | :located
   @type critique_type() :: :fix_required | :needs_answer | :note
   @type status() :: :pending | :published
+  @type author() :: :human | :agent
 
   typed_schema "comments" do
     field :scope, Ecto.Enum, values: @scopes, typed: [null: false]
+    field :author, Ecto.Enum, values: @authors, default: :human, typed: [null: false]
+    field :author_name, :string, default: "", typed: [null: false]
+    field :author_icon, :string, default: "", typed: [null: false]
 
     polymorphic_embeds_one(:anchor,
       types: @anchor_types,
@@ -78,23 +90,25 @@ defmodule Suikou.Schemas.Comment do
   def critique_types, do: @critique_types
 
   @doc """
-  Builds a changeset for authoring a critique, requiring round, scope, critique
+  Builds a changeset for authoring a critique on `comment` (a struct that
+  already carries the programmatic `author`, `author_name`, `author_icon`, and
+  `status`, set when the struct is built), requiring round, scope, critique
   type, a non-blank body, and the `authored_round` it was created in (the
   immutable round number every scope carries). A `:located` comment also
   requires an `anchor`; `:artifact` and `:review` comments carry none.
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
+      iex> Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
       true
 
-      iex> Suikou.Schemas.Comment.author_changeset(%{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " ", authored_round: 1}).valid?
+      iex> Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " ", authored_round: 1}).valid?
       false
 
   """
-  @spec author_changeset(map()) :: Ecto.Changeset.t()
-  def author_changeset(params) do
-    %__MODULE__{}
+  @spec author_changeset(Ecto.Schema.t(), map()) :: Ecto.Changeset.t()
+  def author_changeset(comment, params) do
+    comment
     |> cast(params, [:round_id, :scope, :critique_type, :body, :authored_round])
     |> validate_required([:round_id, :scope, :critique_type, :body, :authored_round])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
