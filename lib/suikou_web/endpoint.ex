@@ -33,7 +33,7 @@ defmodule SuikouWeb.Endpoint do
     at: "/",
     from: :suikou,
     gzip: not code_reloading?,
-    only: ~w(sw.js manifest.webmanifest index.html),
+    only: ~w(sw.js push-sw.js manifest.webmanifest index.html),
     cache_control_for_etags: "no-cache"
 
   # Serve at "/" the remaining static files from "priv/static" directory

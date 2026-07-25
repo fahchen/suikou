@@ -27,6 +27,10 @@ export default defineConfig({
       injectRegister: "inline",
       workbox: {
         inlineWorkboxRuntime: true,
+        // Layer the Web Push push/notificationclick handlers onto the generated
+        // sw.js. push-sw.js is a committed static file (priv/static), kept out of
+        // the build so this tuned app-shell config stays intact.
+        importScripts: ["/push-sw.js"],
         // Precache only the shell (index.html + entry CSS). The JS lives in
         // hundreds of hash-named, lazy-loaded grammar/shiki chunks (~15 MB), so
         // precaching them all would bloat every SW install. They're immutable
