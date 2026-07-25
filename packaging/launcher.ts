@@ -401,6 +401,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     add: {
       expr: "SuikouWeb.AgentCLI.Comments.add()",
       options: {
+        path: { type: "string" },
         body: { type: "string" },
         "body-file": { type: "string" },
         type: { type: "string" },
@@ -408,20 +409,22 @@ const registry: Record<string, Record<string, CommandSpec>> = {
         hunk: { type: "string" },
         "review-wide": { type: "boolean" }
       },
-      id: { name: "artifact-id", required: true },
+      id: { name: "review-id", required: true },
+      required: ["path"],
       identity: true,
       body: true,
       payload: ({ id, values }) => {
         const anchor = commentAnchor(values)
         return {
-          artifact_id: id,
+          review_id: id,
+          path: values.path,
           scope: commentScope(values, anchor),
           critique_type: critiqueType(values),
           ...(anchor ? { anchor } : {})
         }
       },
       summary:
-        "author a comment (<artifact-id> [--type note|fix_required|needs_answer] [--line N-M | --hunk new:N-M | --review-wide] --body | --body-file | stdin)"
+        "author a comment (<review-id> --path <file> [--type note|fix_required|needs_answer] [--line N-M | --hunk new:N-M | --review-wide] --body | --body-file | stdin)"
     },
     reply: {
       expr: "SuikouWeb.AgentCLI.Comments.reply()",

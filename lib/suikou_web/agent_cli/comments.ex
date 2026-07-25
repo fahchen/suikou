@@ -11,20 +11,29 @@ defmodule SuikouWeb.AgentCLI.Comments do
   """
 
   alias Suikou.Critique
+  alias Suikou.Reviews
+  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
+  alias Suikou.Schemas.Review
   alias SuikouWeb.AgentCLI
 
   @doc """
-  Authors a top-level comment from `%{"artifact_id", "scope", "critique_type",
-  "body", "anchor"}` and emits `%{comment_id}` or `%{error}`. It attaches to the
-  artifact's latest round and is published immediately — an agent has no draft to
-  submit. `anchor` carries the tagged payload a `:located` comment needs
-  (`%{"type" => "line_range", …}`).
+  Authors a top-level comment from `%{"review_id", "path", "scope",
+  "critique_type", "body", "anchor"}` and emits `%{comment_id}` or `%{error}`.
+  It attaches to the file's latest round and is published immediately — an agent
+  has no draft to submit. `anchor` carries the tagged payload a `:located`
+  comment needs (`%{"type" => "line_range", …}`).
+
+  Targets the review and a path rather than an artifact id: a file's artifact is
+  minted the first time someone opens it, and a reviewing agent usually gets
+  there before the human has opened anything. `Suikou.Reviews.open_file/2` mints
+  it if needed and returns the existing one otherwise, so this works either way —
+  and it rejects a path the review does not cover.
 
   ## Examples
 
-      # stdin: {"artifact_id": "0192…", "scope": "located", "critique_type": "fix_required", "body": "unclosed file", "anchor": {"type": "line_range", "start_line": 12, "end_line": 14}, "as": "Codex"}
+      # stdin: {"review_id": "0192…", "path": "lib/a.ex", "scope": "located", "critique_type": "fix_required", "body": "unclosed file", "anchor": {"type": "line_range", "start_line": 12, "end_line": 14}, "as": "Codex"}
       SuikouWeb.AgentCLI.Comments.add()
       #=> :ok  # emits {"comment_id":"0192…","error":null}
 
@@ -33,21 +42,36 @@ defmodule SuikouWeb.AgentCLI.Comments do
   def add do
     payload = AgentCLI.read_payload()
 
-    params = %{
-      artifact_id: payload["artifact_id"],
-      scope: payload["scope"],
-      critique_type: payload["critique_type"],
-      body: payload["body"],
-      anchor: payload["anchor"]
-    }
-
     result =
-      case Critique.add_comment_as_agent(params, AgentCLI.identity(payload)) do
+      case author(payload) do
         {:ok, %Comment{} = comment} -> %{comment_id: comment.id, error: nil}
         {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
       end
 
     AgentCLI.emit(result)
+  end
+
+  defp author(payload) do
+    with {:ok, %Review{} = review} <- fetch_review(payload["review_id"]),
+         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, payload["path"]) do
+      Critique.add_comment_as_agent(
+        %{
+          artifact_id: artifact.id,
+          scope: payload["scope"],
+          critique_type: payload["critique_type"],
+          body: payload["body"],
+          anchor: payload["anchor"]
+        },
+        AgentCLI.identity(payload)
+      )
+    end
+  end
+
+  defp fetch_review(review_id) do
+    case Reviews.get_review(review_id) do
+      %Review{} = review -> {:ok, review}
+      nil -> {:error, :review_not_found}
+    end
   end
 
   @doc """
