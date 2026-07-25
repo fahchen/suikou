@@ -311,6 +311,13 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       poll: true,
       summary:
         "wait for a submission round (<review-id> [--until-round N] [--rounds a-b] [--all] [--timeout secs])"
+    },
+    notify: {
+      expr: "SuikouWeb.AgentCLI.Reviews.notify()",
+      options: { message: { type: "string" } },
+      id: { name: "review-id", required: true },
+      payload: ({ id, values }) => ({ review_id: id, message: values.message }),
+      summary: "push a review notification to subscribed browsers (<review-id> [--message …])"
     }
   },
   comment: {
@@ -876,6 +883,7 @@ async function releaseEnv(extra: Record<string, string> = {}): Promise<Record<st
     PHX_HOST: process.env.PHX_HOST || "localhost",
     DATABASE_PATH: join(base, "suikou.db"),
     SECRET_KEY_BASE: await ensureSecret(),
+    ...(await ensureVapid()),
     RELEASE_TMP: releaseTmp,
     RELEASE_COOKIE: await ensureCookie(),
     RELEASE_NODE,
@@ -1076,6 +1084,48 @@ async function ensureCookie(): Promise<string> {
   await writeFile(path, cookie, { mode: 0o600 })
   await chmod(path, 0o600)
   return cookie
+}
+
+// Persist the Web Push VAPID keypair on first run, reused across every version.
+// The public key is the browser's applicationServerKey, baked into each stored
+// subscription — regenerating it would silently orphan every subscription, so it
+// must be stable. Returns the env the release reads (config/runtime.exs wires it
+// into :web_push_elixir). Both keys are base64url (no padding): the public key is
+// the raw uncompressed P-256 point (65 bytes), the private key the 32-byte scalar
+// — the exact encoding WebPushElixir url-decodes back into the EC key.
+//
+// Kept here rather than in config.toml, alongside the secret and the cookie: it's
+// a generated credential, not a preference. That keeps a private key out of the
+// hand-edited (and casually pasted) config file, lets push work with no config.toml
+// at all, and hides a footgun — any valid keypair works, so the only "choice" a
+// user could make here is a new one, which drops every existing subscription.
+// Moving an install to another machine therefore has to carry vapid.json next to
+// suikou.db, or subscribers go quiet until each re-enables notifications.
+async function ensureVapid(): Promise<{ VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string }> {
+  const path = join(base, "vapid.json")
+  const f = file(path)
+  if (await f.exists()) {
+    try {
+      const data = JSON.parse(await f.text())
+      if (typeof data?.public === "string" && data.public && typeof data?.private === "string" && data.private) {
+        return { VAPID_PUBLIC_KEY: data.public, VAPID_PRIVATE_KEY: data.private }
+      }
+    } catch {
+      // truncated/corrupt — fall through and regenerate
+    }
+  }
+
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])
+  const rawPublic = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey))
+  const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey)
+  const publicKey = Buffer.from(rawPublic).toString("base64url")
+  // JWK `d` is already the base64url (no-pad) private scalar — use it verbatim.
+  const privateKey = jwk.d as string
+
+  // 0600 so the private key is never exposed in a default-perms window.
+  await writeFile(path, JSON.stringify({ public: publicKey, private: privateKey }), { mode: 0o600 })
+  await chmod(path, 0o600)
+  return { VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey }
 }
 
 // Honor an explicit PORT; otherwise use the configured port (config.toml `port`,

@@ -11,6 +11,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias Suikou.Events
   alias Suikou.Export
   alias Suikou.Projects
+  alias Suikou.Push
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
@@ -425,6 +426,42 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp drop_comment_rounds(%{comments: comments} = artifact) do
     %{artifact | comments: Enum.map(comments, &Map.delete(&1, :resolved_round))}
   end
+
+  @doc """
+  Pushes a Web Push notification for `%{"review_id"}` to every subscribed browser
+  and emits `%{delivered, error}` — the count the push services accepted. The
+  notification's title is the review name, its body the optional `"message"` (a
+  generic prompt when absent), and clicking it opens the review. Emits
+  `%{error: "review_not_found"}` when the review is unknown.
+
+  ## Examples
+
+      # stdin: {"review_id": "0192…", "message": "Addressed round 2"}
+      SuikouWeb.AgentCLI.Reviews.notify()
+      #=> :ok  # emits {"delivered":1,"error":null}
+
+  """
+  @spec notify() :: :ok
+  def notify do
+    payload = AgentCLI.read_payload()
+
+    reply =
+      with_review(payload["review_id"], fn review ->
+        {:ok, delivered} =
+          Push.notify(%{
+            title: review.name,
+            body: notify_body(payload["message"]),
+            url: Endpoint.url() <> "/reviews/" <> review.id
+          })
+
+        %{delivered: delivered, error: nil}
+      end)
+
+    AgentCLI.emit(reply)
+  end
+
+  defp notify_body(message) when is_binary(message) and message != "", do: message
+  defp notify_body(_absent), do: "Ready for review"
 
   defp with_project(project_id, fun) do
     case Projects.get_project(project_id) do

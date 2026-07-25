@@ -1,6 +1,6 @@
 ---
 name: suikou
-description: Drive the Suikou code-review tool from its CLI to run the agent side of a review loop. Create a review over files or a git diff, wait for a human's published critique, read their comments, fix the code, and reply to each addressed comment. Use whenever a task involves submitting work to Suikou for human review or responding to Suikou review feedback.
+description: Use when the human names Suikou — "suikou review", "create a suikou review", "open a review on Suikou", "submit this to Suikou" — or when a Suikou review is already in play: the `suikou` CLI, a review id, a /reviews/ URL, a question about what the reviewer said, or a request to address, reply to, or wait for review comments. Not for ordinary code review that isn't going through Suikou. Runs the agent side end to end: create a review over files or a git diff, notify the human, block until they publish a critique, read their comments, fix the code, and reply per comment until approved.
 ---
 
 # Suikou agent CLI
@@ -35,6 +35,7 @@ suikou review  remove-files <review-id> file1 file2 …
 suikou review  delete      <review-id>
 suikou review  export      <review-id> [--rounds <a-b>] [--all]
 suikou review  wait        <review-id> [--until-round <n>] [--rounds <a-b>] [--all] [--timeout <secs>]
+suikou review  notify      <review-id> [--message <text>]
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
 suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
@@ -159,6 +160,11 @@ A `wait` that times out (no new submission yet) emits instead:
 
 Without `--until-round`, `wait` targets the *next* submission past the current count — so calling it right after a round already landed blocks for the round after, not the one you just got. Without `--timeout`, it blocks across rounds until a submission lands (each backend call blocks ~25 s and the launcher re-issues automatically — no work from you). With `--timeout <secs>`, it gives up after that wall-clock budget and prints this timeout line.
 
+`review notify` (`delivered` is how many browsers accepted the push; `0` = nobody opted in)
+```json
+{"delivered":1,"error":null}
+```
+
 `comment reply`
 ```json
 {"reply_id":"0192…","error":null}
@@ -181,6 +187,31 @@ Without `--until-round`, `wait` targets the *next* submission past the current c
    ```
    (or pipe it on stdin). One call per comment.
 6. **Re-wait for the next round.** `suikou review wait <review-id> --until-round <last-round + 1>`. Passing the round you expect makes re-waiting **never miss a round** that landed between your reply and this call — it returns that round's snapshot immediately rather than blocking for the one after. Track the round from the snapshot's `submission_version`. Loop back to step 4 until the human approves (`verdict:"approve"` / `approved:true`).
+
+## Notifying the human (optional)
+
+`suikou review notify <review-id> --message "<body>"` pushes a notification to every browser the human opted in on (Settings → Notifications). Its title is the review name and clicking it opens that review, so `--message` only carries the body. `delivered` in the result counts the browsers that accepted the push — `0` means nobody opted in (or push isn't set up), so never treat it as the human's acknowledgement, and don't retry on it.
+
+Send one when you hand work back and are about to block: after creating a review, or after finishing a round of replies. It requires notifications enabled on the human's side, which needs the app served over HTTPS (or localhost) — see the README.
+
+### Message templates
+
+| Moment | Command |
+|--------|---------|
+| New review, first pass | `notify <id> --message "Ready for first look — 6 files, ~240 lines"` |
+| Round addressed, re-review | `notify <id> --message "Addressed 5 comments — ready for round 3"` |
+| Partly addressed, one open question | `notify <id> --message "Addressed 4 of 5 — need your call on the retry policy"` |
+| Blocked on a decision | `notify <id> --message "Blocked: two ways to fix the N+1, need your pick"` |
+| Long task finished | `notify <id> --message "Done — all 12 comments addressed, tests green"` |
+
+Writing the body:
+
+- **Never repeat the review name** — the title already carries it, and phone lock screens truncate the body at roughly 80–100 characters.
+- **One sentence, with a number.** "Addressed 5 comments" lets the human judge whether to look now; "made some changes" does not.
+- **Name what you need**: a look, a pick, a decision. The notification exists to drive their next move.
+- Skip pleasantries — they cost characters and add nothing.
+
+Do **not** notify after every `comment reply` (one per round is enough), before a `wait` the human isn't expecting, or as a progress heartbeat. Notification fatigue gets the toggle switched off, and then no ping reaches them at all.
 
 ## Boundary — agent may ONLY reply (BDR-0018)
 
