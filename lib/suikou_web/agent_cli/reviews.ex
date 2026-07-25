@@ -288,13 +288,15 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   sees the new reaction even on a comment it had already addressed. Otherwise it
   emits `%{status: "timeout", submission_version}` carrying the current round
   count. The default latest-round snapshot on a submission wake is filtered to
-  comments the agent still owes a move on (drops resolved and already-answered
-  comments); an explicit `"rounds"` scope is returned in full. Emits
-  `%{error: "review_not_found"}` when the review is unknown.
+  comments the caller still owes a move on (drops resolved comments and those it
+  already had the last word on — `"as"` names the caller, so a peer agent's
+  unanswered critique still comes through); an explicit `"rounds"` scope is
+  returned in full. Emits `%{error: "review_not_found"}` when the review is
+  unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "until_round": 2}
+      # stdin: {"review_id": "0192…", "until_round": 2, "as": "Codex"}
       SuikouWeb.AgentCLI.Reviews.wait()
       #=> :ok  # emits {"status":"timeout","submission_version":1} or the snapshot on a wake
 
@@ -304,6 +306,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     payload = AgentCLI.read_payload()
     review_id = payload["review_id"]
     scope = scope(payload)
+    identity = AgentCLI.identity(payload)
 
     reply =
       with_review(review_id, fn _review ->
@@ -313,7 +316,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
         threshold = wait_threshold(payload, count)
 
         if count > threshold do
-          worthy_snapshot(review_id, scope)
+          worthy_snapshot(review_id, scope, identity)
         else
           deadline = System.monotonic_time(:millisecond) + poll_window_ms(payload)
           # Register waiter presence for the footer indicator only while blocked.
@@ -322,7 +325,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
           Events.register_waiting(review_id)
 
           try do
-            await(review_id, scope, threshold, reaction_version, deadline)
+            await(review_id, scope, threshold, reaction_version, deadline, identity)
           after
             Events.unregister_waiting(review_id)
           end
@@ -363,20 +366,20 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   # returns the full snapshot (unfiltered, so a reaction on an already-addressed
   # comment is still visible); any other wake keeps waiting within the remaining
   # time; an exhausted window reports a timeout.
-  defp await(review_id, scope, threshold, reaction_version, deadline) do
+  defp await(review_id, scope, threshold, reaction_version, deadline, identity) do
     timeout = max(deadline - System.monotonic_time(:millisecond), 0)
 
     receive do
       {:review_changed, _review_id, _artifact_id} ->
         cond do
           Submissions.review_submission_count(review_id) > threshold ->
-            worthy_snapshot(review_id, scope)
+            worthy_snapshot(review_id, scope, identity)
 
           Critique.review_reaction_version(review_id) != reaction_version ->
             snapshot(review_id, scope)
 
           true ->
-            await(review_id, scope, threshold, reaction_version, deadline)
+            await(review_id, scope, threshold, reaction_version, deadline, identity)
         end
     after
       timeout ->
@@ -385,33 +388,48 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   # A poll wake delivers the working set, not the whole record: the default
-  # latest-round snapshot is filtered to comments the agent still owes a move on,
-  # dropping resolved ones and any whose discussion the agent already answered
+  # latest-round snapshot is filtered to comments the *calling* agent still owes a
+  # move on, dropping resolved ones and any whose discussion it already answered
   # (a single comment row stays visible across rounds until resolved — see
   # `Suikou.Export`). An explicit rounds scope is a history request, so it passes
   # through unfiltered; so does `export`, which mirrors the human export.
-  defp worthy_snapshot(review_id, :latest) do
+  defp worthy_snapshot(review_id, :latest, identity) do
     case snapshot(review_id, :latest) do
       %{artifacts: artifacts} = export ->
-        %{export | artifacts: Enum.map(artifacts, &drop_addressed/1)}
+        %{export | artifacts: Enum.map(artifacts, &drop_addressed(&1, identity))}
 
       other ->
         other
     end
   end
 
-  defp worthy_snapshot(review_id, scope), do: snapshot(review_id, scope)
+  defp worthy_snapshot(review_id, scope, _identity), do: snapshot(review_id, scope)
 
-  defp drop_addressed(%{comments: comments} = artifact) do
-    %{artifact | comments: Enum.reject(comments, &addressed?/1)}
+  defp drop_addressed(%{comments: comments} = artifact, identity) do
+    %{artifact | comments: Enum.reject(comments, &addressed?(&1, identity))}
   end
 
-  # A comment is addressed when it is resolved (carries a resolution round) or
-  # the agent has the last published word in its thread — the most recent reply
-  # is theirs, so the human owes the next move on nothing.
-  defp addressed?(comment) do
-    not is_nil(comment.resolved_round) or match?(%{author: :agent}, List.last(comment.replies))
+  # A comment is addressed when it is resolved (carries a resolution round) or the
+  # calling agent already had the last published word on it — it wrote the most
+  # recent reply, or wrote the comment itself and nobody has answered yet. A peer
+  # agent's unanswered critique is *not* addressed: that is the work a second
+  # reviewer is being woken for.
+  defp addressed?(comment, identity) do
+    not is_nil(comment.resolved_round) or answered_by?(comment, identity)
   end
+
+  defp answered_by?(comment, identity) do
+    case List.last(comment.replies) do
+      %{author: author} -> own?(author, identity)
+      nil -> own?(comment.author, identity)
+    end
+  end
+
+  # An agent that passed no `--as` is the only agent in the review, so every agent
+  # word there is its own — the single-agent behaviour from before identities.
+  defp own?(%{kind: :agent}, %{name: ""}), do: true
+  defp own?(%{kind: :agent, name: name}, %{name: name}), do: true
+  defp own?(_author, _identity), do: false
 
   # `resolved_round` drives the latest-round working-set filter (`addressed?`), so
   # it lives on the Export view but is stripped from the emitted JSON — the agent

@@ -13,6 +13,8 @@ defmodule SuikouWeb.AgentCLI do
   exception (see `docs/planning/agent-cli-plan.md`).
   """
 
+  alias Suikou.Critique
+
   @typedoc "A string-keyed payload decoded from the command's stdin."
   @type payload() :: %{optional(String.t()) => term()}
 
@@ -31,6 +33,27 @@ defmodule SuikouWeb.AgentCLI do
   @spec read_payload() :: payload()
   def read_payload do
     :stdio |> IO.read(:eof) |> Jason.decode!()
+  end
+
+  @doc """
+  Reads the calling agent's identity off a payload's `"as"` / `"icon"` keys.
+
+  Several agents review one review at a time, so every write a command makes is
+  attributed to the name the agent passed. Both keys are optional: an agent that
+  omits them writes anonymously, which is what every pre-existing caller does.
+
+  ## Examples
+
+      SuikouWeb.AgentCLI.identity(%{"as" => "Codex", "icon" => "🤖"})
+      #=> %{name: "Codex", icon: "🤖"}
+
+      SuikouWeb.AgentCLI.identity(%{})
+      #=> %{name: "", icon: ""}
+
+  """
+  @spec identity(payload()) :: Critique.identity()
+  def identity(payload) do
+    Critique.agent_identity(payload["as"], payload["icon"])
   end
 
   @doc """

@@ -115,6 +115,13 @@ type CommandSpec = {
   payload: (ctx: { id?: string; values: Values; files: string[] }) => Record<string, unknown>
   // One-line usage summary for `help`.
   summary: string
+  // The verb writes as the calling agent, so it takes --as/--icon and forwards
+  // them on the payload. Several agents review one review at a time and every
+  // comment, reply, and reaction records which one wrote it.
+  identity?: boolean
+  // The verb takes a markdown body from --body | --body-file | stdin, resolved
+  // asynchronously after the payload is built.
+  body?: boolean
   // poll loops instead of a single round-trip.
   poll?: boolean
   // After a successful round-trip, spawn `open <url>` on the result's `url` field.
@@ -175,6 +182,73 @@ function roundsPayload(values: Values): { rounds?: unknown } {
 const roundsOptions: ParseOptions = {
   rounds: { type: "string" },
   all: { type: "boolean" }
+}
+
+// Who is writing. Every verb that records something carries these so a review
+// with several agents in it stays readable. SUIKOU_AGENT_NAME / _ICON let an
+// agent set its identity once for its whole session instead of repeating the
+// flags; the explicit flag still wins.
+const identityOptions: ParseOptions = {
+  as: { type: "string" },
+  icon: { type: "string" }
+}
+
+function identityPayload(values: Values): { as?: string; icon?: string } {
+  const as = typeof values.as === "string" ? values.as : process.env.SUIKOU_AGENT_NAME
+  const icon = typeof values.icon === "string" ? values.icon : process.env.SUIKOU_AGENT_ICON
+  return { ...(as ? { as } : {}), ...(icon ? { icon } : {}) }
+}
+
+// The anchor payload for `comment add`, from `--line N-M` (a file's line range)
+// or `--hunk side:N-M` (a diff artifact's hunk). Absent means an unanchored
+// comment about the artifact as a whole.
+function commentAnchor(values: Values): Record<string, unknown> | undefined {
+  const line = typeof values.line === "string" ? values.line : undefined
+  const hunk = typeof values.hunk === "string" ? values.hunk : undefined
+  if (line !== undefined && hunk !== undefined) throw new UsageError("--line and --hunk are mutually exclusive")
+
+  if (line !== undefined) {
+    const [start_line, end_line] = lineRange(line, `invalid --line ${line}; expected N or N-M`)
+    return { type: "line_range", start_line, end_line }
+  }
+
+  if (hunk !== undefined) {
+    const match = hunk.match(/^(old|new):(.+)$/)
+    if (!match) throw new UsageError(`invalid --hunk ${hunk}; expected old:N-M or new:N-M`)
+    const [start_line, end_line] = lineRange(match[2], `invalid --hunk ${hunk}; expected old:N-M or new:N-M`)
+    return { type: "diff_hunk", side: match[1], start_line, end_line }
+  }
+
+  return undefined
+}
+
+function lineRange(raw: string, message: string): [number, number] {
+  const match = raw.match(/^(\d+)(?:-(\d+))?$/)
+  if (!match) throw new UsageError(message)
+  const start = Number(match[1])
+  const end = match[2] === undefined ? start : Number(match[2])
+  if (end < start) throw new UsageError(message)
+  return [start, end]
+}
+
+// A comment's scope follows from what it points at: an anchor makes it located,
+// `--review-wide` lifts it off the artifact, and the default sits on the artifact.
+function commentScope(values: Values, anchor: Record<string, unknown> | undefined): string {
+  if (anchor !== undefined) {
+    if (values["review-wide"] === true) throw new UsageError("--review-wide takes no --line/--hunk")
+    return "located"
+  }
+  return values["review-wide"] === true ? "review" : "artifact"
+}
+
+const critiqueTypes = ["fix_required", "needs_answer", "note"]
+
+function critiqueType(values: Values): string {
+  const type = typeof values.type === "string" ? values.type : "note"
+  if (!critiqueTypes.includes(type)) {
+    throw new UsageError(`invalid --type ${type}; expected one of ${critiqueTypes.join(", ")}`)
+  }
+  return type
 }
 
 // The `until_round` payload the backend `wait` reads: the submission round the
@@ -308,6 +382,9 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       options: { ...roundsOptions, "until-round": { type: "string" }, timeout: { type: "string" } },
       id: { name: "review-id", required: true },
       payload: ({ id, values }) => ({ review_id: id, ...roundsPayload(values), ...untilRoundPayload(values) }),
+      // --as narrows the working set to what *this* agent still owes a move on,
+      // so a peer agent's unanswered critique still wakes it.
+      identity: true,
       poll: true,
       summary:
         "wait for a submission round (<review-id> [--until-round N] [--rounds a-b] [--all] [--timeout secs])"
@@ -321,17 +398,59 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     }
   },
   comment: {
+    add: {
+      expr: "SuikouWeb.AgentCLI.Comments.add()",
+      options: {
+        body: { type: "string" },
+        "body-file": { type: "string" },
+        type: { type: "string" },
+        line: { type: "string" },
+        hunk: { type: "string" },
+        "review-wide": { type: "boolean" }
+      },
+      id: { name: "artifact-id", required: true },
+      identity: true,
+      body: true,
+      payload: ({ id, values }) => {
+        const anchor = commentAnchor(values)
+        return {
+          artifact_id: id,
+          scope: commentScope(values, anchor),
+          critique_type: critiqueType(values),
+          ...(anchor ? { anchor } : {})
+        }
+      },
+      summary:
+        "author a comment (<artifact-id> [--type note|fix_required|needs_answer] [--line N-M | --hunk new:N-M | --review-wide] --body | --body-file | stdin)"
+    },
     reply: {
       expr: "SuikouWeb.AgentCLI.Comments.reply()",
       options: { body: { type: "string" }, "body-file": { type: "string" } },
       id: { name: "comment-id", required: true },
-      payload: ({ id }) => ({ comment_id: id }), // body resolved asynchronously in runGroupVerb
+      identity: true,
+      body: true,
+      payload: ({ id }) => ({ comment_id: id }),
       summary: "reply to a comment (<comment-id> --body | --body-file | stdin)"
+    },
+    resolve: {
+      expr: "SuikouWeb.AgentCLI.Comments.resolve()",
+      options: {},
+      id: { name: "comment-id", required: true },
+      payload: ({ id }) => ({ comment_id: id }),
+      summary: "mark a comment resolved (<comment-id>)"
+    },
+    unresolve: {
+      expr: "SuikouWeb.AgentCLI.Comments.unresolve()",
+      options: {},
+      id: { name: "comment-id", required: true },
+      payload: ({ id }) => ({ comment_id: id }),
+      summary: "reopen a resolved comment (<comment-id>)"
     },
     react: {
       expr: "SuikouWeb.AgentCLI.Comments.react()",
       options: {},
       id: { name: "comment-id", required: true },
+      identity: true,
       payload: ({ id, files }) => ({ comment_id: id, emoji: reactEmoji(files) }),
       summary: "set your work-status reaction on a comment (<comment-id> <emoji>)"
     },
@@ -339,6 +458,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Comments.unreact()",
       options: {},
       id: { name: "comment-id", required: true },
+      identity: true,
       payload: ({ id }) => ({ comment_id: id }),
       summary: "clear your reaction on a comment (<comment-id>)"
     }
@@ -348,6 +468,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Replies.react()",
       options: {},
       id: { name: "reply-id", required: true },
+      identity: true,
       payload: ({ id, files }) => ({ reply_id: id, emoji: reactEmoji(files) }),
       summary: "set your work-status reaction on a reply (<reply-id> <emoji>)"
     },
@@ -355,6 +476,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Replies.unreact()",
       options: {},
       id: { name: "reply-id", required: true },
+      identity: true,
       payload: ({ id }) => ({ reply_id: id }),
       summary: "clear your reaction on a reply (<reply-id>)"
     }
@@ -396,7 +518,7 @@ async function runGroupVerb(group: string, verb: string | undefined, argv: strin
   try {
     const { values, positionals } = parseArgs({
       args: argv,
-      options: spec.options,
+      options: spec.identity ? { ...spec.options, ...identityOptions } : spec.options,
       allowPositionals: true,
       strict: true
     })
@@ -420,9 +542,8 @@ async function runGroupVerb(group: string, verb: string | undefined, argv: strin
       throw new UsageError("expected at least one file/path argument")
     }
     const payload = spec.payload({ id, values, files })
-    if (group === "comment" && verb === "reply") {
-      payload.body = await resolveBody(values)
-    }
+    if (spec.identity) Object.assign(payload, identityPayload(values))
+    if (spec.body) payload.body = await resolveBody(values)
 
     if (spec.poll) return await runPoll(spec, payload, values)
     return await runCommand(spec, payload)
@@ -475,7 +596,7 @@ async function emitSkill(argv: string[]): Promise<number> {
   }
 }
 
-// Resolve a `comment reply` body, in priority order: --body, then --body-file,
+// Resolve a comment or reply body, in priority order: --body, then --body-file,
 // then the launcher's own stdin read to EOF.
 async function resolveBody(values: Values): Promise<string> {
   if (typeof values.body === "string") return values.body
