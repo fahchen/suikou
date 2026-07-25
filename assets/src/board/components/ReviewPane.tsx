@@ -126,7 +126,7 @@ function ProjectActions({
         <DropdownMenuTrigger
           render={
             <button
-              className="grid size-[30px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+              className="grid size-[30px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
               title="Project actions"
             >
               <MoreHorizontal size={18} aria-hidden />
@@ -272,7 +272,7 @@ function ReviewActions({
         <DropdownMenuTrigger
           render={
             <button
-              className="grid size-[30px] shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+              className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
               title="Review actions"
             >
               <MoreHorizontal size={18} aria-hidden />

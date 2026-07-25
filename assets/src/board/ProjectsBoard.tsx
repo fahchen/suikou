@@ -300,7 +300,7 @@ function Toolbar({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button className="inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-sm font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
+            <button className="inline-flex h-[30px] items-center gap-[5px] rounded-ctrl border border-accent-edge bg-accent px-[11px] text-sm font-semibold tracking-[-0.01em] text-on-accent hover:brightness-110">
               <Plus size={15} strokeWidth={1.9} aria-hidden />
               New
               <ChevronDown size={11} strokeWidth={2.2} aria-hidden className="-mr-0.5 opacity-80" />

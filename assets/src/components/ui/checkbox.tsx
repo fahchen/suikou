@@ -22,7 +22,7 @@ export function Checkbox({
       indeterminate={indeterminate}
       onCheckedChange={(next) => onCheckedChange(next)}
       aria-label={ariaLabel}
-      className={`grid size-[16px] shrink-0 cursor-pointer place-items-center rounded-[5px] border transition-colors ${
+      className={`grid size-[16px] shrink-0 place-items-center rounded-[5px] border transition-colors ${
         filled ? "border-accent bg-accent text-on-accent" : "border-hair-strong bg-canvas"
       }`}
     >

@@ -143,7 +143,7 @@ export const ScopePickerBody = observer(function ScopePickerBody({
               return (
                 <label
                   key={commit.sha}
-                  className={`flex cursor-pointer items-start gap-2 rounded-ctrl px-2 py-1.5 hover:bg-soft/60 ${
+                  className={`flex items-start gap-2 rounded-ctrl px-2 py-1.5 hover:bg-soft/60 ${
                     checked ? "bg-soft/40" : ""
                   }`}
                 >

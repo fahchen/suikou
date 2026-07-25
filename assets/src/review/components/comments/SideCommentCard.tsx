@@ -97,7 +97,7 @@ export function SideCommentCard({
             <button
               type="button"
               onClick={onFocusLine}
-              className="shrink-0 cursor-pointer rounded-ctrl px-1.5 py-0.5 font-mono text-xs font-semibold text-muted hover:bg-soft hover:text-accent-bright"
+              className="shrink-0 rounded-ctrl px-1.5 py-0.5 font-mono text-xs font-semibold text-muted hover:bg-soft hover:text-accent-bright"
             >
               {label}
             </button>

@@ -120,7 +120,7 @@ export function Composer({
               render={
                 <button
                   type="button"
-                  className="inline-flex h-[24px] cursor-pointer items-center gap-1.5 rounded-full border border-hair-strong bg-canvas px-2.5 text-xs font-semibold text-text hover:bg-soft"
+                  className="inline-flex h-[24px] items-center gap-1.5 rounded-full border border-hair-strong bg-canvas px-2.5 text-xs font-semibold text-text hover:bg-soft"
                 >
                   <span className={`size-2 rounded-full ${current.dot}`} aria-hidden />
                   {current.label}
@@ -164,7 +164,7 @@ export function Composer({
               type="button"
               onClick={insertSuggestion}
               title="Insert a code suggestion"
-              className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-medium text-text hover:bg-soft"
+              className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl border border-hair-strong bg-canvas px-3 text-xs font-medium text-text hover:bg-soft"
             >
               <Code2 size={13} className="text-muted" aria-hidden />
               Suggest
@@ -174,7 +174,7 @@ export function Composer({
           <button
             type="button"
             onClick={cancelNow}
-            className="h-[28px] cursor-pointer rounded-ctrl px-3 text-xs font-medium text-muted hover:bg-soft hover:text-ink"
+            className="h-[28px] rounded-ctrl px-3 text-xs font-medium text-muted hover:bg-soft hover:text-ink"
           >
             Cancel
           </button>
@@ -182,7 +182,7 @@ export function Composer({
             type="button"
             onClick={submit}
             disabled={!body.trim() || pending}
-            className="inline-flex h-[28px] cursor-pointer items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-xs font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-[28px] items-center gap-1.5 rounded-ctrl bg-accent px-3.5 text-xs font-semibold text-on-accent hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitLabel}
             {pending ? (

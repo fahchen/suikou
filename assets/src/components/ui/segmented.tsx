@@ -27,7 +27,7 @@ export function Segmented<T extends string>({
         <Toggle
           key={optionValue}
           value={optionValue}
-          className="h-[26px] cursor-pointer rounded-[7px] px-3 text-xs font-medium text-muted hover:text-ink data-[pressed]:bg-canvas data-[pressed]:text-ink data-[pressed]:shadow-[0_1px_2px_oklch(0%_0_0/0.15)]"
+          className="h-[26px] rounded-[7px] px-3 text-xs font-medium text-muted hover:text-ink data-[pressed]:bg-canvas data-[pressed]:text-ink data-[pressed]:shadow-[0_1px_2px_oklch(0%_0_0/0.15)]"
         >
           {label}
         </Toggle>

@@ -884,7 +884,7 @@ function Gutter({ value, side, line }: { value: string; side?: "old" | "new"; li
       }}
       style={{ touchAction: "none" }}
       title="Comment on this line — drag for a range"
-      className={`group/gut relative cursor-pointer ${base} ${
+      className={`group/gut relative ${base} ${
         selecting ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
       }`}
     >

@@ -298,7 +298,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                   touchAction: "none",
                 }}
                 title="Comment on this block — drag or shift-click for a range"
-                className={`group/gut relative flex shrink-0 cursor-pointer select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
+                className={`group/gut relative flex shrink-0 select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
                   selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
                 }`}
               >
@@ -659,7 +659,7 @@ export const Source = observer(function Source({
             // same x — see the markdown gutter above.
             style={{ minWidth: `calc(${gutter}ch + 1.5rem)`, touchAction: "none" }}
             title="Comment on this line — drag or shift-click for a range"
-            className={`group/gut sticky left-0 shrink-0 cursor-pointer select-none px-3 text-right tabular-nums ${
+            className={`group/gut sticky left-0 shrink-0 select-none px-3 text-right tabular-nums ${
               selecting || focused
                 ? "bg-accent-soft font-semibold text-accent-bright"
                 : "bg-editor text-faint hover:text-accent-bright"

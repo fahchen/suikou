@@ -36,7 +36,7 @@ export function CommentActionButton({
         event.stopPropagation()
         onClick()
       }}
-      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-ctrl px-2 font-medium transition-[opacity,background-color,color] ${sizeClass} ${toneClass} ${revealClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-ctrl px-2 font-medium transition-[opacity,background-color,color] ${sizeClass} ${toneClass} ${revealClass}`}
     >
       <Icon size={13} aria-hidden />
       {label}
@@ -87,7 +87,7 @@ export function ConfirmDeleteIconButton({
           setArmed(true)
         }
       }}
-      className={`grid shrink-0 cursor-pointer place-items-center rounded-ctrl transition-[opacity,background-color,color] ${sizeClass} ${
+      className={`grid shrink-0 place-items-center rounded-ctrl transition-[opacity,background-color,color] ${sizeClass} ${
         armed ? "bg-request-soft text-request" : "text-muted hover:bg-request-soft hover:text-request"
       } ${revealClass}`}
     >

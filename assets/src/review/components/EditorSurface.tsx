@@ -221,7 +221,7 @@ export function TocMenu({ items, onJump }: { items: OutlineItem[]; onJump: (line
       <DropdownMenuTrigger
         render={
           <button
-            className="grid size-[30px] shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+            className="grid size-[30px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
             title="Outline"
           >
             <ListTree size={16} aria-hidden />

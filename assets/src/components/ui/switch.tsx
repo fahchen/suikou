@@ -19,7 +19,7 @@ export function Switch({
       onCheckedChange={onCheckedChange}
       disabled={disabled}
       aria-label={ariaLabel}
-      className="relative inline-flex h-[24px] w-[42px] cursor-pointer items-center rounded-full bg-control transition-colors data-[checked]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40"
+      className="relative inline-flex h-[24px] w-[42px] items-center rounded-full bg-control transition-colors data-[checked]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40"
     >
       <BaseSwitch.Thumb className="size-[18px] translate-x-[3px] rounded-full bg-[oklch(100%_0_0)] shadow-sm transition-transform data-[checked]:translate-x-[21px]" />
     </BaseSwitch.Root>

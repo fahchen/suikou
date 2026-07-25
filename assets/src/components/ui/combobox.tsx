@@ -42,7 +42,7 @@ export function Combobox({
                 <BaseCombobox.Item
                   key={option}
                   value={option}
-                  className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 font-mono text-xs text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
+                  className="flex h-[30px] items-center gap-2 rounded-ctrl px-2 font-mono text-xs text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
                 >
                   <span className="min-w-0 flex-1 truncate">{option}</span>
                   <span className="grid size-1.5 shrink-0 place-items-center">

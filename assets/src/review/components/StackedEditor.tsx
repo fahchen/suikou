@@ -390,7 +390,7 @@ const StackedFile = observer(function StackedFile({
             onClick={() => setFileComposing(true)}
             title="Comment on this file"
             aria-label="Comment on this file"
-            className="grid size-[24px] shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+            className="grid size-[24px] shrink-0 place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
           >
             <MessageSquarePlus size={14} aria-hidden />
           </button>
@@ -674,7 +674,7 @@ export const StackedSideRail = observer(function StackedSideRail({
           onClick={() => setSortOrder((order) => (order === "newest" ? "oldest" : "newest"))}
           title={`Sort: ${sortOrder === "newest" ? "Newest first" : "Oldest first"}`}
           aria-label={`Sort comments: ${sortOrder === "newest" ? "newest first" : "oldest first"}`}
-          className="grid size-[26px] cursor-pointer place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
+          className="grid size-[26px] place-items-center rounded-ctrl text-muted hover:bg-soft hover:text-ink"
         >
           <ArrowDownUp size={14} aria-hidden />
         </button>

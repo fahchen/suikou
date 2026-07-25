@@ -113,7 +113,7 @@ export function CommentCard({
               event.stopPropagation()
               onToggleCollapse()
             }}
-            className="-m-1 grid size-6 shrink-0 cursor-pointer place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
+            className="-m-1 grid size-6 shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
           >
             <span
               className={`grid place-items-center transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${

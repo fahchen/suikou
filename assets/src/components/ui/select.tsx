@@ -28,7 +28,7 @@ export function Select({
     >
       <BaseSelect.Trigger
         aria-label={ariaLabel}
-        className="inline-flex h-[30px] min-w-[150px] cursor-pointer items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm font-medium text-ink"
+        className="inline-flex h-[30px] min-w-[150px] items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm font-medium text-ink"
       >
         <BaseSelect.Value className="flex-1 text-left" />
         <BaseSelect.Icon>
@@ -47,7 +47,7 @@ export function Select({
                   <BaseSelect.Item
                     key={option.value}
                     value={option.value}
-                    className="flex h-[30px] cursor-pointer items-center gap-2 rounded-ctrl px-2 text-xs text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
+                    className="flex h-[30px] items-center gap-2 rounded-ctrl px-2 text-xs text-text outline-none data-[highlighted]:bg-soft data-[selected]:bg-soft data-[selected]:text-ink"
                   >
                     <BaseSelect.ItemText className="flex-1">{option.label}</BaseSelect.ItemText>
                     <span className="grid size-1.5 shrink-0 place-items-center">

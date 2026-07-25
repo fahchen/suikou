@@ -257,7 +257,7 @@ export const HtmlView = observer(function HtmlView({
                   onMouseLeave={() => setHover(null)}
                   onClick={() => applyOverlay({ kind: "thread", selector, rect })}
                   style={{ left: rect.right * zoom, top: rect.top * zoom }}
-                  className="group pointer-events-auto absolute grid size-[18px] -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
+                  className="group pointer-events-auto absolute grid size-[18px] -translate-x-1/2 -translate-y-1/2 place-items-center"
                 >
                   <span className="relative flex size-[8px] transition-transform duration-100 group-hover:scale-[1.2]">
                     <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" />

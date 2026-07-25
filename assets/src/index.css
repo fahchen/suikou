@@ -874,6 +874,37 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+
+  /* Tailwind v4's Preflight gives buttons `cursor: default`, on the reasoning
+     that native controls do. This app is a workbench of them — gutters, verdict
+     chips, comment actions, menu items — where the pointer is what tells a
+     reader the thing under it responds. Restore it once here rather than at
+     ninety-odd call sites; a call site that genuinely differs still wins, since
+     utilities outrank this layer.
+
+     Role selectors cover the popup primitives, which render options and menu
+     items as divs rather than buttons. */
+  button,
+  summary,
+  label[for],
+  [role="button"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="tab"],
+  [role="switch"] {
+    cursor: pointer;
+  }
+
+  /* Disabled reads as unavailable, not absent: the cursor says the control is
+     real but not for now, which is the difference between "nothing here" and
+     "not yet". Attribute and ARIA both, since the primitives use either. */
+  button:disabled,
+  [aria-disabled="true"],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
 }
 
 /* Rendered markdown for comment/reply bodies (injected via markdown-it). Vars
