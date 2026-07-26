@@ -91,12 +91,12 @@ defmodule SuikouWeb.Stores.CommentRendering do
     }
   end
 
-  # Rows resolved before resolution was attributed carry no answer, and an
-  # unresolved comment has nobody to name.
+  # `resolved_by` is null exactly when the comment is open — a resolution always
+  # names its claimant.
   defp resolver(%Comment{resolved_by: nil}), do: nil
 
   defp resolver(%Comment{} = comment) do
-    Critique.author_view(comment.resolved_by, comment.resolved_by_name || "", "")
+    Critique.author_view(comment.resolved_by, comment.resolved_by_name, "")
   end
 
   # Wrap the resolved anchor view with the kind discriminator that drives the

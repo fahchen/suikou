@@ -180,7 +180,7 @@ Field notes:
 - `critique_type`: `"fix_required"` | `"needs_answer"` | `"note"`.
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
 - `author` / `actor`: `{"kind":"human"|"agent","name":…,"icon":…}`. The human is always `"human"` with a `null` icon; an agent carries the name it wrote under. **Check the name before answering** — a comment from another agent is a peer's finding, one under your own name is your own work coming back, and one from `human` is the reviewer.
-- `resolved_by`: who claimed the comment addressed, in the same `author` shape, or `null` while it is open. Any agent may resolve, so check it before trusting a resolution you did not make.
+- `resolved_by`: who claimed the comment addressed, in the same `author` shape; `null` only while the comment is open. Any agent may resolve, so check it before trusting a resolution you did not make.
 - `comments[].id` is the **`comment-id` you pass to `comment reply`** / `comment resolve`.
 - `replies[].id` is the **`reply-id` you pass to `reply react`** / `reply unreact`.
 

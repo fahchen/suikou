@@ -234,12 +234,13 @@ defmodule Suikou.Export do
     }
   end
 
-  # Rows resolved before resolution was attributed carry no answer, and an
-  # unresolved comment has nobody to name.
+  # `resolved_by` is null exactly when the comment is open — a resolution always
+  # names its claimant, including the pre-BDR-0026 ones the migration backfilled
+  # to the reviewer.
   defp resolver_view(%Comment{resolved_by: nil}), do: nil
 
   defp resolver_view(%Comment{} = comment) do
-    Critique.author_view(comment.resolved_by, comment.resolved_by_name || "", "")
+    Critique.author_view(comment.resolved_by, comment.resolved_by_name, "")
   end
 
   defp reply_view(reply) do

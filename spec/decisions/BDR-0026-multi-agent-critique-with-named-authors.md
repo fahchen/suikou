@@ -98,8 +98,11 @@ already answered — which agent does not change whether the round has landed.
   one comment. An agent may no longer react with one of the reviewer's four
   approval keys: the client groups a chip by glyph alone, so that would have
   counted an agent into the human's own chip.
-- A resolved comment carries `resolved_by` / `resolved_by_name`. Rows resolved
-  before this decision report `null` — unknown, rather than asserting the human.
+- A resolved comment carries `resolved_by` / `resolved_by_name`, null only
+  while it is open. Rows resolved before this decision are backfilled to the
+  reviewer: resolving was theirs alone, so the backfill asserts nothing the data
+  does not already say, and no reader has to carry an "unknown resolver" state
+  that never existed.
 - Opening a file and inserting an agent's comment share one transaction, so a
   rejected comment leaves no half-opened file behind.
 
