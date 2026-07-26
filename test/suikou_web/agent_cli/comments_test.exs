@@ -160,7 +160,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
     end
   end
 
-  describe "resolve/0 and unresolve/0" do
+  describe "resolve/0 and reopen/0" do
     test "an agent resolves a comment and reopens it" do
       round = source_round("line 1\n")
       comment = published_comment(round.id, %{scope: :review, critique_type: :note, body: "x"})
@@ -172,7 +172,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       assert %Comment{resolved_round: 0} = Repo.get!(Comment, comment.id)
 
       assert %{"comment_id" => _id, "error" => nil} =
-               run(%{"comment_id" => comment.id}, &Comments.unresolve/0)
+               run(%{"comment_id" => comment.id}, &Comments.reopen/0)
 
       assert %Comment{resolved_round: nil} = Repo.get!(Comment, comment.id)
     end

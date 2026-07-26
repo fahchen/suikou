@@ -39,7 +39,7 @@ suikou review  notify      <review-id> [--message <text>]
 suikou comment add         <review-id> --path <file> [--type note|fix_required|needs_answer] [--line <n>-<m> | --hunk old|new:<n>-<m> | --review-wide] (--body <text> | --body-file <path> | stdin)
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
 suikou comment resolve     <comment-id> --as <name>
-suikou comment unresolve   <comment-id>
+suikou comment reopen      <comment-id>
 suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
 suikou reply   react       <reply-id> <emoji>

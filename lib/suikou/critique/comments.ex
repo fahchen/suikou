@@ -229,33 +229,27 @@ defmodule Suikou.Critique.Comments do
 
   ## Examples
 
-      Suikou.Critique.Comments.unresolve(resolved_comment.id)
+      Suikou.Critique.Comments.reopen(resolved_comment.id)
       #=> {:ok, %Suikou.Schemas.Comment{resolved_round: nil}}
 
-      Suikou.Critique.Comments.unresolve(open_comment.id)
+      Suikou.Critique.Comments.reopen(open_comment.id)
       #=> {:error, :not_resolved}
 
   """
-  @spec unresolve(Ecto.UUID.t()) ::
+  @spec reopen(Ecto.UUID.t()) ::
           {:ok, Comment.t()} | {:error, :comment_not_found | :not_resolved}
-  def unresolve(comment_id) do
+  def reopen(comment_id) do
     case Repo.get(Comment, comment_id) do
       nil ->
         {:error, :comment_not_found}
 
       %Comment{status: :published, resolved_round: resolved_round} = comment
       when is_integer(resolved_round) ->
-        reopen(comment)
+        comment |> Comment.reopen_changeset() |> Repo.update()
 
       %Comment{} ->
         {:error, :not_resolved}
     end
-  end
-
-  defp reopen(comment) do
-    comment
-    |> Comment.reopen_changeset()
-    |> Repo.update()
   end
 
   @doc """

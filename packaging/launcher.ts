@@ -445,8 +445,8 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       payload: ({ id }) => ({ comment_id: id }),
       summary: "mark a comment resolved (<comment-id>)"
     },
-    unresolve: {
-      expr: "SuikouWeb.AgentCLI.Comments.unresolve()",
+    reopen: {
+      expr: "SuikouWeb.AgentCLI.Comments.reopen()",
       options: {},
       id: { name: "comment-id", required: true },
       payload: ({ id }) => ({ comment_id: id }),

@@ -33,7 +33,7 @@ export function SideCommentCard({
   const editCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "edit_comment")
   const deleteCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "delete_comment")
   const resolveCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "resolve_comment")
-  const unresolveCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "unresolve_comment")
+  const reopenCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reopen_comment")
   const replyCmd = useMusubiCommand(commentsProxy as CommentsStoreProxy, "reply")
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
@@ -51,7 +51,7 @@ export function SideCommentCard({
   }
   const reopenComment = () => {
     if (!commentsProxy) return
-    unresolveCmd
+    reopenCmd
       .dispatch({ comment_id: comment.id })
       .then(() => setCollapsed(false))
       .catch(() => undefined)

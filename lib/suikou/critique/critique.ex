@@ -167,18 +167,18 @@ defmodule Suikou.Critique do
     do: comment_id |> Comments.resolve_as_agent(identity) |> broadcast_comment_change()
 
   @doc """
-  Reopens a Resolved comment. See `Suikou.Critique.Comments.unresolve/1`.
+  Reopens a Resolved comment. See `Suikou.Critique.Comments.reopen/1`.
 
   ## Examples
 
-      Suikou.Critique.unresolve_comment(comment.id)
+      Suikou.Critique.reopen_comment(comment.id)
       #=> {:ok, %Suikou.Schemas.Comment{resolved_round: nil}}
 
   """
-  @spec unresolve_comment(Ecto.UUID.t()) ::
+  @spec reopen_comment(Ecto.UUID.t()) ::
           {:ok, Comment.t()} | {:error, :comment_not_found | :not_resolved}
-  def unresolve_comment(comment_id),
-    do: comment_id |> Comments.unresolve() |> broadcast_comment_change()
+  def reopen_comment(comment_id),
+    do: comment_id |> Comments.reopen() |> broadcast_comment_change()
 
   @doc """
   Relocates a `:located` comment to a fresh tagged `anchor` payload, re-capturing

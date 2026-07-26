@@ -139,14 +139,14 @@ defmodule SuikouWeb.AgentCLI.Comments do
   ## Examples
 
       # stdin: {"comment_id": "0192…"}
-      SuikouWeb.AgentCLI.Comments.unresolve()
+      SuikouWeb.AgentCLI.Comments.reopen()
       #=> :ok  # emits {"comment_id":"0192…","error":null}
 
   """
-  @spec unresolve() :: :ok
-  def unresolve do
+  @spec reopen() :: :ok
+  def reopen do
     payload = AgentCLI.read_payload()
-    AgentCLI.emit(lifecycle(payload, &Critique.unresolve_comment/1))
+    AgentCLI.emit(lifecycle(payload, &Critique.reopen_comment/1))
   end
 
   @doc """

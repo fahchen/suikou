@@ -249,7 +249,7 @@ defmodule Suikou.Critique.CommentsTest do
       advance(artifact.id, "changed\n")
       {:ok, _comment} = Critique.resolve_comment(comment.id)
 
-      assert {:ok, reopened} = Critique.unresolve_comment(comment.id)
+      assert {:ok, reopened} = Critique.reopen_comment(comment.id)
       assert %{resolved_round: nil} = reopened
     end
 
@@ -257,7 +257,7 @@ defmodule Suikou.Critique.CommentsTest do
       round = insert(:round)
       comment = published_comment(round.id)
 
-      assert {:error, :not_resolved} = Critique.unresolve_comment(comment.id)
+      assert {:error, :not_resolved} = Critique.reopen_comment(comment.id)
     end
   end
 
@@ -394,7 +394,7 @@ defmodule Suikou.Critique.CommentsTest do
                Critique.resolve_comment_as_agent(comment.id, agent("Claude"))
 
       assert {:ok, %Comment{resolved_round: nil, resolved_by: nil, resolved_by_name: nil}} =
-               Critique.unresolve_comment(comment.id)
+               Critique.reopen_comment(comment.id)
     end
 
     test "the human's own resolve is recorded as theirs" do
