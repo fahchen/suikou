@@ -68,6 +68,7 @@ defmodule Suikou.Export do
           body: String.t(),
           anchor: anchor_view() | nil,
           resolved_round: integer() | nil,
+          resolved_by: Critique.author_view() | nil,
           reactions: [reaction_view()],
           replies: [reply_view()]
         }
@@ -227,9 +228,18 @@ defmodule Suikou.Export do
       body: comment.body,
       anchor: tag_stale(anchor, status),
       resolved_round: comment.resolved_round,
+      resolved_by: resolver_view(comment),
       reactions: Enum.map(comment.reactions, &reaction_view/1),
       replies: Enum.map(comment.replies, &reply_view/1)
     }
+  end
+
+  # Rows resolved before resolution was attributed carry no answer, and an
+  # unresolved comment has nobody to name.
+  defp resolver_view(%Comment{resolved_by: nil}), do: nil
+
+  defp resolver_view(%Comment{} = comment) do
+    Critique.author_view(comment.resolved_by, comment.resolved_by_name || "", "")
   end
 
   defp reply_view(reply) do

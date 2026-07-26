@@ -57,6 +57,7 @@ defmodule SuikouWeb.Stores.CommentContract do
         body: String.t(),
         resolved: boolean(),
         resolved_round: integer() | nil,
+        resolved_by: unquote(maybe_nil(author_type_ast(), true)),
         outdated: boolean(),
         drifted: boolean(),
         authored_round: integer(),

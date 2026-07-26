@@ -58,6 +58,8 @@ defmodule Suikou.Schemas.Comment do
     field :body, :string, typed: [null: false]
     field :status, Ecto.Enum, values: @statuses, default: :pending, typed: [null: false]
     field :resolved_round, :integer
+    field :resolved_by, Ecto.Enum, values: @authors
+    field :resolved_by_name, :string
 
     belongs_to :round, Round
     has_many :replies, Reply
@@ -141,32 +143,43 @@ defmodule Suikou.Schemas.Comment do
   end
 
   @doc """
-  Builds a changeset marking a comment resolved at the given round number.
+  Builds a changeset marking a comment resolved at the given round number, by
+  `resolver` — a `{kind, name}` pair naming who called it addressed. Any agent
+  may resolve, so the human needs to see whose claim it is before deciding
+  whether to reopen it.
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.resolve_changeset(%Suikou.Schemas.Comment{}, 2).changes
-      %{resolved_round: 2}
+      iex> Suikou.Schemas.Comment.resolve_changeset(%Suikou.Schemas.Comment{}, 2, {:agent, "Codex"}).changes
+      %{resolved_round: 2, resolved_by: :agent, resolved_by_name: "Codex"}
+
+      iex> Suikou.Schemas.Comment.resolve_changeset(%Suikou.Schemas.Comment{}, 2, {:human, ""}).changes
+      %{resolved_round: 2, resolved_by: :human, resolved_by_name: ""}
 
   """
-  @spec resolve_changeset(t(), integer()) :: Ecto.Changeset.t()
-  def resolve_changeset(comment, resolved_round) do
-    change(comment, resolved_round: resolved_round)
+  @spec resolve_changeset(t(), integer(), {author(), String.t()}) :: Ecto.Changeset.t()
+  def resolve_changeset(comment, resolved_round, {kind, name}) do
+    change(comment,
+      resolved_round: resolved_round,
+      resolved_by: kind,
+      resolved_by_name: name
+    )
   end
 
   @doc """
-  Builds a changeset reopening a resolved comment by clearing `resolved_round`.
+  Builds a changeset reopening a resolved comment by clearing its resolution.
   Used by the human-reply path, which auto-reopens a resolved comment.
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.reopen_changeset(%Suikou.Schemas.Comment{resolved_round: 2}).changes
-      %{resolved_round: nil}
+      iex> resolved = %Suikou.Schemas.Comment{resolved_round: 2, resolved_by: :agent, resolved_by_name: "Codex"}
+      iex> Suikou.Schemas.Comment.reopen_changeset(resolved).changes
+      %{resolved_round: nil, resolved_by: nil, resolved_by_name: nil}
 
   """
   @spec reopen_changeset(t()) :: Ecto.Changeset.t()
   def reopen_changeset(comment) do
-    change(comment, resolved_round: nil)
+    change(comment, resolved_round: nil, resolved_by: nil, resolved_by_name: nil)
   end
 
   @doc """

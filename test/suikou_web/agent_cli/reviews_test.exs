@@ -7,6 +7,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias Suikou.Critique
   alias Suikou.Reads
   alias Suikou.Reviews
+  alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.ReviewSource.GitDiff
   alias Suikou.Submissions
@@ -286,8 +287,9 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     end
 
     test "an agent-authored comment nobody answered is still owed a move" do
-      round = insert(:round)
-      %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
+      %{review: review, path: path} = covered_file("line 1\n")
+      {:ok, artifact} = Reviews.open_file(review, path)
+      round = Rounds.latest(artifact.id)
 
       # Answered by an agent: the human owes the next move, not an agent.
       answered = published_comment(round.id, %{body: "answered"})
@@ -297,19 +299,15 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       # round, but this is work the loop still has to pick up.
       {:ok, _theirs} =
         Critique.add_comment_as_agent(
-          %{
-            artifact_id: round.artifact_id,
-            scope: :artifact,
-            critique_type: :note,
-            body: "raised by Claude"
-          },
+          review,
+          %{path: path, scope: :artifact, critique_type: :note, body: "raised by Claude"},
           agent("Claude", "🪄")
         )
 
       {:ok, _result} = Submissions.submit(round.id, :comment)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
-               run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/0)
+               run(%{"review_id" => review.id, "until_round" => 1}, &CLI.wait/0)
 
       assert Enum.map(comments, & &1["body"]) == ["raised by Claude"]
     end

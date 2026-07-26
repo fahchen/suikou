@@ -89,6 +89,20 @@ defmodule Suikou.Factories.ReviewFactory do
         round
       end
 
+      # A review whose selection covers a real file on disk, with no artifact
+      # minted yet — the state a reviewing agent finds before the human has
+      # opened anything, and the shape the agent authoring path takes.
+      def covered_file(content, path \\ "doc.md") do
+        project = insert(:project)
+        File.mkdir_p!(Path.join(project.path, Path.dirname(path)))
+        File.write!(Path.join(project.path, path), content)
+
+        review =
+          insert(:review, project: project, source: %FileSelection{selection_paths: [path]})
+
+        %{review: review, path: path}
+      end
+
       # Round 0 for a fresh artifact, with `content` written to its file on disk
       # (the source of truth for live reads and quote capture).
       def source_round(content) do

@@ -5,6 +5,7 @@ defmodule Suikou.ExportTest do
 
   alias Suikou.Critique
   alias Suikou.Export
+  alias Suikou.Reviews
   alias Suikou.Submissions
 
   # The reviewing agent these cases write as; the name is required.
@@ -96,18 +97,13 @@ defmodule Suikou.ExportTest do
   end
 
   test "each comment, reply, and reaction names its author" do
-    round = insert(:round)
-    artifact = round.artifact
+    %{review: review, path: path} = covered_file("line 1\n")
     codex = agent("Codex", "🤖")
 
     {:ok, comment} =
       Critique.add_comment_as_agent(
-        %{
-          artifact_id: artifact.id,
-          scope: :artifact,
-          critique_type: :fix_required,
-          body: "leaks"
-        },
+        review,
+        %{path: path, scope: :artifact, critique_type: :fix_required, body: "leaks"},
         codex
       )
 
@@ -116,6 +112,7 @@ defmodule Suikou.ExportTest do
 
     {:ok, _comment_id} = Critique.react_as_agent(comment.id, "👀", codex)
 
+    {:ok, artifact} = Reviews.open_file(review, path)
     assert {:ok, %{comments: [view]}} = Export.export(artifact.id)
 
     assert %{

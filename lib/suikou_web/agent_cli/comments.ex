@@ -12,7 +12,6 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   alias Suikou.Critique
   alias Suikou.Reviews
-  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
@@ -27,9 +26,9 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   Targets the review and a path rather than an artifact id: a file's artifact is
   minted the first time someone opens it, and a reviewing agent usually gets
-  there before the human has opened anything. `Suikou.Reviews.open_file/2` mints
-  it if needed and returns the existing one otherwise, so this works either way —
-  and it rejects a path the review does not cover.
+  there before the human has opened anything. `Suikou.Critique` resolves the path
+  — minting if needed, and rejecting one the review does not cover — in the same
+  transaction as the insert.
 
   ## Examples
 
@@ -53,11 +52,11 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   defp author(payload) do
     with {:ok, identity} <- AgentCLI.identity(payload),
-         {:ok, %Review{} = review} <- fetch_review(payload["review_id"]),
-         {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, payload["path"]) do
+         {:ok, %Review{} = review} <- fetch_review(payload["review_id"]) do
       Critique.add_comment_as_agent(
+        review,
         %{
-          artifact_id: artifact.id,
+          path: payload["path"],
           scope: payload["scope"],
           critique_type: payload["critique_type"],
           body: payload["body"],
@@ -107,12 +106,12 @@ defmodule SuikouWeb.AgentCLI.Comments do
   @doc """
   Marks an Open comment resolved from `%{"comment_id"}` and emits
   `%{comment_id}` or `%{error}`. An agent may resolve any comment, its own or
-  another reviewer's — resolution records that the critique was addressed, and
-  the human still reopens anything they disagree with.
+  another reviewer's; the resolution records which agent claimed it addressed,
+  and the human still reopens anything they disagree with.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…"}
+      # stdin: {"comment_id": "0192…", "as": "Codex"}
       SuikouWeb.AgentCLI.Comments.resolve()
       #=> :ok  # emits {"comment_id":"0192…","error":null}
 
@@ -120,7 +119,17 @@ defmodule SuikouWeb.AgentCLI.Comments do
   @spec resolve() :: :ok
   def resolve do
     payload = AgentCLI.read_payload()
-    AgentCLI.emit(lifecycle(payload, &Critique.resolve_comment/1))
+
+    result =
+      with {:ok, identity} <- AgentCLI.identity(payload),
+           {:ok, %Comment{id: id}} <-
+             Critique.resolve_comment_as_agent(payload["comment_id"], identity) do
+        %{comment_id: id, error: nil}
+      else
+        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+      end
+
+    AgentCLI.emit(result)
   end
 
   @doc """

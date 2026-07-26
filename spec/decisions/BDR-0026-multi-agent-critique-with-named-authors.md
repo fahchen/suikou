@@ -63,7 +63,9 @@ holds for a reviewing agent, and the second is preserved below.
 *Agents may resolve*: resolution marks "this was addressed", which is a claim
 about the work, not a verdict on it. An agent that fixed the thing is the party
 best placed to say so, and the human reopens anything they disagree with — the
-reply path already auto-reopens on a human reply.
+reply path already auto-reopens on a human reply. The claim records its claimant
+for the same reason a comment does: with several agents resolving, "addressed"
+without "by whom" is not something the human can weigh.
 
 *What stays the human's*: submitting a round and the approval verdict
 ([[BDR-0018-project-boards-and-human-controlled-rounds]],
@@ -93,7 +95,13 @@ already answered — which agent does not change whether the round has landed.
   the working set, which is what makes a peer's finding reachable.
 - A reaction's uniqueness key widens from `(target, actor)` to
   `(target, actor, actor_name)`, so two agents can hold their own reactions on
-  one comment.
+  one comment. An agent may no longer react with one of the reviewer's four
+  approval keys: the client groups a chip by glyph alone, so that would have
+  counted an agent into the human's own chip.
+- A resolved comment carries `resolved_by` / `resolved_by_name`. Rows resolved
+  before this decision report `null` — unknown, rather than asserting the human.
+- Opening a file and inserting an agent's comment share one transaction, so a
+  rejected comment leaves no half-opened file behind.
 
 ## Rejected Alternatives
 

@@ -3,10 +3,11 @@ defmodule Suikou.Critique.Comments do
   Authoring and lifecycle of critique. New comments attach to the latest round
   only; a `:located` comment captures its quoted source on creation.
 
-  The human authors through `add/1`, an agent through `add_as_agent/2` (see
-  BDR-0026). They differ in two ways: an agent names itself on the call, and its
-  comment is published immediately rather than waiting on a submit — an agent has
-  no draft stage to batch into.
+  The human authors through `add/1`, an agent through `add_as_agent/3` (see
+  BDR-0026). They differ in three ways: an agent names itself on the call, its
+  comment is published immediately rather than waiting on a submit (an agent has
+  no draft stage to batch into), and it names the file by path — the human's
+  client already has the artifact open, an agent generally does not.
 
   A comment is Draft while pending, Open once published, and Resolved once a
   `resolved_round` is set. Editing is confined to the Draft stage, while
@@ -20,9 +21,12 @@ defmodule Suikou.Critique.Comments do
   alias Suikou.Critique.Identity
   alias Suikou.Reads
   alias Suikou.Repo
+  alias Suikou.Reviews
   alias Suikou.Rounds
   alias Suikou.Schemas.Anchor.LineRange
+  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
 
   @doc """
@@ -66,36 +70,45 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Adds `identity`'s critique to an artifact's latest round, published
-  immediately. Takes the same shape as `add/1` but targets the artifact rather
-  than a round — an agent reads `artifact_id` out of an export and never sees a
-  round id.
+  Adds `identity`'s critique to `review`'s file at `params.path`, published
+  immediately. Takes the same shape as `add/1` but targets a path rather than a
+  round: a file's artifact is minted the first time someone opens it, and a
+  reviewing agent usually arrives before the human has opened anything, so
+  `Suikou.Reviews.open_file/2` resolves it — minting if needed, rejecting a path
+  the review does not cover.
+
+  The mint and the insert share one transaction, so a rejected comment leaves no
+  half-opened file behind. (`open_file/2` broadcasts on its way through; a
+  rollback cannot recall that, but a client re-reading finds nothing new.)
 
   ## Examples
 
-      Suikou.Critique.Comments.add_as_agent(%{artifact_id: artifact.id, scope: :artifact, critique_type: :fix_required, body: "leaks a file handle"}, %{name: "Codex", icon: "🤖"})
+      Suikou.Critique.Comments.add_as_agent(review, %{path: "lib/a.ex", scope: :artifact, critique_type: :fix_required, body: "leaks a file handle"}, %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Comment{author: :agent, status: :published}}
 
-      Suikou.Critique.Comments.add_as_agent(%{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :artifact, critique_type: :note, body: "x"}, %{name: "Codex", icon: "🤖"})
-      #=> {:error, :artifact_not_found}
+      Suikou.Critique.Comments.add_as_agent(review, %{path: "elsewhere.ex", scope: :artifact, critique_type: :note, body: "x"}, %{name: "Codex", icon: "🤖"})
+      #=> {:error, :not_covered}
 
   """
-  @spec add_as_agent(map(), Identity.t()) ::
+  @spec add_as_agent(Review.t(), map(), Identity.t()) ::
           {:ok, Comment.t()}
           | {:error,
              Ecto.Changeset.t()
-             | :artifact_not_found
+             | :not_covered
              | :unknown_anchor_type
              | Artifacts.read_content_error()
              | Artifacts.content_source_error()}
-  def add_as_agent(params, identity) do
-    case Rounds.latest(params[:artifact_id]) do
-      %Round{} = round ->
-        insert(agent_comment(identity), Map.put(params, :round_id, round.id), round)
-
-      nil ->
-        {:error, :artifact_not_found}
-    end
+  def add_as_agent(%Review{} = review, params, identity) do
+    Repo.transaction(fn ->
+      with {:ok, %Artifact{} = artifact} <- Reviews.open_file(review, params[:path]),
+           round = %Round{} <- Rounds.latest(artifact.id),
+           {:ok, comment} <-
+             insert(agent_comment(identity), Map.put(params, :round_id, round.id), round) do
+        comment
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   defp insert(comment, params, round) do
@@ -160,13 +173,13 @@ defmodule Suikou.Critique.Comments do
   end
 
   @doc """
-  Marks an Open comment resolved at the latest round. Only an Open comment
-  (published and not already resolved) can be resolved.
+  Marks an Open comment resolved by the human at the latest round. Only an Open
+  comment (published and not already resolved) can be resolved.
 
   ## Examples
 
       Suikou.Critique.Comments.resolve(open_comment.id)
-      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1}}
+      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1, resolved_by: :human}}
 
       Suikou.Critique.Comments.resolve(pending_comment.id)
       #=> {:error, :not_open}
@@ -174,21 +187,41 @@ defmodule Suikou.Critique.Comments do
   """
   @spec resolve(Ecto.UUID.t()) ::
           {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
-  def resolve(comment_id) do
+  def resolve(comment_id), do: mark_resolved(comment_id, {:human, ""})
+
+  @doc """
+  Marks an Open comment resolved by `identity` at the latest round, whoever
+  authored it. Resolution is a claim that the critique was addressed, not a
+  verdict on it, so it records who made the claim — the human reopens anything
+  they disagree with.
+
+  ## Examples
+
+      Suikou.Critique.Comments.resolve_as_agent(open_comment.id, %{name: "Codex", icon: "🤖"})
+      #=> {:ok, %Suikou.Schemas.Comment{resolved_round: 1, resolved_by: :agent, resolved_by_name: "Codex"}}
+
+  """
+  @spec resolve_as_agent(Ecto.UUID.t(), Identity.t()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
+  def resolve_as_agent(comment_id, identity),
+    do: mark_resolved(comment_id, {:agent, identity.name})
+
+  defp mark_resolved(comment_id, resolver) do
     case Repo.get(Comment, comment_id) do
-      nil -> {:error, :comment_not_found}
-      %Comment{status: :published, resolved_round: nil} = comment -> mark_resolved(comment)
-      %Comment{} -> {:error, :not_open}
+      nil ->
+        {:error, :comment_not_found}
+
+      %Comment{status: :published, resolved_round: nil} = comment ->
+        round = Rounds.get(comment.round_id)
+        resolved_round = Rounds.latest_number(round.artifact_id)
+
+        comment
+        |> Comment.resolve_changeset(resolved_round, resolver)
+        |> Repo.update()
+
+      %Comment{} ->
+        {:error, :not_open}
     end
-  end
-
-  defp mark_resolved(comment) do
-    round = Rounds.get(comment.round_id)
-    resolved_round = Rounds.latest_number(round.artifact_id)
-
-    comment
-    |> Comment.resolve_changeset(resolved_round)
-    |> Repo.update()
   end
 
   @doc """

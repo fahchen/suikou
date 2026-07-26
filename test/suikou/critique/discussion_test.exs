@@ -82,15 +82,13 @@ defmodule Suikou.Critique.DiscussionTest do
              Critique.reply_as_agent(comment.id, "on it", agent("Codex", "🤖"))
   end
 
-  test "an agent replies to another agent's comment", %{round: round} do
+  test "an agent replies to another agent's comment" do
+    %{review: review, path: path} = covered_file("line 1\n")
+
     {:ok, theirs} =
       Critique.add_comment_as_agent(
-        %{
-          artifact_id: round.artifact_id,
-          scope: :artifact,
-          critique_type: :fix_required,
-          body: "this leaks"
-        },
+        review,
+        %{path: path, scope: :artifact, critique_type: :fix_required, body: "this leaks"},
         agent("Codex", "🤖")
       )
 

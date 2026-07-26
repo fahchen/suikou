@@ -4,7 +4,9 @@ defmodule Suikou.Critique.CommentsTest do
   import Suikou.Factory
 
   alias Suikou.Critique
+  alias Suikou.Reviews
   alias Suikou.Schemas.Anchor.LineRange
+  alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
 
   describe "authoring scope" do
@@ -289,14 +291,16 @@ defmodule Suikou.Critique.CommentsTest do
     end
   end
 
-  describe "add_comment_as_agent/2" do
-    test "publishes on the artifact's latest round under the agent's name" do
-      round = source_round(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
+  describe "add_comment_as_agent/3" do
+    test "opens the file and publishes on its round under the agent's name" do
+      %{review: review, path: path} =
+        covered_file(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
 
       assert {:ok, comment} =
                Critique.add_comment_as_agent(
+                 review,
                  %{
-                   artifact_id: round.artifact_id,
+                   path: path,
                    scope: :located,
                    anchor: %{type: "line_range", start_line: 10, end_line: 12},
                    critique_type: :fix_required,
@@ -310,12 +314,20 @@ defmodule Suikou.Critique.CommentsTest do
                author_name: "Codex",
                author_icon: "🤖",
                status: :published,
-               round_id: round_id,
                authored_round: 0,
                anchor: %LineRange{start_line: 10, end_line: 12}
              } = comment
+    end
 
-      assert round_id == round.id
+    test "an agent writing without an icon still records its name" do
+      %{review: review, path: path} = covered_file("line 1\n")
+
+      assert {:ok, %Comment{author: :agent, author_name: "Codex", author_icon: ""}} =
+               Critique.add_comment_as_agent(
+                 review,
+                 %{path: path, scope: :artifact, critique_type: :note, body: "x"},
+                 agent("Codex")
+               )
     end
 
     test "an agent must name itself, and may not claim the reviewer's name" do
@@ -326,83 +338,71 @@ defmodule Suikou.Critique.CommentsTest do
       assert {:error, :agent_name_reserved} = Critique.agent_identity("human", nil)
     end
 
-    test "an agent writing without an icon still records its name" do
-      round = insert(:round)
-
-      assert {:ok, %Comment{author: :agent, author_name: "Codex", author_icon: ""}} =
-               Critique.add_comment_as_agent(
-                 %{
-                   artifact_id: round.artifact_id,
-                   scope: :artifact,
-                   critique_type: :note,
-                   body: "x"
-                 },
-                 agent("Codex")
-               )
-    end
-
     test "the comment lands on the newest round, not the one the agent last saw" do
-      round = insert(:round)
-      %{round: latest} = advance(round.artifact_id, "v1\n")
+      %{review: review, path: path} = covered_file("line 1\n")
+      {:ok, artifact} = Reviews.open_file(review, path)
+      %{round: latest} = advance(artifact.id, "v1\n")
 
       assert {:ok, %Comment{round_id: round_id, authored_round: 1}} =
                Critique.add_comment_as_agent(
-                 %{
-                   artifact_id: round.artifact_id,
-                   scope: :artifact,
-                   critique_type: :note,
-                   body: "x"
-                 },
-                 agent("Codex", nil)
+                 review,
+                 %{path: path, scope: :artifact, critique_type: :note, body: "x"},
+                 agent("Codex")
                )
 
       assert round_id == latest.id
     end
 
-    test "an unknown artifact is rejected" do
-      assert {:error, :artifact_not_found} =
+    test "a path the review does not cover is rejected" do
+      %{review: review} = covered_file("line 1\n")
+
+      assert {:error, :not_covered} =
                Critique.add_comment_as_agent(
-                 %{
-                   artifact_id: "00000000-0000-7000-8000-000000000000",
-                   scope: :artifact,
-                   critique_type: :note,
-                   body: "x"
-                 },
-                 agent("Codex", nil)
+                 review,
+                 %{path: "nowhere.md", scope: :artifact, critique_type: :note, body: "x"},
+                 agent("Codex")
                )
     end
 
-    test "an empty body is rejected" do
-      round = insert(:round)
+    test "a rejected comment leaves no half-opened file behind" do
+      %{review: review, path: path} = covered_file("line 1\n")
 
       assert {:error, %Ecto.Changeset{}} =
                Critique.add_comment_as_agent(
-                 %{
-                   artifact_id: round.artifact_id,
-                   scope: :artifact,
-                   critique_type: :note,
-                   body: "  "
-                 },
-                 agent("Codex", nil)
+                 review,
+                 %{path: path, scope: :artifact, critique_type: :note, body: "  "},
+                 agent("Codex")
                )
+
+      # The file was not opened before the call and must not be after it: the
+      # mint and the insert share one transaction.
+      assert Repo.aggregate(Artifact, :count) == 0
+      assert Repo.aggregate(Comment, :count) == 0
     end
 
-    test "an agent may resolve its own comment, and the human may reopen it" do
-      round = insert(:round)
+    test "an agent may resolve any comment, recording which one claimed it" do
+      %{review: review, path: path} = covered_file("line 1\n")
 
       {:ok, comment} =
         Critique.add_comment_as_agent(
-          %{
-            artifact_id: round.artifact_id,
-            scope: :artifact,
-            critique_type: :fix_required,
-            body: "x"
-          },
-          agent("Codex", nil)
+          review,
+          %{path: path, scope: :artifact, critique_type: :fix_required, body: "x"},
+          agent("Codex")
         )
 
-      assert {:ok, %Comment{resolved_round: 0}} = Critique.resolve_comment(comment.id)
-      assert {:ok, %Comment{resolved_round: nil}} = Critique.unresolve_comment(comment.id)
+      assert {:ok, %Comment{resolved_round: 0, resolved_by: :agent, resolved_by_name: "Claude"}} =
+               Critique.resolve_comment_as_agent(comment.id, agent("Claude"))
+
+      assert {:ok, %Comment{resolved_round: nil, resolved_by: nil, resolved_by_name: nil}} =
+               Critique.unresolve_comment(comment.id)
+    end
+
+    test "the human's own resolve is recorded as theirs" do
+      round = insert(:round)
+      comment = published_comment(round.id)
+
+      assert {:ok, %Comment{resolved_by: :human, resolved_by_name: ""}} =
+               Critique.resolve_comment(comment.id)
     end
   end
 

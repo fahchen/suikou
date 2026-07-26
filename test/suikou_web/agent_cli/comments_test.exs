@@ -10,7 +10,6 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
   alias Suikou.Repo
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
-  alias Suikou.Schemas.ReviewSource.FileSelection
   alias SuikouWeb.AgentCLI.Comments
 
   describe "add/0" do
@@ -167,7 +166,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       comment = published_comment(round.id, %{scope: :review, critique_type: :note, body: "x"})
 
       assert %{"comment_id" => id, "error" => nil} =
-               run(%{"comment_id" => comment.id}, &Comments.resolve/0)
+               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/0)
 
       assert id == comment.id
       assert %Comment{resolved_round: 0} = Repo.get!(Comment, comment.id)
@@ -184,7 +183,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       {:ok, _resolved} = Critique.resolve_comment(comment.id)
 
       assert %{"comment_id" => nil, "error" => "not_open"} =
-               run(%{"comment_id" => comment.id}, &Comments.resolve/0)
+               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/0)
     end
   end
 
@@ -212,17 +211,6 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                  &Comments.reply/0
                )
     end
-  end
-
-  # A review whose selection covers a real file on disk, with no artifact minted
-  # yet — the state a reviewing agent finds before the human opens anything.
-  defp covered_file(content) do
-    project = insert(:project)
-    path = "doc.md"
-    File.mkdir_p!(project.path)
-    File.write!(Path.join(project.path, path), content)
-    review = insert(:review, project: project, source: %FileSelection{selection_paths: [path]})
-    %{review: review, path: path}
   end
 
   defp run(payload, fun) do

@@ -21,6 +21,7 @@ defmodule Suikou.Critique do
   alias Suikou.Reads
   alias Suikou.Schemas.Comment
   alias Suikou.Schemas.Reply
+  alias Suikou.Schemas.Review
 
   @typedoc "Which kind of reviewer wrote something."
   @type author_kind() :: :human | :agent
@@ -87,25 +88,26 @@ defmodule Suikou.Critique do
   defdelegate author_view(kind, name, icon), to: Identity, as: :view
 
   @doc """
-  Adds an agent's critique to an artifact's latest round, published immediately.
-  See `Suikou.Critique.Comments.add_as_agent/2`.
+  Adds an agent's critique to a review's file at `params.path`, opening the file
+  if nobody has yet, published immediately. See
+  `Suikou.Critique.Comments.add_as_agent/3`.
 
   ## Examples
 
-      Suikou.Critique.add_comment_as_agent(%{artifact_id: artifact.id, scope: :artifact, critique_type: :note, body: "ok"}, %{name: "Codex", icon: "🤖"})
+      Suikou.Critique.add_comment_as_agent(review, %{path: "lib/a.ex", scope: :artifact, critique_type: :note, body: "ok"}, %{name: "Codex", icon: "🤖"})
       #=> {:ok, %Suikou.Schemas.Comment{author: :agent, status: :published}}
 
   """
-  @spec add_comment_as_agent(map(), Identity.t()) ::
+  @spec add_comment_as_agent(Review.t(), map(), Identity.t()) ::
           {:ok, Comment.t()}
           | {:error,
              Ecto.Changeset.t()
-             | :artifact_not_found
+             | :not_covered
              | :unknown_anchor_type
              | Artifacts.read_content_error()
              | Artifacts.content_source_error()}
-  def add_comment_as_agent(params, identity),
-    do: params |> Comments.add_as_agent(identity) |> broadcast_comment_change()
+  def add_comment_as_agent(review, params, identity),
+    do: review |> Comments.add_as_agent(params, identity) |> broadcast_comment_change()
 
   @doc """
   Edits a Draft (pending) comment's body. See `Suikou.Critique.Comments.edit/2`.
@@ -148,6 +150,21 @@ defmodule Suikou.Critique do
           {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
   def resolve_comment(comment_id),
     do: comment_id |> Comments.resolve() |> broadcast_comment_change()
+
+  @doc """
+  Marks an Open comment resolved by an agent. See
+  `Suikou.Critique.Comments.resolve_as_agent/2`.
+
+  ## Examples
+
+      Suikou.Critique.resolve_comment_as_agent(comment.id, %{name: "Codex", icon: "🤖"})
+      #=> {:ok, %Suikou.Schemas.Comment{resolved_by: :agent, resolved_by_name: "Codex"}}
+
+  """
+  @spec resolve_comment_as_agent(Ecto.UUID.t(), identity()) ::
+          {:ok, Comment.t()} | {:error, :comment_not_found | :not_open}
+  def resolve_comment_as_agent(comment_id, identity),
+    do: comment_id |> Comments.resolve_as_agent(identity) |> broadcast_comment_change()
 
   @doc """
   Reopens a Resolved comment. See `Suikou.Critique.Comments.unresolve/1`.

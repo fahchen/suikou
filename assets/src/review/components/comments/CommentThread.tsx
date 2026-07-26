@@ -3,6 +3,7 @@ import { Check, CornerDownRight, Pencil, RotateCcw } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
+import { AuthorBadge } from "./AuthorBadge"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { CommentCard } from "./CommentCard"
 import { Composer } from "./Composer"
@@ -120,6 +121,17 @@ export function CommentThread({
           ) : undefined
         }
         summaryText={comment.body}
+        rightLabel={
+          // Any agent may call a comment addressed, so name the one that did —
+          // it is what the human weighs before reopening. Their own resolves
+          // need no label; they were there.
+          comment.resolved && comment.resolved_by?.kind === "agent" ? (
+            <span className="flex shrink-0 items-center gap-1 text-2xs text-muted">
+              <Check size={11} aria-hidden />
+              <AuthorBadge author={comment.resolved_by} size="sm" />
+            </span>
+          ) : undefined
+        }
         headerActions={
           <div className="-mr-1 ml-auto flex shrink-0 items-center gap-0.5">
             {(!collapsed || pending) && (

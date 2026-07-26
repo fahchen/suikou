@@ -16,8 +16,10 @@ defmodule Suikou.Schemas.Reaction do
   second agent's reaction is a row of its own.
 
   The human vocabulary is a fixed approval/opposition scale (`human_emojis/0`);
-  the agent may react with **any** emoji glyph (a free-form work-status signal),
-  so `emoji` is stored as a plain string rather than an enum.
+  an agent may react with any emoji glyph (a free-form work-status signal) except
+  those keys, so `emoji` is stored as a plain string rather than an enum. The two
+  vocabularies stay disjoint because the client groups a chip by glyph alone — an
+  agent reacting `"agree"` would be counted into the reviewer's own chip.
   """
 
   use Suikou.Schema
@@ -98,6 +100,10 @@ defmodule Suikou.Schemas.Reaction do
       iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: ""}).valid?
       false
 
+      iex> reaction = %Suikou.Schemas.Reaction{actor: :agent}
+      iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "agree"}).valid?
+      false
+
   """
   @spec changeset(Ecto.Schema.t(), map()) :: Ecto.Changeset.t()
   def changeset(reaction, params) do
@@ -113,7 +119,9 @@ defmodule Suikou.Schemas.Reaction do
   end
 
   defp validate_emoji_for_actor(changeset, :agent) do
-    validate_length(changeset, :emoji, min: 1, max: @agent_emoji_max_bytes, count: :bytes)
+    changeset
+    |> validate_length(:emoji, min: 1, max: @agent_emoji_max_bytes, count: :bytes)
+    |> validate_exclusion(:emoji, @human_emojis, message: "is reserved for the reviewer")
   end
 
   defp validate_exactly_one_target(changeset) do

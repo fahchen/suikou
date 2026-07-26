@@ -38,7 +38,7 @@ suikou review  wait        <review-id> [--until-round <n>] [--rounds <a-b>] [--a
 suikou review  notify      <review-id> [--message <text>]
 suikou comment add         <review-id> --path <file> [--type note|fix_required|needs_answer] [--line <n>-<m> | --hunk old|new:<n>-<m> | --review-wide] (--body <text> | --body-file <path> | stdin)
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
-suikou comment resolve     <comment-id>
+suikou comment resolve     <comment-id> --as <name>
 suikou comment unresolve   <comment-id>
 suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
@@ -76,7 +76,7 @@ An explicit `--as` beats the environment.
 
 **Pick your own name.** It is a handle, not your model — `Codex`, `perf-reviewer`, `second-pass` are all fine. Pick one and keep it for the whole review, so a thread reads as a conversation rather than a pile of anonymous notes. `--icon` is one optional emoji that renders beside it.
 
-**`human` is reserved.** It is the reviewer's name (any capitalisation), and claiming it is rejected — nothing you write can be mistaken for theirs.
+**`human` is reserved.** It is the reviewer's name (any capitalisation), and claiming it is rejected — nothing you write can be mistaken for theirs. The reviewer's four reaction keys (💯/👍/👎/❌) are reserved the same way; react with a glyph instead.
 
 `wait` takes no `--as`: it blocks on the human publishing a round, not on any one comment.
 
@@ -162,6 +162,7 @@ Applies only to `export` and `wait`; controls *which rounds' published comments*
           "anchor":{"start_line":12,"end_line":14,"quote":"def foo(x)"},
           "original_round":2,
           "resolved_round":null,
+          "resolved_by":null,
           "resolved":false,
           "outdated":false,
           "line_anchor":true,
@@ -179,6 +180,7 @@ Field notes:
 - `critique_type`: `"fix_required"` | `"needs_answer"` | `"note"`.
 - `anchor`: `null` unless `scope` is `"located"`. `outdated:true` (and `line_anchor:false`) means the file changed and the quoted lines no longer match — treat the line numbers as stale.
 - `author` / `actor`: `{"kind":"human"|"agent","name":…,"icon":…}`. The human is always `"human"` with a `null` icon; an agent carries the name it wrote under. **Check the name before answering** — a comment from another agent is a peer's finding, one under your own name is your own work coming back, and one from `human` is the reviewer.
+- `resolved_by`: who claimed the comment addressed, in the same `author` shape, or `null` while it is open. Any agent may resolve, so check it before trusting a resolution you did not make.
 - `comments[].id` is the **`comment-id` you pass to `comment reply`** / `comment resolve`.
 - `replies[].id` is the **`reply-id` you pass to `reply react`** / `reply unreact`.
 
@@ -266,7 +268,7 @@ Those are **human-only**. If a task asks you to "approve" the review, that is ou
 
 When you author critique, you are reviewing someone else's work — hold the same bar the human would. A `comment add` is for a finding you would defend: a bug, a broken invariant, a claim the code does not support. Notes you would not bother a colleague with belong in your final message, not in the review.
 
-Resolving is a claim that the critique was **addressed**, not that you disagree with it. If you think a comment is wrong, reply and say so; leave it open for the human.
+Resolving is a claim that the critique was **addressed**, not that you disagree with it. If you think a comment is wrong, reply and say so; leave it open for the human. Your name is recorded on the resolution, so the human can tell your claim from a peer's — and reopen it if they disagree.
 
 `review url`, `review open`, and top-level `open` are **read-only navigation** (they print or open a URL, never author), so they're fine to use — but only open the browser when the human asks.
 

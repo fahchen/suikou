@@ -80,6 +80,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
       body: comment.body,
       resolved: not is_nil(comment.resolved_round),
       resolved_round: comment.resolved_round,
+      resolved_by: resolver(comment),
       outdated: status == :outdated,
       drifted: status == :drifted,
       authored_round: comment.authored_round,
@@ -88,6 +89,14 @@ defmodule SuikouWeb.Stores.CommentRendering do
       replies: Enum.map(comment.replies, &render_reply/1),
       reactions: render_reactions(comment.reactions)
     }
+  end
+
+  # Rows resolved before resolution was attributed carry no answer, and an
+  # unresolved comment has nobody to name.
+  defp resolver(%Comment{resolved_by: nil}), do: nil
+
+  defp resolver(%Comment{} = comment) do
+    Critique.author_view(comment.resolved_by, comment.resolved_by_name || "", "")
   end
 
   # Wrap the resolved anchor view with the kind discriminator that drives the
@@ -147,8 +156,8 @@ defmodule SuikouWeb.Stores.CommentRendering do
     end)
   end
 
-  # Only agents name themselves, so the human — anonymous by design — contributes
-  # nothing here; `mine` is what tells the client the human is in the group.
+  # Only agents carry a stored name, so the human contributes nothing here;
+  # `mine` is what tells the client the human is in the group.
   defp named_actors(group) do
     for %Reaction{actor_name: name} = reaction <- group, name != "" do
       %{name: name, icon: reaction.actor_icon}

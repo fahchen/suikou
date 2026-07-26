@@ -441,6 +441,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Comments.resolve()",
       options: {},
       id: { name: "comment-id", required: true },
+      identity: true,
       payload: ({ id }) => ({ comment_id: id }),
       summary: "mark a comment resolved (<comment-id>)"
     },

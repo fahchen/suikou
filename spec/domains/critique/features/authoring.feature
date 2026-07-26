@@ -108,3 +108,30 @@ Feature: Authoring structured critique
     Scenario: An agent may not author under the reviewer's reserved name
       When an agent named "human" adds a comment on the artifact
       Then the comment is rejected
+
+    Scenario: A rejected comment does not open the file it named
+      Given the artifact's file has not been opened by anyone
+      When an agent adds a comment with an empty body on that file
+      Then the comment is rejected
+      And the file is still unopened
+
+  # Resolving says the critique was addressed — a claim about the work, not a
+  # verdict on it — so it records who made the claim (see BDR-0026).
+  Rule: A resolution records who claimed the critique addressed
+
+    Scenario: An agent's resolution carries its name
+      Given a published comment on the artifact
+      When an agent named "Codex" resolves that comment
+      Then the comment is resolved
+      And the resolution is attributed to "Codex"
+
+    Scenario: The reviewer's own resolution is attributed to them
+      Given a published comment on the artifact
+      When the reviewer resolves that comment
+      Then the resolution is attributed to the human reviewer
+
+    Scenario: Reopening clears the attribution with the resolution
+      Given a comment an agent resolved
+      When the reviewer reopens it
+      Then the comment is no longer resolved
+      And the resolution carries no attribution
