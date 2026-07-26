@@ -65,7 +65,7 @@ defmodule Suikou.Critique.Comments do
         {:error, :not_latest_round}
 
       true ->
-        insert(%Comment{}, params, round)
+        insert(%Comment{author: :human}, params, round)
     end
   end
 

@@ -17,7 +17,7 @@ defmodule Suikou.Critique.ReactionsTest do
 
       assert {:ok, ^comment_id} = Critique.react_as_human(comment.id, "agree")
 
-      assert [%Reaction{emoji: "agree", actor: :human}] =
+      assert [%Reaction{emoji: "agree", actor: :human, actor_name: "", actor_icon: ""}] =
                Repo.all(Reaction)
     end
 

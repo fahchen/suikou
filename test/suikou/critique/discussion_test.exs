@@ -12,7 +12,7 @@ defmodule Suikou.Critique.DiscussionTest do
   test "the reviewer can reply to a thread", %{comment: comment} do
     comment_id = comment.id
 
-    assert {:ok, %{comment_id: ^comment_id, author: :human}} =
+    assert {:ok, %{comment_id: ^comment_id, author: :human, author_name: "", author_icon: ""}} =
              Critique.reply_as_human(comment.id, "thanks, noted")
   end
 

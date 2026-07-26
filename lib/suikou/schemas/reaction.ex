@@ -104,15 +104,23 @@ defmodule Suikou.Schemas.Reaction do
       iex> Suikou.Schemas.Reaction.changeset(reaction, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "agree"}).valid?
       false
 
+      iex> Suikou.Schemas.Reaction.changeset(%Suikou.Schemas.Reaction{}, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", emoji: "agree"}).valid?
+      false
+
   """
   @spec changeset(Ecto.Schema.t(), map()) :: Ecto.Changeset.t()
   def changeset(reaction, params) do
     reaction
     |> cast(params, [:comment_id, :reply_id, :emoji])
-    |> validate_required([:emoji])
+    # `actor` is set on the struct rather than cast; requiring it here catches a
+    # reaction path that never said who reacted, which would otherwise reach
+    # `validate_emoji_for_actor/2` with no matching clause and raise.
+    |> validate_required([:emoji, :actor])
     |> validate_exactly_one_target()
     |> validate_emoji_for_actor(reaction.actor)
   end
+
+  defp validate_emoji_for_actor(changeset, nil), do: changeset
 
   defp validate_emoji_for_actor(changeset, :human) do
     validate_inclusion(changeset, :emoji, @human_emojis, message: "not allowed for this actor")

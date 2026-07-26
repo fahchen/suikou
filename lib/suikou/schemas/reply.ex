@@ -51,12 +51,17 @@ defmodule Suikou.Schemas.Reply do
       iex> Suikou.Schemas.Reply.changeset(reply, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", body: " "}).valid?
       false
 
+      iex> Suikou.Schemas.Reply.changeset(%Suikou.Schemas.Reply{}, %{comment_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", body: "noted"}).valid?
+      false
+
   """
   @spec changeset(Ecto.Schema.t(), map()) :: Ecto.Changeset.t()
   def changeset(reply, params) do
     reply
     |> cast(params, [:comment_id, :body])
-    |> validate_required([:comment_id, :body])
+    # `author` is set on the struct rather than cast, so requiring it here is what
+    # catches a reply path that never said who wrote it.
+    |> validate_required([:comment_id, :body, :author])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
   end
 

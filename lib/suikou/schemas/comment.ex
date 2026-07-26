@@ -11,6 +11,10 @@ defmodule Suikou.Schemas.Comment do
   supplies none and stores `""`, since there is exactly one of them and
   `Suikou.Critique.Identity` gives them a fixed reserved name on the way out.
 
+  `author` carries no schema default: a path that forgets to say who wrote a
+  comment must fail, not silently claim the reviewer. (The column keeps a DB-level
+  `'human'` default, which is what made the rows predating this valid.)
+
   A comment is a single row across every round. Its per-round visibility is
   derived from `authored_round` (the round it was created in; denormalized and
   immutable) and `resolved_round` (the round it was resolved in, or `nil` while
@@ -43,7 +47,7 @@ defmodule Suikou.Schemas.Comment do
 
   typed_schema "comments" do
     field :scope, Ecto.Enum, values: @scopes, typed: [null: false]
-    field :author, Ecto.Enum, values: @authors, default: :human, typed: [null: false]
+    field :author, Ecto.Enum, values: @authors, typed: [null: false]
     field :author_name, :string, default: "", typed: [null: false]
     field :author_icon, :string, default: "", typed: [null: false]
 
@@ -102,10 +106,15 @@ defmodule Suikou.Schemas.Comment do
 
   ## Examples
 
-      iex> Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
+      iex> comment = %Suikou.Schemas.Comment{author: :human}
+      iex> Suikou.Schemas.Comment.author_changeset(comment, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
       true
 
-      iex> Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " ", authored_round: 1}).valid?
+      iex> comment = %Suikou.Schemas.Comment{author: :human}
+      iex> Suikou.Schemas.Comment.author_changeset(comment, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: " ", authored_round: 1}).valid?
+      false
+
+      iex> Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", scope: :review, critique_type: :note, body: "ok", authored_round: 1}).valid?
       false
 
   """
@@ -113,7 +122,9 @@ defmodule Suikou.Schemas.Comment do
   def author_changeset(comment, params) do
     comment
     |> cast(params, [:round_id, :scope, :critique_type, :body, :authored_round])
-    |> validate_required([:round_id, :scope, :critique_type, :body, :authored_round])
+    # `author` is set on the struct rather than cast, so requiring it here is what
+    # catches an authoring path that never set it.
+    |> validate_required([:round_id, :scope, :critique_type, :body, :authored_round, :author])
     |> validate_format(:body, ~r/\S/, message: "can't be blank")
     |> cast_anchor()
   end

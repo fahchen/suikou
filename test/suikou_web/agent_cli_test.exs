@@ -49,7 +49,7 @@ defmodule SuikouWeb.AgentCLITest do
 
     test "reaches into an embed, which holds a comment anchor's errors" do
       changeset =
-        Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{}, %{
+        Suikou.Schemas.Comment.author_changeset(%Suikou.Schemas.Comment{author: :human}, %{
           round_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f",
           scope: :located,
           critique_type: :note,

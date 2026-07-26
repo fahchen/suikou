@@ -8,6 +8,7 @@ defmodule Suikou.Critique.CommentsTest do
   alias Suikou.Schemas.Anchor.LineRange
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Comment
+  alias Suikou.Schemas.Reply
 
   describe "authoring scope" do
     test "a located comment anchors to a range and captures the quoted source" do
@@ -87,6 +88,47 @@ defmodule Suikou.Critique.CommentsTest do
                })
 
       assert %{scope: :review, anchor: nil} = comment
+    end
+  end
+
+  describe "authorship" do
+    test "the human authoring path records the reviewer, not a default" do
+      round = insert(:round)
+
+      assert {:ok, %Comment{author: :human, author_name: "", author_icon: ""}} =
+               Critique.add_comment(%{
+                 round_id: round.id,
+                 scope: :review,
+                 critique_type: :note,
+                 body: "x"
+               })
+    end
+
+    test "a comment with no author is rejected rather than assumed human" do
+      round = insert(:round)
+
+      changeset =
+        Comment.author_changeset(%Comment{}, %{
+          round_id: round.id,
+          scope: :review,
+          critique_type: :note,
+          body: "x",
+          authored_round: 0
+        })
+
+      refute changeset.valid?
+      assert %{author: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "a reply with no author is rejected rather than assumed human" do
+      changeset =
+        Reply.changeset(%Reply{}, %{
+          comment_id: Ecto.UUID.generate(),
+          body: "x"
+        })
+
+      refute changeset.valid?
+      assert %{author: ["can't be blank"]} = errors_on(changeset)
     end
   end
 
