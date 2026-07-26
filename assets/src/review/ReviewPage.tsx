@@ -549,6 +549,16 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap, selectedRound, review.verdict])
 
+  const navSelected = stacked ? (stackedCurrentPath ?? selectedPath) : selectedPath
+  const reviewName = structure?.name
+  const currentFile = navSelected ? (navSelected.split("/").pop() || navSelected) : null
+  useEffect(() => {
+    document.title = [currentFile, reviewName, "Suikou"].filter(Boolean).join(" · ")
+    return () => {
+      document.title = "Suikou"
+    }
+  }, [currentFile, reviewName])
+
   if (structure && !structure.exists) {
     return (
       <div className="grid h-dvh place-items-center bg-canvas">
@@ -585,18 +595,8 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     setFilesSheetOpen(false)
     setStackedScrollTarget({ path, line: null })
   }
-  const navSelected = stacked ? (stackedCurrentPath ?? selectedPath) : selectedPath
   const navSelect = stacked ? scrollToStacked : select
   const stackedSide = stacked && commentDisplay === "side"
-
-  const reviewName = structure?.name
-  const currentFile = navSelected ? (navSelected.split("/").pop() || navSelected) : null
-  useEffect(() => {
-    document.title = [currentFile, reviewName, "Suikou"].filter(Boolean).join(" · ")
-    return () => {
-      document.title = "Suikou"
-    }
-  }, [currentFile, reviewName])
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] text-ink">
