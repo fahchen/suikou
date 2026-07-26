@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReactionPreviewRouteImport } from './routes/reaction-preview'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReviewsReviewIdRouteImport } from './routes/reviews.$reviewId'
 
+const ReactionPreviewRoute = ReactionPreviewRouteImport.update({
+  id: '/reaction-preview',
+  path: '/reaction-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -25,32 +31,43 @@ const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/reaction-preview': typeof ReactionPreviewRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/reaction-preview': typeof ReactionPreviewRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/reaction-preview': typeof ReactionPreviewRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/reviews/$reviewId'
+  fullPaths: '/' | '/reaction-preview' | '/reviews/$reviewId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/reviews/$reviewId'
-  id: '__root__' | '/' | '/reviews/$reviewId'
+  to: '/' | '/reaction-preview' | '/reviews/$reviewId'
+  id: '__root__' | '/' | '/reaction-preview' | '/reviews/$reviewId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ReactionPreviewRoute: typeof ReactionPreviewRoute
   ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reaction-preview': {
+      id: '/reaction-preview'
+      path: '/reaction-preview'
+      fullPath: '/reaction-preview'
+      preLoaderRoute: typeof ReactionPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ReactionPreviewRoute: ReactionPreviewRoute,
   ReviewsReviewIdRoute: ReviewsReviewIdRoute,
 }
 export const routeTree = rootRouteImport

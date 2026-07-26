@@ -17,4 +17,14 @@ describe("AuthorBadge", () => {
     expect(badge).toHaveClass("bg-accent-soft")
     expect(badge).toHaveClass("ring-accent-edge")
   })
+
+  test("can render an agent identity without a second container", () => {
+    const author: CommentAuthor = { kind: "agent", name: "LintBot", icon: "🧹" }
+
+    render(<AuthorBadge author={author} appearance="bare" />)
+
+    const identity = screen.getByText("LintBot").parentElement
+    expect(identity).not.toHaveClass("bg-accent-soft")
+    expect(identity).not.toHaveClass("ring-accent-edge")
+  })
 })

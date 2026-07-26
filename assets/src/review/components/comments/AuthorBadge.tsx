@@ -17,9 +17,11 @@ import type { CommentAuthor } from "./shared"
 export const AuthorBadge = observer(function AuthorBadge({
   author,
   size = "md",
+  appearance = "pill",
 }: {
   author: CommentAuthor
   size?: "sm" | "md"
+  appearance?: "pill" | "bare"
 }) {
   const agent = author.kind === "agent"
   const iconSize = size === "sm" ? 10 : 11
@@ -34,7 +36,9 @@ export const AuthorBadge = observer(function AuthorBadge({
     <span
       className={`inline-flex shrink-0 items-center text-xs font-bold leading-none ${
         agent
-          ? `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright ring-1 ring-inset ring-accent-edge`
+          ? appearance === "bare"
+            ? "gap-1 text-accent-bright"
+            : `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright ring-1 ring-inset ring-accent-edge`
           : "gap-1.5 text-text"
       }`}
     >
