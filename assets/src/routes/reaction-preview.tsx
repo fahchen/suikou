@@ -15,7 +15,7 @@ function ReactionPreview() {
   const human = { kind: "human" as const, name: "human", icon: null }
 
   return (
-    <main className="min-h-dvh bg-canvas px-4 py-8 text-ink sm:px-8 lg:px-12">
+    <main className="h-dvh overflow-y-auto bg-canvas px-4 py-8 text-ink sm:px-8 lg:px-12">
       <section className="mx-auto max-w-3xl overflow-hidden rounded-panel border border-hair-strong bg-panel shadow-card">
         <header className="border-b border-hair px-5 py-4 sm:px-6">
           <p className="font-mono text-2xs text-muted">reaction treatment preview</p>
