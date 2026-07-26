@@ -32,14 +32,16 @@ export const AuthorBadge = observer(function AuthorBadge({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-bold leading-none ${
-        agent ? "text-accent-bright" : "text-text"
+      className={`inline-flex shrink-0 items-center text-xs font-bold leading-none ${
+        agent
+          ? `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright ring-1 ring-inset ring-accent-edge`
+          : "gap-1.5 text-text"
       }`}
     >
       <span
         aria-hidden
-        className={`grid shrink-0 place-items-center rounded-[5px] ${size === "sm" ? "size-[15px]" : "size-[18px]"} ${
-          agent ? "bg-accent text-on-accent" : "bg-control text-muted"
+        className={`grid shrink-0 place-items-center ${size === "sm" ? "size-[15px]" : "size-[18px]"} ${
+          agent ? "" : "rounded-[5px] bg-control text-muted"
         }`}
       >
         {author.icon ? (
