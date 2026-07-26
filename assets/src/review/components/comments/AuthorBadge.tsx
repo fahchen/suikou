@@ -34,7 +34,7 @@ export const AuthorBadge = observer(function AuthorBadge({
     <span
       className={`inline-flex shrink-0 items-center text-xs font-bold leading-none ${
         agent
-          ? `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft pl-1.5 pr-0 text-accent-bright ring-1 ring-inset ring-accent-edge`
+          ? `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright ring-1 ring-inset ring-accent-edge`
           : "gap-1.5 text-text"
       }`}
     >
@@ -54,7 +54,7 @@ export const AuthorBadge = observer(function AuthorBadge({
           <User size={iconSize} />
         )}
       </span>
-      {label && <span className="-ml-1.5 leading-none">{label}</span>}
+      {label && <span className="leading-none">{label}</span>}
     </span>
   )
 })
