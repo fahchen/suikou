@@ -38,7 +38,7 @@ suikou review  wait        <review-id> [--until-round <n>] [--rounds <a-b>] [--a
 suikou review  notify      <review-id> [--message <text>]
 suikou comment add         <review-id> --path <file> [--type note|fix_required|needs_answer] [--line <n>-<m> | --hunk old|new:<n>-<m> | --review-wide] (--body <text> | --body-file <path> | stdin)
 suikou comment reply       <comment-id> (--body <text> | --body-file <path> | stdin)
-suikou comment resolve     <comment-id> --as <name>
+suikou comment resolve     <comment-id>
 suikou comment reopen      <comment-id>
 suikou comment react       <comment-id> <emoji>
 suikou comment unreact     <comment-id>
@@ -55,6 +55,7 @@ suikou version                          # print the build identifier
 - `react` takes the emoji as a positional: `comment react <id> 👀`. The agent may use **any** emoji glyph — 👀 / 🤔 / ✅ are just the suggested work-status convention.
 - `set-files` **replaces** the whole selection; `add-files` / `remove-files` are **incremental** — pass only the paths to add or drop, not the full list.
 - `comment add` / `comment reply` body sources, in priority order: `--body`, then `--body-file <path>`, then stdin read to EOF. **Prefer `--body-file` or stdin for multi-line markdown** — avoids shell quoting hell.
+- **Every write verb also takes `--as <name> [--icon <emoji>]`** — see *Who you are* below. `suikou help <group>` prints it per verb.
 - `comment add` targets a **review id plus `--path`** (a path from `review list-files`), not an artifact id: a file's artifact does not exist until someone opens it, and a reviewing agent usually arrives first. The path must be one the review covers. Its scope follows what you point at: `--line 12-14` (a file's lines) or `--hunk new:12-14` (a diff hunk) makes it line-scoped, `--review-wide` lifts it off the file, and the default sits on the file as a whole.
 
 ## Who you are (`--as` / `--icon`)
@@ -64,15 +65,6 @@ Several agents review one review at a time, so **every comment, reply, and react
 ```
 suikou comment add <review-id> --path lib/a.ex --as Codex --icon 🤖 --body-file finding.md
 ```
-
-Set it once for your whole session and drop the flags:
-
-```
-export SUIKOU_AGENT_NAME=Codex
-export SUIKOU_AGENT_ICON=🤖
-```
-
-An explicit `--as` beats the environment.
 
 **Pick your own name.** It is a handle, not your model — `Codex`, `perf-reviewer`, `second-pass` are all fine. Pick one and keep it for the whole review, so a thread reads as a conversation rather than a pile of anonymous notes. `--icon` is one optional emoji that renders beside it.
 
@@ -224,7 +216,7 @@ Without `--until-round`, `wait` targets the *next* submission past the current c
 
 When you are brought in to **review** a review someone else opened (rather than to answer critique on your own work), name yourself and work the other side of the loop:
 
-1. `export SUIKOU_AGENT_NAME=<your name>` and `export SUIKOU_AGENT_ICON=<one emoji>` so every write is attributed.
+1. Pick a name and an icon, and pass `--as <name> --icon <emoji>` on every write below.
 2. `suikou review list-files <review-id>` for the paths, then `suikou review export <review-id>` for the comments already there. Read the files themselves from disk — you have the repo.
 3. Post each finding with `suikou comment add <review-id> --path lib/a.ex --type fix_required --line 12-14 --body-file finding.md`. Anchor it to the lines it is about; an unanchored finding is much harder to act on.
 4. Read the other reviewers' comments before adding your own. If you agree, react rather than restate it. If you disagree, `comment reply` on **their** comment and say why — that is the discussion the human is here to adjudicate.

@@ -185,22 +185,18 @@ const roundsOptions: ParseOptions = {
 }
 
 // Who is writing. Every verb that records something carries these so a review
-// with several agents in it stays readable. SUIKOU_AGENT_NAME / _ICON let an
-// agent set its identity once for its whole session instead of repeating the
-// flags; the explicit flag still wins. A name is required — the server refuses an
-// unnamed write, and catching it here costs a round trip less. "human" is the
-// reviewer's, and the server refuses that too.
+// with several agents in it stays readable. A name is required — the server
+// refuses an unnamed write, and catching it here costs a round trip less.
+// "human" is the reviewer's, and the server refuses that too.
 const identityOptions: ParseOptions = {
   as: { type: "string" },
   icon: { type: "string" }
 }
 
 function identityPayload(values: Values): { as: string; icon?: string } {
-  const as = typeof values.as === "string" ? values.as : process.env.SUIKOU_AGENT_NAME
-  const icon = typeof values.icon === "string" ? values.icon : process.env.SUIKOU_AGENT_ICON
-  if (!as?.trim()) {
-    throw new UsageError("missing required --as <name>; name yourself (or set SUIKOU_AGENT_NAME)")
-  }
+  const as = typeof values.as === "string" ? values.as : undefined
+  const icon = typeof values.icon === "string" ? values.icon : undefined
+  if (!as?.trim()) throw new UsageError("missing required --as <name>; name yourself")
   return { as, ...(icon ? { icon } : {}) }
 }
 
