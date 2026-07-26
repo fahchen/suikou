@@ -4,6 +4,7 @@ import { Bot, SmilePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { Popover } from "../../../components/ui/popover"
+import { AuthorBadge } from "./AuthorBadge"
 import {
   HUMAN_REACTIONS,
   reactionGlyph,
@@ -80,17 +81,7 @@ export function Reactions({
             >
               <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
               {agent ? (
-                <span className="inline-flex h-[18px] items-center gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright">
-                  {agent.icon ? (
-                    <span aria-hidden className="text-[11px] leading-none">{agent.icon}</span>
-                  ) : (
-                    <Bot size={11} aria-hidden />
-                  )}
-                  <span className="max-w-24 truncate leading-none">
-                    {agent.name}
-                    {reaction.by.length > 1 && ` +${reaction.by.length - 1}`}
-                  </span>
-                </span>
+                <AuthorBadge author={{ kind: "agent", ...agent }} size="sm" />
               ) : (
                 <Bot size={11} className="text-accent-bright" aria-hidden />
               )}

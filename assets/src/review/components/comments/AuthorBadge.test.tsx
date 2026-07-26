@@ -16,5 +16,7 @@ describe("AuthorBadge", () => {
     expect(badge).toHaveTextContent("🔍Codex")
     expect(badge).toHaveClass("bg-accent-soft")
     expect(badge).toHaveClass("ring-accent-edge")
+    expect(badge).toHaveClass("pr-0")
+    expect(screen.getByText("Codex")).toHaveClass("-ml-1.5")
   })
 })

@@ -6,6 +6,7 @@ import { renderMarkdown } from "../../markdown"
 import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { CommentCard } from "./CommentCard"
 import { Composer } from "./Composer"
+import { AuthorBadge } from "./AuthorBadge"
 import { Reactions } from "./Reactions"
 import { Reply } from "./Reply"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS, inlineThreadCollapsedKey, type Comment, type CommentsStoreProxy } from "./shared"
@@ -121,16 +122,10 @@ export function CommentThread({
         }
         summaryText={comment.body}
         rightLabel={
-          // Any agent may call a comment addressed, so name the one that did —
-          // it is what the human weighs before reopening. Their own resolves need
-          // no label; they were there. The name alone, no avatar: a resolution
-          // records who claimed it, not the glyph they claimed it under, so an
-          // AuthorBadge here would sit beside the author's own icon wearing the
-          // generic bot instead.
           comment.resolved && comment.resolved_by?.kind === "agent" && comment.resolved_by.name ? (
             <span className="flex shrink-0 items-center gap-1 text-2xs text-muted">
               <Check size={11} aria-hidden />
-              {comment.resolved_by.name}
+              <AuthorBadge author={comment.resolved_by} size="sm" />
             </span>
           ) : undefined
         }

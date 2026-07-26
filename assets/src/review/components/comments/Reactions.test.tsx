@@ -18,6 +18,7 @@ describe("Reactions", () => {
 
     const agentBadge = screen.getByText("Codex").parentElement
     expect(agentBadge).toHaveTextContent("🤖Codex")
+    expect(agentBadge).toHaveClass("h-[19px]")
     expect(agentBadge).toHaveClass("bg-accent-soft")
   })
 })
