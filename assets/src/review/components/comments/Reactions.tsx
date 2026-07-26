@@ -18,10 +18,6 @@ type Target = "comment" | "reply"
 const agentChipTitle = (reaction: CommentReaction): string =>
   reaction.by.length > 0 ? `Reacted by ${reaction.by.map((actor) => actor.name).join(", ")}` : "Agent reaction"
 
-/** One named agent with a glyph badges the chip with it instead of the generic bot. */
-const soleAuthorIcon = (reaction: CommentReaction): string | null =>
-  reaction.by.length === 1 && reaction.by[0].icon ? reaction.by[0].icon : null
-
 const CHIP_ENTER = { scale: 0.6, opacity: 0 }
 const CHIP_SHOWN = { scale: 1, opacity: 1 }
 const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
@@ -70,7 +66,7 @@ export function Reactions({
           added or removed later animate, with layout easing neighbours over. */}
       <AnimatePresence initial={false}>
         {reactions.map((reaction) => {
-          const badge = soleAuthorIcon(reaction)
+          const agent = reaction.by[0]
           return reaction.actor === "agent" ? (
             <motion.span
               key={reaction.emoji}
@@ -83,8 +79,18 @@ export function Reactions({
               className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
             >
               <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
-              {badge ? (
-                <span aria-hidden className="text-[11px] leading-none">{badge}</span>
+              {agent ? (
+                <span className="inline-flex h-[18px] items-center gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright">
+                  {agent.icon ? (
+                    <span aria-hidden className="text-[11px] leading-none">{agent.icon}</span>
+                  ) : (
+                    <Bot size={11} aria-hidden />
+                  )}
+                  <span className="max-w-24 truncate leading-none">
+                    {agent.name}
+                    {reaction.by.length > 1 && ` +${reaction.by.length - 1}`}
+                  </span>
+                </span>
               ) : (
                 <Bot size={11} className="text-accent-bright" aria-hidden />
               )}
