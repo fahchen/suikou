@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Crosshair } from "lucide-react"
 
 import { Tooltip } from "../../../components/ui/tooltip"
 import { AuthorBadge } from "./AuthorBadge"
@@ -68,35 +68,9 @@ export function CommentCard({
     <div
       data-thread-card={comment.id}
       data-side-comment-id={comment.id}
-      role={onFocus ? "button" : undefined}
-      tabIndex={onFocus ? 0 : undefined}
-      onClick={
-        onFocus
-          ? () => {
-              // A drag that selected text also fires click; don't steal focus
-              // mid-selection or the re-render drops the user's highlight.
-              if (!window.getSelection()?.isCollapsed) return
-              onFocus()
-            }
-          : undefined
-      }
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
-      onKeyDown={
-        onFocus
-          ? (event) => {
-              // Only the card itself activates on Space/Enter; a keystroke
-              // bubbling up from the composer or another control must pass
-              // through (otherwise the reply box can't type a space).
-              if (event.target !== event.currentTarget) return
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                onFocus()
-              }
-            }
-          : undefined
-      }
-      className={`group/comment ${onFocus ? "cursor-pointer" : ""} ${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
+      className={`group/comment ${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
         focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
@@ -138,6 +112,19 @@ export function CommentCard({
           }
         />
         {renderedMetaLine}
+        {onFocus && (
+          <button
+            type="button"
+            aria-label={focused ? "Clear comment focus" : "Focus comment"}
+            title={focused ? "Clear comment focus" : "Focus comment"}
+            onClick={onFocus}
+            className={`grid size-[19px] shrink-0 place-items-center rounded-ctrl transition-colors ${
+              focused ? "bg-accent-soft text-accent-bright" : "text-muted hover:bg-soft hover:text-ink"
+            }`}
+          >
+            <Crosshair size={11} aria-hidden />
+          </button>
+        )}
         <TimeAgo iso={comment.inserted_at} />
         {collapsed && summaryText && (
           <span className="min-w-0 flex-1 truncate self-center text-xs leading-none text-muted">
