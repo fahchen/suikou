@@ -77,7 +77,7 @@ export function Reactions({
               exit={CHIP_ENTER}
               transition={CHIP_TRANSITION}
               title={agentChipTitle(reaction)}
-              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer px-2 text-xs ring-1 ring-inset ring-accent-edge"
+              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer pl-2 pr-0 text-xs ring-1 ring-inset ring-accent-edge"
             >
               <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
               {agent ? (
