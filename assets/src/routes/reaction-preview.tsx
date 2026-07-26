@@ -35,6 +35,22 @@ function ReactionPreview() {
             <Treatment label="C · Nested" note="Current treatment, kept here as the baseline.">
               <PreviewThread treatment="nested" human={human} codex={codex} scout={scout} lintBot={lintBot} />
             </Treatment>
+
+            <Treatment label="D · Ledger" note="A reaction reads as an activity sentence, with no container.">
+              <PreviewThread treatment="ledger" human={human} codex={codex} scout={scout} lintBot={lintBot} />
+            </Treatment>
+
+            <Treatment label="E · Roster" note="Actors and signals form a compact two-column review roster.">
+              <PreviewThread treatment="roster" human={human} codex={codex} scout={scout} lintBot={lintBot} />
+            </Treatment>
+
+            <Treatment label="F · Timeline" note="Every reaction is a small event, easy to scan in a busy thread.">
+              <PreviewThread treatment="timeline" human={human} codex={codex} scout={scout} lintBot={lintBot} />
+            </Treatment>
+
+            <Treatment label="G · Markers" note="Reaction glyphs dock onto lightweight identity markers, not chips.">
+              <PreviewThread treatment="markers" human={human} codex={codex} scout={scout} lintBot={lintBot} />
+            </Treatment>
           </div>
         </div>
       </section>
@@ -54,6 +70,8 @@ function Treatment({ label, note, children }: { label: string; note: string; chi
   )
 }
 
+type TreatmentStyle = "split" | "unified" | "nested" | "ledger" | "roster" | "timeline" | "markers"
+
 function PreviewThread({
   treatment,
   human,
@@ -61,7 +79,7 @@ function PreviewThread({
   scout,
   lintBot,
 }: {
-  treatment: "split" | "unified" | "nested"
+  treatment: TreatmentStyle
   human: { kind: "human"; name: string; icon: null }
   codex: { kind: "agent"; name: string; icon: string }
   scout: { kind: "agent"; name: string; icon: string }
@@ -91,6 +109,26 @@ function PreviewThread({
         </PreviewReply>
       </PreviewComment>
     </div>
+  )
+}
+
+function ReactionEvent({ label, icon, emoji }: { label: string; icon?: string; emoji: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="grid size-4 place-items-center rounded-full bg-control text-2xs text-muted">{icon ?? "●"}</span>
+      <span className="min-w-0 flex-1 truncate text-text">{label}</span>
+      <span className="text-sm leading-none">{emoji}</span>
+    </div>
+  )
+}
+
+function ReactionMarker({ label, icon, emoji }: { label: string; icon?: string; emoji: string }) {
+  return (
+    <span className="relative inline-flex min-w-10 flex-col items-center gap-0.5 text-2xs text-muted">
+      <span className="grid size-5 place-items-center rounded-[6px] bg-control text-xs">{icon ?? "◉"}</span>
+      <span className="max-w-16 truncate">{label}</span>
+      <span className="absolute -right-1 -top-1 grid size-3.5 place-items-center rounded-full bg-surface text-[9px] ring-1 ring-hair-strong">{emoji}</span>
+    </span>
   )
 }
 
@@ -125,10 +163,59 @@ function ReactionRow({
   humanEmoji,
   reactions,
 }: {
-  treatment: "split" | "unified" | "nested"
+  treatment: TreatmentStyle
   humanEmoji: string
   reactions: { emoji: string; agent: { kind: "agent"; name: string; icon: string } }[]
 }) {
+  if (treatment === "ledger") {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-2xs text-muted">
+        <span className="text-ink">you {humanEmoji}</span>
+        {reactions.map(({ emoji, agent }) => (
+          <span key={`${agent.name}-${emoji}`} className="inline-flex items-center gap-1">
+            <AuthorBadge author={agent} size="sm" appearance="bare" />
+            <span className="text-sm leading-none">{emoji}</span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  if (treatment === "roster") {
+    return (
+      <div className="grid max-w-sm grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-2xs">
+        <span className="pb-1 font-mono uppercase tracking-wide text-faint">actor</span>
+        <span className="pb-1 font-mono uppercase tracking-wide text-faint">signal</span>
+        <span className="flex items-center border-t border-hair py-1.5 text-text">you</span>
+        <span className="border-t border-hair py-1.5 text-right text-sm leading-none">{humanEmoji}</span>
+        {reactions.map(({ emoji, agent }) => (
+          <div key={`${agent.name}-${emoji}`} className="contents">
+            <span className="flex items-center border-t border-hair py-1.5"><AuthorBadge author={agent} size="sm" appearance="bare" /></span>
+            <span className="border-t border-hair py-1.5 text-right text-sm leading-none">{emoji}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (treatment === "timeline") {
+    return (
+      <div className="space-y-1.5 border-t border-hair pt-1.5 text-2xs">
+        <ReactionEvent label="you" emoji={humanEmoji} />
+        {reactions.map(({ emoji, agent }) => <ReactionEvent key={`${agent.name}-${emoji}`} label={agent.name} icon={agent.icon} emoji={emoji} />)}
+      </div>
+    )
+  }
+
+  if (treatment === "markers") {
+    return (
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <ReactionMarker label="you" emoji={humanEmoji} />
+        {reactions.map(({ emoji, agent }) => <ReactionMarker key={`${agent.name}-${emoji}`} label={agent.name} icon={agent.icon} emoji={emoji} />)}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="inline-flex h-[22px] items-center rounded-full bg-accent-soft px-2 text-xs leading-none text-accent-bright ring-1 ring-inset ring-accent-edge">
@@ -146,7 +233,7 @@ function ReactionIdentity({
   emoji,
   agent,
 }: {
-  treatment: "split" | "unified" | "nested"
+  treatment: TreatmentStyle
   emoji: string
   agent: { kind: "agent"; name: string; icon: string }
 }) {
