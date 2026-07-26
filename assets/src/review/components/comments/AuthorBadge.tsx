@@ -13,7 +13,8 @@ import type { CommentAuthor } from "./shared"
  *
  * `sm` (thread replies) always labels the speaker, since a reply is only legible
  * next to the ones around it. `md` (a comment header) labels only an agent — the
- * header is a dense row and the human is the unmarked default there. */
+ * header is a dense row and the human is the unmarked default there. `marker`
+ * presents the same identity as a compact, stacked reaction target. */
 export const AuthorBadge = observer(function AuthorBadge({
   author,
   size = "md",
@@ -21,9 +22,10 @@ export const AuthorBadge = observer(function AuthorBadge({
 }: {
   author: CommentAuthor
   size?: "sm" | "md"
-  appearance?: "pill" | "bare"
+  appearance?: "pill" | "bare" | "marker"
 }) {
   const agent = author.kind === "agent"
+  const marker = appearance === "marker"
   const iconSize = size === "sm" ? 10 : 11
   const name = agent ? author.name ?? "agent" : "you"
   const label = size === "sm" || agent ? name : null
@@ -35,7 +37,9 @@ export const AuthorBadge = observer(function AuthorBadge({
   return (
     <span
       className={`inline-flex shrink-0 items-center text-xs font-bold leading-none ${
-        agent
+        marker
+          ? "min-w-10 flex-col gap-0.5 text-2xs font-medium text-muted"
+          : agent
           ? appearance === "bare"
             ? "gap-1 text-accent-bright"
             : `${size === "sm" ? "h-[19px]" : "h-[22px]"} gap-1 rounded-full bg-accent-soft px-1.5 text-accent-bright ring-1 ring-inset ring-accent-edge`
@@ -44,8 +48,8 @@ export const AuthorBadge = observer(function AuthorBadge({
     >
       <span
         aria-hidden
-        className={`grid shrink-0 place-items-center ${size === "sm" ? "size-[15px]" : "size-[18px]"} ${
-          agent ? "" : "rounded-[5px] bg-control text-muted"
+        className={`grid shrink-0 place-items-center ${marker ? "size-5 rounded-[6px] bg-control text-muted" : size === "sm" ? "size-[15px]" : "size-[18px]"} ${
+          marker || agent ? "" : "rounded-[5px] bg-control text-muted"
         }`}
       >
         {author.icon ? (

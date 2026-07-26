@@ -15,7 +15,7 @@ import {
 
 type Target = "comment" | "reply"
 
-/** Name the agents behind an agent chip; an anonymous reactor has no name to show. */
+/** Name the agents behind an agent marker; an anonymous reactor has no name to show. */
 const agentChipTitle = (reaction: CommentReaction): string =>
   reaction.by.length > 0 ? `Reacted by ${reaction.by.map((actor) => actor.name).join(", ")}` : "Agent reaction"
 
@@ -25,9 +25,9 @@ const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
 
 /** Reactions on a comment or reply. Humans pick from an approval/opposition
  * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
- * Agent reactions (any glyph, `actor === "agent"`) render as read-only chips
- * badged with the reacting agent's glyph — the human can't add or remove them.
- * Several agents can land on the same emoji, so the chip's badge and title name
+ * Agent reactions (any glyph, `actor === "agent"`) render as read-only markers
+ * with the glyph docked to the reacting agent — the human can't add or remove them.
+ * Several agents can land on the same emoji, so the marker and title name
  * who is behind the count. */
 export function Reactions({
   reactions,
@@ -77,15 +77,17 @@ export function Reactions({
               exit={CHIP_ENTER}
               transition={CHIP_TRANSITION}
               title={agentChipTitle(reaction)}
-              className="inline-flex h-[22px] items-center gap-1 rounded-full bg-accent-softer pl-2 pr-0 text-xs ring-1 ring-inset ring-accent-edge"
+              className="relative inline-flex shrink-0 pr-1 pt-1"
             >
-              <span className="text-xs leading-none">{reactionGlyph(reaction.emoji)}</span>
               {agent ? (
-                <AuthorBadge author={{ kind: "agent", ...agent }} size="sm" />
+                <AuthorBadge author={{ kind: "agent", ...agent }} size="sm" appearance="marker" />
               ) : (
-                <Bot size={11} className="text-accent-bright" aria-hidden />
+                <span className="grid size-5 place-items-center rounded-[6px] bg-control text-muted"><Bot size={11} aria-hidden /></span>
               )}
-              {reaction.count > 1 && <span className="tabular-nums text-accent-bright">{reaction.count}</span>}
+              <span className="absolute -right-0.5 -top-0.5 grid size-[15px] place-items-center rounded-full bg-surface text-[9px] leading-none ring-1 ring-hair-strong">
+                {reactionGlyph(reaction.emoji)}
+              </span>
+              {reaction.count > 1 && <span className="absolute -bottom-0.5 -right-1 rounded-full bg-control px-1 font-mono text-[9px] leading-[13px] text-muted ring-1 ring-hair">{reaction.count}</span>}
             </motion.span>
           ) : (
             <motion.button

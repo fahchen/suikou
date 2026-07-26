@@ -9,7 +9,7 @@ vi.mock("../../../musubi", () => ({
 }))
 
 describe("Reactions", () => {
-  test("groups an agent avatar and name in the themed reaction badge", () => {
+  test("docks an agent's reaction on its shared identity marker", () => {
     const reactions: CommentReaction[] = [
       { emoji: "eyes", actor: "agent", count: 1, mine: false, by: [{ name: "Codex", icon: "🤖" }] },
     ]
@@ -18,8 +18,9 @@ describe("Reactions", () => {
 
     const agentBadge = screen.getByText("Codex").parentElement
     expect(agentBadge).toHaveTextContent("🤖Codex")
-    expect(agentBadge).toHaveClass("h-[19px]")
-    expect(agentBadge).toHaveClass("bg-accent-soft")
-    expect(agentBadge?.parentElement).toHaveClass("pr-0")
+    expect(agentBadge).toHaveClass("flex-col")
+    expect(agentBadge?.firstElementChild).toHaveClass("bg-control")
+    expect(agentBadge?.parentElement).toHaveTextContent("👀")
+    expect(agentBadge?.parentElement).not.toHaveClass("rounded-full")
   })
 })

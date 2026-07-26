@@ -122,11 +122,25 @@ function ReactionEvent({ label, icon, emoji }: { label: string; icon?: string; e
   )
 }
 
-function ReactionMarker({ label, icon, emoji }: { label: string; icon?: string; emoji: string }) {
+function ReactionMarker({
+  label,
+  agent,
+  emoji,
+}: {
+  label?: string
+  agent?: { kind: "agent"; name: string; icon: string }
+  emoji: string
+}) {
   return (
-    <span className="relative inline-flex min-w-10 flex-col items-center gap-0.5 text-2xs text-muted">
-      <span className="grid size-5 place-items-center rounded-[6px] bg-control text-xs">{icon ?? "◉"}</span>
-      <span className="max-w-16 truncate">{label}</span>
+    <span className="relative inline-flex shrink-0 pr-1 pt-1">
+      {agent ? (
+        <AuthorBadge author={agent} size="sm" appearance="marker" />
+      ) : (
+        <span className="inline-flex min-w-10 flex-col items-center gap-0.5 text-2xs text-muted">
+          <span className="grid size-5 place-items-center rounded-[6px] bg-control text-xs">◉</span>
+          <span>{label}</span>
+        </span>
+      )}
       <span className="absolute -right-1 -top-1 grid size-3.5 place-items-center rounded-full bg-surface text-[9px] ring-1 ring-hair-strong">{emoji}</span>
     </span>
   )
@@ -211,7 +225,7 @@ function ReactionRow({
     return (
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <ReactionMarker label="you" emoji={humanEmoji} />
-        {reactions.map(({ emoji, agent }) => <ReactionMarker key={`${agent.name}-${emoji}`} label={agent.name} icon={agent.icon} emoji={emoji} />)}
+        {reactions.map(({ emoji, agent }) => <ReactionMarker key={`${agent.name}-${emoji}`} agent={agent} emoji={emoji} />)}
       </div>
     )
   }
