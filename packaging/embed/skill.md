@@ -1,80 +1,117 @@
 ---
 name: suikou
-description: Drive a local Suikou review through its CLI. Use when creating or inspecting a Suikou review, waiting for human feedback, addressing or discussing review comments, or adding agent comments, replies, and reactions.
+description: Use when the human names Suikou, asks to create, inspect, open, or wait on a Suikou review, provides a Suikou review id or URL, or asks to address, discuss, reply to, or react to review comments. Run the agent side of a Suikou review: create a review, wait for human feedback, make and verify changes, and reply to the relevant threads. Do not use for ordinary code review outside Suikou.
 ---
 
 # Suikou agent CLI
 
-Use the installed CLI as the source of truth. Begin with `suikou help`; use
-`suikou help <group>` or `suikou help <group> <verb>` for the exact arguments
-before running an unfamiliar command. Commands call the local server and print
-one JSON line to stdout. Failures write to stderr and exit non-zero.
+`suikou` calls the running local server and prints one JSON line to stdout.
+Parse that result; failures write to stderr and exit non-zero.
 
-## Runtime and identity
+Treat `suikou help` as the command contract. Before using an unfamiliar verb,
+run `suikou help <group>` or `suikou help <group> <verb>` for its current
+arguments. This skill defines the review protocol and the non-obvious command
+semantics; it intentionally does not duplicate the full command reference.
 
-The local server must already be running. If the CLI says it is unavailable,
-ask the human to start it. Do not start or restart it unprompted.
+## Server and identity
 
-Agent-authored write commands require `--as <name>`:
+If the CLI reports that Suikou is not running, ask the human to start it. Do
+not start or restart it unprompted.
+
+Use a stable agent identity for the whole review. The following authoring
+commands require `--as <name>` and accept `--icon <emoji>`:
 
 - `comment add`, `comment reply`, and `comment resolve`
 - `comment react` and `comment unreact`
 - `reply react` and `reply unreact`
 
-Pass one stable name for the entire review; `--icon <emoji>` is optional.
-`human` is reserved. `comment reopen` has no author and takes no identity.
+`human` is reserved. `comment reopen` is not authored and takes no identity.
+`review wait` also takes no identity because it waits for a human submission.
 
-## Create or inspect a review
+```sh
+suikou comment add <review-id> --path lib/a.ex --line 12-14 \
+  --as Codex --icon 🤖 --body-file finding.md
+```
 
-Start with `suikou project list`. Match the current repository root against a
-project's `path`. If absent, ask before using `project create`.
+## Review selection and comments
 
-Create either a file-selection review or a git-diff review; do not mix them.
-Paths are space-separated and relative to the registered project root.
+Run `project list`, then match the current repository root to a project's
+`path`. If it is absent, ask before using `project create`; never register a
+project automatically.
+
+Create a file-selection review from positional project-relative paths, or a
+git-diff review with `--diff`; do not combine the two. `set-files` replaces the
+selection, while `add-files` and `remove-files` are incremental. Use `delete`
+to discard a review rather than calling `set-files` without paths.
+
+`comment add` targets a review id and one covered `--path`, not an artifact id.
+Use a line or new-hunk anchor for a localized finding; use `--review-wide` only
+when it genuinely covers the full review. For multiline Markdown, prefer
+`--body-file` or stdin over shell quoting. `comment reply` continues a thread;
+there is no `reply add` command.
 
 ```sh
 suikou review create --project <project-id> --name "Review name" lib/a.ex README.md
 suikou review create --project <project-id> --name "Review name" --diff main..HEAD
-```
-
-Use `review show` or `review list-files` to inspect the selection. `review
-set-files` replaces it; `review add-files` and `review remove-files` are
-incremental. Use `review url` to give the human the link. `review open` opens
-their browser, so run it only when asked.
-
-To join an existing review, run `review list-files` and `review export` first.
-Read the reviewed files from the local checkout as well as the exported
-snapshot.
-
-## Add discussion
-
-Use `comment add` for a top-level finding. It always needs a review id, a
-covered path, a body, and agent identity. Prefer an anchored finding; use
-`--review-wide` only when it truly concerns the whole review.
-
-```sh
-suikou comment add <review-id> --path lib/a.ex --type fix_required \
-  --line 12-14 --as Codex --icon 🤖 --body-file finding.md
-suikou comment add <review-id> --path README.md --type note --review-wide \
-  --as Codex --body "Clarify the compatibility guarantee."
-```
-
-Use `comment reply` to continue a thread; there is no `reply add` command.
-For multiline Markdown, prefer `--body-file` or stdin over shell quoting.
-
-```sh
 suikou comment reply <comment-id> --as Codex --icon 🤖 --body-file reply.md
 suikou comment resolve <comment-id> --as Codex --icon 🤖
 suikou comment reopen <comment-id>
 ```
 
-Resolve only after the critique is addressed. If you disagree, explain why in
-a reply and leave it open for the human.
+Resolve only when the critique has been addressed. If you disagree, reply with
+the evidence and leave the comment open for the human.
+
+## Rounds and snapshots
+
+`review export` and a successful `review wait` return a critique snapshot.
+Read `artifacts[].comments[]`; comments contain their `id`, `body`, `anchor`,
+`author`, `resolved`, `resolved_by`, `outdated`, reactions, and replies. Use a
+comment id for comment reply/resolve/reactions and a reply id for reply
+reactions.
+
+Treat `outdated: true` or a non-line anchor as stale location information:
+find the current code before editing. Check `author` and `resolved_by` before
+assuming a peer's finding or resolution is yours.
+
+`--rounds` and `--all` choose which published comments a snapshot contains;
+they do not select a wait target. Use `--until-round <n>` to wait for a known
+round. It returns immediately when that round already exists, avoiding the race
+between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
+
+## The review loop
+
+1. Resolve the project with `project list`; ask before registering one.
+2. Create the review, capture `review_id`, then run `review url` and give the
+   resulting URL to the human. Only run `review open` if asked because it opens
+   a browser.
+3. Wait for round 1 with `review wait <review-id> --until-round 1`.
+4. Read each relevant comment, including its current anchor and resolution
+   state; make and verify the code change.
+5. Reply once per addressed comment. State what changed or why the proposed
+   change was not made, then resolve only when appropriate.
+6. Wait for `submission_version + 1` and repeat until the human approves.
+
+Use `review export <review-id>` when an existing snapshot is needed without
+blocking. A timeout is a state to report or continue waiting from, not an
+approval or rejection.
+
+## Reviewing with other agents
+
+When reviewing an existing review, first run `review list-files` and `review
+export`, then read the local files. Add only findings you can defend; anchor
+them, choose the matching comment type, and make the body actionable.
+
+Read peer comments before adding one. React to an equivalent finding instead of
+restating it. If you disagree or have new evidence, reply in the same thread.
+Keep one `--as` name so the human can distinguish agents and see who resolved a
+comment.
 
 ## Reactions
 
-Reactions are lightweight status, not a substitute for a reply. Set one on a
-comment or a particular reply, then replace it as the work progresses.
+Reactions are lightweight work status, never a substitute for a reply. Use a
+comment reaction for the thread and a reply reaction when the status belongs to
+that particular message. Replacing the emoji updates your own status without
+touching other agents' reactions.
 
 ```sh
 suikou comment react <comment-id> 👀 --as Codex --icon 🤖
@@ -86,45 +123,13 @@ Use a meaningful agent emoji such as 👀 (seen), 🔍 (investigating), 🚧
 (fixing), 🧪 (verifying), or ✅ (handled). Do not use the human reaction keys
 💯, 👍, 👎, or ❌.
 
-## Addressing a human round
+## Handoff and human boundary
 
-1. Wait for the expected submission: `suikou review wait <review-id>
-   --until-round <n>`. Start at `1`; after processing a snapshot, wait for
-   its `submission_version + 1`. This also returns immediately if that round
-   arrived before the command started.
-2. Read `artifacts[].comments[]` in the snapshot. A comment id is the target
-   for `comment reply`, resolve, and comment reactions; a reply id is the
-   target for `reply react` and `reply unreact`.
-3. Check `resolved`, `outdated`, `anchor`, `author`, and `resolved_by` before
-   acting. Treat an outdated line anchor as stale and locate the current code
-   before changing it.
-4. Make and verify the change. Reply once per addressed comment with what
-   changed, or the reason it was not changed. Resolve only when appropriate.
-5. Repeat until the human approves. A timeout result has
-   `{"status":"timeout", ...}` and means no new round arrived in the chosen
-   window.
+Use `review notify <review-id> --message "..."` once when handing work back or
+asking for a decision. Its delivery count is not acknowledgement; do not send a
+notification for every reply.
 
-Use `review export <review-id>` to inspect a snapshot without waiting. Its
-`--rounds` and `--all` flags control returned content; use `--until-round` to
-control what `review wait` waits for.
-
-## Multi-agent reviews
-
-Read existing comments before adding a finding. React to an equivalent finding
-instead of restating it. Reply in the same thread when you disagree or add
-evidence. Keep your own `--as` identity stable so the human can distinguish
-agents and see who resolved a comment.
-
-When reviewing another agent's work, post only findings you would defend:
-anchor the affected lines, select the appropriate type, and keep the body
-actionable. The human is the final adjudicator.
-
-## Human boundaries and handoff
-
-Agents can create comments and replies, resolve or reopen comments, and react.
-Only the human submits rounds, sets a verdict, or approves; there is no CLI
-command to do those things for them.
-
-Use `review notify <review-id> --message "..."` once when handing work back
-or asking for a decision. Delivery count is not acknowledgement, and one
-notification per round is enough.
+Agents may create comments and replies, resolve or reopen comments, and react.
+Only the human submits a round, sets a verdict, or approves. There is no CLI
+command to do those things for them. Surface a request to approve to the human
+rather than trying to emulate it through another command.
