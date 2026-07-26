@@ -55,6 +55,17 @@ defmodule SuikouWeb.AssetControllerTest do
       assert ["image/png"] = get_resp_header(conn, "content-type")
     end
 
+    test "serves TypeScript source as text rather than MPEG transport video", %{conn: conn} do
+      for path <- ["src/push.ts", "src/push.tsx", "src/push.mts", "src/push.cts"] do
+        %{artifact: artifact} = project_with_file(path, "export const enabled = true\n")
+
+        conn = get(conn, "/api/review/#{artifact.id}/content")
+
+        assert response(conn, 200) == "export const enabled = true\n"
+        assert ["text/plain"] = get_resp_header(conn, "content-type")
+      end
+    end
+
     test "404 for an unknown artifact", %{conn: conn} do
       conn = get(conn, "/api/review/#{Ecto.UUID.generate()}/content")
 
@@ -133,6 +144,21 @@ defmodule SuikouWeb.AssetControllerTest do
       assert response(conn, 200) == "# Plan\n"
       assert ["text/markdown"] = get_resp_header(conn, "content-type")
       assert Suikou.Repo.aggregate(Suikou.Schemas.Artifact, :count) == 0
+    end
+
+    @tag :tmp_dir
+    test "serves TypeScript source as text in an all-files review", %{conn: conn, tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "src"))
+      File.write!(Path.join(dir, "src/push.ts"), "export const enabled = true\n")
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["src/push.ts"]})
+
+      conn = get(conn, "/api/review/#{review.id}/files/content", path: "src/push.ts")
+
+      assert response(conn, 200) == "export const enabled = true\n"
+      assert ["text/plain"] = get_resp_header(conn, "content-type")
     end
 
     @tag :tmp_dir
@@ -420,6 +446,28 @@ defmodule SuikouWeb.AssetControllerTest do
       assert response(conn, 200) == "PNGDATA"
       assert ["image/png"] = get_resp_header(conn, "content-type")
       assert Suikou.Repo.aggregate(Suikou.Schemas.Artifact, :count) == 0
+    end
+
+    @tag :tmp_dir
+    test "serves a TypeScript blob from a git-diff review as text", %{conn: conn, tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "push.ts"), "export const enabled = true\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "add TypeScript source"])
+      project = insert(:project, path: dir)
+
+      {:ok, review} =
+        Suikou.Reviews.create_diff_review(project, %{
+          name: "Diff",
+          base_ref: "main",
+          head_ref: "topic"
+        })
+
+      conn = get(conn, "/api/review/#{review.id}/files/raw", path: "push.ts")
+
+      assert response(conn, 200) == "export const enabled = true\n"
+      assert ["text/plain"] = get_resp_header(conn, "content-type")
     end
 
     @tag :tmp_dir

@@ -34,6 +34,15 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# `.ts` normally means a TypeScript source file in a review, not an MPEG
+# transport stream. Keep every TypeScript source variant text-renderable.
+config :mime, :extensions, %{
+  "ts" => "text/plain",
+  "tsx" => "text/plain",
+  "mts" => "text/plain",
+  "cts" => "text/plain"
+}
+
 # Musubi TypeScript codegen target consumed by the frontend
 config :musubi, :ts_codegen_output_path, "assets/src/generated/musubi.d.ts"
 
