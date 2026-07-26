@@ -781,13 +781,20 @@ function isTimeout(line: string): boolean {
 
 // Generate usage text from the registry so there's a single source of truth.
 // `usage()` lists everything; `usage(group)` a group; `usage(group, verb)` one verb.
+// A verb's one-line summary, with the identity flags appended for the verbs that
+// take them — derived from `identity` rather than repeated in every summary, so
+// the two can't drift.
+function summarize(spec: CommandSpec): string {
+  return spec.identity ? `${spec.summary} --as <name> [--icon <emoji>]` : spec.summary
+}
+
 function usage(group?: string, verb?: string): string {
   if (group && verb && registry[group]?.[verb]) {
-    return `usage: suikou ${group} ${verb}\n  ${registry[group][verb].summary}`
+    return `usage: suikou ${group} ${verb}\n  ${summarize(registry[group][verb])}`
   }
   if (group && registry[group]) {
     const lines = Object.entries(registry[group]).map(
-      ([v, spec]) => `  ${group} ${v.padEnd(12)} ${spec.summary}`
+      ([v, spec]) => `  ${group} ${v.padEnd(12)} ${summarize(spec)}`
     )
     return `usage: suikou ${group} <verb>\n${lines.join("\n")}`
   }
@@ -802,7 +809,7 @@ function usage(group?: string, verb?: string): string {
   const groups = Object.entries(registry)
     .map(([g, verbs]) =>
       Object.entries(verbs)
-        .map(([v, spec]) => `  ${`${g} ${v}`.padEnd(20)} ${spec.summary}`)
+        .map(([v, spec]) => `  ${`${g} ${v}`.padEnd(20)} ${summarize(spec)}`)
         .join("\n")
     )
     .join("\n")
