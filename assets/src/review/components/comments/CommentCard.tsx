@@ -22,7 +22,6 @@ export function CommentCard({
   headerActions,
   summaryText,
   body,
-  reactions,
   replies,
   actions,
   composer,
@@ -42,7 +41,6 @@ export function CommentCard({
   headerActions?: ReactNode
   summaryText?: string
   body: ReactNode
-  reactions?: ReactNode
   replies?: ReactNode
   actions?: ReactNode
   composer?: ReactNode
@@ -147,7 +145,6 @@ export function CommentCard({
       >
         <div ref={contentRef} className="flow-root">
           {body}
-          {reactions}
           {replies}
           {actions}
           {composer}

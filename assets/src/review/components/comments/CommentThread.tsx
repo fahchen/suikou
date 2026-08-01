@@ -156,12 +156,11 @@ export function CommentThread({
         }
         body={
           <div
-            className="md-body px-3 pb-2.5 text-xs leading-[1.5] text-ink"
+            className="md-body px-3 pb-1.5 text-xs leading-[1.5] text-ink"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         }
-        reactions={<Reactions reactions={comment.reactions} targetId={comment.id} target="comment" commentsProxy={commentsProxy} />}
         replies={
           comment.replies.length > 0 ? (
             <div className="mx-3 mb-2.5 flex flex-col gap-2">
@@ -172,22 +171,31 @@ export function CommentThread({
           ) : undefined
         }
         actions={
-          <div className="flex items-center justify-between gap-0.5 px-2.5 pb-2">
-            <div className="flex items-center gap-0.5">
+          // Reactions and the action buttons share one footer row so a
+          // short comment doesn't carry two near-empty strips. `flex-wrap`
+          // drops the buttons to their own line once a narrow card (phone,
+          // side rail) can't fit them beside the chips.
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-2.5 pb-2">
+            <Reactions
+              reactions={comment.reactions}
+              targetId={comment.id}
+              target="comment"
+              commentsProxy={commentsProxy}
+              className="min-w-0 px-0.5"
+            />
+            <div className="ml-auto flex items-center gap-0.5">
               {!pending &&
                 (comment.resolved ? (
                   <CommentActionButton icon={RotateCcw} label="Reopen" reveal="comment-hover" onClick={reopenComment} />
                 ) : (
                   <CommentActionButton icon={Check} label="Resolve" tone="approve" reveal="comment-hover" onClick={resolveComment} />
                 ))}
+              {pending ? (
+                <CommentActionButton icon={Pencil} label="Edit" reveal="comment-hover" onClick={() => setEditing(true)} />
+              ) : canReply && !replying ? (
+                <CommentActionButton icon={CornerDownRight} label="Reply" reveal="comment-hover" onClick={() => setReplying(true)} />
+              ) : null}
             </div>
-            {pending ? (
-              <CommentActionButton icon={Pencil} label="Edit" reveal="comment-hover" onClick={() => setEditing(true)} />
-            ) : canReply && !replying ? (
-              <CommentActionButton icon={CornerDownRight} label="Reply" reveal="comment-hover" onClick={() => setReplying(true)} />
-            ) : (
-              null
-            )}
           </div>
         }
         composer={
