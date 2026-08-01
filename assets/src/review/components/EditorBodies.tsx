@@ -230,7 +230,11 @@ export const MarkdownPreview = observer(function MarkdownPreview({
               headingLevel: 0,
               line: fenceLine,
               node: (
-              <div className="md-fence" data-code-group={segGroup ?? ""}>
+              <div
+                className="md-fence"
+                data-code-group={segGroup ?? ""}
+                style={{ "--fence-row": `${MONO_PX[uiStore.monoSize] * 1.6 + 2}px` } as React.CSSProperties}
+              >
                 <div className="md-fence-nums">
                   {codeBuf.map((r) => (
                     <div key={r.index} className={`md-fence-numrow group/md flex ${r.highlight ? "bg-accent-soft" : "hover:bg-soft/40"}`}>
@@ -264,6 +268,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
             const composerHere = draft !== null && drag === null && block.endLine === draft.end && block.line >= draft.start
             const label = draft ? `line ${draft.start}${draft.end > draft.start ? `–${draft.end}` : ""}` : ""
             const composerOpen = composerHere && draft !== null
+            const lineBox = firstLineBox(block.heading ?? 0, MONO_PX[uiStore.monoSize])
             const gutterButton = (
               <button
                 type="button"
@@ -296,9 +301,18 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                   // visible on tables, where each row is its own element.
                   minWidth: `calc(${gutter}ch + 1.5rem)`,
                   touchAction: "none",
-                }}
+                  // Give the digit the same line box as the block's first line
+                  // (top margin + line-height, both scaling with the Mono size
+                  // and the heading tier) so it centers on that line instead of
+                  // riding high off its own much smaller font. Carried as custom
+                  // properties, not padding/line-height directly, so the row
+                  // kinds whose number belongs to a whole row (code lines, table
+                  // rows) can reset them in CSS and center instead.
+                  "--gut-top": `${lineBox.top}px`,
+                  "--gut-line": `${lineBox.height}px`,
+                } as React.CSSProperties}
                 title="Comment on this block — drag or shift-click for a range"
-                className={`group/gut relative flex shrink-0 select-none flex-col items-end px-3 pt-[0.4em] pb-[0.4em] text-right font-mono text-2xs tabular-nums ${
+                className={`group/gut relative flex shrink-0 select-none flex-col items-end px-3 pb-[0.4em] pt-[var(--gut-top,0px)] text-right font-mono text-2xs leading-[var(--gut-line,normal)] tabular-nums ${
                   selecting || focused ? "bg-accent-soft font-semibold text-accent-bright" : "text-faint hover:text-accent-bright"
                 }`}
               >
@@ -311,7 +325,13 @@ export const MarkdownPreview = observer(function MarkdownPreview({
                     <span className="group-hover/gut:opacity-0">{block.endLine}</span>
                   </>
                 )}
-                <Plus size={12} aria-hidden className="absolute right-2.5 top-[0.4em] hidden group-hover/gut:block" />
+                {/* Centered in the same box the digit sits in, so the hover
+                    affordance lands exactly where the number was. */}
+                <Plus
+                  size={12}
+                  aria-hidden
+                  className="absolute right-2.5 top-[var(--gut-top,0px)] hidden h-[var(--gut-line,100%)] place-items-center group-hover/gut:grid"
+                />
               </button>
             )
 
@@ -789,15 +809,27 @@ function hasDraftBody(scope: string, range: Range): boolean {
 // Top offset (px) that centers the fold chevron on a heading's first text line,
 // mirroring the heading font-size/margin scale in index.css. md-body base scales
 // with the mono-size tier (basePx), leading 1.6; the chevron is basePx tall.
-function headingToggleOffset(level: number, basePx: number): number {
+// Where a block's first text line sits inside its body column: `top` is the
+// element's own top margin, `height` its line box (leading-[1.6] over the tier's
+// font size). Both scale with the Mono size setting. `level` 0 is a paragraph;
+// 1–3 are the sized headings, 4–6 fall back to base size with the h4 margin.
+function firstLineBox(level: number, basePx: number): { top: number; height: number } {
   const scale: Record<number, { fs: number; mt: number }> = {
+    0: { fs: 1, mt: 0.4 },
     1: { fs: 1.55, mt: 0.1 },
     2: { fs: 1.28, mt: 0.7 },
     3: { fs: 1.1, mt: 0.55 },
   }
   const { fs, mt } = scale[level] ?? { fs: 1, mt: 0.5 }
   const fsPx = fs * basePx
-  return mt * fsPx + (fsPx * 1.6) / 2 - basePx / 2
+  return { top: mt * fsPx, height: fsPx * 1.6 }
+}
+
+// Vertical offset that centers the fold chevron (a `basePx`-tall icon box) on
+// the heading's first line.
+function headingToggleOffset(level: number, basePx: number): number {
+  const box = firstLineBox(level, basePx)
+  return box.top + box.height / 2 - basePx / 2
 }
 
 // Plain text of a heading block, used as the stable fold key across reloads.

@@ -989,9 +989,11 @@
 /* Per-line code blocks: one commentable line each. Line numbers live in a fixed
    column (.md-fence-nums) so only the code scrolls; the code lines share one
    horizontal scroll container (.md-fence-scroll) so long lines move together
-   with no JS and the numbers never shift. Both columns' rows share a line box so
-   digits stay aligned.
-   ponytail: assumes single-line code rows at text-sm; revisit if code wraps. */
+   with no JS and the numbers never shift. The two columns scroll independently,
+   so their rows can't share a line box — `--fence-row` carries the code row's
+   height (line-height x mono size, plus the code line's 1px padding) from the
+   Mono size setting so the number rows match at every tier.
+   ponytail: assumes single-line code rows; revisit if code wraps. */
 .md-fence {
   display: flex;
   /* right margin matches the prose md-body pr-4 so the slab's right edge lines
@@ -1021,13 +1023,20 @@
 }
 .md-fence-numrow,
 .md-fence-coderow {
-  min-height: calc(1.4rem + 2px);
+  min-height: var(--fence-row, calc(1.4rem + 2px));
 }
-.md-fence-numrow > button {
+/* Rows where the number labels a whole row rather than a block's first prose
+   line — one code line, one table row. Zero the first-line offset the gutter
+   button carries (`--gut-top`/`--gut-line`, set per block in EditorBodies) and
+   center the digit in the row the button stretches to fill. */
+.md-fence-numrow > button,
+.md-doc .flex:has(.md-table-block) > button:first-child {
+  --gut-top: 0px;
+  --gut-line: 100%;
   height: 100%;
-  padding-top: 0;
   padding-bottom: 0;
   justify-content: center;
+  line-height: 1;
 }
 /* A selected row's highlight is translucent, and the number and code columns
    sit on different backdrops (bare gutter vs grey slab) with different layer
