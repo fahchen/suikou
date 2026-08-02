@@ -47,7 +47,10 @@ export function CommentCard({
 }) {
   const meta = TYPE_META[comment.critique_type]
   const pending = comment.status === "pending"
-  const renderedMetaLine = renderMetaLine(metaLine, comment.outdated, comment.drifted, comment.anchor?.quote)
+  const renderedMetaLine = renderMetaLine(metaLine, comment.outdated, comment.drifted)
+  // The quote is what the reviewer pointed at; when the live line no longer
+  // matches it exactly, show it so the comment still reads against its target.
+  const staleQuote = (comment.drifted || comment.outdated) && comment.anchor?.quote ? comment.anchor.quote : null
   const contentRef = useRef<HTMLDivElement>(null)
   const [contentHeight, setContentHeight] = useState<number | null>(null)
 
@@ -144,6 +147,18 @@ export function CommentCard({
         }`}
       >
         <div ref={contentRef} className="flow-root">
+          {staleQuote && (
+            <div className="px-3 pb-1.5">
+              {/* What the reviewer was pointing at, kept as captured while the
+                  file moved on. One line — the anchor is context, not content. */}
+              <span
+                title={staleQuote}
+                className="block truncate border-l-2 border-hair-strong pl-2 font-mono text-2xs text-muted"
+              >
+                {staleQuote.split("\n")[0]}
+              </span>
+            </div>
+          )}
           {body}
           {replies}
           {actions}
@@ -154,7 +169,7 @@ export function CommentCard({
   )
 }
 
-function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean, quote?: string): ReactNode {
+function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean): ReactNode {
   if (!metaLine) return undefined
 
   if (outdated) {
@@ -178,33 +193,18 @@ function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean
   }
 
   if (drifted) {
-    // The quote is what the reviewer saw; the line it now points at has changed,
-    // so show the original text inline as a one-line reminder of what it was.
-    const original = quote?.split("\n")[0]
-
     return (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
-        <Tooltip
-          side="top"
-          content={
-            <>
-              <b className="font-semibold text-ink">Anchor moved</b>
-              <br />
-              This comment was remapped to nearby content after the file changed.
-            </>
-          }
-          render={<span className="inline-flex shrink-0 items-center">{metaLine}</span>}
-        />
-        {original && (
-          <Tooltip
-            side="top"
-            content={<span className="whitespace-pre-wrap font-mono text-2xs">{quote}</span>}
-            render={
-              <span className="min-w-0 truncate font-mono text-2xs text-muted line-through decoration-muted/60">{original}</span>
-            }
-          />
-        )}
-      </span>
+      <Tooltip
+        side="top"
+        content={
+          <>
+            <b className="font-semibold text-ink">Anchor moved</b>
+            <br />
+            This comment was remapped to nearby content after the file changed.
+          </>
+        }
+        render={<span className="inline-flex shrink-0 items-center">{metaLine}</span>}
+      />
     )
   }
 

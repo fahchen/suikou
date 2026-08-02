@@ -32,12 +32,11 @@ describe("CommentCard", () => {
     expect(onFocus).toHaveBeenCalledOnce()
   })
 
-  test("a drifted comment shows the first line of its original quote", () => {
+  test("a drifted comment shows the first line of its original quote above the body", () => {
     render(
       <CommentCard
         comment={{ ...comment, drifted: true, anchor: { type: "line_range", start_line: 1, end_line: 2, quote: "old first\nold second" } }}
         className=""
-        metaLine={<span>L1-2</span>}
         body={<p>Comment body</p>}
       />,
     )
