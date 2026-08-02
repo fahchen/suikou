@@ -84,7 +84,7 @@ export function Reactions({
               ) : (
                 <span className="grid size-5 place-items-center rounded-[6px] bg-control text-muted"><Bot size={11} aria-hidden /></span>
               )}
-              <span className="absolute -right-0.5 -top-0.5 grid size-[15px] place-items-center rounded-full bg-surface text-[9px] leading-none ring-1 ring-hair-strong">
+              <span className="absolute -right-0.5 -top-0.5 grid size-[15px] place-items-center text-[9px] leading-none">
                 {reactionGlyph(reaction.emoji)}
               </span>
               {reaction.count > 1 && <span className="absolute -bottom-0.5 -right-1 rounded-full bg-control px-1 font-mono text-[9px] leading-[13px] text-muted ring-1 ring-hair">{reaction.count}</span>}
