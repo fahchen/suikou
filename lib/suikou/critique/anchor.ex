@@ -171,8 +171,9 @@ defmodule Suikou.Critique.Anchor do
     content_lines
     |> Enum.slice(start, span)
     |> Enum.zip(quote_lines)
-    |> Enum.map(fn {text, quote_line} -> String.jaro_distance(text, quote_line) end)
-    |> Enum.min()
+    |> Enum.reduce(1.0, fn {text, quote_line}, worst ->
+      min(worst, String.jaro_distance(text, quote_line))
+    end)
   end
 
   defp nearest(starts, span, hint_start) do

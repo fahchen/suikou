@@ -81,12 +81,18 @@ defmodule SuikouWeb.Stores.FileStore do
 
   @impl Musubi.Store
   @spec update(map(), Socket.t()) :: {:ok, Socket.t()}
-  # A disk change only needs a re-render: `disk_token` is recomputed in render/1
-  # from the current file stat, so the fresh identity flows to the client in the
-  # live snapshot. No DB read — content is served over HTTP and refetched on
-  # demand.
+  # A disk change re-renders (`disk_token` is recomputed in render/1 from the
+  # current file stat, so the fresh identity flows to the client) and re-anchors:
+  # the file's text just moved under every comment, so relocate them now rather
+  # than waiting for the client to open the file. No DB read for the content —
+  # it is served over HTTP and refetched on demand.
   def update(%{disk_changed: true}, socket) do
-    {:ok, socket}
+    # The thread re-resolves its anchors against the live file on every update,
+    # so nudge it directly: the re-anchor task only broadcasts when a comment
+    # actually moved, and a comment that merely went outdated must still refresh.
+    # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
+    Musubi.send_update(Socket.store_id(socket) ++ ["comments"], %{})
+    {:ok, start_reanchor(socket)}
   end
 
   def update(assigns, socket) do
@@ -143,19 +149,7 @@ defmodule SuikouWeb.Stores.FileStore do
   end
 
   def handle_command(:request_content, _payload, socket) do
-    # Bind the id to a local so the async fun captures the string, not `socket`
-    # (Musubi's compile-time socket-capture lint, and killing a socket-bound task
-    # mid-DB-call would tear down the connection).
-    socket =
-      case socket.assigns[:artifact_id] do
-        artifact_id when is_binary(artifact_id) ->
-          start_async(socket, :reanchor, fn -> Critique.reanchor_artifact(artifact_id) end)
-
-        _absent ->
-          socket
-      end
-
-    {:noreply, socket}
+    {:noreply, start_reanchor(socket)}
   end
 
   def handle_command(:add_comment, payload, socket) do
@@ -191,6 +185,19 @@ defmodule SuikouWeb.Stores.FileStore do
   # that fans back to the comment thread and pushes the new anchors, so there is
   # nothing to apply to this store's state when the task finishes.
   def handle_async(:reanchor, _result, socket), do: {:noreply, socket}
+
+  # Bind the id to a local so the async fun captures the string, not `socket`
+  # (Musubi's compile-time socket-capture lint, and killing a socket-bound task
+  # mid-DB-call would tear down the connection).
+  defp start_reanchor(socket) do
+    case socket.assigns[:artifact_id] do
+      artifact_id when is_binary(artifact_id) ->
+        start_async(socket, :reanchor, fn -> Critique.reanchor_artifact(artifact_id) end)
+
+      _absent ->
+        socket
+    end
+  end
 
   # Resolve the file's absolute path once at mount so render-time `disk_token`
   # never hits the DB. `nil` when the review or its project is gone — the file
