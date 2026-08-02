@@ -39,6 +39,12 @@ defmodule Suikou.Critique.AnchorTest do
       assert {:ok, {1, 1}, :fuzzy} = Anchor.locate(lines, "alpha", 1)
     end
 
+    test "one wholly-rewritten line in a multi-line quote is :not_found" do
+      lines = ["alpha", "beta", "wholly different text here", "delta"]
+
+      assert :not_found = Anchor.locate(lines, "alpha\nbeta\nrate limit is 100 rps\ndelta", 1)
+    end
+
     test "a line changed beyond recognition is :not_found" do
       assert :not_found = Anchor.locate(["wholly different"], "rate limit is 100 rps", 1)
     end

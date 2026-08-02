@@ -146,20 +146,33 @@ defmodule Suikou.Critique.Anchor do
   # ponytail: O(n*span) jaro scan over every window — fine for file-sized inputs;
   # swap for a rolling/windowed similarity if files ever get huge.
   defp fuzzy_locate(content_lines, quote, span, hint_start, starts) do
-    scored =
-      Enum.map(starts, fn i ->
-        text = content_lines |> Enum.slice(i, span) |> Enum.join("\n")
-        {i, String.jaro_distance(text, quote)}
-      end)
+    quote_lines = String.split(quote, "\n")
 
-    {_best_i, max_score} = Enum.max_by(scored, &elem(&1, 1))
+    candidates =
+      starts
+      |> Enum.map(&{&1, window_score(content_lines, &1, span, quote_lines)})
+      |> Enum.filter(fn {_i, score} -> score >= @drift_threshold end)
 
-    if max_score >= @drift_threshold do
-      best = for {i, score} <- scored, score == max_score, do: i
-      {:ok, nearest(best, span, hint_start), :fuzzy}
-    else
-      :not_found
+    case candidates do
+      [] ->
+        :not_found
+
+      scored ->
+        {_best_i, max_score} = Enum.max_by(scored, &elem(&1, 1))
+        best = for {i, score} <- scored, score == max_score, do: i
+        {:ok, nearest(best, span, hint_start), :fuzzy}
     end
+  end
+
+  # Compare line against line rather than the joined block: a window scores as
+  # its weakest line pair, so one wholly-rewritten line can't hide behind
+  # similar neighbours, and a long block can't drown out a short changed line.
+  defp window_score(content_lines, start, span, quote_lines) do
+    content_lines
+    |> Enum.slice(start, span)
+    |> Enum.zip(quote_lines)
+    |> Enum.map(fn {text, quote_line} -> String.jaro_distance(text, quote_line) end)
+    |> Enum.min()
   end
 
   defp nearest(starts, span, hint_start) do
