@@ -28,6 +28,26 @@ defmodule Suikou.Critique.ReanchorTest do
     assert %{start_line: 3, end_line: 3, quote: "beta"} = comment.anchor
   end
 
+  test "reanchor keeps the captured quote when the line it points at changed" do
+    round1 = source_round("alpha\nrate limit is 100 rps\ngamma\n")
+    artifact = round1.artifact
+
+    published_comment(round1.id, %{
+      scope: :located,
+      critique_type: :note,
+      body: "config, not a constant",
+      start_line: 2,
+      end_line: 2
+    })
+
+    %{round: round2} = advance(artifact.id, "inserted\nalpha\nrate limit is 120 rps\ngamma\n")
+
+    assert {:ok, 1} = Critique.reanchor_artifact(artifact.id)
+
+    [comment] = Reads.list_comments(round2)
+    assert %{start_line: 3, end_line: 3, quote: "rate limit is 100 rps"} = comment.anchor
+  end
+
   test "reanchor leaves an unchanged comment untouched" do
     round1 = source_round("alpha\nbeta\ngamma\n")
     artifact = round1.artifact

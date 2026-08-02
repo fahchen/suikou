@@ -1033,7 +1033,10 @@
 .md-doc .flex:has(.md-table-block) > button:first-child {
   --gut-top: 0px;
   --gut-line: 100%;
-  height: 100%;
+  /* `height: 100%` would resolve against the row's indefinite height and
+     collapse the button to its digit, leaving the rest of the line dead to
+     clicks. Stretch instead so the hit area fills the whole row. */
+  align-self: stretch;
   padding-bottom: 0;
   justify-content: center;
   line-height: 1;

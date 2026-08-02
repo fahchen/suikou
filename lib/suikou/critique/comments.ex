@@ -298,9 +298,9 @@ defmodule Suikou.Critique.Comments do
 
   @doc """
   Re-anchors every located line-range comment on an artifact's latest round
-  against the current file content. A comment whose quoted lines have drifted to
-  a nearby location is relocated in place (its stored anchor and quote are
-  re-captured); an exact-match or unfindable comment is left untouched. Returns
+  against the current file content. A comment whose quote now sits at different
+  line numbers has those numbers rewritten in place, keeping the quote as
+  captured; an unfindable comment is left untouched. Returns
   the number of comments moved. Used by the automatic re-anchor task the file
   store kicks off when a file's content is requested.
 
@@ -352,16 +352,18 @@ defmodule Suikou.Critique.Comments do
     |> Enum.filter(&(&1.scope == :located and match?(%LineRange{}, &1.anchor)))
   end
 
-  # Re-pin a comment to wherever its quote now sits: relocate when the quote
-  # drifted to a similar-but-changed line (re-capturing the new text) or when an
-  # exact match simply moved to different line numbers. A quote that no longer
-  # exists (:outdated) is left stranded, and one that never moved is untouched.
+  # Re-pin a comment to wherever its quote now sits — line numbers only. The
+  # captured quote is deliberately kept as the reviewer wrote it: re-capturing it
+  # would erase what the comment was pointing at and silently clear the drift, so
+  # a drifted comment keeps reading as drifted and can show its original text.
+  # A quote that no longer exists (:outdated) is left stranded, and one that
+  # never moved is untouched.
   defp reanchor_one(%Comment{anchor: %LineRange{} = anchor} = comment, lines) do
     case Anchor.resolve(anchor, lines) do
       {%{start_line: start_line, end_line: end_line}, status}
       when status in [:current, :drifted] ->
-        if status == :drifted or start_line != anchor.start_line or end_line != anchor.end_line do
-          relocate_to(comment.id, start_line, end_line)
+        if start_line != anchor.start_line or end_line != anchor.end_line do
+          move_lines(comment, start_line, end_line)
         else
           :unchanged
         end
@@ -371,10 +373,17 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp relocate_to(comment_id, start_line, end_line) do
-    case relocate(comment_id, %{type: "line_range", start_line: start_line, end_line: end_line}) do
+  defp move_lines(%Comment{anchor: %LineRange{} = anchor} = comment, start_line, end_line) do
+    params = %{
+      __type__: "line_range",
+      start_line: start_line,
+      end_line: end_line,
+      quote: anchor.quote
+    }
+
+    case comment |> Comment.relocate_changeset(%{anchor: params}) |> Repo.update() do
       {:ok, _comment} -> :relocated
-      {:error, _reason} -> :unchanged
+      {:error, _changeset} -> :unchanged
     end
   end
 
