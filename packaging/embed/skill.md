@@ -86,9 +86,11 @@ between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
    a browser.
 3. Wait for round 1 with `review wait <review-id> --until-round 1`.
 4. Read each relevant comment, including its current anchor and resolution
-   state; make and verify the code change.
+   state. React 👀 on the comment as you pick it up and move that emoji as the
+   work moves; then make and verify the code change.
 5. Reply once per addressed comment. State what changed or why the proposed
-   change was not made, then resolve only when appropriate.
+   change was not made, react on the reply id you just got back with the
+   outcome, then resolve only when appropriate.
 6. Wait for `submission_version + 1` and repeat until the human approves.
 
 Use `review export <review-id>` when an existing snapshot is needed without
@@ -108,10 +110,17 @@ comment.
 
 ## Reactions
 
-Reactions are lightweight work status, never a substitute for a reply. Use a
-comment reaction for the thread and a reply reaction when the status belongs to
-that particular message. Replacing the emoji updates your own status without
-touching other agents' reactions.
+Reactions are lightweight work status, never a substitute for a reply. Comment
+and reply reactions are independent targets and you hold at most one on each, so
+carry both: the comment reaction tracks the thread, the reply reaction marks a
+single message. Replacing the emoji updates your own status without touching
+other agents' reactions.
+
+React on a reply — not only on the comment — whenever the status belongs to one
+message: your own reply once it is posted (`comment reply` returns the
+`reply_id`; snapshots carry it in `comments[].replies[].id`), or the human's
+reply you are acting on. A thread where every emoji sits on the comment tells
+the human nothing about which message is live.
 
 ```sh
 suikou comment react <comment-id> 👀 --as Codex --icon 🤖
