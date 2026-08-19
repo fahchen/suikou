@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 import { Popover } from "../../components/ui/popover"
+import { CommentsOverview, type CommentFile } from "./CommentsOverview"
+import type { Comment } from "./comments/shared"
 import { SubmitButton, type ReviewSummary, VERDICT_META, verdictText, type Verdict } from "./ReviewPanels"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
@@ -42,6 +44,7 @@ export function Toolbar({
   roundSummaries,
   selectedRound,
   latestRound,
+  onSelectFile,
 }: {
   name: string
   connected: boolean
@@ -50,6 +53,7 @@ export function Toolbar({
   roundSummaries: RoundSummary[]
   selectedRound: number
   latestRound: number
+  onSelectFile: (path: string) => void
 }) {
   return (
     <div className="flex h-[52px] shrink-0 items-center gap-[9px] px-2 lg:h-[50px] lg:px-3">
@@ -79,7 +83,7 @@ export function Toolbar({
       >
         <SlidersHorizontal size={16} aria-hidden />
       </button>
-      <SubmitButton store={store} review={review} />
+      <SubmitButton store={store} review={review} onSelectFile={onSelectFile} />
     </div>
   )
 }
@@ -160,6 +164,10 @@ export function StatusBar({
   round,
   readOnly,
   stacked = false,
+  commentFiles,
+  commentTotal,
+  desktop,
+  onOpenComment,
 }: {
   path: string | null
   connected: boolean
@@ -167,9 +175,13 @@ export function StatusBar({
   round: number
   readOnly: boolean
   stacked?: boolean
+  commentFiles: CommentFile[]
+  commentTotal: number
+  desktop: boolean
+  onOpenComment: (path: string, comment: Comment) => void
 }) {
   const total = review.perFile.length
-  const blockers = review.blockers.length
+  const blockers = review.blockerCount
   const waiting = useStickyWaiting(review.waiting)
 
   return (
@@ -192,20 +204,34 @@ export function StatusBar({
         {review.reviewed}/{total}
         <span className="hidden md:inline"> reviewed</span>
       </span>
-      {review.unresolved > 0 && (
-        <>
-          <StatusDot />
-          <span className="shrink-0 font-semibold text-request tabular-nums">
-            {review.unresolved}
-            <span className="hidden sm:inline">
-              {" "}open{blockers > 0 ? `, ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-            </span>
-            <span className="sm:hidden">
-              {" "}open{blockers > 0 ? `/${blockers} blk` : ""}
-            </span>
-          </span>
-        </>
-      )}
+      <StatusDot />
+      <CommentsOverview
+        files={commentFiles}
+        total={commentTotal}
+        currentPath={path}
+        desktop={desktop}
+        onOpenComment={onOpenComment}
+        trigger={
+          <button
+            type="button"
+            title="Browse comments"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-ctrl px-1 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
+          >
+            <MessageSquare size={12} aria-hidden />
+            <span className="tabular-nums">{commentTotal}</span>
+            {review.unresolved > 0 && (
+              <span className="font-semibold text-request tabular-nums">
+                <span className="hidden sm:inline">
+                  {review.unresolved} open{blockers > 0 ? `, ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+                </span>
+                <span className="sm:hidden">
+                  {review.unresolved} open{blockers > 0 ? `/${blockers} blk` : ""}
+                </span>
+              </span>
+            )}
+          </button>
+        }
+      />
       {waiting > 0 ? (
         <span className="inline-flex shrink-0 animate-pulse items-center gap-1.5 font-medium text-accent">
           <span

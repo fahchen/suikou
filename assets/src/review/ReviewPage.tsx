@@ -68,9 +68,6 @@ function isOpenBlocker(comment: Comment): boolean {
   return comment.status === "published" && comment.critique_type === "fix_required" && !comment.resolved
 }
 
-const anchorLine = (comment: Comment): number | null =>
-  comment.anchor && comment.anchor.type !== "element" ? comment.anchor.start_line : null
-
 const commentRange = (comment: Comment | null): HighlightRange =>
   comment?.anchor?.type === "line_range"
     ? { start: comment.anchor.start_line, end: comment.anchor.end_line }
@@ -105,7 +102,6 @@ type PerFile = {
   pending: number
   unresolved: number
 }
-type Blocker = { path: string; line: number | null }
 type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number; verdict: Verdict | null }
 type ReviewSummary = {
   perFile: PerFile[]
@@ -114,7 +110,7 @@ type ReviewSummary = {
   reviewed: number
   draftVerdicts: number
   pendingComments: number
-  blockers: Blocker[]
+  blockerCount: number
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
@@ -343,6 +339,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
   const [stackedScrollTarget, setStackedScrollTarget] = useState<StackedScrollTarget | null>(null)
   const [hideReviewed, setHideReviewed] = useState(false)
+  // A comment picked from the status-bar browser may live in another file; hold
+  // the target until that file is the selected one, then scroll its line in.
+  const [pendingScroll, setPendingScroll] = useState<{ path: string; line: number | null } | null>(null)
 
   const scopeCommits = useScopeCommits(reviewId, isDiff)
   // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
@@ -448,6 +447,32 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // FileStore snapshot (draft verdict, streamed comments) so the verdict chip,
   // blocker dots, overview, and submit panel all read one consistent view.
   const bodyFiles = snap?.body?.files ?? []
+  // Every file that carries comments, for the status-bar comments browser.
+  const commentFiles = useMemo(
+    () =>
+      bodyFiles
+        .filter((f) => f.comments.items.length > 0)
+        .map((f) => ({ path: f.path, comments: f.comments.items })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snap],
+  )
+  const commentTotal = commentFiles.reduce((n, f) => n + f.comments.length, 0)
+  useEffect(() => {
+    if (!pendingScroll || pendingScroll.path !== selectedPath) return
+    const line = pendingScroll.line
+    setPendingScroll(null)
+    if (line === null) return
+    // ponytail: try once the current render lands, then once more after the file
+    // swap's content load; a MutationObserver would be the upgrade if it misses.
+    const scroll = () =>
+      document.querySelector(`[data-review-line="${line}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
+    const now = setTimeout(scroll, 0)
+    const retry = setTimeout(scroll, 250)
+    return () => {
+      clearTimeout(now)
+      clearTimeout(retry)
+    }
+  }, [pendingScroll, selectedPath])
   const review = useMemo<ReviewSummary>(() => {
     const liveByPath = new Map<string, BodyFile>(bodyFiles.map((f) => [f.path, f]))
     const perFile: PerFile[] = entries.map((e) => {
@@ -462,11 +487,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         unresolved: live ? live.comments.items.filter((c) => c.status === "published" && !c.resolved).length : 0,
       }
     })
-    const blockers = entries.flatMap((e) => {
-      const live = liveByPath.get(e.path)
-      if (!live) return [] as Blocker[]
-      return live.comments.items.filter(isOpenBlocker).map((c) => ({ path: e.path, line: anchorLine(c) }))
-    })
+    const blockerCount = perFile.reduce((n, f) => n + f.openBlockers, 0)
     return {
       perFile,
       verdict: rollupVerdict(perFile.map((f) => f.draftVerdict ?? f.latestVerdict)),
@@ -474,9 +495,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       reviewed: perFile.filter((f) => (f.draftVerdict ?? f.latestVerdict) !== null).length,
       draftVerdicts: perFile.filter((f) => f.draftVerdict !== null).length,
       pendingComments: perFile.reduce((n, f) => n + f.pending, 0),
-      blockers,
+      blockerCount,
       allApproved: perFile.length > 0 && perFile.every((f) => f.approved),
-      unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockers.length,
+      unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockerCount,
       hasUnpublished: snap?.body?.has_unpublished ?? false,
       waiting: snap?.body?.waiting_count ?? 0,
     }
@@ -595,6 +616,17 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     setFilesSheetOpen(false)
     setStackedScrollTarget({ path, line: null })
   }
+  const openComment = (path: string, comment: Comment) => {
+    setFocusedCommentId(comment.id)
+    const line = commentStartLine(comment)
+    if (stacked) {
+      setStackedScrollTarget({ path, line })
+      return
+    }
+    if (path !== selectedPath) select(path)
+    setPendingScroll({ path, line })
+  }
+
   const navSelect = stacked ? scrollToStacked : select
   const stackedSide = stacked && commentDisplay === "side"
 
@@ -608,6 +640,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         roundSummaries={roundSummaries}
         selectedRound={selectedRound}
         latestRound={latestRound}
+        onSelectFile={navSelect}
       />
 
       <div
@@ -733,6 +766,10 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         round={selectedRound}
         readOnly={readOnly}
         stacked={stacked}
+        commentFiles={commentFiles}
+        commentTotal={commentTotal}
+        desktop={desktopLayout}
+        onOpenComment={openComment}
       />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">

@@ -9,20 +9,28 @@ import {
 
 import { useMusubiCommand } from "../../musubi"
 import { Dialog, DialogTitle } from "../../components/ui/dialog"
+import { CommentCountChips } from "./comments/CommentCounts"
 import { Popover } from "../../components/ui/popover"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 
 export type Verdict = "approve" | "request_changes" | "comment"
-export type Blocker = { path: string; line: number | null }
 export type ReviewSummary = {
-  perFile: { draftVerdict: Verdict | null; latestVerdict: Verdict | null; approved: boolean }[]
+  perFile: {
+    path: string
+    draftVerdict: Verdict | null
+    latestVerdict: Verdict | null
+    approved: boolean
+    openBlockers: number
+    pending: number
+    unresolved: number
+  }[]
   verdict: Verdict | null
   defaultVerdict: Verdict
   reviewed: number
   draftVerdicts: number
   pendingComments: number
-  blockers: Blocker[]
+  blockerCount: number
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
@@ -44,7 +52,15 @@ const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
 const SUBMIT_BTN =
   "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl bg-accent px-3 text-xs font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
 
-export function SubmitButton({ store, review }: { store: ReviewStore; review: ReviewSummary }) {
+export function SubmitButton({
+  store,
+  review,
+  onSelectFile,
+}: {
+  store: ReviewStore
+  review: ReviewSummary
+  onSelectFile: (path: string) => void
+}) {
   const submit = useMusubiCommand(store, "submit_review")
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -54,6 +70,12 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
   const openPanel = (set: (open: boolean) => void) => (open: boolean) => {
     if (open) setChosen(review.defaultVerdict)
     set(open)
+  }
+
+  const openFile = (path: string) => {
+    setPopoverOpen(false)
+    setSheetOpen(false)
+    onSelectFile(path)
   }
 
   const run = () => {
@@ -81,6 +103,7 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
           <SubmitPanel
             review={review}
             heading
+            onSelectFile={openFile}
             chosen={chosen}
             onChoose={setChosen}
             submitting={submit.isPending}
@@ -104,17 +127,12 @@ export function SubmitButton({ store, review }: { store: ReviewStore; review: Re
         <div className="flex min-h-0 flex-col gap-2 overflow-auto p-2">
           <SubmitPanel
             review={review}
+            onSelectFile={openFile}
             chosen={chosen}
             onChoose={setChosen}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
-          {review.blockers.length > 0 && (
-            <div className="px-1">
-              <p className="mb-1.5 text-2xs font-bold uppercase tracking-[0.05em] text-faint">Open blockers</p>
-              <BlockerList blockers={review.blockers} />
-            </div>
-          )}
         </div>
       </Dialog>
       <SubmitConfirm
@@ -136,6 +154,7 @@ export function verdictText(verdict: Verdict): string {
 function SubmitPanel({
   review,
   heading = false,
+  onSelectFile,
   chosen,
   onChoose,
   submitting,
@@ -143,12 +162,14 @@ function SubmitPanel({
 }: {
   review: ReviewSummary
   heading?: boolean
+  onSelectFile: (path: string) => void
   chosen: Verdict
   onChoose: (verdict: Verdict) => void
   submitting: boolean
   onSubmit: () => void
 }) {
-  const softGate = chosen === "approve" && review.blockers.length > 0
+  const softGate = chosen === "approve" && review.blockerCount > 0
+  const filesWithComments = review.perFile.filter((f) => f.unresolved > 0 || f.pending > 0)
   const hasContent = review.hasUnpublished || review.pendingComments > 0 || review.draftVerdicts > 0
   const canSubmit = chosen === "approve" || hasContent
 
@@ -187,9 +208,15 @@ function SubmitPanel({
         <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-xs leading-[1.45] text-amber-deep">
           <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
           <span>
-            <b className="font-bold">{review.blockers.length} open fix_required.</b> Approving anyway is
+            <b className="font-bold">{review.blockerCount} open fix_required.</b> Approving anyway is
             allowed, you have the final call.
           </span>
+        </div>
+      )}
+      {filesWithComments.length > 0 && (
+        <div className="px-1 pb-1.5">
+          <p className="mb-1.5 px-[5px] text-2xs font-bold uppercase tracking-[0.05em] text-faint">Files with comments</p>
+          <FileCommentList perFile={filesWithComments} onSelectFile={onSelectFile} />
         </div>
       )}
       <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
@@ -206,20 +233,32 @@ function SubmitPanel({
   )
 }
 
-function BlockerList({ blockers }: { blockers: Blocker[] }) {
+/** Files that still carry comments, rolled up the way the status bar reads them
+ * (`N open`, `M blockers`), so the submit panel never lists comment by comment. */
+function FileCommentList({
+  perFile,
+  onSelectFile,
+}: {
+  perFile: ReviewSummary["perFile"]
+  onSelectFile: (path: string) => void
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      {blockers.map((blocker, index) => (
-        <div
-          key={`${blocker.path}:${blocker.line}:${index}`}
-          className="flex items-center gap-2 rounded-[7px] border border-request-edge bg-request-soft px-2.5 py-1.5"
+    <div className="flex max-h-[168px] flex-col gap-1 overflow-auto">
+      {perFile.map((file) => (
+        <button
+          key={file.path}
+          type="button"
+          onClick={() => onSelectFile(file.path)}
+          className="flex items-center gap-2 rounded-[7px] bg-soft px-2.5 py-1.5 text-left hover:bg-control"
+          title={`Open ${file.path}`}
         >
-          <span className="size-1.5 shrink-0 rounded-full bg-request shadow-[0_0_6px_var(--request)]" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">
-            {blocker.path.slice(blocker.path.lastIndexOf("/") + 1)}
+            {file.path.slice(file.path.lastIndexOf("/") + 1)}
           </span>
-          {blocker.line !== null && <span className="shrink-0 font-mono text-xs text-muted">line {blocker.line}</span>}
-        </div>
+          <CommentCountChips
+            counts={{ open: file.unresolved, blockers: file.openBlockers, pending: file.pending }}
+          />
+        </button>
       ))}
     </div>
   )
@@ -281,9 +320,9 @@ function SubmitConfirm({
         <ConfirmLine icon={FileText}>
           Records <b className="font-bold text-ink">{review.draftVerdicts}</b> draft file verdicts
         </ConfirmLine>
-        {review.blockers.length > 0 && (
+        {review.blockerCount > 0 && (
           <ConfirmLine icon={AlertTriangle}>
-            <b className="font-bold text-ink">{review.blockers.length} open fix_required</b> stays open for the agent
+            <b className="font-bold text-ink">{review.blockerCount} open fix_required</b> stays open for the agent
           </ConfirmLine>
         )}
       </div>
