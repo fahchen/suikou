@@ -3,6 +3,9 @@ import { Link } from "@tanstack/react-router"
 import type { StoreProxy } from "@musubi/react"
 import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
+import { toast } from "sonner"
+
+import { writeClipboard } from "../../lib/clipboard"
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
 import {
@@ -186,7 +189,18 @@ export function StatusBar({
 
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted [box-sizing:content-box]">
-      <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      {path ? (
+        <button
+          type="button"
+          onClick={() => copyPath(path)}
+          title={`Copy ${path}`}
+          className="min-w-[3.5rem] flex-1 truncate rounded-ctrl text-left font-mono text-faint hover:bg-soft hover:text-muted"
+        >
+          {path}
+        </button>
+      ) : (
+        <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">No file selected</span>
+      )}
       {stacked && (
         <>
           <StatusDot />
@@ -282,6 +296,10 @@ function useStickyWaiting(count: number): number {
   }, [count])
 
   return display
+}
+
+function copyPath(path: string) {
+  void writeClipboard(path).then((ok) => (ok ? toast.success("Path copied", { description: path }) : toast.error("Copy failed")))
 }
 
 function StatusDot() {
