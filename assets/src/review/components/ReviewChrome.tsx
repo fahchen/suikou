@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
+import { Button } from "../../components/ui/button"
 import { Popover } from "../../components/ui/popover"
 import { CommentsOverview, type CommentFile } from "./CommentsOverview"
 import type { Comment } from "./comments/shared"
@@ -190,14 +191,15 @@ export function StatusBar({
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted [box-sizing:content-box]">
       {path ? (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => copyPath(path)}
           title={`Copy ${path}`}
-          className="min-w-[3.5rem] flex-1 truncate rounded-ctrl text-left font-mono text-faint hover:bg-soft hover:text-muted"
+          className="min-w-[3.5rem] flex-1 justify-start truncate px-1 font-mono font-normal text-faint"
         >
-          {path}
-        </button>
+          <span className="truncate">{path}</span>
+        </Button>
       ) : (
         <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">No file selected</span>
       )}
@@ -226,11 +228,7 @@ export function StatusBar({
         desktop={desktop}
         onOpenComment={onOpenComment}
         trigger={
-          <button
-            type="button"
-            title="Browse comments"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-ctrl px-1 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
-          >
+          <Button variant="ghost" size="sm" title="Browse comments" className="px-1.5 font-normal">
             <MessageSquare size={12} aria-hidden />
             {/* Only the counts that differ: a total equal to the open count, or
                 a blocker count equal to it, says the same thing twice. */}
@@ -248,7 +246,7 @@ export function StatusBar({
                 )}
               </span>
             )}
-          </button>
+          </Button>
         }
       />
       {waiting > 0 ? (

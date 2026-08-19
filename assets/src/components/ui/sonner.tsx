@@ -22,15 +22,18 @@ const Toaster = observer(function Toaster(props: ToasterProps) {
       }}
       style={
         {
-          "--normal-bg": "var(--surface)",
-          "--normal-text": "var(--ink)",
+          "--normal-bg": "var(--bg-2)",
+          "--normal-text": "var(--ink-0)",
           "--normal-border": "var(--hair-strong)",
           "--border-radius": "var(--r-panel)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "bg-surface opacity-100 shadow-[0_12px_30px_oklch(0%_0_0/0.3)]",
+          // Sonner keeps its own opacity animation on the toast element; the app's
+          // themed surface has to win it outright or the panel reads as a ghost
+          // over the page behind it.
+          toast: "bg-surface! opacity-100! shadow-[0_12px_30px_oklch(0%_0_0/0.3)]",
           description: "text-muted opacity-100",
         },
       }}
