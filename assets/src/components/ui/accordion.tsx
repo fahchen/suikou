@@ -31,8 +31,18 @@ function AccordionTrigger({ className, children, ...props }: AccordionPrimitive.
   )
 }
 
-function AccordionContent({ className, ...props }: AccordionPrimitive.Panel.Props) {
-  return <AccordionPrimitive.Panel data-slot="accordion-content" className={cn("pl-3", className)} {...props} />
+function AccordionContent({ className, children, ...props }: AccordionPrimitive.Panel.Props) {
+  return (
+    <AccordionPrimitive.Panel
+      data-slot="accordion-content"
+      // Base UI measures the panel into --accordion-panel-height; animating that
+      // against the 0 of the starting/ending styles is what makes it unfold.
+      className="h-[var(--accordion-panel-height)] overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0"
+      {...props}
+    >
+      <div className={cn("pl-3", className)}>{children}</div>
+    </AccordionPrimitive.Panel>
+  )
 }
 
 const AccordionItem = AccordionPrimitive.Item
