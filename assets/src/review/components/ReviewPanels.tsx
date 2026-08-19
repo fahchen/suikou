@@ -15,7 +15,6 @@ import { Popover } from "../../components/ui/popover"
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 
 export type Verdict = "approve" | "request_changes" | "comment"
-export type Blocker = { path: string; line: number | null }
 export type ReviewSummary = {
   perFile: {
     path: string
@@ -31,7 +30,7 @@ export type ReviewSummary = {
   reviewed: number
   draftVerdicts: number
   pendingComments: number
-  blockers: Blocker[]
+  blockerCount: number
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
@@ -169,7 +168,7 @@ function SubmitPanel({
   submitting: boolean
   onSubmit: () => void
 }) {
-  const softGate = chosen === "approve" && review.blockers.length > 0
+  const softGate = chosen === "approve" && review.blockerCount > 0
   const filesWithComments = review.perFile.filter((f) => f.unresolved > 0 || f.pending > 0)
   const hasContent = review.hasUnpublished || review.pendingComments > 0 || review.draftVerdicts > 0
   const canSubmit = chosen === "approve" || hasContent
@@ -209,7 +208,7 @@ function SubmitPanel({
         <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-xs leading-[1.45] text-amber-deep">
           <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
           <span>
-            <b className="font-bold">{review.blockers.length} open fix_required.</b> Approving anyway is
+            <b className="font-bold">{review.blockerCount} open fix_required.</b> Approving anyway is
             allowed, you have the final call.
           </span>
         </div>
@@ -321,9 +320,9 @@ function SubmitConfirm({
         <ConfirmLine icon={FileText}>
           Records <b className="font-bold text-ink">{review.draftVerdicts}</b> draft file verdicts
         </ConfirmLine>
-        {review.blockers.length > 0 && (
+        {review.blockerCount > 0 && (
           <ConfirmLine icon={AlertTriangle}>
-            <b className="font-bold text-ink">{review.blockers.length} open fix_required</b> stays open for the agent
+            <b className="font-bold text-ink">{review.blockerCount} open fix_required</b> stays open for the agent
           </ConfirmLine>
         )}
       </div>

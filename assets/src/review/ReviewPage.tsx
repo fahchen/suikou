@@ -68,9 +68,6 @@ function isOpenBlocker(comment: Comment): boolean {
   return comment.status === "published" && comment.critique_type === "fix_required" && !comment.resolved
 }
 
-const anchorLine = (comment: Comment): number | null =>
-  comment.anchor && comment.anchor.type !== "element" ? comment.anchor.start_line : null
-
 const commentRange = (comment: Comment | null): HighlightRange =>
   comment?.anchor?.type === "line_range"
     ? { start: comment.anchor.start_line, end: comment.anchor.end_line }
@@ -105,7 +102,6 @@ type PerFile = {
   pending: number
   unresolved: number
 }
-type Blocker = { path: string; line: number | null }
 type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number; verdict: Verdict | null }
 type ReviewSummary = {
   perFile: PerFile[]
@@ -114,7 +110,7 @@ type ReviewSummary = {
   reviewed: number
   draftVerdicts: number
   pendingComments: number
-  blockers: Blocker[]
+  blockerCount: number
   allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
@@ -460,19 +456,20 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [snap],
   )
+  const commentTotal = commentFiles.reduce((n, f) => n + f.comments.length, 0)
   useEffect(() => {
     if (!pendingScroll || pendingScroll.path !== selectedPath) return
     const line = pendingScroll.line
     setPendingScroll(null)
     if (line === null) return
-    // ponytail: two tries (next frame, then 250ms) covers the file swap's render
-    // and content load; a MutationObserver would be the upgrade if it ever misses.
+    // ponytail: try once the current render lands, then once more after the file
+    // swap's content load; a MutationObserver would be the upgrade if it misses.
     const scroll = () =>
       document.querySelector(`[data-review-line="${line}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
-    const frame = requestAnimationFrame(scroll)
+    const now = setTimeout(scroll, 0)
     const retry = setTimeout(scroll, 250)
     return () => {
-      cancelAnimationFrame(frame)
+      clearTimeout(now)
       clearTimeout(retry)
     }
   }, [pendingScroll, selectedPath])
@@ -490,11 +487,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         unresolved: live ? live.comments.items.filter((c) => c.status === "published" && !c.resolved).length : 0,
       }
     })
-    const blockers = entries.flatMap((e) => {
-      const live = liveByPath.get(e.path)
-      if (!live) return [] as Blocker[]
-      return live.comments.items.filter(isOpenBlocker).map((c) => ({ path: e.path, line: anchorLine(c) }))
-    })
+    const blockerCount = perFile.reduce((n, f) => n + f.openBlockers, 0)
     return {
       perFile,
       verdict: rollupVerdict(perFile.map((f) => f.draftVerdict ?? f.latestVerdict)),
@@ -502,9 +495,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       reviewed: perFile.filter((f) => (f.draftVerdict ?? f.latestVerdict) !== null).length,
       draftVerdicts: perFile.filter((f) => f.draftVerdict !== null).length,
       pendingComments: perFile.reduce((n, f) => n + f.pending, 0),
-      blockers,
+      blockerCount,
       allApproved: perFile.length > 0 && perFile.every((f) => f.approved),
-      unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockers.length,
+      unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockerCount,
       hasUnpublished: snap?.body?.has_unpublished ?? false,
       waiting: snap?.body?.waiting_count ?? 0,
     }
@@ -774,6 +767,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         readOnly={readOnly}
         stacked={stacked}
         commentFiles={commentFiles}
+        commentTotal={commentTotal}
         desktop={desktopLayout}
         onOpenComment={openComment}
       />

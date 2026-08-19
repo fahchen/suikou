@@ -165,6 +165,7 @@ export function StatusBar({
   readOnly,
   stacked = false,
   commentFiles,
+  commentTotal,
   desktop,
   onOpenComment,
 }: {
@@ -175,13 +176,13 @@ export function StatusBar({
   readOnly: boolean
   stacked?: boolean
   commentFiles: CommentFile[]
+  commentTotal: number
   desktop: boolean
   onOpenComment: (path: string, comment: Comment) => void
 }) {
   const total = review.perFile.length
-  const blockers = review.blockers.length
+  const blockers = review.blockerCount
   const waiting = useStickyWaiting(review.waiting)
-  const commentCount = commentFiles.reduce((n, f) => n + f.comments.length, 0)
 
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted [box-sizing:content-box]">
@@ -206,6 +207,7 @@ export function StatusBar({
       <StatusDot />
       <CommentsOverview
         files={commentFiles}
+        total={commentTotal}
         currentPath={path}
         desktop={desktop}
         onOpenComment={onOpenComment}
@@ -216,7 +218,7 @@ export function StatusBar({
             className="inline-flex shrink-0 items-center gap-1.5 rounded-ctrl px-1 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
           >
             <MessageSquare size={12} aria-hidden />
-            <span className="tabular-nums">{commentCount}</span>
+            <span className="tabular-nums">{commentTotal}</span>
             {review.unresolved > 0 && (
               <span className="font-semibold text-request tabular-nums">
                 <span className="hidden sm:inline">

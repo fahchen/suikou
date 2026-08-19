@@ -9,10 +9,6 @@ function Accordion({ className, ...props }: AccordionPrimitive.Root.Props) {
   return <AccordionPrimitive.Root data-slot="accordion" className={cn("flex w-full flex-col", className)} {...props} />
 }
 
-function AccordionItem({ className, ...props }: AccordionPrimitive.Item.Props) {
-  return <AccordionPrimitive.Item data-slot="accordion-item" className={cn("flex flex-col", className)} {...props} />
-}
-
 function AccordionTrigger({ className, children, ...props }: AccordionPrimitive.Trigger.Props) {
   return (
     <AccordionPrimitive.Header>
@@ -38,5 +34,7 @@ function AccordionTrigger({ className, children, ...props }: AccordionPrimitive.
 function AccordionContent({ className, ...props }: AccordionPrimitive.Panel.Props) {
   return <AccordionPrimitive.Panel data-slot="accordion-content" className={cn("pl-3", className)} {...props} />
 }
+
+const AccordionItem = AccordionPrimitive.Item
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }

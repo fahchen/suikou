@@ -17,12 +17,14 @@ export type CommentFile = { path: string; comments: Comment[] }
  * phones; picking a row jumps to that comment. */
 export function CommentsOverview({
   files,
+  total,
   currentPath,
   desktop,
   trigger,
   onOpenComment,
 }: {
   files: CommentFile[]
+  total: number
   currentPath: string | null
   desktop: boolean
   trigger: ReactElement<{ onClick?: () => void }>
@@ -34,7 +36,6 @@ export function CommentsOverview({
     onOpenComment(path, comment)
   }
   const current = files.find((f) => f.path === currentPath) ?? null
-  const total = files.reduce((n, f) => n + f.comments.length, 0)
   const body = (
     <Tabs defaultValue="file" className="min-h-0 flex-1">
       <TabsList>
