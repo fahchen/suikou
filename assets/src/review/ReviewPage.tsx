@@ -343,6 +343,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
   const [stackedScrollTarget, setStackedScrollTarget] = useState<StackedScrollTarget | null>(null)
   const [hideReviewed, setHideReviewed] = useState(false)
+  // A comment picked from the status-bar browser may live in another file; hold
+  // the target until that file is the selected one, then scroll its line in.
+  const [pendingScroll, setPendingScroll] = useState<{ path: string; line: number | null } | null>(null)
 
   const scopeCommits = useScopeCommits(reviewId, isDiff)
   // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
@@ -448,6 +451,31 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // FileStore snapshot (draft verdict, streamed comments) so the verdict chip,
   // blocker dots, overview, and submit panel all read one consistent view.
   const bodyFiles = snap?.body?.files ?? []
+  // Every file that carries comments, for the status-bar comments browser.
+  const commentFiles = useMemo(
+    () =>
+      bodyFiles
+        .filter((f) => f.comments.items.length > 0)
+        .map((f) => ({ path: f.path, comments: f.comments.items })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snap],
+  )
+  useEffect(() => {
+    if (!pendingScroll || pendingScroll.path !== selectedPath) return
+    const line = pendingScroll.line
+    setPendingScroll(null)
+    if (line === null) return
+    // ponytail: two tries (next frame, then 250ms) covers the file swap's render
+    // and content load; a MutationObserver would be the upgrade if it ever misses.
+    const scroll = () =>
+      document.querySelector(`[data-review-line="${line}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
+    const frame = requestAnimationFrame(scroll)
+    const retry = setTimeout(scroll, 250)
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(retry)
+    }
+  }, [pendingScroll, selectedPath])
   const review = useMemo<ReviewSummary>(() => {
     const liveByPath = new Map<string, BodyFile>(bodyFiles.map((f) => [f.path, f]))
     const perFile: PerFile[] = entries.map((e) => {
@@ -595,6 +623,17 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     setFilesSheetOpen(false)
     setStackedScrollTarget({ path, line: null })
   }
+  const openComment = (path: string, comment: Comment) => {
+    setFocusedCommentId(comment.id)
+    const line = commentStartLine(comment)
+    if (stacked) {
+      setStackedScrollTarget({ path, line })
+      return
+    }
+    if (path !== selectedPath) select(path)
+    setPendingScroll({ path, line })
+  }
+
   const navSelect = stacked ? scrollToStacked : select
   const stackedSide = stacked && commentDisplay === "side"
 
@@ -608,6 +647,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         roundSummaries={roundSummaries}
         selectedRound={selectedRound}
         latestRound={latestRound}
+        onSelectFile={navSelect}
       />
 
       <div
@@ -733,6 +773,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         round={selectedRound}
         readOnly={readOnly}
         stacked={stacked}
+        commentFiles={commentFiles}
+        desktop={desktopLayout}
+        onOpenComment={openComment}
       />
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
