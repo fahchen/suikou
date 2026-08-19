@@ -3,6 +3,9 @@ import { Link } from "@tanstack/react-router"
 import type { StoreProxy } from "@musubi/react"
 import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
 
+import { toast } from "sonner"
+
+import { writeClipboard } from "../../lib/clipboard"
 import { useMusubiCommand } from "../../musubi"
 import { uiStore } from "../../stores/ui-store"
 import {
@@ -11,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
+import { Button } from "../../components/ui/button"
 import { Popover } from "../../components/ui/popover"
 import { CommentsOverview, type CommentFile } from "./CommentsOverview"
 import type { Comment } from "./comments/shared"
@@ -186,7 +190,19 @@ export function StatusBar({
 
   return (
     <div className="flex h-[29px] shrink-0 items-center gap-2 overflow-hidden px-3.5 text-xs text-muted [box-sizing:content-box]">
-      <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">{path ?? "No file selected"}</span>
+      {path ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => copyPath(path)}
+          title={`Copy ${path}`}
+          className="min-w-[3.5rem] flex-1 justify-start truncate px-1 font-mono font-normal text-faint"
+        >
+          <span className="truncate">{path}</span>
+        </Button>
+      ) : (
+        <span className="min-w-[3.5rem] flex-1 truncate font-mono text-faint">No file selected</span>
+      )}
       {stacked && (
         <>
           <StatusDot />
@@ -212,24 +228,25 @@ export function StatusBar({
         desktop={desktop}
         onOpenComment={onOpenComment}
         trigger={
-          <button
-            type="button"
-            title="Browse comments"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-ctrl px-1 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
-          >
+          <Button variant="ghost" size="sm" title="Browse comments" className="px-1.5 font-normal">
             <MessageSquare size={12} aria-hidden />
-            <span className="tabular-nums">{commentTotal}</span>
+            {/* Only the counts that differ: a total equal to the open count, or
+                a blocker count equal to it, says the same thing twice. */}
+            {review.unresolved < commentTotal && <span className="tabular-nums">{commentTotal}</span>}
             {review.unresolved > 0 && (
               <span className="font-semibold text-request tabular-nums">
-                <span className="hidden sm:inline">
-                  {review.unresolved} open{blockers > 0 ? `, ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-                </span>
-                <span className="sm:hidden">
-                  {review.unresolved} open{blockers > 0 ? `/${blockers} blk` : ""}
-                </span>
+                {review.unresolved} open
+                {blockers > 0 && blockers < review.unresolved && (
+                  <>
+                    <span className="hidden sm:inline">
+                      , {blockers} blocker{blockers === 1 ? "" : "s"}
+                    </span>
+                    <span className="sm:hidden">/{blockers} blk</span>
+                  </>
+                )}
               </span>
             )}
-          </button>
+          </Button>
         }
       />
       {waiting > 0 ? (
@@ -277,6 +294,10 @@ function useStickyWaiting(count: number): number {
   }, [count])
 
   return display
+}
+
+function copyPath(path: string) {
+  void writeClipboard(path).then((ok) => (ok ? toast.success("Path copied", { description: path }) : toast.error("Copy failed")))
 }
 
 function StatusDot() {

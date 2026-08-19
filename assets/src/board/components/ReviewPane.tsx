@@ -4,6 +4,8 @@ import type { CommandReply, StoreProxy } from "@musubi/react"
 import { Check, ChevronsUpDown, Clipboard, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+import { writeClipboard } from "../../lib/clipboard"
+
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
@@ -334,30 +336,6 @@ function copyText(text: string, message: string, description: string) {
       ? toast.success(message, { description })
       : toast.error("Copy failed"),
   )
-}
-
-// navigator.clipboard only exists in a secure context (https/localhost). Over
-// plain http (e.g. Tailscale IP on a phone) it's undefined, so fall back to a
-// hidden textarea + execCommand copy.
-async function writeClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch {
-      // fall through to the legacy path
-    }
-  }
-  const area = document.createElement("textarea")
-  area.value = text
-  area.setAttribute("readonly", "")
-  area.style.position = "fixed"
-  area.style.opacity = "0"
-  document.body.appendChild(area)
-  area.select()
-  const ok = document.execCommand("copy")
-  document.body.removeChild(area)
-  return ok
 }
 
 function Dot() {

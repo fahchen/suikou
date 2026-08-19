@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
+import { Button } from "../../components/ui/button"
 import { Dialog, DialogTitle } from "../../components/ui/dialog"
 import { CommentCountChips } from "./comments/CommentCounts"
 import { Popover } from "../../components/ui/popover"
@@ -245,11 +246,12 @@ function FileCommentList({
   return (
     <div className="flex max-h-[168px] flex-col gap-1 overflow-auto">
       {perFile.map((file) => (
-        <button
+        <Button
           key={file.path}
-          type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => onSelectFile(file.path)}
-          className="flex items-center gap-2 rounded-[7px] bg-soft px-2.5 py-1.5 text-left hover:bg-control"
+          className="w-full justify-start gap-2 bg-soft px-2.5 font-normal hover:bg-control"
           title={`Open ${file.path}`}
         >
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">
@@ -258,7 +260,7 @@ function FileCommentList({
           <CommentCountChips
             counts={{ open: file.unresolved, blockers: file.openBlockers, pending: file.pending }}
           />
-        </button>
+        </Button>
       ))}
     </div>
   )

@@ -341,7 +341,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const [hideReviewed, setHideReviewed] = useState(false)
   // A comment picked from the status-bar browser may live in another file; hold
   // the target until that file is the selected one, then scroll its line in.
-  const [pendingScroll, setPendingScroll] = useState<{ path: string; line: number | null } | null>(null)
+  const [pendingScroll, setPendingScroll] = useState<{ path: string; line: number | null; commentId: string } | null>(
+    null,
+  )
 
   const scopeCommits = useScopeCommits(reviewId, isDiff)
   // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
@@ -459,19 +461,23 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const commentTotal = commentFiles.reduce((n, f) => n + f.comments.length, 0)
   useEffect(() => {
     if (!pendingScroll || pendingScroll.path !== selectedPath) return
-    const line = pendingScroll.line
-    setPendingScroll(null)
-    if (line === null) return
-    // ponytail: try once the current render lands, then once more after the file
-    // swap's content load; a MutationObserver would be the upgrade if it misses.
-    const scroll = () =>
-      document.querySelector(`[data-review-line="${line}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
-    const now = setTimeout(scroll, 0)
-    const retry = setTimeout(scroll, 250)
-    return () => {
-      clearTimeout(now)
-      clearTimeout(retry)
-    }
+    const { line, commentId } = pendingScroll
+    // The target only exists once the newly selected file has rendered its lines
+    // and threads, which lags the route change by an unpredictable beat, so poll
+    // briefly and stop at the first hit. The comment card wins over its line:
+    // inline threads and the side rail both carry it, and a file-scope comment
+    // has no line to aim at.
+    // ponytail: 100ms polling for 2s; a MutationObserver is the upgrade if this
+    // ever proves too slow or too short.
+    const deadline = Date.now() + 2000
+    const timer = setInterval(() => {
+      const card = document.querySelector(`[data-side-comment-id="${commentId}"]`)
+      const target = card ?? (line === null ? null : document.querySelector(`[data-review-line="${line}"]`))
+      if (target) target.scrollIntoView({ block: "center", behavior: "smooth" })
+      // Clearing the request ends the poll: it is this effect's only trigger.
+      if (target || Date.now() > deadline) setPendingScroll(null)
+    }, 100)
+    return () => clearInterval(timer)
   }, [pendingScroll, selectedPath])
   const review = useMemo<ReviewSummary>(() => {
     const liveByPath = new Map<string, BodyFile>(bodyFiles.map((f) => [f.path, f]))
@@ -624,7 +630,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       return
     }
     if (path !== selectedPath) select(path)
-    setPendingScroll({ path, line })
+    setPendingScroll({ path, line, commentId: comment.id })
   }
 
   const navSelect = stacked ? scrollToStacked : select
