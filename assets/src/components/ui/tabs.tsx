@@ -44,7 +44,7 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
     <TabsPrimitive.Panel
       data-slot="tabs-content"
       className={cn(
-        "min-h-0 flex-1 outline-none transition-opacity duration-150 data-starting-style:opacity-0",
+        "min-h-0 flex-1 outline-none transition-[opacity,translate] duration-200 ease-out data-starting-style:translate-y-1 data-starting-style:opacity-0",
         className,
       )}
       {...props}
