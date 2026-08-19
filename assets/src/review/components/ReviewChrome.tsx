@@ -218,15 +218,20 @@ export function StatusBar({
             className="inline-flex shrink-0 items-center gap-1.5 rounded-ctrl px-1 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
           >
             <MessageSquare size={12} aria-hidden />
-            <span className="tabular-nums">{commentTotal}</span>
+            {/* Only the counts that differ: a total equal to the open count, or
+                a blocker count equal to it, says the same thing twice. */}
+            {review.unresolved < commentTotal && <span className="tabular-nums">{commentTotal}</span>}
             {review.unresolved > 0 && (
               <span className="font-semibold text-request tabular-nums">
-                <span className="hidden sm:inline">
-                  {review.unresolved} open{blockers > 0 ? `, ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-                </span>
-                <span className="sm:hidden">
-                  {review.unresolved} open{blockers > 0 ? `/${blockers} blk` : ""}
-                </span>
+                {review.unresolved} open
+                {blockers > 0 && blockers < review.unresolved && (
+                  <>
+                    <span className="hidden sm:inline">
+                      , {blockers} blocker{blockers === 1 ? "" : "s"}
+                    </span>
+                    <span className="sm:hidden">/{blockers} blk</span>
+                  </>
+                )}
               </span>
             )}
           </button>
