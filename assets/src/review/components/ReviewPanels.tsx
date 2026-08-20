@@ -244,24 +244,27 @@ function FileCommentList({
   onSelectFile: (path: string) => void
 }) {
   return (
-    <div className="flex max-h-[168px] flex-col gap-1 overflow-auto">
-      {perFile.map((file) => (
-        <Button
-          key={file.path}
-          variant="ghost"
-          size="sm"
-          onClick={() => onSelectFile(file.path)}
-          className="w-full justify-start gap-2 bg-soft px-2.5 font-normal hover:bg-control"
-          title={`Open ${file.path}`}
-        >
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink">
-            {file.path.slice(file.path.lastIndexOf("/") + 1)}
-          </span>
-          <CommentCountChips
-            counts={{ open: file.unresolved, blockers: file.openBlockers, pending: file.pending }}
-          />
-        </Button>
-      ))}
+    <div className="flex max-h-[176px] flex-col overflow-auto rounded-ctrl border border-hair-strong bg-soft/50">
+      {perFile.map((file) => {
+        const cut = file.path.lastIndexOf("/") + 1
+        return (
+          <Button
+            key={file.path}
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectFile(file.path)}
+            className="h-auto w-full justify-between gap-2 rounded-none px-2.5 py-1.5 text-left font-normal not-last:border-b not-last:border-hair"
+            title={`Open ${file.path}`}
+          >
+            {/* Basename only: the popover is too narrow for a path, and truncation
+                would eat the end that identifies the file. Hover shows the path. */}
+            <span className="min-w-0 flex-1 truncate text-left font-mono text-xs text-ink">{file.path.slice(cut)}</span>
+            <CommentCountChips
+              counts={{ open: file.unresolved, blockers: file.openBlockers, pending: file.pending }}
+            />
+          </Button>
+        )
+      })}
     </div>
   )
 }
