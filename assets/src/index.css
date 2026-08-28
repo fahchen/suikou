@@ -857,6 +857,19 @@
 }
 
 @layer base {
+  /* Motion here is feedback, never information: when the OS asks for less of
+     it, every transition and animation collapses to an instant state change. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   html,
   body {
     min-height: 100%;

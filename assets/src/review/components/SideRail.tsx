@@ -2,6 +2,7 @@ import type { StoreProxy } from "@musubi/react"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowDownUp, MessageSquare, MessageSquarePlus } from "lucide-react"
 
+import { scrollBehavior } from "../../lib/utils"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu"
 import { FileCommentComposer } from "./comments/FileCommentComposer"
 import { SideCommentCard } from "./comments/SideCommentCard"
@@ -166,5 +167,5 @@ function scrollToCommentAnchor(comment: Comment) {
   if (comment.anchor?.type !== "line_range") return
   document
     .querySelector(`[data-review-line="${comment.anchor.start_line}"]`)
-    ?.scrollIntoView({ block: "center", behavior: "smooth" })
+    ?.scrollIntoView({ block: "center", behavior: scrollBehavior() })
 }

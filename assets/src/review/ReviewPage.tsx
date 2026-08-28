@@ -5,6 +5,7 @@ import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
 import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, RotateCw, WifiOff } from "lucide-react"
 
+import { scrollBehavior } from "../lib/utils"
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
 import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
 import {
@@ -473,7 +474,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     const timer = setInterval(() => {
       const card = document.querySelector(`[data-side-comment-id="${commentId}"]`)
       const target = card ?? (line === null ? null : document.querySelector(`[data-review-line="${line}"]`))
-      if (target) target.scrollIntoView({ block: "center", behavior: "smooth" })
+      if (target) target.scrollIntoView({ block: "center", behavior: scrollBehavior() })
       // Clearing the request ends the poll: it is this effect's only trigger.
       if (target || Date.now() > deadline) setPendingScroll(null)
     }, 100)
@@ -1035,7 +1036,7 @@ function Editor({
   const scrollToLine = (line: number) => {
     document
       .querySelector(`[data-review-line="${line}"]`)
-      ?.scrollIntoView({ block: "start", behavior: "smooth" })
+      ?.scrollIntoView({ block: "start", behavior: scrollBehavior() })
   }
 
   return (
