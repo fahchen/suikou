@@ -70,7 +70,9 @@ export function ReviewPane({
             </span>
             <ChevronsUpDown size={15} className="shrink-0 text-muted lg:hidden" aria-hidden />
           </span>
-          <span className="truncate font-mono text-xs text-faint">{project.path}</span>
+          <span className="truncate font-mono text-xs text-faint">
+            {project.path ?? "no reviews yet"}
+          </span>
         </button>
         {store && (
           <ProjectActions

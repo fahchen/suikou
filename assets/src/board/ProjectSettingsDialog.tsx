@@ -75,9 +75,9 @@ export function ProjectSettingsDialog({
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted">Path</span>
+          <span className="text-xs font-semibold text-muted">Last reviewed checkout</span>
           <span className="flex h-[34px] items-center truncate rounded-ctrl border border-hair bg-soft px-3 font-mono text-xs text-faint">
-            {project.path}
+            {project.path ?? "no reviews yet"}
           </span>
         </label>
         <label className="flex flex-col gap-1.5">
