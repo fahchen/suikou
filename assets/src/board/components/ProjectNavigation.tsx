@@ -32,7 +32,7 @@ export function Sidebar({
               key={project.id}
               onClick={() => onSelect(project.id)}
               aria-current={active ? "true" : undefined}
-              className={`flex h-[34px] shrink-0 items-center gap-[9px] rounded-ctrl pr-[9px] pl-2.5 text-left text-sm tracking-[-0.008em] ${
+              className={`flex h-[34px] shrink-0 items-center gap-[9px] rounded-ctrl pr-[9px] pl-2.5 text-left text-sm tracking-[-0.008em] transition-colors duration-100 ease-out ${
                 active
                   ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
                   : "text-text hover:bg-soft"
@@ -95,7 +95,7 @@ export function ProjectPickerSheet({
               key={project.id}
               onClick={() => onSelect(project.id)}
               aria-current={active ? "true" : undefined}
-              className={`flex h-[42px] shrink-0 items-center gap-2.5 rounded-ctrl px-3 text-left text-sm ${
+              className={`flex h-[42px] shrink-0 items-center gap-2.5 rounded-ctrl px-3 text-left text-sm transition-colors duration-100 ease-out active:bg-soft ${
                 active ? "bg-accent-soft font-semibold text-accent-bright" : "text-text hover:bg-soft"
               }`}
             >
