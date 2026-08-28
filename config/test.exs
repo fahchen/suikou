@@ -35,6 +35,10 @@ config :suikou, :agent_cli_poll_window_ms, 200
 # without a 30 s wait.
 config :suikou, :changes_watcher_grace_ms, 100
 
+# Scratch directories are created for real on review creation, so keep them
+# inside the project's tmp/ rather than in the developer's XDG data directory.
+config :suikou, :data_dir, Path.expand("../tmp/scratch", __DIR__)
+
 # VAPID keys so Web Push code can build a payload in tests without hitting the
 # network (the actual send is integration-only). Reuses the dev keypair.
 config :web_push_elixir,

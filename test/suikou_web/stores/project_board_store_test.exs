@@ -21,7 +21,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       # Simulates a write on another connection (e.g. a CLI `review create`):
       # the open board was never dirtied by its own command, so only the
       # broadcast can refresh it.
-      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+      {:ok, _review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       :ok = BoardBroadcast.broadcast()
 
       # The field stays `:ok` (stale) and swaps in place once the recompute
@@ -48,7 +54,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "renders a project's reviews with their selection (no disk walk)", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, _review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -81,6 +93,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       {:ok, _review} =
         Reviews.create_diff_review(project, %{
+          project_path: dir,
           name: "Topic",
           base_ref: "main",
           head_ref: "topic"
@@ -117,6 +130,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       {:ok, _review} =
         Reviews.create_diff_review(project, %{
+          project_path: dir,
           name: "Topic",
           base_ref: "main",
           head_ref: "topic"
@@ -147,7 +161,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "file-selection card carries nil ref fields and refs_valid false", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, _review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, _review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -234,14 +254,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
 
     @tag :tmp_dir
-    test "a duplicate path replies with an error", %{tmp_dir: dir} do
+    test "a second board for the same repository replies with an error", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["remote", "add", "origin", "git@github.com:fahchen/example.git"])
       {:ok, _project} = Projects.register_project(%{name: "First", path: dir})
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: nil, error: error}} =
                Testing.dispatch_command(page, :create_project, %{name: "Second", path: dir})
 
-      assert error =~ "path"
+      assert error =~ "identity"
     end
   end
 
@@ -279,7 +301,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "removes the review from the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -326,7 +354,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "renames the review on the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -356,7 +390,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
       File.write!(Path.join(dir, "notes.md"), "# Notes\n")
-      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      project = board_project(dir)
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -368,7 +402,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "lists a subdirectory's immediate children", %{tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
-      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+      project = board_project(dir)
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -396,7 +430,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       git!(dir, ["add", "."])
       git!(dir, ["commit", "-q", "-m", "topic"])
 
-      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+      project = board_project(dir)
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{branches: branches, remote_branches: [], default: "main", error: nil}} =
@@ -406,8 +440,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
 
     @tag :tmp_dir
-    test "errors when the project path is not a git repo", %{tmp_dir: dir} do
-      {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
+    test "errors when the reviewed checkout is not a git repo", %{tmp_dir: dir} do
+      project = board_project(dir)
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok,
@@ -507,7 +541,13 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       File.write!(Path.join(dir, "spec.md"), "# Spec\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       page = Testing.mount(ProjectBoardStore)
 
@@ -536,7 +576,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "replies with projects and grouped review files", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, reply} = Testing.dispatch_command(page, :load_board, %{})
@@ -559,7 +606,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "replies with the expanded files and their minted state", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{files: [%{path: "plan.md", artifact_id: nil, approved: false}], error: nil}} =
@@ -581,7 +635,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "mints/returns the artifact id for a covered file", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{artifact_id: id, error: nil}} =
@@ -597,7 +658,14 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     test "rejects a path not covered by the selection", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{artifact_id: nil, error: "not_covered"}} =
@@ -652,6 +720,21 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
         assert_receive {:patch, _envelope}
         await_review_files_where(page, pred)
     end
+  end
+
+  # A project is a label with no directory, so the board browses and creates from
+  # the checkout its most recent review used — a review is what gives it one.
+  defp board_project(dir) do
+    {:ok, project} = Projects.register_project(%{name: "Docs"})
+
+    {:ok, _review} =
+      Reviews.create_review(project, %{
+        name: "Seed",
+        project_path: dir,
+        selections: ["."]
+      })
+
+    project
   end
 
   defp init_repo!(dir) do

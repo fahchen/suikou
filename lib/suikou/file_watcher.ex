@@ -7,16 +7,19 @@ defmodule Suikou.FileWatcher do
   or navigating away from every page of a review tears the watcher down, and
   multiple open pages of the same review share one watcher.
 
-  It watches exactly the review's selections: a directory selection watches that
-  directory (so files added under it are noticed), a file selection watches just
-  that file (via its parent directory, filtering out unrelated siblings). Each
-  relevant change broadcasts `Suikou.Events.fs_changed/3` with whether the
-  path still exists, so the client can add, refresh, or drop the file.
+  It watches exactly the review's selections, across both of its content roots:
+  a directory selection watches that directory (so files added under it are
+  noticed), a file selection watches just that file (via its parent directory,
+  filtering out unrelated siblings). Each relevant change broadcasts
+  `Suikou.Events.fs_changed/3` with whether the path still exists, so the client
+  can add, refresh, or drop the file.
   """
 
   use GenServer
 
   alias Suikou.Events
+  alias Suikou.ReviewRoots
+  alias Suikou.Schemas.Review
 
   @registry Suikou.FileWatcher.Registry
   @supervisor Suikou.FileWatcher.Supervisor
@@ -24,30 +27,38 @@ defmodule Suikou.FileWatcher do
   @doc """
   Maps an absolute changed path to its review-relative path when it is one of the
   review's selections — a file selection by exact match, or any path under a
-  directory selection. Anything else (an unrelated sibling, a path outside the
-  project) yields `nil`.
+  directory selection. A change under the scratch root comes back marked, so the
+  path matches the selection it belongs to. Anything else (an unrelated sibling,
+  a path under neither root) yields `nil`.
 
   ## Examples
 
-      iex> Suikou.FileWatcher.changed_path("/proj/lib/a.ex", "/proj", MapSet.new(["lib/a.ex"]), [])
+      iex> review = %Suikou.Schemas.Review{project_path: "/proj", scratch_path: "/data/r1"}
+      iex> Suikou.FileWatcher.changed_path("/proj/lib/a.ex", review, MapSet.new(["lib/a.ex"]), [])
       "lib/a.ex"
 
-      iex> Suikou.FileWatcher.changed_path("/proj/docs/new.md", "/proj", MapSet.new([]), ["docs"])
-      "docs/new.md"
+      iex> review = %Suikou.Schemas.Review{project_path: "/proj", scratch_path: "/data/r1"}
+      iex> Suikou.FileWatcher.changed_path("/data/r1/report.md", review, MapSet.new([]), ["@scratch"])
+      "@scratch/report.md"
 
-      iex> Suikou.FileWatcher.changed_path("/proj/lib/other.ex", "/proj", MapSet.new(["lib/a.ex"]), [])
+      iex> review = %Suikou.Schemas.Review{project_path: "/proj", scratch_path: "/data/r1"}
+      iex> Suikou.FileWatcher.changed_path("/proj/lib/other.ex", review, MapSet.new(["lib/a.ex"]), [])
       nil
 
   """
-  @spec changed_path(String.t(), String.t(), MapSet.t(String.t()), [String.t()]) ::
+  @spec changed_path(String.t(), Review.t(), MapSet.t(String.t()), [String.t()]) ::
           String.t() | nil
-  def changed_path(abs_path, project_path, file_sels, dir_sels) do
-    rel = Path.relative_to(abs_path, project_path)
+  def changed_path(abs_path, %Review{} = review, file_sels, dir_sels) do
+    case ReviewRoots.relativize(review, abs_path) do
+      nil ->
+        nil
 
-    cond do
-      MapSet.member?(file_sels, rel) -> rel
-      Enum.any?(dir_sels, &under?(rel, &1)) -> rel
-      true -> nil
+      rel ->
+        cond do
+          MapSet.member?(file_sels, rel) -> rel
+          Enum.any?(dir_sels, &under?(rel, &1)) -> rel
+          true -> nil
+        end
     end
   end
 
@@ -59,26 +70,28 @@ defmodule Suikou.FileWatcher do
 
   ## Examples
 
-      Suikou.FileWatcher.subscribe("01HZ...", "/proj", ["lib/a.ex", "docs"])
+      Suikou.FileWatcher.subscribe(review, ["lib/a.ex", "docs"])
       #=> :ok
 
   """
-  @spec subscribe(String.t(), String.t(), [String.t()]) :: :ok
-  def subscribe(review_id, project_path, selections) do
-    pid = ensure_started(review_id, project_path, selections)
+  @spec subscribe(Review.t(), [String.t()]) :: :ok
+  def subscribe(%Review{} = review, selections) do
+    pid = ensure_started(review, selections)
     GenServer.call(pid, {:subscribe, self()})
   end
 
-  @spec start_link({String.t(), String.t(), [String.t()]}) :: GenServer.on_start()
-  def start_link({review_id, _project_path, _selections} = arg) do
-    GenServer.start_link(__MODULE__, arg, name: via(review_id))
+  @spec start_link({Review.t(), [String.t()]}) :: GenServer.on_start()
+  def start_link({review, _selections} = arg) do
+    GenServer.start_link(__MODULE__, arg, name: via(review.id))
   end
 
   @impl GenServer
-  @spec init({String.t(), String.t(), [String.t()]}) :: {:ok, map()}
-  def init({review_id, project_path, selections}) do
+  @spec init({Review.t(), [String.t()]}) :: {:ok, map()}
+  def init({%Review{} = review, selections}) do
+    review_id = review.id
+
     {dir_sels, file_sels} =
-      Enum.split_with(selections, &File.dir?(Path.join(project_path, &1)))
+      Enum.split_with(selections, &dir_selection?(review, &1))
 
     # Subscriber defaults to this GenServer; the OS watch stops automatically
     # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
@@ -86,7 +99,7 @@ defmodule Suikou.FileWatcher do
     # unsupported target): the watcher still ref-counts subscribers and tears
     # down cleanly, the page just gets no live-refresh signal — J5.
     ref =
-      case FsNotify.watch(watch_dirs(project_path, file_sels, dir_sels),
+      case FsNotify.watch(watch_dirs(review, file_sels, dir_sels),
              recursive: true,
              debounce: 50
            ) do
@@ -97,7 +110,7 @@ defmodule Suikou.FileWatcher do
     {:ok,
      %{
        review_id: review_id,
-       project_path: project_path,
+       review: review,
        file_sels: MapSet.new(file_sels),
        dir_sels: dir_sels,
        subs: MapSet.new(),
@@ -109,14 +122,29 @@ defmodule Suikou.FileWatcher do
   # selections — never the whole project root, which would flood mac_listener on
   # _build / deps / node_modules / .git churn. ponytail: a file selected at the
   # repo root still pulls in the root; that's inherent to where the file lives.
-  defp watch_dirs(project_path, file_sels, dir_sels) do
+  defp watch_dirs(%Review{} = review, file_sels, dir_sels) do
     dirs =
-      (Enum.map(dir_sels, &Path.join(project_path, &1)) ++
-         Enum.map(file_sels, &Path.join(project_path, Path.dirname(&1))))
+      (Enum.map(dir_sels, &absolute(review, &1)) ++
+         Enum.map(file_sels, &absolute(review, Path.dirname(&1))))
+      |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
       |> Enum.filter(&File.dir?/1)
 
-    if dirs == [], do: [project_path], else: dirs
+    if dirs == [], do: [review.project_path], else: dirs
+  end
+
+  defp dir_selection?(%Review{} = review, selection) do
+    case absolute(review, selection) do
+      nil -> false
+      path -> File.dir?(path)
+    end
+  end
+
+  defp absolute(%Review{} = review, path) do
+    case ReviewRoots.absolute(review, path) do
+      {:ok, absolute} -> absolute
+      {:error, :unsafe_path} -> nil
+    end
   end
 
   @impl GenServer
@@ -140,7 +168,7 @@ defmodule Suikou.FileWatcher do
   # `[from, to]`), so fan each through the selection filter.
   def handle_info({:fs_notify_event, %FsNotify.Event{paths: paths}}, state) do
     for abs_path <- paths,
-        rel = changed_path(abs_path, state.project_path, state.file_sels, state.dir_sels),
+        rel = changed_path(abs_path, state.review, state.file_sels, state.dir_sels),
         rel != nil do
       Events.fs_changed(state.review_id, rel, File.exists?(abs_path))
     end
@@ -152,10 +180,10 @@ defmodule Suikou.FileWatcher do
 
   # Start the watcher under the DynamicSupervisor, tolerating the start race:
   # two stores subscribing at once, the loser gets the already-started pid.
-  defp ensure_started(review_id, project_path, selections) do
+  defp ensure_started(%Review{} = review, selections) do
     spec = %{
       id: __MODULE__,
-      start: {__MODULE__, :start_link, [{review_id, project_path, selections}]},
+      start: {__MODULE__, :start_link, [{review, selections}]},
       restart: :temporary
     }
 

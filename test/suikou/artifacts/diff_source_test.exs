@@ -79,7 +79,7 @@ defmodule Suikou.Artifacts.DiffSourceTest do
     @tag :tmp_dir
     test "answers {:file, absolute} for a file-selection artifact", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      review = insert(:review, project: build(:project, path: dir))
+      review = insert(:review, project: build(:project), project_path: dir)
       {:ok, %{artifact: artifact}} = Artifacts.create_from_file(review, "plan.md")
 
       assert {:ok, {:file, absolute}} = Artifacts.content_source(artifact.id)
@@ -92,10 +92,16 @@ defmodule Suikou.Artifacts.DiffSourceTest do
   end
 
   defp diff_review_with(dir, base, head) do
-    project = insert(:project, path: dir)
+    project = insert(:project)
+    project_path = dir
 
     {:ok, review} =
-      Reviews.create_diff_review(project, %{name: "Diff", base_ref: base, head_ref: head})
+      Reviews.create_diff_review(project, %{
+        project_path: project_path,
+        name: "Diff",
+        base_ref: base,
+        head_ref: head
+      })
 
     Repo.preload(review, :project)
   end

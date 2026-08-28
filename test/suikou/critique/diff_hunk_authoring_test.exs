@@ -67,10 +67,16 @@ defmodule Suikou.Critique.DiffHunkAuthoringTest do
   end
 
   defp diff_review_with(dir, base, head) do
-    project = insert(:project, path: dir)
+    project = insert(:project)
+    project_path = dir
 
     {:ok, review} =
-      Reviews.create_diff_review(project, %{name: "Diff", base_ref: base, head_ref: head})
+      Reviews.create_diff_review(project, %{
+        project_path: project_path,
+        name: "Diff",
+        base_ref: base,
+        head_ref: head
+      })
 
     Repo.preload(review, :project)
   end

@@ -2,26 +2,38 @@ defmodule Suikou.FileWatcherTest do
   use ExUnit.Case, async: true
 
   alias Suikou.FileWatcher
+  alias Suikou.Schemas.Review
+
+  @review %Review{
+    id: "01a04600-0000-7000-8000-000000000000",
+    project_path: "/proj",
+    scratch_path: "/data/r1"
+  }
 
   describe "changed_path/4" do
     test "returns the relative path for a file selection matched exactly" do
       files = MapSet.new(["lib/a.ex", "lib/b.ex"])
-      assert FileWatcher.changed_path("/proj/lib/a.ex", "/proj", files, []) == "lib/a.ex"
+      assert FileWatcher.changed_path("/proj/lib/a.ex", @review, files, []) == "lib/a.ex"
     end
 
     test "returns the relative path for any file under a directory selection" do
-      assert FileWatcher.changed_path("/proj/docs/new.md", "/proj", MapSet.new([]), ["docs"]) ==
+      assert FileWatcher.changed_path("/proj/docs/new.md", @review, MapSet.new([]), ["docs"]) ==
                "docs/new.md"
+    end
+
+    test "marks a change under the scratch root so it matches its selection" do
+      assert FileWatcher.changed_path("/data/r1/report.md", @review, MapSet.new([]), ["@scratch"]) ==
+               "@scratch/report.md"
     end
 
     test "returns nil for an unrelated sibling of a file selection" do
       files = MapSet.new(["lib/a.ex"])
-      assert FileWatcher.changed_path("/proj/lib/c.ex", "/proj", files, []) == nil
+      assert FileWatcher.changed_path("/proj/lib/c.ex", @review, files, []) == nil
     end
 
-    test "returns nil for a path outside the project root" do
+    test "returns nil for a path under neither root" do
       files = MapSet.new(["lib/a.ex"])
-      assert FileWatcher.changed_path("/etc/passwd", "/proj", files, []) == nil
+      assert FileWatcher.changed_path("/etc/passwd", @review, files, []) == nil
     end
   end
 
@@ -30,20 +42,26 @@ defmodule Suikou.FileWatcherTest do
       dir = Path.join(System.tmp_dir!(), "fw-#{System.unique_integer([:positive])}")
       File.mkdir_p!(dir)
       on_exit(fn -> File.rm_rf!(dir) end)
-      review_id = "rv-#{System.unique_integer([:positive])}"
-      %{dir: dir, review_id: review_id}
+
+      review = %Review{
+        id: "rv-#{System.unique_integer([:positive])}",
+        project_path: dir,
+        scratch_path: Path.join(dir, "scratch")
+      }
+
+      %{dir: dir, review: review, review_id: review.id}
     end
 
     test "two subscribers for the same review share one watcher process", ctx do
-      _s1 = start_subscriber(ctx.review_id, ctx.dir)
-      _s2 = start_subscriber(ctx.review_id, ctx.dir)
+      _s1 = start_subscriber(ctx.review)
+      _s2 = start_subscriber(ctx.review)
 
       assert [{_watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
     end
 
     test "watcher stays alive while another subscriber remains", ctx do
-      s1 = start_subscriber(ctx.review_id, ctx.dir)
-      _s2 = start_subscriber(ctx.review_id, ctx.dir)
+      s1 = start_subscriber(ctx.review)
+      _s2 = start_subscriber(ctx.review)
       [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
 
       stop_subscriber(s1)
@@ -54,7 +72,7 @@ defmodule Suikou.FileWatcherTest do
     end
 
     test "watcher stops when its last subscriber exits", ctx do
-      s1 = start_subscriber(ctx.review_id, ctx.dir)
+      s1 = start_subscriber(ctx.review)
       [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
       ref = Process.monitor(watcher)
 
@@ -64,12 +82,12 @@ defmodule Suikou.FileWatcherTest do
     end
   end
 
-  defp start_subscriber(review_id, dir) do
+  defp start_subscriber(review) do
     test = self()
 
     pid =
       spawn(fn ->
-        :ok = FileWatcher.subscribe(review_id, dir, [])
+        :ok = FileWatcher.subscribe(review, [])
         send(test, :subscribed)
         receive do: (:stop -> :ok)
       end)

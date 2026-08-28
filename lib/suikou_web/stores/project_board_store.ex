@@ -379,7 +379,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_dir, payload, socket) do
     entries =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> Projects.list_dir(project, payload["path"])
+        %Project{} = project -> list_dir(project, payload["path"])
         nil -> []
       end
 
@@ -422,7 +422,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp create_review(project, payload) do
-    params = %{name: payload["name"], selections: payload["selections"]}
+    params = %{
+      name: payload["name"],
+      project_path: workdir(project),
+      selections: payload["selections"]
+    }
 
     case Reviews.create_review(project, params) do
       {:ok, %Review{} = review} -> {%{review_id: review.id, error: nil}, review}
@@ -433,6 +437,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp create_diff_review(project, payload) do
     params = %{
       name: payload["name"],
+      project_path: workdir(project),
       base_ref: payload["base_ref"],
       head_ref: payload["head_ref"]
     }
@@ -443,8 +448,20 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  # A project is a label with no directory of its own, so the board browses and
+  # creates from the checkout its most recent review used. A project with no
+  # reviews yet has nothing to offer, and its pickers come back empty.
+  defp workdir(project), do: Reviews.latest_project_path(project) || "."
+
+  defp list_dir(project, rel) do
+    case Reviews.latest_project_path(project) do
+      nil -> []
+      path -> Projects.list_dir(path, project.respect_gitignore, rel)
+    end
+  end
+
   defp list_branches(project) do
-    case Reviews.list_branches(project) do
+    case Reviews.list_branches(workdir(project)) do
       {:ok, %{branches: branches, remote_branches: remote, default: default}} ->
         branches_reply(branches, remote, default, nil)
 
@@ -499,7 +516,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     %{
       id: project.id,
       name: project.name,
-      path: project.path,
+      path: Reviews.latest_project_path(project),
       respect_gitignore: project.respect_gitignore,
       emoji: project.emoji,
       reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)

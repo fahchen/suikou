@@ -15,10 +15,15 @@ defmodule Suikou.ReviewsTest do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
       File.write!(Path.join(dir, "readme.md"), "# Readme\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:ok, review} =
-               Reviews.create_review(project, %{name: "Launch", selections: ["docs", "readme.md"]})
+               Reviews.create_review(project, %{
+                 project_path: project_path,
+                 name: "Launch",
+                 selections: ["docs", "readme.md"]
+               })
 
       assert review.source.selection_paths == ["docs", "readme.md"]
       assert Repo.aggregate(Artifact, :count) == 0
@@ -26,26 +31,41 @@ defmodule Suikou.ReviewsTest do
 
     @tag :tmp_dir
     test "succeeds even when a selected file is unreadable (validated on open)", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:ok, _review} =
-               Reviews.create_review(project, %{name: "Launch", selections: ["missing.md"]})
+               Reviews.create_review(project, %{
+                 project_path: project_path,
+                 name: "Launch",
+                 selections: ["missing.md"]
+               })
     end
 
     @tag :tmp_dir
     test "rejects an empty selection", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :no_files} =
-               Reviews.create_review(project, %{name: "Launch", selections: []})
+               Reviews.create_review(project, %{
+                 project_path: project_path,
+                 name: "Launch",
+                 selections: []
+               })
     end
 
     @tag :tmp_dir
     test "rejects a blank name", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, %Ecto.Changeset{}} =
-               Reviews.create_review(project, %{name: "  ", selections: ["plan.md"]})
+               Reviews.create_review(project, %{
+                 project_path: project_path,
+                 name: "  ",
+                 selections: ["plan.md"]
+               })
     end
   end
 
@@ -239,10 +259,15 @@ defmodule Suikou.ReviewsTest do
       File.write!(Path.join(dir, ".gitignore"), "secret.txt\n")
       File.write!(Path.join(dir, "secret.txt"), "shh\n")
       File.write!(Path.join(dir, "visible.md"), "# Visible\n")
-      project = insert(:project, path: dir, respect_gitignore: true)
+      project = insert(:project, respect_gitignore: true)
+      project_path = dir
 
       {:ok, review} =
-        Reviews.create_review(project, %{name: "Launch", selections: ["secret.txt", "visible.md"]})
+        Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["secret.txt", "visible.md"]
+        })
 
       paths = review.id |> Reviews.get_review() |> Reviews.list_files() |> Enum.map(& &1.path)
 
@@ -279,10 +304,15 @@ defmodule Suikou.ReviewsTest do
       File.write!(Path.join(dir, ".gitignore"), "secret.txt\n")
       File.write!(Path.join(dir, "secret.txt"), "shh\n")
       File.write!(Path.join(dir, "visible.md"), "# Visible\n")
-      project = insert(:project, path: dir, respect_gitignore: false)
+      project = insert(:project, respect_gitignore: false)
+      project_path = dir
 
       {:ok, review} =
-        Reviews.create_review(project, %{name: "Launch", selections: ["secret.txt", "visible.md"]})
+        Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["secret.txt", "visible.md"]
+        })
 
       paths =
         review.id
@@ -344,29 +374,106 @@ defmodule Suikou.ReviewsTest do
 
     @tag :tmp_dir
     test "list_for_project returns a project's reviews newest first", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
-      {:ok, _first} = Reviews.create_review(project, %{name: "First", selections: ["plan.md"]})
-      {:ok, _second} = Reviews.create_review(project, %{name: "Second", selections: ["plan.md"]})
+      project = insert(:project)
+      project_path = dir
+
+      {:ok, _first} =
+        Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "First",
+          selections: ["plan.md"]
+        })
+
+      {:ok, _second} =
+        Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Second",
+          selections: ["plan.md"]
+        })
 
       assert [%{name: "Second"}, %{name: "First"}] = Reviews.list_for_project(project)
     end
   end
 
   defp review_with(dir, selections) do
-    project = insert(:project, path: dir)
-    {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: selections})
+    project = insert(:project)
+    project_path = dir
+
+    {:ok, review} =
+      Reviews.create_review(project, %{
+        project_path: project_path,
+        name: "Launch",
+        selections: selections
+      })
+
     %{review | project: project}
   end
 
+  describe "scratch root" do
+    @tag :tmp_dir
+    test "create_review/2 records both roots and creates the scratch directory", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, identity: "github.com/fahchen/example")
+
+      assert {:ok, review} =
+               Reviews.create_review(project, %{
+                 name: "Launch",
+                 project_path: dir,
+                 selections: ["plan.md"]
+               })
+
+      assert review.project_path == Path.expand(dir)
+      assert String.ends_with?(review.scratch_path, review.id)
+      assert File.dir?(review.scratch_path)
+    end
+
+    @tag :tmp_dir
+    test "a review lists and opens files from both roots", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, identity: "github.com/fahchen/example")
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          name: "Launch",
+          project_path: dir,
+          selections: ["plan.md", "@scratch"]
+        })
+
+      File.write!(Path.join(review.scratch_path, "report.md"), "# Report\n")
+
+      assert ["@scratch/report.md", "plan.md"] =
+               review |> Reviews.list_files() |> Enum.map(& &1.path) |> Enum.sort()
+
+      assert {:ok, artifact} = Reviews.open_file(review, "@scratch/report.md")
+      assert artifact.file_path == "@scratch/report.md"
+      assert {:ok, "# Report\n"} = Suikou.Artifacts.read_content(artifact.id)
+    end
+
+    @tag :tmp_dir
+    test "a scratch selection cannot reach the checkout", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "secret.md"), "shh\n")
+      project = insert(:project)
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          name: "Launch",
+          project_path: dir,
+          selections: ["@scratch/../secret.md"]
+        })
+
+      assert [] = Reviews.list_files(review)
+    end
+  end
+
   describe "list_branches/1" do
+    @describetag :tmp_dir
     @tag :tmp_dir
     test "returns local branches alongside the default branch", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
-      project = insert(:project, path: dir)
 
       assert {:ok, %{branches: branches, remote_branches: [], default: "main"}} =
-               Reviews.list_branches(project)
+               Reviews.list_branches(dir)
 
       assert Enum.sort(branches) == ["main", "topic"]
     end
@@ -380,16 +487,14 @@ defmodule Suikou.ReviewsTest do
       init_repo!(work)
       git!(work, ["remote", "add", "origin", origin])
       git!(work, ["push", "-q", "-u", "origin", "main"])
-      project = insert(:project, path: work)
 
       assert {:ok, %{branches: ["main"], remote_branches: ["origin/main"], default: "main"}} =
-               Reviews.list_branches(project)
+               Reviews.list_branches(work)
     end
 
     @tag :tmp_dir
     test "errors when the project path is not a git repo", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
-      assert {:error, :not_a_git_repo} = Reviews.list_branches(project)
+      assert {:error, :not_a_git_repo} = Reviews.list_branches(dir)
     end
   end
 
@@ -398,10 +503,12 @@ defmodule Suikou.ReviewsTest do
     test "creates a git-diff review with the given refs", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:ok, review} =
                Reviews.create_diff_review(project, %{
+                 project_path: project_path,
                  name: "Topic vs main",
                  base_ref: "main",
                  head_ref: "topic"
@@ -414,39 +521,56 @@ defmodule Suikou.ReviewsTest do
     test "defaults base_ref to the repo default branch", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:ok, review} =
-               Reviews.create_diff_review(project, %{name: "Topic", head_ref: "topic"})
+               Reviews.create_diff_review(project, %{
+                 project_path: project_path,
+                 name: "Topic",
+                 head_ref: "topic"
+               })
 
       assert %GitDiff{base_ref: "main", head_ref: "topic"} = review.source
     end
 
     @tag :tmp_dir
     test "rejects a project whose path is not a git repo", %{tmp_dir: dir} do
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :not_a_git_repo} =
-               Reviews.create_diff_review(project, %{name: "Topic", head_ref: "topic"})
+               Reviews.create_diff_review(project, %{
+                 project_path: project_path,
+                 name: "Topic",
+                 head_ref: "topic"
+               })
     end
 
     @tag :tmp_dir
     test "rejects a missing head_ref param", %{tmp_dir: dir} do
       init_repo!(dir)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :missing_head_ref} =
-               Reviews.create_diff_review(project, %{name: "Topic", base_ref: "main"})
+               Reviews.create_diff_review(project, %{
+                 project_path: project_path,
+                 name: "Topic",
+                 base_ref: "main"
+               })
     end
 
     @tag :tmp_dir
     test "rejects an unknown base_ref", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :base_ref_not_found} =
                Reviews.create_diff_review(project, %{
+                 project_path: project_path,
                  name: "Topic",
                  base_ref: "missing",
                  head_ref: "topic"
@@ -456,10 +580,12 @@ defmodule Suikou.ReviewsTest do
     @tag :tmp_dir
     test "rejects an unknown head_ref", %{tmp_dir: dir} do
       init_repo!(dir)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :head_ref_not_found} =
                Reviews.create_diff_review(project, %{
+                 project_path: project_path,
                  name: "Topic",
                  base_ref: "main",
                  head_ref: "ghost"
@@ -470,10 +596,12 @@ defmodule Suikou.ReviewsTest do
     test "rejects a blank name", %{tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "x\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, %Ecto.Changeset{}} =
                Reviews.create_diff_review(project, %{
+                 project_path: project_path,
                  name: "  ",
                  base_ref: "main",
                  head_ref: "topic"
@@ -483,10 +611,12 @@ defmodule Suikou.ReviewsTest do
     @tag :tmp_dir
     test "rejects a ref pair with no changed files", %{tmp_dir: dir} do
       init_repo!(dir)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       assert {:error, :no_changes} =
                Reviews.create_diff_review(project, %{
+                 project_path: project_path,
                  name: "Empty",
                  base_ref: "main",
                  head_ref: "main"
@@ -965,10 +1095,16 @@ defmodule Suikou.ReviewsTest do
   end
 
   defp diff_review_with(dir, base, head) do
-    project = insert(:project, path: dir)
+    project = insert(:project)
+    project_path = dir
 
     {:ok, review} =
-      Reviews.create_diff_review(project, %{name: "Diff", base_ref: base, head_ref: head})
+      Reviews.create_diff_review(project, %{
+        project_path: project_path,
+        name: "Diff",
+        base_ref: base,
+        head_ref: head
+      })
 
     %{review | project: project}
   end

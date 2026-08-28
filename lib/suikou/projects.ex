@@ -1,28 +1,38 @@
 defmodule Suikou.Projects do
   @moduledoc """
-  Project boards: a project is a directory on disk registered for review.
-  Scanning a project lists its markdown files as candidate artifacts; the
-  reviewer selects one to create an artifact (see `Suikou.Artifacts.create_from_file/2`
-  and BDR-0018).
+  Project boards: a project is a named board reviews are filed under, plus the
+  repository `identity` those reviews are about. It is never a location — the
+  checkout a review reads from lives on the review (see `Suikou.ReviewRoots`).
+
+  Identity is what lets a review created from any worktree of one repository
+  land in one project without the agent arranging it. The directory-walking
+  helpers here take a base path rather than a project, so the same walk serves
+  both a review's checkout and its scratch root.
 
   Params are atom-keyed maps, matching the rest of the domain.
   """
 
   import Ecto.Query
 
+  alias Suikou.Git
   alias Suikou.Repo
   alias Suikou.Schemas.Project
+  alias Suikou.Schemas.Review
 
   @doc """
-  Registers a directory as a project, expanding its path to an absolute one.
+  Registers a project. `path` is evidence of *which repository*, not storage:
+  it is resolved to an identity and then discarded, so later reviews from any
+  worktree of that repository group here. Omit it for a board holding reviews
+  from unrelated directories, which simply carries no identity.
 
-  Returns `{:error, :not_a_directory}` when the path does not point at an
-  existing directory.
+  Returns `{:error, :not_a_directory}` when a given path does not point at an
+  existing directory, and a changeset error carrying `:identity` when another
+  project already claims that repository.
 
   ## Examples
 
-      Suikou.Projects.register_project(%{name: "Docs", path: "./docs"})
-      #=> {:ok, %Suikou.Schemas.Project{name: "Docs"}}
+      Suikou.Projects.register_project(%{name: "Suikou", path: "./"})
+      #=> {:ok, %Suikou.Schemas.Project{name: "Suikou", identity: "github.com/fahchen/suikou"}}
 
       Suikou.Projects.register_project(%{name: "Docs", path: "./nope"})
       #=> {:error, :not_a_directory}
@@ -31,20 +41,82 @@ defmodule Suikou.Projects do
   @spec register_project(map()) ::
           {:ok, Project.t()} | {:error, :not_a_directory | Ecto.Changeset.t()}
   def register_project(params) do
-    changeset = Project.create_changeset(expand_path(params))
+    changeset = Project.create_changeset(params)
 
-    cond do
-      not changeset.valid? -> {:error, changeset}
-      not File.dir?(Ecto.Changeset.get_field(changeset, :path)) -> {:error, :not_a_directory}
-      true -> Repo.insert(changeset)
+    with {:ok, identity} <- resolve_identity(Map.get(params, :path)),
+         true <- changeset.valid? do
+      changeset
+      |> Ecto.Changeset.put_change(:identity, identity)
+      |> Repo.insert()
+    else
+      false -> {:error, changeset}
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp expand_path(%{path: path} = params) when is_binary(path) do
-    %{params | path: Path.expand(path)}
+  defp resolve_identity(nil), do: {:ok, nil}
+
+  defp resolve_identity(path) do
+    expanded = Path.expand(path)
+
+    if File.dir?(expanded),
+      do: {:ok, Git.identity(expanded)},
+      else: {:error, :not_a_directory}
   end
 
-  defp expand_path(params), do: params
+  @doc """
+  Fetches the project that groups the repository `dir` belongs to, or `nil`
+  when `dir` is not a repository or no project claims it. This is how a review
+  created from a fresh worktree finds the project its siblings already live in.
+
+  ## Examples
+
+      Suikou.Projects.get_project_by_dir("/projects/app")
+      #=> %Suikou.Schemas.Project{identity: "github.com/fahchen/suikou"}
+
+      Suikou.Projects.get_project_by_dir("/tmp")
+      #=> nil
+
+  """
+  @spec get_project_by_dir(String.t()) :: Project.t() | nil
+  def get_project_by_dir(dir) do
+    expanded = Path.expand(dir)
+
+    case Git.identity(expanded) do
+      nil -> nil
+      identity -> Repo.get_by(Project, identity: identity) || adopt(expanded, identity)
+    end
+  end
+
+  # A project that predates identity carries none, so nothing would ever match it
+  # and its reviews would look like they belong to an unregistered repository.
+  # Claim it the first time one of its own reviews' checkouts is resolved: that
+  # review is proof this project already reviews this repository. Migrating this
+  # way rather than in the migration keeps `git` out of a schema change.
+  defp adopt(dir, identity) do
+    query =
+      from(p in Project,
+        as: :project,
+        join: r in Review,
+        as: :review,
+        on: r.project_id == p.id,
+        where: is_nil(p.identity) and r.project_path == ^dir,
+        order_by: [desc: r.id],
+        limit: 1
+      )
+
+    case Repo.one(query) do
+      nil ->
+        nil
+
+      %Project{} = project ->
+        case project |> Project.identity_changeset(identity) |> Repo.update() do
+          {:ok, %Project{} = adopted} -> adopted
+          # Lost a race to another caller claiming the same identity.
+          {:error, %Ecto.Changeset{}} -> Repo.get_by(Project, identity: identity)
+        end
+    end
+  end
 
   @doc """
   Fetches a project by id, or `nil` when none exists.
@@ -117,27 +189,28 @@ defmodule Suikou.Projects do
   end
 
   @doc """
-  Lists a project's files as candidate artifacts, relative to the project
-  directory and sorted. With `rel` it lists only files recursively under that
-  subdirectory; the default `""` lists the whole project. Every file type is
-  reviewable; only the preview differs (markdown renders, others are raw-only).
+  Lists the files under `base` as candidate artifacts, relative to `base` and
+  sorted. With `rel` it lists only files recursively under that subdirectory;
+  the default `""` lists everything. Every file type is reviewable; only the
+  preview differs (markdown renders, others are raw-only).
 
-  When the project's `respect_gitignore` is true and a `.gitignore` lives at
-  the project root, its patterns filter the result so ignored files are
-  skipped. When the flag is false, every regular file under the directory is
-  listed (`.git` is always excluded regardless of the flag).
+  `base` is a content root — a review's checkout or its scratch directory — so
+  one walk serves both. When `respect` is true and a `.gitignore` lives at
+  `base`, its patterns filter the result so ignored files are skipped. When it
+  is false, every regular file is listed (`.git` is always excluded regardless).
+  A scratch root has no `.gitignore`, so the flag costs it nothing.
 
   ## Examples
 
-      Suikou.Projects.list_files(project)
+      Suikou.Projects.list_files("/projects/app", true)
       #=> ["docs/plan.md", "lib/app.ex", "readme.md"]
 
-      Suikou.Projects.list_files(project, "lib")
+      Suikou.Projects.list_files("/projects/app", true, "lib")
       #=> ["lib/app.ex"]
 
   """
-  @spec list_files(Project.t(), String.t()) :: [String.t()]
-  def list_files(%Project{path: path, respect_gitignore: respect}, rel \\ "") do
+  @spec list_files(String.t(), boolean(), String.t()) :: [String.t()]
+  def list_files(path, respect, rel \\ "") do
     if git_root?(rel) do
       []
     else
@@ -150,10 +223,10 @@ defmodule Suikou.Projects do
   end
 
   @doc """
-  Answers whether a single relative path is reviewable for a project: `.git` is
-  always excluded, and when `respect_gitignore` is true a path matched by the
-  project's `.gitignore` (directly or via an ignored ancestor directory) is
-  excluded too. When `respect_gitignore` is false, only `.git` is excluded.
+  Answers whether a single relative path is reviewable under `base`: `.git` is
+  always excluded, and when `respect` is true a path matched by the root's
+  `.gitignore` (directly or via an ignored ancestor directory) is excluded too.
+  When `respect` is false, only `.git` is excluded.
 
   This lets an explicit file selection be filtered by the same gitignore
   decision that directory expansion already respects, so a stale selection (a
@@ -161,15 +234,15 @@ defmodule Suikou.Projects do
 
   ## Examples
 
-      Suikou.Projects.listable?(project, "lib/app.ex")
+      Suikou.Projects.listable?("/projects/app", true, "lib/app.ex")
       #=> true
 
-      Suikou.Projects.listable?(project, "secret.txt")
+      Suikou.Projects.listable?("/projects/app", true, "secret.txt")
       #=> false
 
   """
-  @spec listable?(Project.t(), String.t()) :: boolean()
-  def listable?(%Project{path: path, respect_gitignore: respect}, rel) do
+  @spec listable?(String.t(), boolean(), String.t()) :: boolean()
+  def listable?(path, respect, rel) do
     cond do
       git_root?(rel) -> false
       respect -> not ignored?(rel, ignore_rules(path), false)
@@ -178,22 +251,22 @@ defmodule Suikou.Projects do
   end
 
   @doc """
-  Lists the immediate children of a project subdirectory, each tagged as a file
+  Lists the immediate children of a subdirectory of `base`, each tagged as a file
   or directory, with directories first then names sorted. Ignored entries are
   skipped. This backs lazy file-tree browsing: a level is read only when opened,
   so a large working directory is never walked in full.
 
   ## Examples
 
-      Suikou.Projects.list_dir(project, "")
+      Suikou.Projects.list_dir("/projects/app", true, "")
       #=> [%{path: "lib", dir: true}, %{path: "readme.md", dir: false}]
 
-      Suikou.Projects.list_dir(project, "lib")
+      Suikou.Projects.list_dir("/projects/app", true, "lib")
       #=> [%{path: "lib/app.ex", dir: false}]
 
   """
-  @spec list_dir(Project.t(), String.t()) :: [%{path: String.t(), dir: boolean()}]
-  def list_dir(%Project{path: path, respect_gitignore: respect}, rel) do
+  @spec list_dir(String.t(), boolean(), String.t()) :: [%{path: String.t(), dir: boolean()}]
+  def list_dir(path, respect, rel) do
     if git_root?(rel), do: [], else: read_dir(path, rel, respect)
   end
 

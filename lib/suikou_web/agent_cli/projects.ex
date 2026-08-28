@@ -13,12 +13,14 @@ defmodule SuikouWeb.AgentCLI.Projects do
 
   @doc """
   Emits every registered project as
-  `%{projects: [%{id, name, path, respect_gitignore}]}`.
+  `%{projects: [%{id, name, identity, respect_gitignore}]}`. `identity` is the
+  repository a project groups, or `null` for a board made by hand; a project has
+  no path of its own, since the checkout lives on each review.
 
   ## Examples
 
       SuikouWeb.AgentCLI.Projects.list()
-      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","path":"/tmp/docs","respect_gitignore":true}]}
+      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","identity":null,"respect_gitignore":true}]}
 
   """
   @spec list() :: :ok
@@ -28,7 +30,12 @@ defmodule SuikouWeb.AgentCLI.Projects do
     projects =
       Enum.map(
         Projects.list_projects(),
-        &%{id: &1.id, name: &1.name, path: &1.path, respect_gitignore: &1.respect_gitignore}
+        &%{
+          id: &1.id,
+          name: &1.name,
+          identity: &1.identity,
+          respect_gitignore: &1.respect_gitignore
+        }
       )
 
     AgentCLI.emit(%{projects: projects})
@@ -36,9 +43,11 @@ defmodule SuikouWeb.AgentCLI.Projects do
 
   @doc """
   Registers a project from `%{"name", "path", "respect_gitignore"}` and emits
-  `%{project_id}` or `%{error}`. `respect_gitignore` is optional — when omitted
-  the DB default (true) keeps gitignore filtering on. Broadcasts the board topic
-  on success.
+  `%{project_id}` or `%{error}`. `path` is evidence of which repository, not
+  storage: it is resolved to an identity and discarded, so later reviews from any
+  worktree of that repository group here. `respect_gitignore` is optional — when
+  omitted the DB default (true) keeps gitignore filtering on. Broadcasts the
+  board topic on success.
 
   ## Examples
 
