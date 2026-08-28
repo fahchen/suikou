@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
 
 import { PaneHead } from "./pane-parts"
@@ -8,11 +8,15 @@ import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot } from "
 // Mirrors `Suikou.Schemas.Settings.max_instructions/0`; the server rejects more.
 const MAX_INSTRUCTIONS = 10_000
 
+// How long a pause in typing counts as "done for now" and triggers the save.
+const SAVE_DELAY_MS = 600
+
 type SettingsStore = StoreProxy<"SuikouWeb.Stores.SettingsStore", Musubi.Stores>
 
 const LEDE = "Every agent reads these before it reviews or fixes code. Project instructions come after them."
 
-/** Global review instructions. The modal opens over the board and over a review,
+/** Global review instructions. Saves on a pause in typing, like the panes
+ * beside it apply on change. The modal opens over the board and over a review,
  * so this pane mounts its own root store instead of reading either page's. */
 export function InstructionsPane() {
   const root = useMusubiRoot({
@@ -40,26 +44,38 @@ function Editor({ store }: { store: SettingsStore }) {
   const saved = snapshot?.review_instructions ?? ""
   const [text, setText] = useState(saved)
   const [error, setError] = useState<string | null>(null)
+  const dirty = text.trim() !== saved
 
   useEffect(() => {
     setText(saved)
   }, [saved])
 
-  const dirty = text.trim() !== saved
+  const save = useCallback(
+    (value: string) => {
+      setError(null)
+      update
+        .dispatch({ review_instructions: value.trim() === "" ? null : value })
+        .then((reply) => setError(reply.error))
+        .catch((cause: Error) => setError(cause.message))
+    },
+    [update],
+  )
 
-  const save = () => {
-    setError(null)
-    update
-      .dispatch({ review_instructions: text.trim() === "" ? null : text })
-      .then((reply) => setError(reply.error))
-      .catch((cause: Error) => setError(cause.message))
-  }
+  // Save on a pause in typing, like every other pane applies on change. The
+  // blur below covers the shorter path — closing the modal unmounts this pane
+  // before a pending timer would fire.
+  useEffect(() => {
+    if (!dirty) return
+    const timer = setTimeout(() => save(text), SAVE_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [text, dirty, save])
 
   return (
     <Frame>
       <Textarea
         value={text}
         onChange={(event) => setText(event.target.value)}
+        onBlur={() => dirty && save(text)}
         rows={10}
         maxLength={MAX_INSTRUCTIONS}
         aria-label="Global review instructions"
@@ -70,18 +86,19 @@ function Editor({ store }: { store: SettingsStore }) {
         <span className="text-xs text-faint">
           {text.length.toLocaleString()} / {MAX_INSTRUCTIONS.toLocaleString()}
         </span>
-        {error && <span className="text-xs text-request">{error}</span>}
         <span className="flex-1" />
-        <button
-          onClick={save}
-          disabled={!dirty || update.isPending}
-          className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
-        >
-          {update.isPending ? "Saving…" : "Save"}
-        </button>
+        {error ? (
+          <span className="text-xs text-request">{error}</span>
+        ) : (
+          <span className="text-xs text-faint">{status(dirty || update.isPending)}</span>
+        )}
       </div>
     </Frame>
   )
+}
+
+function status(saving: boolean): string {
+  return saving ? "Saving…" : "Saved"
 }
 
 function Frame({ children }: { children: React.ReactNode }) {

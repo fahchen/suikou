@@ -91,12 +91,10 @@ export const SettingsModal = observer(function SettingsModal() {
         </div>
 
         <footer className="flex items-center gap-2 border-t border-hair px-5 py-3">
-          {active !== "instructions" && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-              <Check size={13} className="text-approve" aria-hidden />
-              Changes apply instantly
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+            <Check size={13} className="text-approve" aria-hidden />
+            Changes apply instantly
+          </span>
           <span className="flex-1" />
           <button
             onClick={close}
