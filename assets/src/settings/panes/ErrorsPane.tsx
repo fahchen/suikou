@@ -1,8 +1,7 @@
-import { useState } from "react"
 import { observer } from "mobx-react-lite"
-import { ChevronRight } from "lucide-react"
 
 import { PaneHead } from "./pane-parts"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../components/ui/accordion"
 import { errorLogStore, type LoggedError } from "../../stores/error-log-store"
 
 export const ErrorsPane = observer(function ErrorsPane() {
@@ -37,11 +36,11 @@ export const ErrorsPane = observer(function ErrorsPane() {
             Nothing yet. Errors will appear here as they happen.
           </p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <Accordion className="gap-1.5">
             {entries.map((entry) => (
               <ErrorRow key={entry.id} entry={entry} />
             ))}
-          </ul>
+          </Accordion>
         )}
       </div>
     </div>
@@ -55,34 +54,23 @@ const KIND_LABEL: Record<LoggedError["kind"], string> = {
 }
 
 function ErrorRow({ entry }: { entry: LoggedError }) {
-  const [open, setOpen] = useState(false)
   const detail = [entry.source, entry.stack].filter(Boolean).join("\n\n")
 
   return (
-    <li className="overflow-hidden rounded-[10px] border border-hair bg-soft">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-start gap-2 px-3 py-2.5 text-left hover:bg-canvas"
-      >
-        <ChevronRight
-          size={14}
-          aria-hidden
-          className={`mt-[3px] shrink-0 text-faint transition-transform ${open ? "rotate-90" : ""}`}
-        />
+    <AccordionItem value={entry.id} className="overflow-hidden rounded-[10px] border border-hair bg-soft">
+      <AccordionTrigger className="rounded-none px-3 py-2.5 hover:bg-canvas">
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-xs font-medium text-ink">{entry.message}</span>
           <span className="text-2xs text-faint">
             {KIND_LABEL[entry.kind]} · {new Date(entry.at).toLocaleString()}
           </span>
         </span>
-      </button>
-      {open && (
+      </AccordionTrigger>
+      <AccordionContent className="pl-0">
         <pre className="max-h-[240px] overflow-auto border-t border-hair bg-canvas px-3 py-2.5 font-mono text-2xs leading-[1.5] whitespace-pre-wrap text-muted">
           {detail || "No further detail was captured."}
         </pre>
-      )}
-    </li>
+      </AccordionContent>
+    </AccordionItem>
   )
 }
