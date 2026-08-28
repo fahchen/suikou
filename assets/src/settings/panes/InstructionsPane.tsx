@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
 
 import { PaneHead } from "./pane-parts"
@@ -48,15 +48,27 @@ function Editor({ store }: { store: SettingsStore }) {
   const [error, setError] = useState<string | null>(null)
   const dirty = text.trim() !== saved
 
+  // The server trims what it stores, so every save echoes back a value that
+  // differs from the box the human is still typing in. Adopting that echo
+  // reverts whatever they typed during the round trip — the space they just
+  // hit, most often. Only a snapshot this pane did not produce is news.
+  const sent = useRef<string | null>(null)
+
   useEffect(() => {
+    if (saved === sent.current) {
+      sent.current = null
+      return
+    }
     setText(saved)
   }, [saved])
 
   const save = useCallback(
     (value: string) => {
       setError(null)
+      const trimmed = value.trim()
+      sent.current = trimmed
       update
-        .dispatch({ review_instructions: value.trim() === "" ? null : value })
+        .dispatch({ review_instructions: trimmed === "" ? null : value })
         .then((reply) => setError(reply.error))
         .catch((cause: Error) => setError(cause.message))
     },
