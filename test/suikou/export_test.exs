@@ -6,6 +6,7 @@ defmodule Suikou.ExportTest do
   alias Suikou.Critique
   alias Suikou.Export
   alias Suikou.Reviews
+  alias Suikou.Settings
   alias Suikou.Submissions
 
   # The reviewing agent these cases write as; the name is required.
@@ -192,6 +193,15 @@ defmodule Suikou.ExportTest do
   end
 
   describe "export_review/2" do
+    test "carries the review instructions the agent must follow" do
+      {:ok, _settings} = Settings.update_settings(%{review_instructions: "Reply in English."})
+      project = insert(:project, review_instructions: "Report any Repo call inside queries/.")
+      review = insert(:review, project: project)
+
+      assert %{instructions: ["Reply in English.", "Report any Repo call inside queries/."]} =
+               Export.export_review(review.id)
+    end
+
     test "default :latest scope yields each artifact's standing-round critique" do
       # Resolve the round-0 note before advancing so it is not carried forward,
       # isolating the latest round's own critique.
