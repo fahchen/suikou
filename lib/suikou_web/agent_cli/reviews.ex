@@ -17,6 +17,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
+  alias Suikou.Settings
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI
   alias SuikouWeb.Endpoint
@@ -94,14 +95,17 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
-  Emits a review's metadata and current files from `%{"review_id"}`, or
-  `%{error}` when unknown.
+  Emits a review's metadata, current files, and the project's review
+  instructions from `%{"review_id"}`, or `%{error}` when unknown.
+
+  An agent that joins an existing review never calls `project list`, so the
+  instructions it must follow travel with the review too.
 
   ## Examples
 
       # stdin: {"review_id": "0192…"}
       SuikouWeb.AgentCLI.Reviews.show()
-      #=> :ok  # emits {"id":"0192…","name":"Spec","kind":"file_selection","files":[…],"error":null}
+      #=> :ok  # emits {"id":"0192…","name":"Spec","kind":"file_selection","instructions":["Reply in English."],"files":[…],"error":null}
 
   """
   @spec show() :: :ok
@@ -110,7 +114,11 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
     reply =
       with_review(payload["review_id"], fn review ->
-        Map.merge(review_summary(review), %{files: Reviews.list_files(review), error: nil})
+        Map.merge(review_summary(review), %{
+          files: Reviews.list_files(review),
+          instructions: Settings.instructions_for(review.project),
+          error: nil
+        })
       end)
 
     AgentCLI.emit(reply)

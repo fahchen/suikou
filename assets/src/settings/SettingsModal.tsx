@@ -1,21 +1,23 @@
 import { useState, type ReactNode } from "react"
 import { observer } from "mobx-react-lite"
-import { Bell, Bug, Check, Info, Palette, SlidersHorizontal, X } from "lucide-react"
+import { Bell, Bug, Check, Info, Palette, ScrollText, SlidersHorizontal, X } from "lucide-react"
 
 import { AboutPane } from "./panes/AboutPane"
 import { AppearancePane } from "./panes/AppearancePane"
 import { ErrorsPane } from "./panes/ErrorsPane"
+import { InstructionsPane } from "./panes/InstructionsPane"
 import { NotificationsPane } from "./panes/NotificationsPane"
 import { ReviewDefaultsPane } from "./panes/ReviewDefaultsPane"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { uiStore } from "../stores/ui-store"
 
-type Pane = "appearance" | "review" | "notifications" | "errors" | "about"
+type Pane = "appearance" | "review" | "instructions" | "notifications" | "errors" | "about"
 
 type NavItem = { id: Pane; label: string; icon: ReactNode }
 
 const APPEARANCE: NavItem = { id: "appearance", label: "Appearance", icon: <Palette size={16} aria-hidden /> }
 const REVIEW: NavItem = { id: "review", label: "Review defaults", icon: <SlidersHorizontal size={16} aria-hidden /> }
+const INSTRUCTIONS: NavItem = { id: "instructions", label: "Instructions", icon: <ScrollText size={16} aria-hidden /> }
 const NOTIFICATIONS: NavItem = { id: "notifications", label: "Notifications", icon: <Bell size={16} aria-hidden /> }
 const ERRORS: NavItem = { id: "errors", label: "Errors", icon: <Bug size={16} aria-hidden /> }
 const ABOUT: NavItem = { id: "about", label: "About", icon: <Info size={16} aria-hidden /> }
@@ -25,7 +27,7 @@ const ABOUT: NavItem = { id: "about", label: "About", icon: <Info size={16} aria
 // the switch that summons it.
 function navItems(): NavItem[] {
   const diagnostics = uiStore.errorLog ? [ERRORS] : []
-  return [APPEARANCE, REVIEW, NOTIFICATIONS, ...diagnostics, ABOUT]
+  return [APPEARANCE, REVIEW, INSTRUCTIONS, NOTIFICATIONS, ...diagnostics, ABOUT]
 }
 
 /** Settings modal: a centered panel over the dimmed board (a bottom sheet on
@@ -81,6 +83,7 @@ export const SettingsModal = observer(function SettingsModal() {
           <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
             {active === "appearance" && <AppearancePane />}
             {active === "review" && <ReviewDefaultsPane />}
+            {active === "instructions" && <InstructionsPane />}
             {active === "notifications" && <NotificationsPane />}
             {active === "errors" && <ErrorsPane />}
             {active === "about" && <AboutPane />}

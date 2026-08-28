@@ -12,6 +12,7 @@ defmodule Suikou.ProjectsTest do
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Round
+  alias Suikou.Schemas.Settings
 
   describe "register_project/1" do
     @tag :tmp_dir
@@ -47,6 +48,25 @@ defmodule Suikou.ProjectsTest do
       insert(:project, name: "Alpha")
 
       assert ["Alpha", "Zed"] = Enum.map(Projects.list_projects(), & &1.name)
+    end
+  end
+
+  describe "update_project/2" do
+    test "stores review instructions and blanks them back out" do
+      project = insert(:project)
+
+      assert {:ok, %Project{review_instructions: "Reply in English."} = updated} =
+               Projects.update_project(project, %{review_instructions: " Reply in English. "})
+
+      assert {:ok, %Project{review_instructions: nil}} =
+               Projects.update_project(updated, %{review_instructions: "   "})
+    end
+
+    test "rejects review instructions past the ceiling" do
+      too_long = String.duplicate("x", Settings.max_instructions() + 1)
+
+      assert {:error, %Ecto.Changeset{errors: [review_instructions: _error]}} =
+               Projects.update_project(insert(:project), %{review_instructions: too_long})
     end
   end
 

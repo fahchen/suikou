@@ -4,7 +4,7 @@ import { ChevronRight, Crosshair } from "lucide-react"
 import { Tooltip } from "../../../components/ui/tooltip"
 import { AuthorBadge } from "./AuthorBadge"
 import { TYPE_META, type Comment } from "./shared"
-import { TimeAgo } from "./TimeAgo"
+import { TimeAgo } from "../../../components/ui/time-ago"
 
 export function CommentCard({
   comment,

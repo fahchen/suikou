@@ -8,30 +8,41 @@ defmodule SuikouWeb.AgentCLI.Projects do
 
   alias Suikou.Projects
   alias Suikou.Schemas.Project
+  alias Suikou.Settings
   alias SuikouWeb.AgentCLI
   alias SuikouWeb.Stores.BoardBroadcast
 
   @doc """
   Emits every registered project as
-  `%{projects: [%{id, name, path, respect_gitignore}]}`.
+  `%{projects: [%{id, name, path, respect_gitignore, instructions}]}`.
+
+  `instructions` is the merged review guidance the agent must follow for that
+  project (see `Suikou.Settings.instructions_for/1`), empty when the human wrote
+  none.
 
   ## Examples
 
       SuikouWeb.AgentCLI.Projects.list()
-      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","path":"/tmp/docs","respect_gitignore":true}]}
+      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","path":"/tmp/docs","respect_gitignore":true,"instructions":["Reply in English."]}]}
 
   """
   @spec list() :: :ok
   def list do
     _payload = AgentCLI.read_payload()
 
-    projects =
-      Enum.map(
-        Projects.list_projects(),
-        &%{id: &1.id, name: &1.name, path: &1.path, respect_gitignore: &1.respect_gitignore}
-      )
+    projects = Enum.map(Projects.list_projects(), &project_summary/1)
 
     AgentCLI.emit(%{projects: projects})
+  end
+
+  defp project_summary(%Project{} = project) do
+    %{
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      respect_gitignore: project.respect_gitignore,
+      instructions: Settings.instructions_for(project)
+    }
   end
 
   @doc """
