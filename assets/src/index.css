@@ -62,6 +62,11 @@
   --radius-win: var(--r-win);
 
   --text-2xs: 0.625rem;
+
+  /* Motion curves, per DESIGN.md: exponential ease-out only, no bounce, no
+     elastic. Named here so call sites reach for a curve, not a magic bezier. */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Critique-type accents (fix / ask / note) derive from the semantic palette so
