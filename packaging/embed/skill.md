@@ -35,14 +35,25 @@ suikou comment add <review-id> --path lib/a.ex --line 12-14 \
 
 ## Review selection and comments
 
-Run `project list`, then match the current repository root to a project's
-`path`. If it is absent, ask before using `project create`; never register a
-project automatically.
+Create the review from inside the checkout and let the server file it: the CLI
+sends the working directory, and the review lands in whatever project already
+groups that repository, so a second worktree joins its siblings. Pass
+`--project <id>` only to override that. An unknown repository answers
+`project_not_found` — ask before `project create`, and never register a project
+automatically. Use `review list --path <dir>` (or no filter, meaning the current
+directory) to find reviews that already exist for a repository.
 
 Create a file-selection review from positional project-relative paths, or a
 git-diff review with `--diff`; do not combine the two. `set-files` replaces the
 selection, while `add-files` and `remove-files` are incremental. Use `delete`
 to discard a review rather than calling `set-files` without paths.
+
+Never write generated output — a report, a screenshot, a summary — into the
+repository. `review create` answers with a `scratch_path`: write those files
+there and add them to the review as `@scratch/<name>`, an ordinary path
+argument. Inside a scratch file's Markdown, `@project/<path>` references a file
+in the checkout and `@scratch/<path>` one beside it; a plain relative link keeps
+working as it does anywhere else.
 
 `comment add` targets a review id and one covered `--path`, not an artifact id.
 Use a line or new-hunk anchor for a localized finding; use `--review-wide` only
@@ -51,15 +62,13 @@ when it genuinely covers the full review. For multiline Markdown, prefer
 there is no `reply add` command.
 
 ```sh
-suikou review create --project <project-id> --name "Review name" lib/a.ex README.md
-suikou review create --project <project-id> --name "Review name" --diff main..HEAD
+suikou review create --name "Review name" lib/a.ex README.md
+suikou review create --name "Review name" --diff main..HEAD
+suikou review add-files <review-id> @scratch/report.md
 suikou comment reply <comment-id> --as Codex --icon 🤖 --body-file reply.md
 suikou comment resolve <comment-id> --as Codex --icon 🤖
 suikou comment reopen <comment-id>
 ```
-
-Resolve only when the critique has been addressed. If you disagree, reply with
-the evidence and leave the comment open for the human.
 
 ## Rounds and snapshots
 
@@ -80,8 +89,9 @@ between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
 
 ## The review loop
 
-1. Resolve the project with `project list`; ask before registering one.
-2. Create the review, capture `review_id`, then run `review url` and give the
+1. Create the review from inside the checkout with no `--project`; on
+   `project_not_found`, ask the human before registering one.
+2. Capture `review_id` and `scratch_path`, then run `review url` and give the
    resulting URL to the human. Only run `review open` if asked because it opens
    a browser.
 3. Wait for round 1 with `review wait <review-id> --until-round 1`.

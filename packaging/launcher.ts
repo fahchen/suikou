@@ -141,7 +141,11 @@ function fileArgs(files: string[]): string[] {
 // (git-diff) XOR positional files (file-selection). Requires exactly one.
 function createSource(values: Values, files: string[]): Record<string, unknown> {
   const diff = typeof values.diff === "string" ? values.diff : undefined
-  const base = { project_id: values.project, name: values.name }
+  // The checkout is always where the agent is standing; the server resolves it
+  // to a repository root and to the project grouping that repository, so a
+  // second worktree lands beside its siblings without the agent arranging it.
+  // `--project` stays available to override that grouping.
+  const base = { project_id: values.project, name: values.name, project_path: process.cwd() }
 
   if (diff !== undefined) {
     if (files.length > 0) throw new UsageError("give either files or --diff, not both")
@@ -278,25 +282,30 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       options: { name: { type: "string" }, path: { type: "string" } },
       required: ["name", "path"],
       payload: ({ values }) => ({ name: values.name, path: values.path }),
-      summary: "register a project (--name --path)"
+      summary: "register a project (--name --path); --path names the repository, it is not stored"
     }
   },
   review: {
     list: {
       expr: "SuikouWeb.AgentCLI.Reviews.list()",
-      options: { project: { type: "string" } },
-      required: ["project"],
-      payload: ({ values }) => ({ project_id: values.project }),
-      summary: "list a project's reviews (--project)"
+      options: { project: { type: "string" }, path: { type: "string" } },
+      // Either filter: `--project` for one board, `--path` for every review on
+      // the repository that directory belongs to (all worktrees, all projects).
+      // Neither given defaults to the working directory, the common case.
+      payload: ({ values }) =>
+        typeof values.project === "string"
+          ? { project_id: values.project }
+          : { path: typeof values.path === "string" ? values.path : process.cwd() },
+      summary: "list reviews (--project <id> | --path <dir>; defaults to the current directory)"
     },
     create: {
       expr: "SuikouWeb.AgentCLI.Reviews.create()",
       options: { project: { type: "string" }, name: { type: "string" }, diff: { type: "string" } },
-      required: ["project", "name"],
+      required: ["name"],
       // Source is chosen by what's given: positional files → file-selection;
       // `--diff base..head` → git-diff. Exactly one; createSource enforces it.
       payload: ({ values, files }) => createSource(values, files),
-      summary: "create a review (--project --name; file1 file2 … | --diff base..head)"
+      summary: "create a review (--name; file1 file2 … | --diff base..head)"
     },
     show: {
       expr: "SuikouWeb.AgentCLI.Reviews.show()",
