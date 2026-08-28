@@ -3,6 +3,7 @@ import type { StoreProxy } from "@musubi/react"
 
 import { PaneHead } from "./pane-parts"
 import { Textarea } from "../../components/ui/textarea"
+import { TimeAgo } from "../../components/ui/time-ago"
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot } from "../../musubi"
 
 // Mirrors `Suikou.Schemas.Settings.max_instructions/0`; the server rejects more.
@@ -42,6 +43,7 @@ function Editor({ store }: { store: SettingsStore }) {
   const snapshot = useMusubiSnapshot(store)
   const update = useMusubiCommand(store, "update_settings")
   const saved = snapshot?.review_instructions ?? ""
+  const savedAt = snapshot?.saved_at ?? null
   const [text, setText] = useState(saved)
   const [error, setError] = useState<string | null>(null)
   const dirty = text.trim() !== saved
@@ -89,16 +91,18 @@ function Editor({ store }: { store: SettingsStore }) {
         <span className="flex-1" />
         {error ? (
           <span className="text-xs text-request">{error}</span>
+        ) : dirty || update.isPending ? (
+          <span className="text-xs text-faint">Saving…</span>
         ) : (
-          <span className="text-xs text-faint">{status(dirty || update.isPending)}</span>
+          savedAt && (
+            <span className="inline-flex items-center gap-1 text-xs text-faint">
+              Saved <TimeAgo iso={savedAt} />
+            </span>
+          )
         )}
       </div>
     </Frame>
   )
-}
-
-function status(saving: boolean): string {
-  return saving ? "Saving…" : "Saved"
 }
 
 function Frame({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,7 @@
-import { Tooltip } from "../../../components/ui/tooltip"
-import { parseIso } from "../../../lib/utils"
+import { Tooltip } from "./tooltip"
+import { parseIso } from "../../lib/utils"
 
+/** A timestamp as an age ("3m"), with the full instant in a tooltip. */
 export function TimeAgo({ iso }: { iso: string }) {
   const date = parseIso(iso)
 

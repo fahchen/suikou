@@ -446,6 +446,7 @@ declare namespace Musubi {
       "SuikouWeb.Stores.SettingsStore",
       {
         review_instructions: string | null
+        saved_at: string | null
       },
       {
         update_settings: {

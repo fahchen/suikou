@@ -9,7 +9,7 @@ defmodule SuikouWeb.Stores.SettingsStoreTest do
     test "renders no instructions before anything is written" do
       page = Testing.mount(SettingsStore)
 
-      assert %{review_instructions: nil} = Testing.render(page)
+      assert %{review_instructions: nil, saved_at: nil} = Testing.render(page)
     end
   end
 
@@ -22,7 +22,10 @@ defmodule SuikouWeb.Stores.SettingsStoreTest do
                  review_instructions: "Reply in English."
                })
 
-      assert %{review_instructions: "Reply in English."} = Testing.render(page)
+      assert %{review_instructions: "Reply in English.", saved_at: saved_at} =
+               Testing.render(page)
+
+      assert {:ok, %DateTime{}, 0} = DateTime.from_iso8601(saved_at)
     end
 
     test "clears the instructions when the text area is emptied" do

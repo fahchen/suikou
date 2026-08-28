@@ -9,7 +9,7 @@ import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
 import { Composer } from "./Composer"
 import { Reactions } from "./Reactions"
 import type { CommentReply, CommentsStoreProxy } from "./shared"
-import { TimeAgo } from "./TimeAgo"
+import { TimeAgo } from "../../../components/ui/time-ago"
 
 export const Reply = observer(function Reply({
   reply,

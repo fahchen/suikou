@@ -13,9 +13,11 @@ defmodule SuikouWeb.Stores.SettingsStore do
   alias Musubi.Socket
   alias Suikou.Schemas.Settings
   alias Suikou.Settings, as: SettingsContext
+  alias SuikouWeb.Iso8601
 
   state do
     field(:review_instructions, String.t() | nil)
+    field(:saved_at, String.t() | nil)
   end
 
   command :update_settings do
@@ -33,9 +35,14 @@ defmodule SuikouWeb.Stores.SettingsStore do
   def mount(_params, socket), do: {:ok, socket}
 
   @impl Musubi.Store
-  @spec render(Socket.t()) :: %{review_instructions: String.t() | nil}
+  @spec render(Socket.t()) :: %{review_instructions: String.t() | nil, saved_at: String.t() | nil}
   def render(_socket) do
-    %{review_instructions: SettingsContext.get_settings().review_instructions}
+    settings = SettingsContext.get_settings()
+
+    %{
+      review_instructions: settings.review_instructions,
+      saved_at: settings.updated_at && Iso8601.utc(settings.updated_at)
+    }
   end
 
   @impl Musubi.Store
