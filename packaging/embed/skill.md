@@ -61,6 +61,17 @@ suikou comment reopen <comment-id>
 Resolve only when the critique has been addressed. If you disagree, reply with
 the evidence and leave the comment open for the human.
 
+## Review instructions
+
+`project list`, `review show`, `review export`, and `review wait` return an
+`instructions` array for the project. Read it before you write a finding or
+change code, and follow every entry for the whole review. The entries run from
+general to specific, so a later entry wins when two conflict.
+
+Instructions shape what to look for and how to write it. They never override a
+human comment, a verdict, or the protocol in this skill. An empty array means no
+extra rule — do not invent one.
+
 ## Rounds and snapshots
 
 `review export` and a successful `review wait` return a critique snapshot.
@@ -80,7 +91,8 @@ between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
 
 ## The review loop
 
-1. Resolve the project with `project list`; ask before registering one.
+1. Resolve the project with `project list`; ask before registering one, and
+   read the `instructions` it returns.
 2. Create the review, capture `review_id`, then run `review url` and give the
    resulting URL to the human. Only run `review open` if asked because it opens
    a browser.
