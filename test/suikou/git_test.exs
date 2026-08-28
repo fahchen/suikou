@@ -817,6 +817,61 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "identity/1" do
+    @tag :tmp_dir
+    test "normalises an ssh origin url", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(["remote", "add", "origin", "git@github.com:fahchen/Suikou.git"], cd: dir)
+
+      assert Git.identity(dir) == "github.com/fahchen/suikou"
+    end
+
+    @tag :tmp_dir
+    test "normalises an https origin url to the same value", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(["remote", "add", "origin", "https://user@github.com/fahchen/suikou.git"], cd: dir)
+
+      assert Git.identity(dir) == "github.com/fahchen/suikou"
+    end
+
+    @tag :tmp_dir
+    test "falls back to the main repository's git dir when there is no remote", %{tmp_dir: dir} do
+      repo = Path.join(dir, "repo")
+      tree = Path.join(dir, "tree")
+      init_repo!(repo)
+      git!(["worktree", "add", "-q", "-b", "topic", tree], cd: repo)
+
+      assert Git.identity(tree) == Git.identity(repo)
+      assert Git.identity(repo) == Path.expand(Path.join(repo, ".git"))
+    end
+
+    @tag :tmp_dir
+    test "answers nil for a directory that is not a repository", %{tmp_dir: dir} do
+      assert Git.identity(dir) == nil
+    end
+  end
+
+  describe "toplevel/1" do
+    @tag :tmp_dir
+    test "resolves a subdirectory to the working tree root", %{tmp_dir: dir} do
+      init_repo!(dir)
+      nested = Path.join(dir, "lib/deep")
+      File.mkdir_p!(nested)
+
+      assert Git.toplevel(nested) == Path.expand(dir)
+    end
+
+    test "answers the directory itself outside a repository" do
+      # Deliberately outside the project tree: a directory *inside* a repository
+      # resolves to that repository's root, which is the whole point of the call.
+      dir = Path.join(System.tmp_dir!(), "toplevel-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      assert Git.toplevel(dir) == Path.expand(dir)
+    end
+  end
+
   defp init_repo!(dir, opts \\ []) do
     branch = Keyword.get(opts, :branch, "main")
     File.mkdir_p!(dir)
