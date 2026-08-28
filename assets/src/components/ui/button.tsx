@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 /** Themed button over Base UI Button: the app's control heights and palette in
  * one place, so call sites pick a variant instead of restating Tailwind. */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-ctrl font-semibold whitespace-nowrap outline-none transition-[color,background-color,border-color,filter,scale] duration-150 ease-out select-none active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-accent-edge disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-ctrl font-semibold whitespace-nowrap outline-none transition-[color,background-color,border-color,filter,scale] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-accent-edge disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
