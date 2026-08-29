@@ -246,6 +246,7 @@ function useLensedFileEntries(
   enabled: boolean,
   commits: string[] | null,
   worktree: "staged" | "unstaged" | null,
+  version: number,
 ): FileEntry[] | null {
   const [entries, setEntries] = useState<FileEntry[] | null>(null)
   const query =
@@ -271,7 +272,7 @@ function useLensedFileEntries(
     return () => {
       cancelled = true
     }
-  }, [reviewId, enabled, query])
+  }, [reviewId, enabled, query, version])
   return entries
 }
 
@@ -280,6 +281,12 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const connected = useSocketConnected()
   const snap = useMusubiSnapshot(store)
   const navigate = useNavigate()
+  // The live snapshot's version counter is the server's "the file list moved"
+  // signal — the body store bumps it whenever a selection edit (agent
+  // `add_files` / `remove_files`) or a disk create/delete reshapes the list.
+  // Refetching the structure on every bump is what keeps the navigator live;
+  // without it the list only refreshes on mount and reconnect.
+  const structureVersion = snap?.body?.structure_version ?? 0
   const [structure, setStructure] = useState<Structure | null>(() => readStructureCache(reviewId))
   const structRef = useRef<Structure | null>(null)
   structRef.current = structure
@@ -316,7 +323,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, reviewId])
+  }, [connected, reviewId, structureVersion])
 
   const isDiff = structure?.kind === "diff"
   const scopeQuery = uiStore.diffScope === "all" ? null : uiStore.diffScope.commits
@@ -325,7 +332,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // navigator's file list must follow — otherwise the sidebar lies about what's
   // in the current view. Refetch from the lens-aware endpoint; fall back to the
   // static structure payload for the default lens (no fetch, no round-trip).
-  const lensedEntries = useLensedFileEntries(reviewId, isDiff, scopeQuery, worktreeQuery)
+  const lensedEntries = useLensedFileEntries(reviewId, isDiff, scopeQuery, worktreeQuery, structureVersion)
   const rawEntries =
     lensedEntries !== null ? lensedEntries : structure?.file_entries ?? []
   const entries = useMemo(
