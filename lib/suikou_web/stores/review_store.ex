@@ -163,6 +163,11 @@ defmodule SuikouWeb.Stores.ReviewStore do
       # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
       Musubi.send_update(file ++ ["comments"], %{})
     else
+      # A review-level change can be a selection edit (agent `add_files` /
+      # `remove_files`), which moves what must be watched on disk. Re-subscribe
+      # with the current selections so the running watcher follows the new set
+      # instead of staying frozen at whatever this store mounted with.
+      watch_files(socket.assigns.review_id)
       Musubi.send_update(body, %{reload: :structure})
     end
 

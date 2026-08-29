@@ -53,6 +53,29 @@ defmodule Suikou.FileWatcherTest do
       assert [{^watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
     end
 
+    test "re-subscribing with a changed selection re-points the watch", ctx do
+      File.mkdir_p!(Path.join(ctx.dir, "docs"))
+      _s1 = start_subscriber(ctx.review_id, ctx.dir)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      %{ref: prior_ref} = :sys.get_state(watcher)
+
+      _s2 = start_subscriber(ctx.review_id, ctx.dir, ["docs"])
+
+      assert %{dir_sels: ["docs"], ref: ref} = :sys.get_state(watcher)
+      assert ref != prior_ref
+    end
+
+    test "re-subscribing with the same selection keeps the live watch", ctx do
+      File.mkdir_p!(Path.join(ctx.dir, "docs"))
+      _s1 = start_subscriber(ctx.review_id, ctx.dir, ["docs"])
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      %{ref: prior_ref} = :sys.get_state(watcher)
+
+      _s2 = start_subscriber(ctx.review_id, ctx.dir, ["docs"])
+
+      assert %{ref: ^prior_ref} = :sys.get_state(watcher)
+    end
+
     test "watcher stops when its last subscriber exits", ctx do
       s1 = start_subscriber(ctx.review_id, ctx.dir)
       [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
@@ -64,12 +87,12 @@ defmodule Suikou.FileWatcherTest do
     end
   end
 
-  defp start_subscriber(review_id, dir) do
+  defp start_subscriber(review_id, dir, selections \\ []) do
     test = self()
 
     pid =
       spawn(fn ->
-        :ok = FileWatcher.subscribe(review_id, dir, [])
+        :ok = FileWatcher.subscribe(review_id, dir, selections)
         send(test, :subscribed)
         receive do: (:stop -> :ok)
       end)
