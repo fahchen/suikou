@@ -151,8 +151,6 @@ defmodule Suikou.FileWatcher do
     {dir_sels, file_sels} =
       Enum.split_with(selections, &File.dir?(Path.join(project_path, &1)))
 
-    if prior_ref, do: FsNotify.unwatch(prior_ref)
-
     # Subscriber defaults to this GenServer; the OS watch stops automatically
     # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
     # burst of events an editor save fires. Run inert if watching fails (e.g. an
@@ -166,6 +164,11 @@ defmodule Suikou.FileWatcher do
         {:ok, ref} -> ref
         {:error, _reason} -> nil
       end
+
+    # Drop the old watch only once the new one is up: the overlap double-reports
+    # a change for a moment (harmless — the refresh it triggers is idempotent),
+    # while unwatching first would blind the review for the swap's duration.
+    if prior_ref, do: FsNotify.unwatch(prior_ref)
 
     %{selections: selections, file_sels: MapSet.new(file_sels), dir_sels: dir_sels, ref: ref}
   end
