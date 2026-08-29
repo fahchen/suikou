@@ -14,10 +14,15 @@ export const POPUP_MOTION =
 export const BACKDROP_MOTION =
   "transition-opacity duration-150 ease-out data-[starting-style]:opacity-0 data-[ending-style]:opacity-0"
 
-/** The modal dialog: fade everywhere, plus a subtle scale on the centred desktop
- * card. Scale is scoped to `sm` (the `scale` property is independent of the
- * card's `-translate-y-1/2` centring) so the mobile bottom sheet just fades. */
+/** The modal dialog: on phones the bottom sheet rides in from the bottom edge
+ * the way a native sheet does — travel, no fade; from `sm` the centred card
+ * fades and scales instead. The slide is scoped to `max-sm` so it never fights
+ * the card's `-translate-y-1/2` centring, and the scale to `sm` because the
+ * `scale` property is independent of that centring. */
 export const DIALOG_MOTION =
-  "transition-[opacity,scale] duration-200 ease-out data-[ending-style]:duration-150 " +
-  "data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 " +
-  "sm:origin-center sm:data-[starting-style]:scale-95 sm:data-[ending-style]:scale-95"
+  "transition-[opacity,scale,translate] duration-200 ease-out data-[ending-style]:duration-150 " +
+  "sm:origin-center " +
+  "sm:data-[starting-style]:scale-95 sm:data-[starting-style]:opacity-0 " +
+  "sm:data-[ending-style]:scale-95 sm:data-[ending-style]:opacity-0 " +
+  "max-sm:duration-300 max-sm:ease-out-expo max-sm:data-[ending-style]:duration-200 " +
+  "max-sm:data-[starting-style]:translate-y-full max-sm:data-[ending-style]:translate-y-full"

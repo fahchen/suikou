@@ -90,7 +90,7 @@ export function CommentCard({
             className="-m-1 grid size-6 shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
           >
             <span
-              className={`grid place-items-center transition-transform duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`grid place-items-center transition-transform duration-250 ease-out-quint ${
                 collapsed ? "rotate-0" : "rotate-90"
               }`}
             >
@@ -143,7 +143,7 @@ export function CommentCard({
         className={`overflow-hidden ${
           contentHeight === null
             ? ""
-            : "motion-safe:transition-[height,opacity] motion-safe:duration-250 motion-safe:ease-[cubic-bezier(0.16,1,0.3,1)]"
+            : "motion-safe:transition-[height,opacity] motion-safe:duration-250 motion-safe:ease-out-expo"
         }`}
       >
         <div ref={contentRef} className="flow-root">
