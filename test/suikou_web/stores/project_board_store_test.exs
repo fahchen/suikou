@@ -386,6 +386,22 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   describe "list_dir" do
     @tag :tmp_dir
+    test "browses the checkout named by root when the project has no reviews", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "docs"))
+      File.write!(Path.join(dir, "notes.md"), "# Notes\n")
+      {:ok, project} = Projects.register_project(%{name: "Fresh"})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{entries: [%{path: "docs", dir: true}, %{path: "notes.md", dir: false}]}} =
+               Testing.dispatch_command(page, :list_dir, %{
+                 project_id: project.id,
+                 root: dir,
+                 path: ""
+               })
+    end
+
+    @tag :tmp_dir
     test "replies with one level of entries, directories first", %{tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join([dir, "docs", "plan.md"]), "# Plan\n")
@@ -471,6 +487,27 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
   end
 
   describe "create_review" do
+    @tag :tmp_dir
+    test "creates the first review of a project from the checkout it is given",
+         %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "notes.md"), "# Notes\n")
+      {:ok, project} = Projects.register_project(%{name: "Fresh"})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{review_id: review_id, error: nil}} =
+               Testing.dispatch_command(page, :create_review, %{
+                 project_id: project.id,
+                 name: "First",
+                 root: dir,
+                 selections: ["notes.md"]
+               })
+
+      assert %{project_path: project_path} = Reviews.get_review(review_id)
+      # Canonicalised, so a checkout typed here and one sent from a shell agree.
+      assert project_path == Suikou.ReviewRoots.canonical(dir)
+    end
+
     @tag :tmp_dir
     test "stores a review's selection and lists it on the next render", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
@@ -723,7 +760,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
   end
 
   # A project is a label with no directory, so the board browses and creates from
-  # the checkout its most recent review used — a review is what gives it one.
+  # the checkout its most recent review used — a review is what gives it one. A
+  # project with none is covered by the `root` cases, which name a checkout.
   defp board_project(dir) do
     {:ok, project} = Projects.register_project(%{name: "Docs"})
 

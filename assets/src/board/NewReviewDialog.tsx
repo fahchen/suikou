@@ -38,6 +38,10 @@ export function NewReviewDialog({
   const [name, setName] = useState("")
   const [nameDirty, setNameDirty] = useState(false)
   const [selections, setSelections] = useState<Set<string>>(new Set())
+  // The checkout this review reads from. A project holds no directory, so the
+  // dialog carries it: prefilled with whatever the project's last review used,
+  // and typed once for a project that has none yet.
+  const [root, setRoot] = useState("")
   const [base, setBase] = useState("")
   const [head, setHead] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -69,8 +73,9 @@ export function NewReviewDialog({
       setSelections(new Set())
       setBase("")
       setHead("")
+      setRoot(project.path ?? "")
     }
-  }, [open, kind, project.id, review])
+  }, [open, kind, project.id, project.path, review])
 
   useEffect(() => {
     if (open && !nameDirty && !review) setName(derivedName)
@@ -131,7 +136,7 @@ export function NewReviewDialog({
 
     if (activeKind === "files") {
       createFiles
-        .dispatch({ project_id: project.id, name: reviewName, selections: [...selections] })
+        .dispatch({ project_id: project.id, name: reviewName, root, selections: [...selections] })
         .then(done)
         .catch(fail)
     } else {
@@ -139,6 +144,7 @@ export function NewReviewDialog({
         .dispatch({
           project_id: project.id,
           name: reviewName,
+          root,
           base_ref: base.trim() || null,
           head_ref: head.trim(),
         })
@@ -182,19 +188,32 @@ export function NewReviewDialog({
             />
           </label>
 
+          {!editing && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-muted">Checkout</span>
+              <input
+                value={root}
+                onChange={(event) => setRoot(event.target.value)}
+                placeholder="/Users/you/code/project"
+                spellCheck={false}
+                className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 font-mono text-xs text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+              />
+            </label>
+          )}
+
           {activeKind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <span className="text-xs font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
               </span>
               <div className="min-h-[200px] flex-1 overflow-auto rounded-ctrl border border-hair-strong bg-canvas p-1">
-                <DirNode store={store} projectId={project.id} path="" depth={0} selections={selections} onToggle={toggle} />
+                <DirNode store={store} projectId={project.id} root={root} path="" depth={0} selections={selections} onToggle={toggle} />
               </div>
             </div>
           ) : editing ? (
             <ReadonlyRefs base={base} head={head} />
           ) : (
-            <DiffRefs store={store} projectId={project.id} base={base} head={head} onBase={setBase} onHead={setHead} />
+            <DiffRefs store={store} projectId={project.id} root={root} base={base} head={head} onBase={setBase} onHead={setHead} />
           )}
 
           {error && <p className="text-xs text-request">{error}</p>}
@@ -220,6 +239,7 @@ export function NewReviewDialog({
 function DirNode({
   store,
   projectId,
+  root,
   path,
   depth,
   selections,
@@ -227,6 +247,7 @@ function DirNode({
 }: {
   store: BoardStore
   projectId: string
+  root: string
   path: string
   depth: number
   selections: Set<string>
@@ -237,9 +258,9 @@ function DirNode({
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    listDir.dispatch({ project_id: projectId, path }).then((reply) => setEntries(reply.entries))
+    listDir.dispatch({ project_id: projectId, root, path }).then((reply) => setEntries(reply.entries))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, projectId])
+  }, [path, projectId, root])
 
   if (entries === null) {
     return <div className="px-2 py-1 text-xs text-faint">Loading…</div>
@@ -282,7 +303,7 @@ function DirNode({
                 </button>
               </div>
               {isOpen && (
-                <DirNode store={store} projectId={projectId} path={entry.path} depth={depth + 1} selections={selections} onToggle={onToggle} />
+                <DirNode store={store} projectId={projectId} root={root} path={entry.path} depth={depth + 1} selections={selections} onToggle={onToggle} />
               )}
             </div>
           )
@@ -325,6 +346,7 @@ function ReadonlyRefs({ base, head }: { base: string; head: string }) {
 function DiffRefs({
   store,
   projectId,
+  root,
   base,
   head,
   onBase,
@@ -332,6 +354,7 @@ function DiffRefs({
 }: {
   store: BoardStore
   projectId: string
+  root: string
   base: string
   head: string
   onBase: (v: string) => void
@@ -341,12 +364,12 @@ function DiffRefs({
   const [branches, setBranches] = useState<string[]>([])
 
   useEffect(() => {
-    listBranches.dispatch({ project_id: projectId }).then((reply) => {
+    listBranches.dispatch({ project_id: projectId, root }).then((reply) => {
       setBranches([...reply.branches, ...reply.remote_branches])
       if (reply.default && !base) onBase(reply.default)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, root])
 
   return (
     <div className="flex flex-col gap-4">

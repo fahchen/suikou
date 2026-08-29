@@ -286,6 +286,7 @@ declare namespace Musubi {
           payload: {
             project_id: string
             name: string
+            root: string | null
             selections: string[]
           }
           reply: {
@@ -297,6 +298,7 @@ declare namespace Musubi {
           payload: {
             project_id: string
             name: string
+            root: string | null
             base_ref: string | null
             head_ref: string
           }
@@ -308,6 +310,7 @@ declare namespace Musubi {
         list_branches: {
           payload: {
             project_id: string
+            root: string | null
           }
           reply: {
             branches: string[]
@@ -353,6 +356,7 @@ declare namespace Musubi {
         list_dir: {
           payload: {
             project_id: string
+            root: string | null
             path: string
           }
           reply: {

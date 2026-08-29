@@ -15,6 +15,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   alias Musubi.AsyncResult
   alias Musubi.Socket
   alias Suikou.Projects
+  alias Suikou.ReviewRoots
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
@@ -78,6 +79,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:project_id, String.t())
       field(:name, String.t())
+      field(:root, String.t() | nil)
       field(:selections, list(String.t()))
     end
 
@@ -91,6 +93,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:project_id, String.t())
       field(:name, String.t())
+      field(:root, String.t() | nil)
       field(:base_ref, String.t() | nil)
       field(:head_ref, String.t())
     end
@@ -104,6 +107,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   command :list_branches do
     payload do
       field(:project_id, String.t())
+      field(:root, String.t() | nil)
     end
 
     reply do
@@ -159,6 +163,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   command :list_dir do
     payload do
       field(:project_id, String.t())
+      field(:root, String.t() | nil)
       field(:path, String.t())
     end
 
@@ -315,7 +320,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_branches, payload, socket) do
     reply =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> list_branches(project)
+        %Project{} = project -> list_branches(project, payload["root"])
         nil -> branches_reply([], [], nil, "project_not_found")
       end
 
@@ -379,7 +384,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_dir, payload, socket) do
     entries =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> list_dir(project, payload["path"])
+        %Project{} = project -> list_dir(project, payload["root"], payload["path"])
         nil -> []
       end
 
@@ -424,7 +429,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp create_review(project, payload) do
     params = %{
       name: payload["name"],
-      project_path: workdir(project),
+      project_path: checkout(project, payload["root"]),
       selections: payload["selections"]
     }
 
@@ -437,7 +442,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp create_diff_review(project, payload) do
     params = %{
       name: payload["name"],
-      project_path: workdir(project),
+      project_path: checkout(project, payload["root"]),
       base_ref: payload["base_ref"],
       head_ref: payload["head_ref"]
     }
@@ -448,20 +453,31 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
-  # A project is a label with no directory of its own, so the board browses and
-  # creates from the checkout its most recent review used. A project with no
-  # reviews yet has nothing to offer, and its pickers come back empty.
+  # A project is a label with no directory of its own, so the checkout comes from
+  # the dialog, which prefills it with whatever the project's most recent review
+  # used. A project with no reviews yet has nothing to prefill, so the human
+  # names a directory once and every later review inherits it.
+  # Canonicalised, not resolved to a repository root: a human typing a path means
+  # that directory, and a subtree is a legitimate thing to review. Only the
+  # symlink spelling is normalised, so a checkout typed here and one sent from a
+  # shell agree instead of reading as `/tmp/x` and `/private/tmp/x`.
+  defp checkout(project, root) when is_binary(root) do
+    if String.trim(root) == "", do: workdir(project), else: ReviewRoots.canonical(root)
+  end
+
+  defp checkout(project, _absent), do: workdir(project)
+
   defp workdir(project), do: Reviews.latest_project_path(project) || "."
 
-  defp list_dir(project, rel) do
-    case Reviews.latest_project_path(project) do
-      nil -> []
+  defp list_dir(project, root, rel) do
+    case checkout(project, root) do
+      "." -> []
       path -> Projects.list_dir(path, project.respect_gitignore, rel)
     end
   end
 
-  defp list_branches(project) do
-    case Reviews.list_branches(workdir(project)) do
+  defp list_branches(project, root) do
+    case Reviews.list_branches(checkout(project, root)) do
       {:ok, %{branches: branches, remote_branches: remote, default: default}} ->
         branches_reply(branches, remote, default, nil)
 
