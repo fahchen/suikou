@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 import { parseArgs, type ParseArgsConfig } from "node:util"
 import { file, spawn, write } from "bun"
 
@@ -281,7 +281,13 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       expr: "SuikouWeb.AgentCLI.Projects.create()",
       options: { name: { type: "string" }, path: { type: "string" } },
       required: ["name", "path"],
-      payload: ({ values }) => ({ name: values.name, path: values.path }),
+      // Resolved here, not on the server: a relative `--path` (`.` above all)
+      // means the *caller's* directory, and the daemon runs from somewhere else
+      // entirely. Only this side knows where the agent is standing.
+      payload: ({ values }) => ({
+        name: values.name,
+        path: typeof values.path === "string" ? resolve(values.path) : values.path
+      }),
       summary: "register a project (--name --path); --path names the repository, it is not stored"
     }
   },
@@ -295,7 +301,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       payload: ({ values }) =>
         typeof values.project === "string"
           ? { project_id: values.project }
-          : { path: typeof values.path === "string" ? values.path : process.cwd() },
+          : { path: typeof values.path === "string" ? resolve(values.path) : process.cwd() },
       summary: "list reviews (--project <id> | --path <dir>; defaults to the current directory)"
     },
     create: {
