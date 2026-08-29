@@ -102,7 +102,11 @@ defmodule Suikou.Git do
   """
   @spec identity(repo_dir()) :: String.t() | nil
   def identity(dir) do
-    if repo?(dir), do: remote_identity(dir) || common_dir_identity(dir), else: nil
+    # Deliberately not guarded by `repo?/1`: identity describes the repository,
+    # not the directory, so a subdirectory answers the same value — and `repo?/1`
+    # compares an expanded path against git's own, which disagree the moment the
+    # directory is reached through a symlink (`/tmp` on macOS).
+    remote_identity(dir) || common_dir_identity(dir)
   end
 
   defp remote_identity(dir) do

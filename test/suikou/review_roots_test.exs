@@ -53,6 +53,24 @@ defmodule Suikou.ReviewRootsTest do
     end
   end
 
+  describe "canonical/1" do
+    test "resolves a symlinked component so one directory spells one way" do
+      base = Path.join(System.tmp_dir!(), "canon-#{System.unique_integer([:positive])}")
+      real = Path.join(base, "real")
+      link = Path.join(base, "link")
+      File.mkdir_p!(Path.join(real, "inner"))
+      File.ln_s!("real", link)
+      on_exit(fn -> File.rm_rf!(base) end)
+
+      assert ReviewRoots.canonical(Path.join(link, "inner")) ==
+               ReviewRoots.canonical(Path.join(real, "inner"))
+    end
+
+    test "leaves a path with no links alone beyond expanding it" do
+      assert ReviewRoots.canonical("/usr/../usr/bin") == "/usr/bin"
+    end
+  end
+
   describe "scratch_dir/2" do
     test "collapses the identity into one readable directory" do
       project = %Project{name: "Example", identity: "github.com/fahchen/example"}

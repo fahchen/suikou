@@ -846,7 +846,22 @@ defmodule Suikou.GitTest do
     end
 
     @tag :tmp_dir
-    test "answers nil for a directory that is not a repository", %{tmp_dir: dir} do
+    test "answers the same value from a subdirectory of the repository", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(["remote", "add", "origin", "git@github.com:fahchen/suikou.git"], cd: dir)
+      nested = Path.join(dir, "lib/deep")
+      File.mkdir_p!(nested)
+
+      assert Git.identity(nested) == "github.com/fahchen/suikou"
+    end
+
+    test "answers nil for a directory that is not a repository" do
+      # Outside the project tree: a directory *inside* a repository answers that
+      # repository's identity, which is the point of the call.
+      dir = Path.join(System.tmp_dir!(), "identity-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
       assert Git.identity(dir) == nil
     end
   end

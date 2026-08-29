@@ -171,6 +171,37 @@ defmodule Suikou.ReviewRoots do
     do: [{"", review.project_path}, {@scratch_marker, review.scratch_path}]
 
   @doc """
+  Expands `path` and resolves any symlinked component, so one directory always
+  spells the same way. Without it `/tmp/x` and `/private/tmp/x` are two
+  checkouts on macOS, and a review created in the app never matches one created
+  from a shell.
+
+  ## Examples
+
+      Suikou.ReviewRoots.canonical("/tmp/project")
+      #=> "/private/tmp/project"
+
+  """
+  @spec canonical(String.t()) :: String.t()
+  def canonical(path) do
+    path
+    |> Path.expand()
+    |> Path.split()
+    |> Enum.reduce(&resolve_segment/2)
+  end
+
+  # One link hop per component is enough for the case this exists for (a symlinked
+  # `/tmp`), and it cannot loop the way full resolution can.
+  defp resolve_segment(segment, parent) do
+    joined = Path.join(parent, segment)
+
+    case :file.read_link(joined) do
+      {:ok, target} -> target |> to_string() |> Path.expand(parent)
+      {:error, _reason} -> joined
+    end
+  end
+
+  @doc """
   Builds the directory a review's generated output lives in:
   `<data dir>/<project identity>/<review id>`. Grouping by the project puts every
   worktree of one repository under one heading; splitting by review id keeps
