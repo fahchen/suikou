@@ -153,22 +153,29 @@ defmodule Suikou.FileWatcher do
 
     # Subscriber defaults to this GenServer; the OS watch stops automatically
     # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
-    # burst of events an editor save fires. Run inert if watching fails (e.g. an
-    # unsupported target): the watcher still ref-counts subscribers and tears
-    # down cleanly, the page just gets no live-refresh signal — J5.
+    # burst of events an editor save fires.
     ref =
       case FsNotify.watch(watch_dirs(project_path, file_sels, dir_sels),
              recursive: true,
              debounce: 50
            ) do
-        {:ok, ref} -> ref
-        {:error, _reason} -> nil
-      end
+        # Drop the old watch only once the new one is up: the overlap
+        # double-reports a change for a moment, which the idempotent refresh it
+        # triggers absorbs, while unwatching first would blind the review for
+        # the swap's duration.
+        {:ok, ref} ->
+          if prior_ref, do: FsNotify.unwatch(prior_ref)
+          ref
 
-    # Drop the old watch only once the new one is up: the overlap double-reports
-    # a change for a moment (harmless — the refresh it triggers is idempotent),
-    # while unwatching first would blind the review for the swap's duration.
-    if prior_ref, do: FsNotify.unwatch(prior_ref)
+        # Watching failed (e.g. an unsupported target). Keep whatever was
+        # already watching — the filter follows the new selections and coverage
+        # lags until the next successful swap, which still beats going blind.
+        # On a first watch there is nothing to keep, so the watcher runs inert:
+        # it still ref-counts subscribers and tears down cleanly, the page just
+        # gets no live-refresh signal — J5.
+        {:error, _reason} ->
+          prior_ref
+      end
 
     %{selections: selections, file_sels: MapSet.new(file_sels), dir_sels: dir_sels, ref: ref}
   end
