@@ -62,6 +62,11 @@
   --radius-win: var(--r-win);
 
   --text-2xs: 0.625rem;
+
+  /* Motion curves, per DESIGN.md: exponential ease-out only, no bounce, no
+     elastic. Named here so call sites reach for a curve, not a magic bezier. */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Critique-type accents (fix / ask / note) derive from the semantic palette so
@@ -852,6 +857,19 @@
 }
 
 @layer base {
+  /* Motion here is feedback, never information: when the OS asks for less of
+     it, every transition and animation collapses to an instant state change. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   html,
   body {
     min-height: 100%;
@@ -895,6 +913,21 @@
   [role="tab"],
   [role="switch"] {
     cursor: pointer;
+    /* Chrome is furniture, not prose. A drag across a control should not paint
+       a selection, a long press should not raise iOS's callout, and a double
+       tap should not cost 300ms waiting for a zoom that cannot happen. Content
+       surfaces (code, markdown, comment bodies, inputs) are untouched and stay
+       selectable. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+
+  /* The grey flash a mobile browser paints over every tap is the loudest tell
+     that this is a web page; the app draws its own pressed state instead. */
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Disabled reads as unavailable, not absent: the cursor says the control is

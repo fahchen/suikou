@@ -4,6 +4,7 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
   import ExUnit.CaptureIO
   import Suikou.Factory
 
+  alias Suikou.Settings
   alias SuikouWeb.AgentCLI.Projects
   alias SuikouWeb.Stores.BoardBroadcast
 
@@ -15,6 +16,21 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
                run(%{}, &Projects.list/0)
 
       assert id == project.id
+    end
+
+    test "carries the global instructions first and the project's second" do
+      {:ok, _settings} = Settings.update_settings(%{review_instructions: "Reply in English."})
+      insert(:project, review_instructions: "Report any Repo call inside queries/.")
+
+      assert %{"projects" => [%{"instructions" => instructions}]} = run(%{}, &Projects.list/0)
+
+      assert ["Reply in English.", "Report any Repo call inside queries/."] = instructions
+    end
+
+    test "carries no instructions when the human wrote none" do
+      insert(:project)
+
+      assert %{"projects" => [%{"instructions" => []}]} = run(%{}, &Projects.list/0)
     end
   end
 

@@ -10,7 +10,8 @@ defmodule SuikouWeb.UserSocket do
       SuikouWeb.Stores.CounterStore,
       SuikouWeb.Stores.ProjectBoardStore,
       SuikouWeb.Stores.ArtifactsInboxStore,
-      SuikouWeb.Stores.ReviewStore
+      SuikouWeb.Stores.ReviewStore,
+      SuikouWeb.Stores.SettingsStore
     ]
 
   alias Musubi.Socket

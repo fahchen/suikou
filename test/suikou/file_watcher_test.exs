@@ -71,6 +71,41 @@ defmodule Suikou.FileWatcherTest do
       assert [{^watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
     end
 
+    test "re-subscribing with a changed selection re-points the watch", ctx do
+      File.mkdir_p!(Path.join(ctx.dir, "docs"))
+      _s1 = start_subscriber(ctx.review)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      %{ref: prior_ref} = :sys.get_state(watcher)
+
+      _s2 = start_subscriber(ctx.review, ["docs"])
+
+      assert %{dir_sels: ["docs"], ref: ref} = :sys.get_state(watcher)
+      assert ref != prior_ref
+    end
+
+    test "re-subscribing with the same selection keeps the live watch", ctx do
+      File.mkdir_p!(Path.join(ctx.dir, "docs"))
+      _s1 = start_subscriber(ctx.review, ["docs"])
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+      %{ref: prior_ref} = :sys.get_state(watcher)
+
+      _s2 = start_subscriber(ctx.review, ["docs"])
+
+      assert %{ref: ^prior_ref} = :sys.get_state(watcher)
+    end
+
+    test "the same subscriber re-subscribing swaps the watch and is monitored once", ctx do
+      File.mkdir_p!(Path.join(ctx.dir, "docs"))
+      sub = start_subscriber(ctx.review)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+
+      resubscribe(sub, ["docs"])
+
+      assert %{dir_sels: ["docs"], subs: subs} = :sys.get_state(watcher)
+      assert MapSet.size(subs) == 1
+      assert {:monitors, [{:process, ^sub}]} = Process.info(watcher, :monitors)
+    end
+
     test "watcher stops when its last subscriber exits", ctx do
       s1 = start_subscriber(ctx.review)
       [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
@@ -82,18 +117,37 @@ defmodule Suikou.FileWatcherTest do
     end
   end
 
-  defp start_subscriber(review) do
+  # Linked, so a subscriber left running is torn down with the test rather than
+  # outliving it and holding its watcher alive.
+  defp start_subscriber(review, selections \\ []) do
     test = self()
 
     pid =
-      spawn(fn ->
-        :ok = FileWatcher.subscribe(review, [])
+      spawn_link(fn ->
+        :ok = FileWatcher.subscribe(review, selections)
         send(test, :subscribed)
-        receive do: (:stop -> :ok)
+        subscriber_loop(review, test)
       end)
 
     assert_receive :subscribed
     pid
+  end
+
+  defp subscriber_loop(review, test) do
+    receive do
+      {:resubscribe, selections} ->
+        :ok = FileWatcher.subscribe(review, selections)
+        send(test, :subscribed)
+        subscriber_loop(review, test)
+
+      :stop ->
+        :ok
+    end
+  end
+
+  defp resubscribe(pid, selections) do
+    send(pid, {:resubscribe, selections})
+    assert_receive :subscribed
   end
 
   defp stop_subscriber(pid) do

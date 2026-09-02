@@ -80,6 +80,7 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
         path: String.t(),
         respect_gitignore: boolean(),
         emoji: String.t() | nil,
+        review_instructions: String.t() | nil,
         reviews:
           list(%{
             id: String.t(),

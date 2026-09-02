@@ -72,6 +72,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       field(:name, String.t())
       field(:respect_gitignore, boolean())
       field(:emoji, String.t() | nil)
+      field(:review_instructions, String.t() | nil)
     end
 
     reply do
@@ -302,7 +303,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     reply =
       case Projects.get_project(payload["project_id"]) do
         %Project{} = project ->
-          params = Map.take(payload, ["name", "respect_gitignore", "emoji"])
+          params =
+            Map.take(payload, ["name", "respect_gitignore", "emoji", "review_instructions"])
 
           case Projects.update_project(project, params) do
             {:ok, %Project{}} -> %{error: nil}
@@ -614,6 +616,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       path: Reviews.latest_project_path(project),
       respect_gitignore: project.respect_gitignore,
       emoji: project.emoji,
+      review_instructions: project.review_instructions,
       reviews: Enum.map(Reviews.list_for_project(project), &render_review/1)
     }
   end

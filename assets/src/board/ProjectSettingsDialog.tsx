@@ -5,11 +5,15 @@ import { useMusubiCommand } from "../musubi"
 import { Checkbox } from "../components/ui/checkbox"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
+import { Textarea } from "../components/ui/textarea"
 import type { BoardProject, BoardStore } from "./types"
 
-/** Edit a project's settings: its display name and whether it respects
- * `.gitignore`. The path is identity and shown read-only. Dispatches
- * update_project and refetches the board. */
+// Mirrors `Suikou.Schemas.Settings.max_instructions/0`; the server rejects more.
+const MAX_INSTRUCTIONS = 10_000
+
+/** Edit a project's settings: its display name, its review instructions, and
+ * whether it respects `.gitignore`. The path is identity and shown read-only.
+ * Dispatches update_project and refetches the board. */
 export function ProjectSettingsDialog({
   store,
   project,
@@ -27,6 +31,7 @@ export function ProjectSettingsDialog({
   const [name, setName] = useState(project.name)
   const [emoji, setEmoji] = useState<string | null>(project.emoji)
   const [respectGitignore, setRespectGitignore] = useState(project.respect_gitignore)
+  const [instructions, setInstructions] = useState(project.review_instructions ?? "")
   const [error, setError] = useState<string | null>(null)
   const busy = update.isPending
 
@@ -35,14 +40,21 @@ export function ProjectSettingsDialog({
     setName(project.name)
     setEmoji(project.emoji)
     setRespectGitignore(project.respect_gitignore)
+    setInstructions(project.review_instructions ?? "")
     setError(null)
-  }, [open, project.name, project.emoji, project.respect_gitignore])
+  }, [open, project.name, project.emoji, project.respect_gitignore, project.review_instructions])
 
   const submit = () => {
     const trimmedName = name.trim()
     if (!trimmedName) return
     update
-      .dispatch({ project_id: project.id, name: trimmedName, respect_gitignore: respectGitignore, emoji })
+      .dispatch({
+        project_id: project.id,
+        name: trimmedName,
+        respect_gitignore: respectGitignore,
+        emoji,
+        review_instructions: instructions.trim() === "" ? null : instructions,
+      })
       .then((reply) => {
         if (reply.error) {
           setError(reply.error)
@@ -71,6 +83,20 @@ export function ProjectSettingsDialog({
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
             className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-muted">Review instructions</span>
+          <span className="text-xs leading-[1.4] text-faint">
+            Agents reviewing this project follow these, after the global ones.
+          </span>
+          <Textarea
+            value={instructions}
+            onChange={(event) => setInstructions(event.target.value)}
+            rows={4}
+            maxLength={MAX_INSTRUCTIONS}
+            placeholder="e.g. Report any Repo call inside queries/."
+            className="max-h-[200px] overflow-y-auto"
           />
         </label>
         <label className="flex flex-col gap-1.5">

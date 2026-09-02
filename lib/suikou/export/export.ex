@@ -9,7 +9,9 @@ defmodule Suikou.Export do
   later, so a still-open comment shows every round until resolved without being
   copied. `export_review/2` aggregates that view across a review's minted
   artifacts for a rounds scope (`:latest` default, an inclusive `{from, to}`
-  range, or `:all`), carrying the monotonic `submission_version` poll cursor.
+  range, or `:all`), carrying the monotonic `submission_version` poll cursor and
+  the project's review instructions — the human may edit those between rounds, so
+  every wake returns the text standing at that moment.
   Pending comments and pending replies are never included; exporting changes no
   state. Each comment and published reply carries its reactions (`actor` +
   `emoji`), so the agent sees how the human (or another agent) reacted.
@@ -36,6 +38,7 @@ defmodule Suikou.Export do
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Submission
+  alias Suikou.Settings
   alias Suikou.Submissions
 
   @typedoc """
@@ -82,6 +85,7 @@ defmodule Suikou.Export do
 
   @type review_export :: %{
           review_id: Ecto.UUID.t(),
+          instructions: [String.t()],
           submission_version: non_neg_integer(),
           artifacts: [t()]
         }
@@ -118,7 +122,7 @@ defmodule Suikou.Export do
   ## Examples
 
       Suikou.Export.export_review(review.id)
-      #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: []}]}
+      #=> %{review_id: "0192…", instructions: [], submission_version: 2, artifacts: [%{comments: []}]}
 
       Suikou.Export.export_review(review.id, :all)
       #=> %{review_id: "0192…", submission_version: 2, artifacts: [%{comments: [%{body: "round 1 note"}]}]}
@@ -137,6 +141,7 @@ defmodule Suikou.Export do
       %Review{} = review ->
         %{
           review_id: review.id,
+          instructions: Settings.instructions_for(Repo.preload(review, :project).project),
           submission_version: Submissions.review_submission_count(review.id),
           artifacts: Enum.map(Reads.list_review_artifacts(review.id), &build(&1, scope))
         }

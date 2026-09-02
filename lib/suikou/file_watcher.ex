@@ -68,6 +68,11 @@ defmodule Suikou.FileWatcher do
   review's raw selection paths (files and/or directories), relative to the
   project root. Idempotent per caller.
 
+  Re-subscribing with a changed `selections` re-points a running watcher at the
+  new set — that is how a selection edit (an agent `add_files` / `remove_files`)
+  starts watching a newly covered directory instead of leaving the watch frozen
+  at whatever the first subscriber mounted with.
+
   ## Examples
 
       Suikou.FileWatcher.subscribe(review, ["lib/a.ex", "docs"])
@@ -77,7 +82,7 @@ defmodule Suikou.FileWatcher do
   @spec subscribe(Review.t(), [String.t()]) :: :ok
   def subscribe(%Review{} = review, selections) do
     pid = ensure_started(review, selections)
-    GenServer.call(pid, {:subscribe, self()})
+    GenServer.call(pid, {:subscribe, self(), selections})
   end
 
   @spec start_link({Review.t(), [String.t()]}) :: GenServer.on_start()
@@ -88,34 +93,9 @@ defmodule Suikou.FileWatcher do
   @impl GenServer
   @spec init({Review.t(), [String.t()]}) :: {:ok, map()}
   def init({%Review{} = review, selections}) do
-    review_id = review.id
+    state = %{review_id: review.id, review: review, subs: MapSet.new()}
 
-    {dir_sels, file_sels} =
-      Enum.split_with(selections, &dir_selection?(review, &1))
-
-    # Subscriber defaults to this GenServer; the OS watch stops automatically
-    # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
-    # burst of events an editor save fires. Run inert if watching fails (e.g. an
-    # unsupported target): the watcher still ref-counts subscribers and tears
-    # down cleanly, the page just gets no live-refresh signal — J5.
-    ref =
-      case FsNotify.watch(watch_dirs(review, file_sels, dir_sels),
-             recursive: true,
-             debounce: 50
-           ) do
-        {:ok, ref} -> ref
-        {:error, _reason} -> nil
-      end
-
-    {:ok,
-     %{
-       review_id: review_id,
-       review: review,
-       file_sels: MapSet.new(file_sels),
-       dir_sels: dir_sels,
-       subs: MapSet.new(),
-       ref: ref
-     }}
+    {:ok, Map.merge(state, watch_selections(review, selections, nil))}
   end
 
   # Watch the directory selections directly and the parent directories of file
@@ -148,9 +128,12 @@ defmodule Suikou.FileWatcher do
   end
 
   @impl GenServer
-  def handle_call({:subscribe, pid}, _from, state) do
-    Process.monitor(pid)
-    {:reply, :ok, %{state | subs: MapSet.put(state.subs, pid)}}
+  def handle_call({:subscribe, pid, selections}, _from, state) do
+    # Monitor once per subscriber: a store re-subscribes on every selection
+    # change, and a second monitor would pile up refs for the same pid.
+    if MapSet.member?(state.subs, pid), do: :ok, else: Process.monitor(pid)
+    state = rewatch(%{state | subs: MapSet.put(state.subs, pid)}, selections)
+    {:reply, :ok, state}
   end
 
   @impl GenServer
@@ -177,6 +160,50 @@ defmodule Suikou.FileWatcher do
   end
 
   defp under?(rel, dir), do: rel == dir or String.starts_with?(rel, dir <> "/")
+
+  # Swap the watch only when the selection set actually moved, so the common
+  # case — a second page of the same review subscribing with the same set —
+  # never restarts a live watch and drops the events in flight.
+  defp rewatch(state, selections) do
+    if MapSet.new(state.selections) == MapSet.new(selections),
+      do: state,
+      else: Map.merge(state, watch_selections(state.review, selections, state.ref))
+  end
+
+  # Point the OS watch at `selections`, splitting them into the directory and
+  # file sets the event filter reads. Returns the watch-derived slice of the
+  # state for the caller to merge in.
+  defp watch_selections(%Review{} = review, selections, prior_ref) do
+    {dir_sels, file_sels} = Enum.split_with(selections, &dir_selection?(review, &1))
+
+    # Subscriber defaults to this GenServer; the OS watch stops automatically
+    # when it dies, so no terminate cleanup is needed. `debounce` coalesces the
+    # burst of events an editor save fires.
+    ref =
+      case FsNotify.watch(watch_dirs(review, file_sels, dir_sels),
+             recursive: true,
+             debounce: 50
+           ) do
+        # Drop the old watch only once the new one is up: the overlap
+        # double-reports a change for a moment, which the idempotent refresh it
+        # triggers absorbs, while unwatching first would blind the review for
+        # the swap's duration.
+        {:ok, ref} ->
+          if prior_ref, do: FsNotify.unwatch(prior_ref)
+          ref
+
+        # Watching failed (e.g. an unsupported target). Keep whatever was
+        # already watching — the filter follows the new selections and coverage
+        # lags until the next successful swap, which still beats going blind.
+        # On a first watch there is nothing to keep, so the watcher runs inert:
+        # it still ref-counts subscribers and tears down cleanly, the page just
+        # gets no live-refresh signal — J5.
+        {:error, _reason} ->
+          prior_ref
+      end
+
+    %{selections: selections, file_sels: MapSet.new(file_sels), dir_sels: dir_sels, ref: ref}
+  end
 
   # Start the watcher under the DynamicSupervisor, tolerating the start race:
   # two stores subscribing at once, the loser gets the already-started pid.

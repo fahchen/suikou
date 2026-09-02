@@ -8,37 +8,44 @@ defmodule SuikouWeb.AgentCLI.Projects do
 
   alias Suikou.Projects
   alias Suikou.Schemas.Project
+  alias Suikou.Settings
   alias SuikouWeb.AgentCLI
   alias SuikouWeb.Stores.BoardBroadcast
 
   @doc """
   Emits every registered project as
-  `%{projects: [%{id, name, identity, respect_gitignore}]}`. `identity` is the
-  repository a project groups, or `null` for a board made by hand; a project has
-  no path of its own, since the checkout lives on each review.
+  `%{projects: [%{id, name, identity, respect_gitignore, instructions}]}`.
+  `identity` is the repository a project groups, or `null` for a board made by
+  hand; a project has no path of its own, since the checkout lives on each
+  review.
+
+  `instructions` is the merged review guidance the agent must follow for that
+  project (see `Suikou.Settings.instructions_for/1`), empty when the human wrote
+  none.
 
   ## Examples
 
       SuikouWeb.AgentCLI.Projects.list()
-      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","identity":null,"respect_gitignore":true}]}
+      #=> :ok  # emits {"projects":[{"id":"0192…","name":"Docs","identity":null,"respect_gitignore":true,"instructions":["Reply in English."]}]}
 
   """
   @spec list() :: :ok
   def list do
     _payload = AgentCLI.read_payload()
 
-    projects =
-      Enum.map(
-        Projects.list_projects(),
-        &%{
-          id: &1.id,
-          name: &1.name,
-          identity: &1.identity,
-          respect_gitignore: &1.respect_gitignore
-        }
-      )
+    projects = Enum.map(Projects.list_projects(), &project_summary/1)
 
     AgentCLI.emit(%{projects: projects})
+  end
+
+  defp project_summary(%Project{} = project) do
+    %{
+      id: project.id,
+      name: project.name,
+      identity: project.identity,
+      respect_gitignore: project.respect_gitignore,
+      instructions: Settings.instructions_for(project)
+    }
   end
 
   @doc """

@@ -10,6 +10,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.ReviewSource.GitDiff
+  alias Suikou.Settings
   alias Suikou.Submissions
   alias SuikouWeb.AgentCLI.Reviews, as: CLI
   alias SuikouWeb.Endpoint
@@ -131,6 +132,15 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                run(%{"review_id" => review.id}, &CLI.show/0)
 
       assert id == review.id
+    end
+
+    test "emits the project's review instructions" do
+      {:ok, _settings} = Settings.update_settings(%{review_instructions: "Reply in English."})
+      project = insert(:project, review_instructions: "Report any Repo call inside queries/.")
+      review = insert(:review, project: project)
+
+      assert %{"instructions" => ["Reply in English.", "Report any Repo call inside queries/."]} =
+               run(%{"review_id" => review.id}, &CLI.show/0)
     end
 
     test "emits review_not_found for an unknown review" do

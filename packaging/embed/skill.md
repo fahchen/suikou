@@ -70,6 +70,17 @@ suikou comment resolve <comment-id> --as Codex --icon 🤖
 suikou comment reopen <comment-id>
 ```
 
+## Review instructions
+
+`project list`, `review show`, `review export`, and `review wait` return an
+`instructions` array for the project. Read it before you write a finding or
+change code, and follow every entry for the whole review. The entries run from
+general to specific, so a later entry wins when two conflict.
+
+Instructions shape what to look for and how to write it. They never override a
+human comment, a verdict, or the protocol in this skill. An empty array means no
+extra rule — do not invent one.
+
 ## Rounds and snapshots
 
 `review export` and a successful `review wait` return a critique snapshot.
@@ -90,7 +101,9 @@ between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
 ## The review loop
 
 1. Create the review from inside the checkout with no `--project`; on
-   `project_not_found`, ask the human before registering one.
+   `project_not_found`, ask the human before registering one. Read the
+   `instructions` the review's project returns and follow them for the whole
+   review.
 2. Capture `review_id` and `scratch_path`, then run `review url` and give the
    resulting URL to the human. Only run `review open` if asked because it opens
    a browser.
