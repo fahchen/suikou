@@ -366,6 +366,25 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   describe "list_dir" do
     @tag :tmp_dir
+    test "browses with the dialog's gitignore choice, not the project's", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, ".gitignore"), "skipped.md\n")
+      File.write!(Path.join(dir, "skipped.md"), "x\n")
+      {:ok, project} = Projects.register_project(%{name: "Fresh"})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{entries: entries}} =
+               Testing.dispatch_command(page, :list_dir, %{
+                 project_id: project.id,
+                 root: dir,
+                 respect_gitignore: false,
+                 path: ""
+               })
+
+      assert "skipped.md" in Enum.map(entries, & &1.path)
+    end
+
+    @tag :tmp_dir
     test "browses the checkout named by root when the project has no reviews", %{tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "docs"))
       File.write!(Path.join(dir, "notes.md"), "# Notes\n")
@@ -413,6 +432,41 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: "00000000-0000-7000-8000-000000000000",
                  path: ""
+               })
+    end
+  end
+
+  describe "set_review_gitignore" do
+    @tag :tmp_dir
+    test "pins an answer for one review and clears it again", %{tmp_dir: dir} do
+      project = board_project(dir)
+      [review] = Reviews.list_for_project(project)
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :set_review_gitignore, %{
+                 review_id: review.id,
+                 respect_gitignore: false
+               })
+
+      assert %{respect_gitignore: false} = Reviews.get_review(review.id)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :set_review_gitignore, %{
+                 review_id: review.id,
+                 respect_gitignore: nil
+               })
+
+      assert %{respect_gitignore: nil} = Reviews.get_review(review.id)
+    end
+
+    test "an unknown review replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "review_not_found"}} =
+               Testing.dispatch_command(page, :set_review_gitignore, %{
+                 review_id: "00000000-0000-7000-8000-000000000000",
+                 respect_gitignore: false
                })
     end
   end

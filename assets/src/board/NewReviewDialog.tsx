@@ -14,8 +14,9 @@ const CHECKOUT_LIST_ID = "review-checkouts"
 
 /** Compose a new review, or edit an existing one. Pick files from the project
  * tree, or a diff between two refs. Creating dispatches create_review /
- * create_diff_review; editing dispatches rename_review and (for file reviews)
- * update_review_files. A diff review's refs are fixed after creation. */
+ * create_diff_review; editing dispatches rename_review, set_review_gitignore
+ * and (for file reviews) update_review_files. A diff review's refs are fixed
+ * after creation. */
 export function NewReviewDialog({
   store,
   project,
@@ -39,6 +40,7 @@ export function NewReviewDialog({
   const createFiles = useMusubiCommand(store, "create_review")
   const createDiff = useMusubiCommand(store, "create_diff_review")
   const renameReview = useMusubiCommand(store, "rename_review")
+  const setGitignore = useMusubiCommand(store, "set_review_gitignore")
   const updateFiles = useMusubiCommand(store, "update_review_files")
   const [name, setName] = useState("")
   const [nameDirty, setNameDirty] = useState(false)
@@ -47,13 +49,20 @@ export function NewReviewDialog({
   // dialog carries it: prefilled with whatever the project's last review used,
   // and typed once for a project that has none yet.
   const [root, setRoot] = useState("")
+  // `null` means "whatever the project says". A checkbox shows the effective
+  // answer; touching it pins one for this review.
+  const [respectGitignore, setRespectGitignore] = useState<boolean | null>(null)
   const [base, setBase] = useState("")
   const [head, setHead] = useState("")
   const [error, setError] = useState<string | null>(null)
   const editing = review != null
   const activeKind: Kind = review ? (review.kind === "git_diff" ? "diff" : "files") : kind
   const busy =
-    createFiles.isPending || createDiff.isPending || renameReview.isPending || updateFiles.isPending
+    createFiles.isPending ||
+    createDiff.isPending ||
+    renameReview.isPending ||
+    setGitignore.isPending ||
+    updateFiles.isPending
 
   // A sensible default name — the project for a file review, the refs for a
   // diff — that keeps syncing into the field until the user edits it.
@@ -70,6 +79,7 @@ export function NewReviewDialog({
       // derived default never clobbers the existing title.
       setNameDirty(true)
       setName(review.name)
+      setRespectGitignore(review.respect_gitignore)
       setSelections(new Set(review.selections))
       setBase(review.base_ref ?? "")
       setHead(review.head_ref ?? "")
@@ -79,6 +89,7 @@ export function NewReviewDialog({
       setBase("")
       setHead("")
       setRoot(project.path ?? "")
+      setRespectGitignore(null)
     }
   }, [open, kind, project.id, project.path, review])
 
@@ -102,6 +113,10 @@ export function NewReviewDialog({
       next.add(path)
       return next
     })
+
+  // What this review will actually do: its own answer when it has one, the
+  // project's otherwise.
+  const effectiveGitignore = respectGitignore ?? project.respect_gitignore
 
   const canSubmit =
     name.trim().length > 0 && (activeKind === "files" ? selections.size > 0 : head.trim().length > 0)
@@ -129,6 +144,16 @@ export function NewReviewDialog({
       renamed
         .then((reply) => {
           if (reply.error) return reply
+          if (respectGitignore !== review.respect_gitignore) {
+            return setGitignore.dispatch({
+              review_id: review.id,
+              respect_gitignore: respectGitignore,
+            })
+          }
+          return reply
+        })
+        .then((reply) => {
+          if (reply.error) return reply
           if (activeKind === "files") {
             return updateFiles.dispatch({ review_id: review.id, selections: [...selections] })
           }
@@ -141,7 +166,13 @@ export function NewReviewDialog({
 
     if (activeKind === "files") {
       createFiles
-        .dispatch({ project_id: project.id, name: reviewName, root, selections: [...selections] })
+        .dispatch({
+          project_id: project.id,
+          name: reviewName,
+          root,
+          respect_gitignore: respectGitignore,
+          selections: [...selections],
+        })
         .then(done)
         .catch(fail)
     } else {
@@ -150,6 +181,7 @@ export function NewReviewDialog({
           project_id: project.id,
           name: reviewName,
           root,
+          respect_gitignore: respectGitignore,
           base_ref: base.trim() || null,
           head_ref: head.trim(),
         })
@@ -214,13 +246,41 @@ export function NewReviewDialog({
             </label>
           )}
 
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setRespectGitignore(!effectiveGitignore)}
+              className="flex items-center gap-2.5 text-left text-xs text-text"
+            >
+              <span className="pointer-events-none flex">
+                <Checkbox
+                  checked={effectiveGitignore}
+                  onCheckedChange={(next) => setRespectGitignore(next === true)}
+                  aria-label="Respect .gitignore"
+                />
+              </span>
+              Respect .gitignore when listing files
+            </button>
+            {respectGitignore === null ? (
+              <span className="text-xs text-faint">from the project</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setRespectGitignore(null)}
+                className="text-xs text-muted underline underline-offset-2 hover:text-ink"
+              >
+                reset to the project
+              </button>
+            )}
+          </div>
+
           {activeKind === "files" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
               <span className="text-xs font-semibold text-muted">
                 Files{selections.size > 0 && ` · ${selections.size} selected`}
               </span>
               <div className="min-h-[200px] flex-1 overflow-auto rounded-ctrl border border-hair-strong bg-canvas p-1">
-                <DirNode store={store} projectId={project.id} root={root} path="" depth={0} selections={selections} onToggle={toggle} />
+                <DirNode store={store} projectId={project.id} root={root} respectGitignore={effectiveGitignore} path="" depth={0} selections={selections} onToggle={toggle} />
               </div>
             </div>
           ) : editing ? (
@@ -253,6 +313,7 @@ function DirNode({
   store,
   projectId,
   root,
+  respectGitignore,
   path,
   depth,
   selections,
@@ -261,6 +322,7 @@ function DirNode({
   store: BoardStore
   projectId: string
   root: string
+  respectGitignore: boolean
   path: string
   depth: number
   selections: Set<string>
@@ -271,9 +333,11 @@ function DirNode({
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    listDir.dispatch({ project_id: projectId, root, path }).then((reply) => setEntries(reply.entries))
+    listDir
+      .dispatch({ project_id: projectId, root, respect_gitignore: respectGitignore, path })
+      .then((reply) => setEntries(reply.entries))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, projectId, root])
+  }, [path, projectId, root, respectGitignore])
 
   if (entries === null) {
     return <div className="px-2 py-1 text-xs text-faint">Loading…</div>
@@ -316,7 +380,7 @@ function DirNode({
                 </button>
               </div>
               {isOpen && (
-                <DirNode store={store} projectId={projectId} root={root} path={entry.path} depth={depth + 1} selections={selections} onToggle={onToggle} />
+                <DirNode store={store} projectId={projectId} root={root} respectGitignore={respectGitignore} path={entry.path} depth={depth + 1} selections={selections} onToggle={onToggle} />
               )}
             </div>
           )

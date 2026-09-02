@@ -51,6 +51,7 @@ defmodule Suikou.Reviews do
     changeset =
       Review.create_changeset(project, project_path(params), %{
         name: Map.get(params, :name),
+        respect_gitignore: Map.get(params, :respect_gitignore),
         source: %{__type__: "file_selection", selection_paths: selections}
       })
 
@@ -103,6 +104,43 @@ defmodule Suikou.Reviews do
       )
 
     Repo.one(query)
+  end
+
+  @doc """
+  Answers whether `review`'s file listings skip `.gitignore` matches. A review
+  answers for itself when it was set, and falls back to its project otherwise, so
+  one noisy review can be loosened without loosening the whole board.
+
+  ## Examples
+
+      Suikou.Reviews.respect_gitignore?(review)
+      #=> true
+
+  """
+  @spec respect_gitignore?(Review.t()) :: boolean()
+  def respect_gitignore?(%Review{respect_gitignore: nil} = review) do
+    review = Repo.preload(review, :project)
+    review.project.respect_gitignore
+  end
+
+  def respect_gitignore?(%Review{respect_gitignore: respect}), do: respect
+
+  @doc """
+  Sets whether a review's file listings respect `.gitignore`, or clears the
+  override with `nil` so its project decides again.
+
+  ## Examples
+
+      Suikou.Reviews.set_respect_gitignore(review, false)
+      #=> {:ok, %Suikou.Schemas.Review{respect_gitignore: false}}
+
+  """
+  @spec set_respect_gitignore(Review.t(), boolean() | nil) :: {:ok, Review.t()}
+  def set_respect_gitignore(%Review{} = review, respect) do
+    review
+    |> Review.gitignore_changeset(respect)
+    |> Repo.update()
+    |> broadcast_review_change()
   end
 
   @doc """
@@ -254,6 +292,7 @@ defmodule Suikou.Reviews do
       changeset =
         Review.create_changeset(project, path, %{
           name: Map.get(params, :name),
+          respect_gitignore: Map.get(params, :respect_gitignore),
           source: %{
             __type__: "git_diff",
             base_ref: base,
@@ -908,7 +947,7 @@ defmodule Suikou.Reviews do
   # selected file is dropped when the project no longer lists it (gitignored or
   # under `.git`), so a stale selection never leaks once the toggle is on.
   defp expand(%Review{} = review, paths) do
-    respect = review.project.respect_gitignore
+    respect = respect_gitignore?(review)
 
     paths
     |> Enum.flat_map(&expand_path(review, respect, &1))

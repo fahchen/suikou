@@ -409,6 +409,54 @@ defmodule Suikou.ReviewsTest do
     %{review | project: project}
   end
 
+  describe "respect_gitignore?/1" do
+    test "falls back to the project when the review has no answer of its own" do
+      project = insert(:project, respect_gitignore: false)
+      review = insert(:review, project: project, respect_gitignore: nil)
+
+      refute Reviews.respect_gitignore?(review)
+    end
+
+    test "answers for itself once set, overriding the project" do
+      project = insert(:project, respect_gitignore: true)
+      review = insert(:review, project: project, respect_gitignore: false)
+
+      refute Reviews.respect_gitignore?(review)
+    end
+
+    test "set_respect_gitignore/2 clears the override with nil" do
+      project = insert(:project, respect_gitignore: true)
+      review = insert(:review, project: project, respect_gitignore: false)
+
+      assert {:ok, cleared} = Reviews.set_respect_gitignore(review, nil)
+      assert cleared.respect_gitignore == nil
+      assert Reviews.respect_gitignore?(cleared)
+    end
+
+    @tag :tmp_dir
+    test "a review that ignores .gitignore lists what its project would skip",
+         %{tmp_dir: dir} do
+      File.write!(Path.join(dir, ".gitignore"), "secret.md\n")
+      File.write!(Path.join(dir, "secret.md"), "shh\n")
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      project = insert(:project, respect_gitignore: true)
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          name: "All of it",
+          project_path: dir,
+          respect_gitignore: false,
+          selections: ["."]
+        })
+
+      paths = review |> Reviews.list_files() |> Enum.map(& &1.path) |> Enum.sort()
+
+      assert ".gitignore" in paths
+      assert "secret.md" in paths
+      assert "plan.md" in paths
+    end
+  end
+
   describe "list_checkouts/0" do
     test "lists each checkout once, most recently used first" do
       older = insert(:project)

@@ -84,6 +84,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       field(:project_id, String.t())
       field(:name, String.t())
       field(:root, String.t() | nil)
+      field(:respect_gitignore, boolean() | nil)
       field(:selections, list(String.t()))
     end
 
@@ -98,6 +99,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       field(:project_id, String.t())
       field(:name, String.t())
       field(:root, String.t() | nil)
+      field(:respect_gitignore, boolean() | nil)
       field(:base_ref, String.t() | nil)
       field(:head_ref, String.t())
     end
@@ -126,6 +128,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:review_id, String.t())
       field(:selections, list(String.t()))
+    end
+
+    reply do
+      field(:error, String.t() | nil)
+    end
+  end
+
+  command :set_review_gitignore do
+    payload do
+      field(:review_id, String.t())
+      field(:respect_gitignore, boolean() | nil)
     end
 
     reply do
@@ -168,6 +181,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:project_id, String.t())
       field(:root, String.t() | nil)
+      field(:respect_gitignore, boolean() | nil)
       field(:path, String.t())
     end
 
@@ -349,6 +363,22 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
+  def handle_command(:set_review_gitignore, payload, socket) do
+    reply =
+      case Reviews.get_review(payload["review_id"]) do
+        %Review{} = review ->
+          {:ok, %Review{}} =
+            Reviews.set_respect_gitignore(review, payload["respect_gitignore"])
+
+          %{error: nil}
+
+        nil ->
+          %{error: "review_not_found"}
+      end
+
+    {:reply, reply, touch(socket)}
+  end
+
   def handle_command(:rename_review, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
@@ -390,8 +420,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_dir, payload, socket) do
     entries =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> list_dir(project, payload["root"], payload["path"])
-        nil -> []
+        %Project{} = project ->
+          list_dir(project, payload["root"], payload["respect_gitignore"], payload["path"])
+
+        nil ->
+          []
       end
 
     {:reply, %{entries: entries}, socket}
@@ -436,6 +469,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     params = %{
       name: payload["name"],
       project_path: checkout(project, payload["root"]),
+      respect_gitignore: payload["respect_gitignore"],
       selections: payload["selections"]
     }
 
@@ -449,6 +483,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     params = %{
       name: payload["name"],
       project_path: checkout(project, payload["root"]),
+      respect_gitignore: payload["respect_gitignore"],
       base_ref: payload["base_ref"],
       head_ref: payload["head_ref"]
     }
@@ -475,12 +510,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
 
   defp workdir(project), do: Reviews.latest_project_path(project) || "."
 
-  defp list_dir(project, root, rel) do
+  # The dialog's own gitignore choice drives the preview, so the tree a human
+  # picks from is the tree the review will list. Absent, the project decides.
+  defp list_dir(project, root, respect, rel) do
     case checkout(project, root) do
       "." -> []
-      path -> Projects.list_dir(path, project.respect_gitignore, rel)
+      path -> Projects.list_dir(path, respect_gitignore(project, respect), rel)
     end
   end
+
+  defp respect_gitignore(project, nil), do: project.respect_gitignore
+  defp respect_gitignore(_project, respect) when is_boolean(respect), do: respect
 
   defp list_branches(project, root) do
     case Reviews.list_branches(checkout(project, root)) do
@@ -552,6 +592,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       inserted_at: Iso8601.utc(review.inserted_at),
       kind: :file_selection,
       selections: paths,
+      respect_gitignore: review.respect_gitignore,
       base_ref: nil,
       head_ref: nil,
       refs_valid: false
@@ -574,6 +615,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       inserted_at: Iso8601.utc(review.inserted_at),
       kind: :git_diff,
       selections: [],
+      respect_gitignore: review.respect_gitignore,
       base_ref: refs.base_ref,
       head_ref: refs.head_ref,
       refs_valid: refs.refs_valid

@@ -29,6 +29,7 @@ defmodule Suikou.Schemas.Review do
     field :name, :string, typed: [null: false]
     field :project_path, :string, typed: [null: false]
     field :scratch_path, :string, typed: [null: false]
+    field :respect_gitignore, :boolean
 
     polymorphic_embeds_one(:source,
       types: @source_types,
@@ -61,7 +62,7 @@ defmodule Suikou.Schemas.Review do
   @spec create_changeset(Project.t(), String.t(), map()) :: Ecto.Changeset.t()
   def create_changeset(project, project_path, params) do
     %__MODULE__{project_id: project.id, project_path: project_path}
-    |> cast(params, [:name])
+    |> cast(params, [:name, :respect_gitignore])
     |> validate_required([:name])
     |> validate_format(:name, ~r/\S/, message: "can't be blank")
     |> cast_polymorphic_embed(:source, required: true)
@@ -82,6 +83,22 @@ defmodule Suikou.Schemas.Review do
   @spec scratch_changeset(t(), String.t()) :: Ecto.Changeset.t()
   def scratch_changeset(%__MODULE__{} = review, scratch_path) do
     change(review, scratch_path: scratch_path)
+  end
+
+  @doc """
+  Builds a changeset setting whether this review's file listings respect
+  `.gitignore`. `nil` clears the override so the project decides again.
+
+  ## Examples
+
+      iex> %{respect_gitignore: respect} = Suikou.Schemas.Review.gitignore_changeset(%Suikou.Schemas.Review{}, false).changes
+      iex> respect
+      false
+
+  """
+  @spec gitignore_changeset(t(), boolean() | nil) :: Ecto.Changeset.t()
+  def gitignore_changeset(%__MODULE__{} = review, respect) do
+    change(review, respect_gitignore: respect)
   end
 
   @doc """
