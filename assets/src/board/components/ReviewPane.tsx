@@ -104,7 +104,6 @@ export function ReviewPane({
             files={filesFor(reviewFiles, review.id)}
             elsewhere={projects.filter((candidate) => candidate.id !== project.id)}
             onEdit={onEditReview}
-            onDeleted={onChanged}
             onChanged={onChanged}
           />
         ))}
@@ -193,7 +192,6 @@ function ReviewRow({
   files,
   elsewhere,
   onEdit,
-  onDeleted,
   onChanged,
 }: {
   store: BoardStore | null
@@ -202,7 +200,7 @@ function ReviewRow({
   /** Every project this review could be filed under instead of its current one. */
   elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
-  onDeleted: () => void
+  /** Refetch the board — a delete or a move changes what it lists. */
   onChanged: () => void
 }) {
   const isDiff = review.kind === "git_diff"
@@ -266,8 +264,7 @@ function ReviewRow({
           review={review}
           elsewhere={elsewhere}
           onEdit={onEdit}
-          onDeleted={onDeleted}
-          onMoved={onChanged}
+          onChanged={onChanged}
         />
       )}
     </div>
@@ -279,15 +276,13 @@ function ReviewActions({
   review,
   elsewhere,
   onEdit,
-  onDeleted,
-  onMoved,
+  onChanged,
 }: {
   store: BoardStore
   review: BoardReview
   elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
-  onDeleted: () => void
-  onMoved: () => void
+  onChanged: () => void
 }) {
   const remove = useMusubiCommand(store, "delete_review")
   const move = useMusubiCommand(store, "move_review")
@@ -352,7 +347,7 @@ function ReviewActions({
             .dispatch({ review_id: review.id, project_id: projectId })
             .then(() => {
               setMoving(false)
-              onMoved()
+              onChanged()
             })
             .catch(() => setMoving(false))
         }}
@@ -368,7 +363,7 @@ function ReviewActions({
             .dispatch({ review_id: review.id })
             .then(() => {
               setConfirmDelete(false)
-              onDeleted()
+              onChanged()
             })
             .catch(() => {})
         }}

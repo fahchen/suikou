@@ -410,7 +410,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{entries: [%{path: "docs", dir: true}, %{path: "notes.md", dir: false}]}} =
-               Testing.dispatch_command(page, :list_dir, %{project_id: project.id, path: ""})
+               Testing.dispatch_command(page, :list_dir, %{
+                 project_id: project.id,
+                 root: dir,
+                 path: ""
+               })
     end
 
     @tag :tmp_dir
@@ -422,7 +426,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{entries: [%{path: "docs/plan.md", dir: false}]}} =
-               Testing.dispatch_command(page, :list_dir, %{project_id: project.id, path: "docs"})
+               Testing.dispatch_command(page, :list_dir, %{
+                 project_id: project.id,
+                 root: dir,
+                 path: "docs"
+               })
     end
 
     test "an unknown project replies with no entries" do
@@ -516,7 +524,10 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{branches: branches, remote_branches: [], default: "main", error: nil}} =
-               Testing.dispatch_command(page, :list_branches, %{project_id: project.id})
+               Testing.dispatch_command(page, :list_branches, %{
+                 project_id: project.id,
+                 root: dir
+               })
 
       assert Enum.sort(branches) == ["main", "topic"]
     end
@@ -564,6 +575,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{review_id: review_id, error: nil}} =
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
+                 root: dir,
                  name: "First",
                  root: dir,
                  selections: ["notes.md"]
@@ -585,6 +597,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{review_id: review_id, error: nil}} =
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
+                 root: dir,
                  name: "Launch",
                  selections: ["plan.md", "spec.md"]
                })
@@ -603,6 +616,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{review_id: nil, error: "no_files"}} =
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
+                 root: dir,
                  name: "Launch",
                  selections: []
                })
@@ -619,6 +633,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{review_id: review_id, error: nil}} =
                Testing.dispatch_command(page, :create_review, %{
                  project_id: project.id,
+                 root: dir,
                  name: "Launch",
                  selections: ["blank.md"]
                })

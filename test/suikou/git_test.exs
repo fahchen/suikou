@@ -883,7 +883,7 @@ defmodule Suikou.GitTest do
       File.mkdir_p!(dir)
       on_exit(fn -> File.rm_rf!(dir) end)
 
-      assert Git.toplevel(dir) == Path.expand(dir)
+      assert Git.toplevel(dir) == Suikou.ReviewRoots.canonical(dir)
     end
   end
 

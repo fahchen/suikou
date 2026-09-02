@@ -192,7 +192,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     payload do
       field(:project_id, String.t())
       field(:root, String.t() | nil)
-      field(:respect_gitignore, boolean() | nil)
+      field(:respect_gitignore, boolean())
       field(:path, String.t())
     end
 
@@ -351,7 +351,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_branches, payload, socket) do
     reply =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project -> list_branches(project, payload["root"])
+        %Project{} -> list_branches(payload["root"])
         nil -> branches_reply([], [], nil, "project_not_found")
       end
 
@@ -437,8 +437,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:list_dir, payload, socket) do
     entries =
       case Projects.get_project(payload["project_id"]) do
-        %Project{} = project ->
-          list_dir(project, payload["root"], payload["respect_gitignore"], payload["path"])
+        %Project{} ->
+          list_dir(payload["root"], payload["respect_gitignore"], payload["path"])
 
         nil ->
           []
@@ -483,29 +483,34 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   defp touch(socket), do: Socket.assign(socket, :rev, System.unique_integer())
 
   defp create_review(project, payload) do
-    params = %{
-      name: payload["name"],
-      project_path: checkout(project, payload["root"]),
-      respect_gitignore: payload["respect_gitignore"],
-      selections: payload["selections"]
-    }
-
-    case Reviews.create_review(project, params) do
-      {:ok, %Review{} = review} -> {%{review_id: review.id, error: nil}, review}
-      {:error, reason} -> {%{review_id: nil, error: review_error(reason)}, nil}
-    end
+    created(checkout(payload["root"]), fn path ->
+      Reviews.create_review(project, %{
+        name: payload["name"],
+        project_path: path,
+        respect_gitignore: payload["respect_gitignore"],
+        selections: payload["selections"]
+      })
+    end)
   end
 
   defp create_diff_review(project, payload) do
-    params = %{
-      name: payload["name"],
-      project_path: checkout(project, payload["root"]),
-      respect_gitignore: payload["respect_gitignore"],
-      base_ref: payload["base_ref"],
-      head_ref: payload["head_ref"]
-    }
+    created(checkout(payload["root"]), fn path ->
+      Reviews.create_diff_review(project, %{
+        name: payload["name"],
+        project_path: path,
+        respect_gitignore: payload["respect_gitignore"],
+        base_ref: payload["base_ref"],
+        head_ref: payload["head_ref"]
+      })
+    end)
+  end
 
-    case Reviews.create_diff_review(project, params) do
+  # A review reads from a checkout, so refuse rather than inventing one — the
+  # server's own working directory is not what the human meant.
+  defp created(nil, _create), do: {%{review_id: nil, error: "no_checkout"}, nil}
+
+  defp created(path, create) do
+    case create.(path) do
       {:ok, %Review{} = review} -> {%{review_id: review.id, error: nil}, review}
       {:error, reason} -> {%{review_id: nil, error: review_error(reason)}, nil}
     end
@@ -518,29 +523,27 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # Canonicalised, not resolved to a repository root: a human typing a path means
   # that directory, and a subtree is a legitimate thing to review. Only the
   # symlink spelling is normalised, so a checkout typed here and one sent from a
-  # shell agree instead of reading as `/tmp/x` and `/private/tmp/x`.
-  defp checkout(project, root) when is_binary(root) do
-    if String.trim(root) == "", do: workdir(project), else: ReviewRoots.canonical(root)
+  # shell agree instead of reading as `/tmp/x` and `/private/tmp/x`. `nil` when
+  # the dialog has none to offer, which is a project whose first review this is.
+  defp checkout(root) when is_binary(root) do
+    trimmed = String.trim(root)
+
+    if trimmed == "", do: nil, else: ReviewRoots.canonical(trimmed)
   end
 
-  defp checkout(project, _absent), do: workdir(project)
-
-  defp workdir(project), do: Reviews.latest_project_path(project) || "."
+  defp checkout(_absent), do: nil
 
   # The dialog's own gitignore choice drives the preview, so the tree a human
-  # picks from is the tree the review will list. Absent, the project decides.
-  defp list_dir(project, root, respect, rel) do
-    case checkout(project, root) do
-      "." -> []
-      path -> Projects.list_dir(path, respect_gitignore(project, respect), rel)
+  # picks from is the tree the review will list.
+  defp list_dir(root, respect, rel) do
+    case checkout(root) do
+      nil -> []
+      path -> Projects.list_dir(path, respect, rel)
     end
   end
 
-  defp respect_gitignore(project, nil), do: project.respect_gitignore
-  defp respect_gitignore(_project, respect) when is_boolean(respect), do: respect
-
-  defp list_branches(project, root) do
-    case Reviews.list_branches(checkout(project, root)) do
+  defp list_branches(root) do
+    case list_branches_at(checkout(root)) do
       {:ok, %{branches: branches, remote_branches: remote, default: default}} ->
         branches_reply(branches, remote, default, nil)
 
@@ -548,6 +551,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
         branches_reply([], [], nil, review_error(reason))
     end
   end
+
+  defp list_branches_at(nil), do: {:error, :not_a_git_repo}
+  defp list_branches_at(path), do: Reviews.list_branches(path)
 
   defp branches_reply(branches, remote_branches, default, error) do
     %{branches: branches, remote_branches: remote_branches, default: default, error: error}

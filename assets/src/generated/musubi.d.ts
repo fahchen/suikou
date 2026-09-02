@@ -377,7 +377,7 @@ declare namespace Musubi {
           payload: {
             project_id: string
             root: string | null
-            respect_gitignore: boolean | null
+            respect_gitignore: boolean
             path: string
           }
           reply: {

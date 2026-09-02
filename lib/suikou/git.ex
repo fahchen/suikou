@@ -9,6 +9,8 @@ defmodule Suikou.Git do
   `-`, so a hostile ref can never be parsed as an option (see BDR-0020).
   """
 
+  alias Suikou.ReviewRoots
+
   @type repo_dir() :: String.t()
   @type ref() :: String.t()
   @type rel_path() :: String.t()
@@ -59,6 +61,10 @@ defmodule Suikou.Git do
   to `dir` itself when it is not inside one. A review pins the root rather than
   whatever subdirectory the agent happened to run in, so its paths stay stable.
 
+  Either way the answer is canonical: git resolves symlinks itself, and the
+  non-repository fallback is put through `Suikou.ReviewRoots.canonical/1` so one
+  directory never comes back spelled two ways.
+
   ## Examples
 
       Suikou.Git.toplevel("/projects/app/lib")
@@ -74,7 +80,7 @@ defmodule Suikou.Git do
 
     case run(expanded, ["rev-parse", "--show-toplevel"]) do
       {:ok, out} -> out |> String.trim() |> Path.expand()
-      {:error, _reason} -> expanded
+      {:error, _reason} -> ReviewRoots.canonical(expanded)
     end
   end
 

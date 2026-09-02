@@ -13,7 +13,6 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Push
-  alias Suikou.ReviewRoots
   alias Suikou.Reviews
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
@@ -55,12 +54,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   defp listed(%{"path" => path}) when is_binary(path) do
-    reviews =
-      path
-      |> Git.toplevel()
-      |> ReviewRoots.canonical()
-      |> Reviews.list_for_dir()
-      |> Enum.map(&review_summary/1)
+    reviews = path |> Git.toplevel() |> Reviews.list_for_dir() |> Enum.map(&review_summary/1)
 
     %{reviews: reviews, error: nil}
   end
@@ -133,9 +127,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   # The agent sends wherever it is standing; a review pins the repository root so
   # its paths mean the same thing from any subdirectory.
-  defp checkout(payload) do
-    payload |> Map.get("project_path", ".") |> Git.toplevel() |> ReviewRoots.canonical()
-  end
+  defp checkout(payload), do: payload |> Map.get("project_path", ".") |> Git.toplevel()
 
   @doc """
   Emits a review's metadata and current files from `%{"review_id"}`, or

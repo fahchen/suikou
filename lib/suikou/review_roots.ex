@@ -155,22 +155,6 @@ defmodule Suikou.ReviewRoots do
   end
 
   @doc """
-  Lists the roots a review reads from as `{marker_prefix, base}` pairs, so a
-  caller walking disk can turn each base's results back into review-relative
-  paths.
-
-  ## Examples
-
-      iex> review = %Suikou.Schemas.Review{project_path: "/proj", scratch_path: "/data/r1"}
-      iex> Suikou.ReviewRoots.roots(review)
-      [{"", "/proj"}, {"@scratch", "/data/r1"}]
-
-  """
-  @spec roots(Review.t()) :: [{String.t(), String.t()}]
-  def roots(%Review{} = review),
-    do: [{"", review.project_path}, {@scratch_marker, review.scratch_path}]
-
-  @doc """
   Expands `path` and resolves any symlinked component, so one directory always
   spells the same way. Without it `/tmp/x` and `/private/tmp/x` are two
   checkouts on macOS, and a review created in the app never matches one created
