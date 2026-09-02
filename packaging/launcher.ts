@@ -279,16 +279,13 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     create: {
       expr: "SuikouWeb.AgentCLI.Projects.create()",
-      options: { name: { type: "string" }, path: { type: "string" } },
-      required: ["name", "path"],
-      // Resolved here, not on the server: a relative `--path` (`.` above all)
-      // means the *caller's* directory, and the daemon runs from somewhere else
-      // entirely. Only this side knows where the agent is standing.
-      payload: ({ values }) => ({
-        name: values.name,
-        path: typeof values.path === "string" ? resolve(values.path) : values.path
-      }),
-      summary: "register a project (--name --path); --path names the repository, it is not stored"
+      options: { name: { type: "string" } },
+      required: ["name"],
+      // The repository is wherever the agent is standing — the same implicit
+      // working directory `review create` sends. It names which repository this
+      // project groups; it is resolved to an identity and never stored.
+      payload: ({ values }) => ({ name: values.name, path: process.cwd() }),
+      summary: "register the current repository as a project (--name)"
     }
   },
   review: {
