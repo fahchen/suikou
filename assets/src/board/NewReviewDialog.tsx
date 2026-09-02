@@ -215,12 +215,14 @@ export function NewReviewDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
           {review && (
             // Read, not edit: shown as plain selectable text rather than dressed
-            // as an input, since neither value can be changed here. The checkout
-            // is pinned at creation — that pinning is what keeps a diff
-            // reproducible — so it is reported, not offered.
+            // as inputs, since none of them can be changed here. Both roots are
+            // fixed at creation — pinning the checkout is what keeps a diff
+            // reproducible — so they are reported, not offered. The scratch path
+            // is the one an agent needs to be told, so it is worth copying.
             <div className="flex flex-col gap-2">
               <ReadonlyRow label="Review ID" value={review.id} />
               <ReadonlyRow label="Checkout" value={review.project_path} />
+              <ReadonlyRow label="Scratch" value={review.scratch_path} />
             </div>
           )}
           <label className="flex flex-col gap-1.5">

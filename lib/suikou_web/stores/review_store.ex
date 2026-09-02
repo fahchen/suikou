@@ -56,6 +56,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
       field(:kind, :file | :diff)
       field(:latest_round, integer())
 
+      # Which board this review is filed under, so leaving it returns to that
+      # project rather than to whichever one the board last remembered.
+      field(:project_id, String.t() | nil)
+
       ProjectBoardContract.review_files_reply_field(:file_entries)
 
       field(
@@ -221,6 +225,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
             name: review.name,
             kind: review_kind(review),
             latest_round: latest_round(review_id),
+            project_id: review.project_id,
             file_entries: entries,
             files: Enum.map(entries, &file_identity/1),
             refs: Reviews.refs_snapshot(review)
@@ -233,6 +238,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
             name: "",
             kind: :file,
             latest_round: 0,
+            project_id: nil,
             file_entries: [],
             files: [],
             refs: nil
