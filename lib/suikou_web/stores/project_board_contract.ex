@@ -87,6 +87,7 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
             inserted_at: String.t(),
             kind: :file_selection | :git_diff,
             selections: list(String.t()),
+            project_path: String.t(),
             respect_gitignore: boolean() | nil,
             base_ref: String.t() | nil,
             head_ref: String.t() | nil,

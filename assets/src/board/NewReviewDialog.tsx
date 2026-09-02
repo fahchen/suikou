@@ -12,6 +12,15 @@ type Kind = "files" | "diff"
 
 const CHECKOUT_LIST_ID = "review-checkouts"
 
+function ReadonlyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-semibold text-muted">{label}</span>
+      <span className="truncate font-mono text-xs text-faint select-all">{value}</span>
+    </div>
+  )
+}
+
 /** Compose a new review, or edit an existing one. Pick files from the project
  * tree, or a diff between two refs. Creating dispatches create_review /
  * create_diff_review; editing dispatches rename_review, set_review_gitignore
@@ -205,11 +214,13 @@ export function NewReviewDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5">
           {review && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-muted">Review ID</span>
-              <span className="flex h-[34px] items-center rounded-ctrl border border-hair bg-soft px-3 font-mono text-xs text-faint select-all">
-                {review.id}
-              </span>
+            // Read, not edit: shown as plain selectable text rather than dressed
+            // as an input, since neither value can be changed here. The checkout
+            // is pinned at creation — that pinning is what keeps a diff
+            // reproducible — so it is reported, not offered.
+            <div className="flex flex-col gap-2">
+              <ReadonlyRow label="Review ID" value={review.id} />
+              <ReadonlyRow label="Checkout" value={review.project_path} />
             </div>
           )}
           <label className="flex flex-col gap-1.5">
