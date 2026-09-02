@@ -90,6 +90,9 @@ export function NewReviewDialog({
       setName(review.name)
       setRespectGitignore(review.respect_gitignore)
       setSelections(new Set(review.selections))
+      // The field is hidden when editing — the checkout is pinned — but the file
+      // picker still browses it, so it has to be seeded from the review itself.
+      setRoot(review.project_path)
       setBase(review.base_ref ?? "")
       setHead(review.head_ref ?? "")
     } else {
