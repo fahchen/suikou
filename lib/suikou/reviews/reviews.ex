@@ -44,7 +44,8 @@ defmodule Suikou.Reviews do
 
   """
   @spec create_review(Project.t(), map()) ::
-          {:ok, Review.t()} | {:error, :no_files | Ecto.Changeset.t()}
+          {:ok, Review.t()}
+          | {:error, :no_files | scratch_error() | Ecto.Changeset.t()}
   def create_review(%Project{} = project, params) do
     selections = Map.get(params, :selections, [])
 
@@ -69,14 +70,18 @@ defmodule Suikou.Reviews do
 
   # `scratch_path` is named for the review's own id, so it can only be written
   # once the row exists. The directory is created here so the path a caller is
-  # handed back is usable immediately.
+  # handed back is usable immediately — and a review whose scratch directory
+  # could not be created is rolled back rather than handed out pointing at
+  # nothing, since a permission or disk error is the caller's to report.
   defp insert_with_roots(%Project{} = project, changeset) do
     Repo.transaction(fn ->
       review = Repo.insert!(changeset)
       scratch = ReviewRoots.scratch_dir(project, review.id)
-      File.mkdir_p!(scratch)
 
-      review |> Review.scratch_changeset(scratch) |> Repo.update!()
+      case File.mkdir_p(scratch) do
+        :ok -> review |> Review.scratch_changeset(scratch) |> Repo.update!()
+        {:error, reason} -> Repo.rollback({:scratch_unwritable, reason})
+      end
     end)
   end
 
@@ -139,7 +144,8 @@ defmodule Suikou.Reviews do
       #=> {:ok, %Suikou.Schemas.Review{}}
 
   """
-  @spec move_review(Review.t(), Project.t()) :: {:ok, Review.t()}
+  @spec move_review(Review.t(), Project.t()) ::
+          {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
   def move_review(%Review{} = review, %Project{} = project) do
     review
     |> Review.move_changeset(project)
@@ -157,7 +163,8 @@ defmodule Suikou.Reviews do
       #=> {:ok, %Suikou.Schemas.Review{respect_gitignore: false}}
 
   """
-  @spec set_respect_gitignore(Review.t(), boolean() | nil) :: {:ok, Review.t()}
+  @spec set_respect_gitignore(Review.t(), boolean() | nil) ::
+          {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
   def set_respect_gitignore(%Review{} = review, respect) do
     review
     |> Review.gitignore_changeset(respect)
@@ -303,6 +310,7 @@ defmodule Suikou.Reviews do
              | :head_ref_not_found
              | :no_changes
              | :git_error
+             | scratch_error()
              | Ecto.Changeset.t()}
   def create_diff_review(%Project{} = project, params) do
     path = project_path(params)
@@ -495,6 +503,12 @@ defmodule Suikou.Reviews do
   """
   @spec delete_review(Review.t()) :: {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
   def delete_review(%Review{} = review), do: Repo.delete(review)
+
+  @typedoc """
+  The scratch directory could not be created — a permission or disk error from
+  `File.mkdir_p/1`, carried so the caller can say which.
+  """
+  @type scratch_error() :: {:scratch_unwritable, File.posix()}
 
   @typedoc """
   Diff review's ref identity: the branch names the reviewer picked at creation.

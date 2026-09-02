@@ -34,8 +34,18 @@ defmodule Suikou.ProjectsTest do
     end
 
     test "rejects a blank name" do
-      assert {:error, %Ecto.Changeset{}} =
-               Projects.register_project(%{name: "  ", path: "/tmp"})
+      assert {:error, %Ecto.Changeset{}} = Projects.register_project(%{name: "  "})
+    end
+
+    test "rejects a directory that is not a repository" do
+      # Outside the project tree: a directory *inside* one answers that
+      # repository's identity, which is the behaviour this guards, not breaks.
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      assert {:error, :not_a_repository} =
+               Projects.register_project(%{name: "Loose", path: dir})
     end
 
     @tag :tmp_dir

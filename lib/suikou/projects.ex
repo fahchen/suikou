@@ -26,8 +26,11 @@ defmodule Suikou.Projects do
   from unrelated directories, which simply carries no identity.
 
   Returns `{:error, :not_a_directory}` when a given path does not point at an
-  existing directory, and a changeset error carrying `:identity` when another
-  project already claims that repository.
+  existing directory, `{:error, :not_a_repository}` when it points at one that
+  is not a git working tree — a project registered from it could never be found
+  again by a checkout, since lookup goes through repository identity — and a
+  changeset error carrying `:identity` when another project already claims that
+  repository.
 
   ## Examples
 
@@ -39,7 +42,8 @@ defmodule Suikou.Projects do
 
   """
   @spec register_project(map()) ::
-          {:ok, Project.t()} | {:error, :not_a_directory | Ecto.Changeset.t()}
+          {:ok, Project.t()}
+          | {:error, :not_a_directory | :not_a_repository | Ecto.Changeset.t()}
   def register_project(params) do
     changeset = Project.create_changeset(params)
 
@@ -59,9 +63,11 @@ defmodule Suikou.Projects do
   defp resolve_identity(path) do
     expanded = Path.expand(path)
 
-    if File.dir?(expanded),
-      do: {:ok, Git.identity(expanded)},
-      else: {:error, :not_a_directory}
+    cond do
+      not File.dir?(expanded) -> {:error, :not_a_directory}
+      identity = Git.identity(expanded) -> {:ok, identity}
+      true -> {:error, :not_a_repository}
+    end
   end
 
   @doc """

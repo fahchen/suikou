@@ -16,7 +16,7 @@ defmodule Suikou.Artifacts.FileSource do
   alias Suikou.Schemas.Round
 
   @type create_error() :: :unsafe_path | :not_a_file | :empty_content | Ecto.Changeset.t()
-  @type read_error() :: :not_a_file | :empty_content
+  @type read_error() :: :unsafe_path | :not_a_file | :empty_content
 
   @doc """
   Creates an artifact at round 0 from `file_path`, read under the review root
@@ -47,7 +47,9 @@ defmodule Suikou.Artifacts.FileSource do
   @doc """
   Reads the artifact's source file live from disk and rejects an empty file.
   Used by the facade's `content_source/1` (file branch) and as the resnapshot
-  fetcher for a `FileSelection`-sourced review.
+  fetcher for a `FileSelection`-sourced review. A stored path that escapes its
+  root answers `{:error, :unsafe_path}` rather than being reported as a missing
+  file — the two say different things about what went wrong.
 
   ## Examples
 
@@ -57,16 +59,10 @@ defmodule Suikou.Artifacts.FileSource do
   """
   @spec read(Artifact.t()) :: {:ok, binary()} | {:error, read_error()}
   def read(%Artifact{} = artifact) do
-    with {:ok, content} <- read_regular_file(source_path(artifact)),
+    with {:ok, absolute} <- ReviewRoots.absolute(artifact.review, artifact.file_path),
+         {:ok, content} <- read_regular_file(absolute),
          :ok <- ensure_present(content) do
       {:ok, content}
-    end
-  end
-
-  defp source_path(%Artifact{} = artifact) do
-    case ReviewRoots.absolute(artifact.review, artifact.file_path) do
-      {:ok, absolute} -> absolute
-      {:error, :unsafe_path} -> ""
     end
   end
 

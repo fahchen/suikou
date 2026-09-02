@@ -396,6 +396,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: project.id,
                  root: dir,
+                 respect_gitignore: true,
                  path: ""
                })
     end
@@ -413,6 +414,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: project.id,
                  root: dir,
+                 respect_gitignore: true,
                  path: ""
                })
     end
@@ -429,6 +431,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: project.id,
                  root: dir,
+                 respect_gitignore: true,
                  path: "docs"
                })
     end
@@ -439,6 +442,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert {:ok, %{entries: []}} =
                Testing.dispatch_command(page, :list_dir, %{
                  project_id: "00000000-0000-7000-8000-000000000000",
+                 respect_gitignore: true,
                  path: ""
                })
     end
@@ -577,7 +581,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                  project_id: project.id,
                  root: dir,
                  name: "First",
-                 root: dir,
                  selections: ["notes.md"]
                })
 

@@ -385,14 +385,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:set_review_gitignore, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
-        %Review{} = review ->
-          {:ok, %Review{}} =
-            Reviews.set_respect_gitignore(review, payload["respect_gitignore"])
-
-          %{error: nil}
-
-        nil ->
-          %{error: "review_not_found"}
+        %Review{} = review -> set_review_gitignore(review, payload["respect_gitignore"])
+        nil -> %{error: "review_not_found"}
       end
 
     {:reply, reply, touch(socket)}
@@ -573,13 +567,21 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  defp set_review_gitignore(review, respect) do
+    case Reviews.set_respect_gitignore(review, respect) do
+      {:ok, %Review{}} -> %{error: nil}
+      {:error, reason} -> %{error: review_error(reason)}
+    end
+  end
+
   defp move_review(review_id, project_id) do
     with %Review{} = review <- Reviews.get_review(review_id),
-         %Project{} = project <- Projects.get_project(project_id) do
-      {:ok, %Review{}} = Reviews.move_review(review, project)
+         %Project{} = project <- Projects.get_project(project_id),
+         {:ok, %Review{}} <- Reviews.move_review(review, project) do
       %{error: nil}
     else
       nil -> %{error: "not_found"}
+      {:error, reason} -> %{error: review_error(reason)}
     end
   end
 
@@ -604,6 +606,10 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   end
 
   defp review_error(reason) when is_atom(reason), do: Atom.to_string(reason)
+
+  # A reason that carries detail, e.g. `{:scratch_unwritable, :eacces}`.
+  defp review_error({reason, detail}) when is_atom(reason) and is_atom(detail),
+    do: "#{reason}: #{detail}"
 
   defp review_error(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, ", ", fn {field, {message, _opts}} -> "#{field} #{message}" end)

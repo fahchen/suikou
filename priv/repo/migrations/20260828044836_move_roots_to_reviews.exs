@@ -40,11 +40,14 @@ defmodule Suikou.Repo.Migrations.MoveRootsToReviews do
       remove :identity
     end
 
+    # A project with no reviews has no path to restore, and `path` is about to
+    # carry a unique index again — so give each one its own placeholder rather
+    # than a shared empty string that the index would reject.
     execute("""
     UPDATE projects
     SET path = COALESCE(
-      (SELECT r.project_path FROM reviews r WHERE r.project_id = projects.id LIMIT 1),
-      ''
+      (SELECT r.project_path FROM reviews r WHERE r.project_id = projects.id ORDER BY r.id LIMIT 1),
+      'unknown-' || projects.id
     )
     """)
 
