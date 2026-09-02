@@ -83,6 +83,19 @@ defmodule Suikou.FileWatcherTest do
       assert ref != prior_ref
     end
 
+    # The two roots and the re-pointing compose: adding the scratch directory to
+    # a review's selection has to start watching it, or an agent's generated
+    # report lands without the navigator noticing.
+    test "re-subscribing with a scratch selection watches the scratch root", ctx do
+      File.mkdir_p!(ctx.review.scratch_path)
+      _s1 = start_subscriber(ctx.review)
+      [{watcher, _meta}] = Registry.lookup(Suikou.FileWatcher.Registry, ctx.review_id)
+
+      _s2 = start_subscriber(ctx.review, ["@scratch"])
+
+      assert %{dir_sels: ["@scratch"]} = :sys.get_state(watcher)
+    end
+
     test "re-subscribing with the same selection keeps the live watch", ctx do
       File.mkdir_p!(Path.join(ctx.dir, "docs"))
       _s1 = start_subscriber(ctx.review, ["docs"])
