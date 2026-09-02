@@ -410,14 +410,16 @@ Two things the design did not cover, found while building:
   `config/test.exs` points it at `tmp/scratch`. Without that, running the suite would
   litter the developer's real data directory.
 
-## Open Questions
+## Settled while building
 
-- **What an unmarked reference means inside a scratch artifact.** The rule above is
-  "relative to the artifact's own directory in its own root", which keeps today's
-  behaviour byte-for-byte for every project artifact — so for the overwhelming majority
-  an unmarked reference does resolve in the project path, as intended. The divergence is
-  a scratch report writing `![](shot.png)` next to its own screenshot: under this rule it
-  finds the screenshot, under a strict "unmarked always means project" rule it would need
-  `@scratch/shot.png` for a file sitting beside it. Own-root is proposed because it makes
-  a self-contained report portable — that same markdown renders correctly in an editor.
-  Worth confirming before build.
+**What an unmarked reference means.** The checkout is the default root: a
+reference with no marker is a path under it, and `@scratch/` opts into the
+review's scratch directory. Only an artifact that already lives in the checkout
+resolves a reference relative to its own directory — that is where a relative
+link has always pointed, and it is what keeps an ordinary repository README
+rendering unchanged.
+
+The cost is that a scratch report reaching for a file beside itself must say
+`@scratch/shots/x.png` rather than `shots/x.png`. The gain is that the common
+case — a report pointing at the code it is about — needs no marker at all, and
+that one rule holds in both the markdown renderer and the artifact asset route.

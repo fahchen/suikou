@@ -34,6 +34,26 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert response(conn, 404)
     end
+
+    # The checkout is the default root, so a report written into the scratch
+    # directory reaches the code it is about without naming a root, and reaches
+    # a file beside itself by naming one.
+    test "an unmarked reference from a scratch artifact reads the checkout",
+         %{conn: conn} do
+      %{artifact: artifact} = scratch_artifact_with_assets()
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/docs/diagram.png")
+
+      assert response(conn, 200) == "CHECKOUT"
+    end
+
+    test "a @scratch reference from a scratch artifact reads its own root", %{conn: conn} do
+      %{artifact: artifact} = scratch_artifact_with_assets()
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/@scratch/shots/round-3.png")
+
+      assert response(conn, 200) == "SCRATCH"
+    end
   end
 
   describe "GET /api/review/:artifact_id/content" do
@@ -674,6 +694,25 @@ defmodule SuikouWeb.AssetControllerTest do
       )
 
     %{artifact: artifact, dir: dir}
+  end
+
+  defp scratch_artifact_with_assets do
+    dir = Path.join(System.tmp_dir!(), "suikou-asset-#{System.unique_integer([:positive])}")
+    scratch = Path.join(System.tmp_dir!(), "suikou-scratch-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(Path.join(dir, "docs"))
+    File.mkdir_p!(Path.join(scratch, "shots"))
+    on_exit(fn -> File.rm_rf!(dir) && File.rm_rf!(scratch) end)
+
+    File.write!(Path.join([dir, "docs", "diagram.png"]), "CHECKOUT")
+    File.write!(Path.join([scratch, "shots", "round-3.png"]), "SCRATCH")
+
+    artifact =
+      insert(:artifact,
+        file_path: "@scratch/report.md",
+        review: build(:review, project: build(:project), project_path: dir, scratch_path: scratch)
+      )
+
+    %{artifact: artifact}
   end
 
   defp project_with_asset(file_path, asset_path, content) do

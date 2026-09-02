@@ -18,12 +18,11 @@ defmodule Suikou.Artifacts.Asset do
   Resolves `request_path`, an asset reference from `artifact_id`'s markdown, to
   an absolute file path under one of its review's roots.
 
-  A reference beginning with `@project` or `@scratch` resolves from that root's
-  top, which is how a generated report embeds a file from the checkout it is
-  about. Anything else resolves relative to the artifact's own directory, in the
-  artifact's own root — so a self-contained report keeps working in an editor or
-  on GitHub, where a marker would mean nothing. Either way
-  `Path.safe_relative/2` runs against exactly one base.
+  The checkout is the default root: an unmarked reference is a path under it,
+  and `@scratch` opts into the review's scratch directory instead. Only an
+  artifact that already lives in the checkout resolves a reference relative to
+  its own directory — that is where a relative link has always pointed. Either
+  way `Path.safe_relative/2` runs against exactly one base.
 
   Returns `{:error, :artifact_not_found}` for an unknown artifact, `{:error,
   :unsafe_path}` when the reference escapes its root, and `{:error,
@@ -34,7 +33,7 @@ defmodule Suikou.Artifacts.Asset do
       Suikou.Artifacts.Asset.resolve(artifact.id, "img/diagram.png")
       #=> {:ok, "/projects/app/docs/img/diagram.png"}
 
-      Suikou.Artifacts.Asset.resolve(scratch_artifact.id, "@project/docs/img/diagram.png")
+      Suikou.Artifacts.Asset.resolve(scratch_artifact.id, "docs/img/diagram.png")
       #=> {:ok, "/projects/app/docs/img/diagram.png"}
 
       Suikou.Artifacts.Asset.resolve(artifact.id, "../../etc/passwd")
@@ -49,13 +48,16 @@ defmodule Suikou.Artifacts.Asset do
     end
   end
 
-  # A marked reference addresses a root directly; an unmarked one is relative to
-  # the artifact, and stays in the artifact's own root because `file_path`
-  # carries that root's marker into the join.
+  # A marked reference addresses a root directly. An unmarked one is a checkout
+  # path, so only an artifact already in the checkout joins it onto its own
+  # directory — a scratch artifact would otherwise drag the reference into a root
+  # the writer did not name.
   defp reference(%Artifact{} = artifact, request_path) do
-    if ReviewRoots.marked?(request_path),
-      do: request_path,
-      else: Path.join(Path.dirname(artifact.file_path), request_path)
+    cond do
+      ReviewRoots.marked?(request_path) -> request_path
+      ReviewRoots.scratch?(artifact.file_path) -> request_path
+      true -> Path.join(Path.dirname(artifact.file_path), request_path)
+    end
   end
 
   @doc """
