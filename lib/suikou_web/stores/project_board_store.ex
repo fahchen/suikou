@@ -45,6 +45,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     reply do
       ProjectBoardContract.projects_field()
       ProjectBoardContract.review_files_grouped_field()
+
+      # Every checkout any review already reads from, most recently used first,
+      # so the review-creation dialog can complete a directory instead of asking
+      # the human to retype one they have used before.
+      field(:checkouts, list(String.t()))
     end
   end
 
@@ -243,7 +248,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   def handle_command(:load_board, _payload, socket) do
     reply = %{
       projects: Enum.map(Projects.list_projects(), &render_project/1),
-      review_files: compute_review_files()
+      review_files: compute_review_files(),
+      checkouts: Reviews.list_checkouts()
     }
 
     {:reply, reply, socket}

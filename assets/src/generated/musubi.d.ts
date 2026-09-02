@@ -257,6 +257,7 @@ declare namespace Musubi {
           reply: {
             projects: Array<{ id: string; name: string; path: string; respect_gitignore: boolean; emoji: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; base_ref: string | null; head_ref: string | null; refs_valid: boolean }> }>
             review_files: Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>
+            checkouts: string[]
           }
         }
         create_project: {

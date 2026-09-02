@@ -409,6 +409,22 @@ defmodule Suikou.ReviewsTest do
     %{review | project: project}
   end
 
+  describe "list_checkouts/0" do
+    test "lists each checkout once, most recently used first" do
+      older = insert(:project)
+      newer = insert(:project)
+      insert(:review, project: older, project_path: "/projects/first")
+      insert(:review, project: older, project_path: "/projects/second")
+      insert(:review, project: newer, project_path: "/projects/first")
+
+      assert ["/projects/first", "/projects/second"] = Reviews.list_checkouts()
+    end
+
+    test "is empty when nothing has been reviewed" do
+      assert [] = Reviews.list_checkouts()
+    end
+  end
+
   describe "scratch root" do
     @tag :tmp_dir
     test "create_review/2 records both roots and creates the scratch directory", %{tmp_dir: dir} do

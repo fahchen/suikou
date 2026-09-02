@@ -106,6 +106,30 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
+  Lists every checkout reviews already read from, most recently used first and
+  without repeats. The board completes a directory from this rather than asking
+  a human to retype one, since a project holds no path of its own.
+
+  ## Examples
+
+      Suikou.Reviews.list_checkouts()
+      #=> ["/projects/app", "/projects/docs"]
+
+  """
+  @spec list_checkouts() :: [String.t()]
+  def list_checkouts do
+    query =
+      from(r in Review,
+        as: :review,
+        group_by: r.project_path,
+        order_by: [desc: max(r.id)],
+        select: r.project_path
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
   Lists reviews that read from the repository `dir` belongs to, newest first,
   across every worktree of it and every project they are filed under. This is
   how an agent finds work it did not create from nothing but a directory.

@@ -10,6 +10,8 @@ import type { BoardProject, BoardReview, BoardStore } from "./types"
 
 type Kind = "files" | "diff"
 
+const CHECKOUT_LIST_ID = "review-checkouts"
+
 /** Compose a new review, or edit an existing one. Pick files from the project
  * tree, or a diff between two refs. Creating dispatches create_review /
  * create_diff_review; editing dispatches rename_review and (for file reviews)
@@ -17,6 +19,7 @@ type Kind = "files" | "diff"
 export function NewReviewDialog({
   store,
   project,
+  checkouts,
   kind,
   review,
   open,
@@ -25,6 +28,8 @@ export function NewReviewDialog({
 }: {
   store: BoardStore
   project: BoardProject
+  /** Every checkout an existing review reads from, most recently used first. */
+  checkouts: string[]
   kind: Kind
   review?: BoardReview | null
   open: boolean
@@ -196,8 +201,16 @@ export function NewReviewDialog({
                 onChange={(event) => setRoot(event.target.value)}
                 placeholder="/Users/you/code/project"
                 spellCheck={false}
+                list={CHECKOUT_LIST_ID}
                 className="h-[34px] rounded-ctrl border border-hair-strong bg-canvas px-3 font-mono text-xs text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
               />
+              {/* Native completion: the browser filters as you type and keeps the
+                  server's most-recent-first order for an empty field. */}
+              <datalist id={CHECKOUT_LIST_ID}>
+                {checkouts.map((checkout) => (
+                  <option key={checkout} value={checkout} />
+                ))}
+              </datalist>
             </label>
           )}
 

@@ -590,6 +590,25 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
   describe "load_board" do
     @tag :tmp_dir
+    test "offers every reviewed checkout, most recently used first", %{tmp_dir: dir} do
+      project = board_project(dir)
+
+      {:ok, _second} =
+        Reviews.create_review(project, %{
+          name: "Other",
+          project_path: "/elsewhere",
+          selections: ["."]
+        })
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{checkouts: ["/elsewhere", latest]}} =
+               Testing.dispatch_command(page, :load_board, %{})
+
+      assert latest == Suikou.ReviewRoots.canonical(dir)
+    end
+
+    @tag :tmp_dir
     test "replies with projects and grouped review files", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
