@@ -86,6 +86,24 @@ defmodule Suikou.Schemas.Review do
   end
 
   @doc """
+  Builds a changeset filing a review under another project. The id comes from the
+  project struct rather than params, so a caller can never move a review by
+  supplying a raw id.
+
+  ## Examples
+
+      Suikou.Schemas.Review.move_changeset(review, project).valid?
+      #=> true
+
+  """
+  @spec move_changeset(t(), Project.t()) :: Ecto.Changeset.t()
+  def move_changeset(%__MODULE__{} = review, %Project{} = project) do
+    review
+    |> change(project_id: project.id)
+    |> assoc_constraint(:project)
+  end
+
+  @doc """
   Builds a changeset setting whether this review's file listings respect
   `.gitignore`. `nil` clears the override so the project decides again.
 

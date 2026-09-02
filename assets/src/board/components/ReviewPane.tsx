@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, ChevronsUpDown, Clipboard, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { writeClipboard } from "../../lib/clipboard"
@@ -9,6 +9,7 @@ import { writeClipboard } from "../../lib/clipboard"
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
+import { Dialog, DialogTitle } from "../../components/ui/dialog"
 import { ProjectSettingsDialog } from "../ProjectSettingsDialog"
 import { ProjectPickerSheet } from "./ProjectNavigation"
 import {
@@ -100,8 +101,10 @@ export function ReviewPane({
             store={store}
             review={review}
             files={filesFor(reviewFiles, review.id)}
+            elsewhere={projects.filter((candidate) => candidate.id !== project.id)}
             onEdit={onEditReview}
             onDeleted={onChanged}
+            onChanged={onChanged}
           />
         ))}
       </div>
@@ -187,14 +190,19 @@ function ReviewRow({
   store,
   review,
   files,
+  elsewhere,
   onEdit,
   onDeleted,
+  onChanged,
 }: {
   store: BoardStore | null
   review: BoardReview
   files: BoardReviewFile[]
+  /** Every project this review could be filed under instead of its current one. */
+  elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
   onDeleted: () => void
+  onChanged: () => void
 }) {
   const isDiff = review.kind === "git_diff"
   const approved = files.length > 0 && files.every((file) => file.approved)
@@ -251,7 +259,16 @@ function ReviewRow({
           Approved
         </span>
       )}
-      {store && <ReviewActions store={store} review={review} onEdit={onEdit} onDeleted={onDeleted} />}
+      {store && (
+        <ReviewActions
+          store={store}
+          review={review}
+          elsewhere={elsewhere}
+          onEdit={onEdit}
+          onDeleted={onDeleted}
+          onMoved={onChanged}
+        />
+      )}
     </div>
   )
 }
@@ -259,16 +276,22 @@ function ReviewRow({
 function ReviewActions({
   store,
   review,
+  elsewhere,
   onEdit,
   onDeleted,
+  onMoved,
 }: {
   store: BoardStore
   review: BoardReview
+  elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
   onDeleted: () => void
+  onMoved: () => void
 }) {
   const remove = useMusubiCommand(store, "delete_review")
+  const move = useMusubiCommand(store, "move_review")
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [moving, setMoving] = useState(false)
 
   return (
     <>
@@ -306,12 +329,33 @@ function ReviewActions({
             <Pencil size={14} aria-hidden />
             Edit review
           </DropdownMenuItem>
+          {elsewhere.length > 0 && (
+            <DropdownMenuItem onClick={() => setMoving(true)}>
+              <FolderInput size={14} aria-hidden />
+              Move to project…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem destructive onClick={() => setConfirmDelete(true)}>
             <Trash2 size={14} aria-hidden />
             Delete review
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <MoveReviewDialog
+        open={moving}
+        review={review}
+        projects={elsewhere}
+        onClose={() => setMoving(false)}
+        onPick={(projectId) => {
+          move
+            .dispatch({ review_id: review.id, project_id: projectId })
+            .then(() => {
+              setMoving(false)
+              onMoved()
+            })
+            .catch(() => setMoving(false))
+        }}
+      />
       <ConfirmDialog
         open={confirmDelete}
         title={`Delete ${review.name}?`}
@@ -342,6 +386,58 @@ function copyText(text: string, message: string, description: string) {
 
 function Dot() {
   return <span aria-hidden className="inline-block size-[2px] shrink-0 rounded-full bg-faint opacity-70" />
+}
+
+/** Pick the project a review should be filed under instead. Moving only changes
+ * where the review is listed — its checkout, comments and history travel with
+ * it, and its scratch directory keeps the heading it was created under. */
+function MoveReviewDialog({
+  open,
+  review,
+  projects,
+  onClose,
+  onPick,
+}: {
+  open: boolean
+  review: BoardReview
+  projects: BoardProject[]
+  onClose: () => void
+  onPick: (projectId: string) => void
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} className="sm:max-w-[420px]">
+      <div className="flex flex-col gap-3 p-5">
+        <DialogTitle className="text-base font-bold text-ink">
+          Move “{review.name}”
+        </DialogTitle>
+        <p className="text-xs text-muted">
+          The checkout, comments and history come along. Generated output stays where it
+          already is on disk.
+        </p>
+        <div className="flex max-h-[320px] flex-col gap-0.5 overflow-auto">
+          {projects.map((project) => (
+            <button
+              key={project.id}
+              onClick={() => onPick(project.id)}
+              className="flex items-center gap-2 rounded-ctrl px-2.5 py-2 text-left text-sm text-ink hover:bg-soft"
+            >
+              <span className="w-[18px] shrink-0 text-center">{project.emoji ?? "📁"}</span>
+              <span className="truncate">{project.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex-1" />
+          <button
+            onClick={onClose}
+            className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )
 }
 
 function filesFor(grouped: ReviewFilesGrouped, reviewId: string): BoardReviewFile[] {

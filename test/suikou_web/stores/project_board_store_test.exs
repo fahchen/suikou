@@ -436,6 +436,38 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
     end
   end
 
+  describe "move_review" do
+    @tag :tmp_dir
+    test "relists the review under the project it was moved to", %{tmp_dir: dir} do
+      from = board_project(dir)
+      [review] = Reviews.list_for_project(from)
+      {:ok, to} = Projects.register_project(%{name: "Elsewhere"})
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: nil}} =
+               Testing.dispatch_command(page, :move_review, %{
+                 review_id: review.id,
+                 project_id: to.id
+               })
+
+      assert %{projects: projects} = Testing.render(page)
+      assert %{reviews: []} = Enum.find(projects, &(&1.id == from.id))
+      assert %{reviews: [%{id: moved}]} = Enum.find(projects, &(&1.id == to.id))
+      assert moved == review.id
+    end
+
+    test "an unknown review or project replies with an error" do
+      page = Testing.mount(ProjectBoardStore)
+
+      assert {:ok, %{error: "not_found"}} =
+               Testing.dispatch_command(page, :move_review, %{
+                 review_id: "00000000-0000-7000-8000-000000000000",
+                 project_id: "00000000-0000-7000-8000-000000000001"
+               })
+    end
+  end
+
   describe "set_review_gitignore" do
     @tag :tmp_dir
     test "pins an answer for one review and clears it again", %{tmp_dir: dir} do

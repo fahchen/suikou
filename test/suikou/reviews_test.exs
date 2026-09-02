@@ -409,6 +409,28 @@ defmodule Suikou.ReviewsTest do
     %{review | project: project}
   end
 
+  describe "move_review/2" do
+    @tag :tmp_dir
+    test "files the review under another project, keeping everything else", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      from = insert(:project, name: "From")
+      to = insert(:project, name: "To")
+
+      {:ok, review} =
+        Reviews.create_review(from, %{name: "Spec", project_path: dir, selections: ["plan.md"]})
+
+      {:ok, artifact} = Reviews.open_file(review, "plan.md")
+
+      assert {:ok, moved} = Reviews.move_review(review, to)
+      assert moved.project_id == to.id
+      assert moved.project_path == review.project_path
+      assert moved.scratch_path == review.scratch_path
+      assert [%{artifacts: [%{id: kept}]}] = Reviews.list_for_project(to)
+      assert kept == artifact.id
+      assert [] = Reviews.list_for_project(from)
+    end
+  end
+
   describe "respect_gitignore?/1" do
     test "falls back to the project when the review has no answer of its own" do
       project = insert(:project, respect_gitignore: false)

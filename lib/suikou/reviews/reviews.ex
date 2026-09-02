@@ -126,6 +126,28 @@ defmodule Suikou.Reviews do
   def respect_gitignore?(%Review{respect_gitignore: respect}), do: respect
 
   @doc """
+  Files a review under another project. A project is a label, so this only
+  changes where the review is listed: its checkout, its comments and its history
+  all belong to the review and come along untouched.
+
+  Its scratch directory keeps the heading it was created under — a stored path
+  never moves, and the generated files are already sitting there.
+
+  ## Examples
+
+      Suikou.Reviews.move_review(review, other_project)
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec move_review(Review.t(), Project.t()) :: {:ok, Review.t()}
+  def move_review(%Review{} = review, %Project{} = project) do
+    review
+    |> Review.move_changeset(project)
+    |> Repo.update()
+    |> broadcast_review_change()
+  end
+
+  @doc """
   Sets whether a review's file listings respect `.gitignore`, or clears the
   override with `nil` so its project decides again.
 

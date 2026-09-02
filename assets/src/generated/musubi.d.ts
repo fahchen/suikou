@@ -330,6 +330,15 @@ declare namespace Musubi {
             error: string | null
           }
         }
+        move_review: {
+          payload: {
+            review_id: string
+            project_id: string
+          }
+          reply: {
+            error: string | null
+          }
+        }
         set_review_gitignore: {
           payload: {
             review_id: string

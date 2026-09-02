@@ -135,6 +135,17 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     end
   end
 
+  command :move_review do
+    payload do
+      field(:review_id, String.t())
+      field(:project_id, String.t())
+    end
+
+    reply do
+      field(:error, String.t() | nil)
+    end
+  end
+
   command :set_review_gitignore do
     payload do
       field(:review_id, String.t())
@@ -363,6 +374,12 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, touch(socket)}
   end
 
+  def handle_command(:move_review, payload, socket) do
+    reply = move_review(payload["review_id"], payload["project_id"])
+
+    {:reply, reply, touch(socket)}
+  end
+
   def handle_command(:set_review_gitignore, payload, socket) do
     reply =
       case Reviews.get_review(payload["review_id"]) do
@@ -545,6 +562,16 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     case Reviews.open_file(review, path) do
       {:ok, artifact} -> %{artifact_id: artifact.id, error: nil}
       {:error, reason} -> %{artifact_id: nil, error: review_error(reason)}
+    end
+  end
+
+  defp move_review(review_id, project_id) do
+    with %Review{} = review <- Reviews.get_review(review_id),
+         %Project{} = project <- Projects.get_project(project_id) do
+      {:ok, %Review{}} = Reviews.move_review(review, project)
+      %{error: nil}
+    else
+      nil -> %{error: "not_found"}
     end
   end
 
