@@ -189,26 +189,34 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
   end
 
   describe "create_project" do
-    @tag :tmp_dir
-    test "registers a directory and lists it on the next render", %{tmp_dir: dir} do
+    test "registers a project and lists it on the next render" do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: project_id, error: nil}} =
-               Testing.dispatch_command(page, :create_project, %{name: "Docs", path: dir})
+               Testing.dispatch_command(page, :create_project, %{name: "Docs"})
 
       assert is_binary(project_id)
 
       assert %{projects: [%{id: ^project_id, name: "Docs"}]} = Testing.render(page)
     end
 
-    @tag :tmp_dir
-    test "persists respect_gitignore from the payload", %{tmp_dir: dir} do
+    # The board names no directory: identity is claimed from the first review
+    # filed under the project, so a fresh board carries none.
+    test "leaves the repository identity unclaimed" do
+      page = Testing.mount(ProjectBoardStore)
+
+      {:ok, %{project_id: project_id}} =
+        Testing.dispatch_command(page, :create_project, %{name: "Docs"})
+
+      assert %{identity: nil} = Projects.get_project(project_id)
+    end
+
+    test "persists respect_gitignore from the payload" do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: project_id, error: nil}} =
                Testing.dispatch_command(page, :create_project, %{
                  name: "Docs",
-                 path: dir,
                  respect_gitignore: false
                })
 
@@ -216,54 +224,26 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
       assert %{projects: [%{respect_gitignore: false}]} = Testing.render(page)
     end
 
-    @tag :tmp_dir
-    test "defaults respect_gitignore to true when the payload omits it", %{tmp_dir: dir} do
+    test "defaults respect_gitignore to true when the payload omits it" do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: project_id, error: nil}} =
                Testing.dispatch_command(page, :create_project, %{
                  name: "Docs",
-                 path: dir,
                  respect_gitignore: nil
                })
 
       assert %{respect_gitignore: true} = Projects.get_project(project_id)
     end
 
-    test "a path that is not a directory replies with an error" do
-      page = Testing.mount(ProjectBoardStore)
-
-      assert {:ok, %{project_id: nil, error: "not_a_directory"}} =
-               Testing.dispatch_command(page, :create_project, %{
-                 name: "Docs",
-                 path: "/no/such/dir"
-               })
-
-      assert %{projects: []} = Testing.render(page)
-    end
-
-    @tag :tmp_dir
-    test "a blank name replies with an error", %{tmp_dir: dir} do
+    test "a blank name replies with an error" do
       page = Testing.mount(ProjectBoardStore)
 
       assert {:ok, %{project_id: nil, error: error}} =
-               Testing.dispatch_command(page, :create_project, %{name: "  ", path: dir})
+               Testing.dispatch_command(page, :create_project, %{name: "  "})
 
       assert error =~ "name"
       assert %{projects: []} = Testing.render(page)
-    end
-
-    @tag :tmp_dir
-    test "a second board for the same repository replies with an error", %{tmp_dir: dir} do
-      init_repo!(dir)
-      git!(dir, ["remote", "add", "origin", "git@github.com:fahchen/example.git"])
-      {:ok, _project} = Projects.register_project(%{name: "First", path: dir})
-      page = Testing.mount(ProjectBoardStore)
-
-      assert {:ok, %{project_id: nil, error: error}} =
-               Testing.dispatch_command(page, :create_project, %{name: "Second", path: dir})
-
-      assert error =~ "identity"
     end
   end
 

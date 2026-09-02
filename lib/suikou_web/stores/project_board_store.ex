@@ -51,7 +51,6 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   command :create_project do
     payload do
       field(:name, String.t())
-      field(:path, String.t())
       field(:respect_gitignore, boolean())
       field(:emoji, String.t() | nil)
     end
@@ -250,10 +249,11 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
     {:reply, reply, socket}
   end
 
+  # No directory: a project is a label, and its repository identity is claimed
+  # from the first review filed under it (see `Suikou.Projects.get_project_by_dir/1`).
   def handle_command(:create_project, payload, socket) do
     params = %{
       name: payload["name"],
-      path: payload["path"],
       respect_gitignore: payload["respect_gitignore"],
       emoji: payload["emoji"]
     }
