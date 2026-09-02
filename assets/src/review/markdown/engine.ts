@@ -26,7 +26,7 @@ export const markdown = new MarkdownIt({ html: true, linkify: true })
 function assetPath(dir: string, src: string): string {
   if (src.startsWith("@scratch/")) return src
   if (src.startsWith("@project/")) return joinRelative("", src.slice("@project/".length))
-  if (dir.startsWith("@scratch")) return joinRelative("", src)
+  if (dir === "@scratch" || dir.startsWith("@scratch/")) return joinRelative("", src)
   return joinRelative(dir, src)
 }
 

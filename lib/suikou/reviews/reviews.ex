@@ -225,16 +225,18 @@ defmodule Suikou.Reviews do
   end
 
   @doc """
-  Lists `project`'s candidate branches together with its resolved default
-  branch, for the board's diff-review creation picker (see BDR-0020).
+  Lists the candidate branches of the checkout at `path`, together with its
+  resolved default branch, for the board's diff-review creation picker (see
+  BDR-0020).
+
   Returns local branches under `:branches` and `origin/*` remote-tracking
   branches under `:remote_branches`, each sorted by descending commit date.
   `:default` is the repository default branch via `Suikou.Git.default_branch/1`
   and is the suggested base. `:remote_branches` is `[]` when no `origin`
   remote is configured.
 
-  Returns `{:error, :not_a_git_repo}` when `dir` is not a git working
-  tree, and `{:error, :git_error}` when git fails.
+  Returns `{:error, :not_a_git_repo}` when `path` is not a git working tree,
+  and `{:error, :git_error}` when git fails.
 
   ## Examples
 

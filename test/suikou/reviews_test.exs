@@ -421,10 +421,13 @@ defmodule Suikou.ReviewsTest do
 
       {:ok, artifact} = Reviews.open_file(review, "plan.md")
 
-      assert {:ok, moved} = Reviews.move_review(review, to)
-      assert moved.project_id == to.id
-      assert moved.project_path == review.project_path
-      assert moved.scratch_path == review.scratch_path
+      %{id: to_id} = to
+      %{project_path: project_path, scratch_path: scratch_path} = review
+
+      assert {:ok,
+              %{project_id: ^to_id, project_path: ^project_path, scratch_path: ^scratch_path}} =
+               Reviews.move_review(review, to)
+
       assert [%{artifacts: [%{id: kept}]}] = Reviews.list_for_project(to)
       assert kept == artifact.id
       assert [] = Reviews.list_for_project(from)
@@ -450,8 +453,9 @@ defmodule Suikou.ReviewsTest do
       project = insert(:project, respect_gitignore: true)
       review = insert(:review, project: project, respect_gitignore: false)
 
-      assert {:ok, cleared} = Reviews.set_respect_gitignore(review, nil)
-      assert cleared.respect_gitignore == nil
+      assert {:ok, %{respect_gitignore: nil} = cleared} =
+               Reviews.set_respect_gitignore(review, nil)
+
       assert Reviews.respect_gitignore?(cleared)
     end
 
@@ -508,7 +512,9 @@ defmodule Suikou.ReviewsTest do
                  selections: ["plan.md"]
                })
 
-      assert review.project_path == Path.expand(dir)
+      expanded = Path.expand(dir)
+
+      assert %{project_path: ^expanded} = review
       assert String.ends_with?(review.scratch_path, review.id)
       assert File.dir?(review.scratch_path)
     end
@@ -530,8 +536,9 @@ defmodule Suikou.ReviewsTest do
       assert ["@scratch/report.md", "plan.md"] =
                review |> Reviews.list_files() |> Enum.map(& &1.path) |> Enum.sort()
 
-      assert {:ok, artifact} = Reviews.open_file(review, "@scratch/report.md")
-      assert artifact.file_path == "@scratch/report.md"
+      assert {:ok, %{file_path: "@scratch/report.md"} = artifact} =
+               Reviews.open_file(review, "@scratch/report.md")
+
       assert {:ok, "# Report\n"} = Suikou.Artifacts.read_content(artifact.id)
     end
 

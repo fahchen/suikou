@@ -56,6 +56,21 @@ defmodule Suikou.ReviewRoots do
     end
   end
 
+  defp split_root(%Review{} = review, path) do
+    case marker(path) do
+      @scratch_marker -> {review.scratch_path, strip_marker(path)}
+      @project_marker -> {review.project_path, strip_marker(path)}
+      _unmarked -> {review.project_path, path}
+    end
+  end
+
+  defp strip_marker(path) do
+    case Path.split(path) do
+      [_marker] -> "."
+      [_marker | rest] -> Path.join(rest)
+    end
+  end
+
   @doc """
   Resolves `path` to an absolute path under the review's matching root, for the
   callers that only want the joined result.
@@ -103,6 +118,13 @@ defmodule Suikou.ReviewRoots do
   """
   @spec marked?(String.t()) :: boolean()
   def marked?(path), do: marker(path) in [@scratch_marker, @project_marker]
+
+  defp marker(path) do
+    case Path.split(path) do
+      [first | _rest] -> first
+      [] -> nil
+    end
+  end
 
   @doc """
   Prefixes `relative` with the scratch marker, the inverse of `locate/2` for a
@@ -153,6 +175,11 @@ defmodule Suikou.ReviewRoots do
         nil
     end
   end
+
+  defp under?(_abs_path, nil), do: false
+  defp under?(_abs_path, ""), do: false
+
+  defp under?(abs_path, base), do: abs_path == base or String.starts_with?(abs_path, base <> "/")
 
   @doc """
   Expands `path` and resolves any symlinked component, so one directory always
@@ -267,33 +294,6 @@ defmodule Suikou.ReviewRoots do
     segment
     |> String.downcase()
     |> String.replace(~r/[^a-z0-9._-]+/, "-")
-  end
-
-  defp under?(_abs_path, nil), do: false
-  defp under?(_abs_path, ""), do: false
-
-  defp under?(abs_path, base), do: abs_path == base or String.starts_with?(abs_path, base <> "/")
-
-  defp split_root(%Review{} = review, path) do
-    case marker(path) do
-      @scratch_marker -> {review.scratch_path, strip_marker(path)}
-      @project_marker -> {review.project_path, strip_marker(path)}
-      _unmarked -> {review.project_path, path}
-    end
-  end
-
-  defp marker(path) do
-    case Path.split(path) do
-      [first | _rest] -> first
-      [] -> nil
-    end
-  end
-
-  defp strip_marker(path) do
-    case Path.split(path) do
-      [_marker] -> "."
-      [_marker | rest] -> Path.join(rest)
-    end
   end
 
   # XDG data location, matching the config file's `$XDG_CONFIG_HOME` handling in

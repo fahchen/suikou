@@ -65,8 +65,9 @@ defmodule Suikou.FileWatcher do
   @doc """
   Ensures the watcher for `review_id` is running and registers the calling
   process as a subscriber (monitored for ref-counting). `selections` are the
-  review's raw selection paths (files and/or directories), relative to the
-  project root. Idempotent per caller.
+  review's raw selection paths (files and/or directories), each relative to
+  whichever of its two roots the path names — the checkout by default, the
+  scratch directory under a leading `@scratch`. Idempotent per caller.
 
   Re-subscribing with a changed `selections` re-points a running watcher at the
   new set — that is how a selection edit (an agent `add_files` / `remove_files`)

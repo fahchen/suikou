@@ -33,6 +33,13 @@ describe("markdown image sources", () => {
     expect(pathOf(`<img src="@project/docs/diagram.png">`)).toBe("docs/diagram.png")
   })
 
+  test("a checkout folder merely starting with the marker is not the scratch root", () => {
+    const html = `<img src="shot.png">`
+    const found = /path=([^"]*)/.exec(sanitize(html, { reviewId: "rv1", dir: "@scratchpad" }))?.[1] ?? ""
+
+    expect(decodeURIComponent(found)).toBe("@scratchpad/shot.png")
+  })
+
   test("an external src is left alone", () => {
     expect(srcOf(`<img src="https://example.com/x.png">`)).toBe("https://example.com/x.png")
   })
