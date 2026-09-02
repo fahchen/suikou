@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { KeyboardEvent } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Search, Settings, Terminal, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Search, Settings, Terminal, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { writeClipboard } from "../../lib/clipboard"
@@ -409,6 +410,7 @@ function MoveReviewDialog({
 }) {
   const [picked, setPicked] = useState<string | null>(null)
   const [query, setQuery] = useState("")
+  const pickedRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -423,6 +425,27 @@ function MoveReviewDialog({
     ? projects.filter((project) => project.name.toLowerCase().includes(needle))
     : projects
 
+  // Keep the highlighted row in view when the arrows walk past the fold.
+  useEffect(() => {
+    pickedRef.current?.scrollIntoView({ block: "nearest" })
+  }, [picked])
+
+  // Arrows walk the filtered list and Enter commits, so the whole move can be
+  // done from the keyboard without the field stealing focus on open.
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      if (picked) onConfirm(picked)
+      return
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+    event.preventDefault()
+    if (visible.length === 0) return
+    const at = visible.findIndex((project) => project.id === picked)
+    const step = event.key === "ArrowDown" ? 1 : -1
+    const next = at === -1 ? (step === 1 ? 0 : visible.length - 1) : at + step
+    setPicked(visible[Math.min(Math.max(next, 0), visible.length - 1)].id)
+  }
+
   return (
     <Dialog open={open} onClose={onClose} className="sm:max-w-[420px]">
       <div className="flex flex-col gap-3 p-5">
@@ -433,27 +456,48 @@ function MoveReviewDialog({
           The checkout, comments and history come along. Generated output stays where it
           already is on disk.
         </p>
-        <div className="flex h-[28px] shrink-0 items-center gap-[7px] rounded-ctrl bg-canvas px-2.5 shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
-          <Search size={13} className="shrink-0 text-faint" aria-hidden />
+        <div className="group flex h-[34px] shrink-0 items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-2.5 focus-within:border-accent-edge">
+          <Search
+            size={14}
+            className="shrink-0 text-faint transition-colors group-focus-within:text-muted"
+            aria-hidden
+          />
           <input
-            autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter projects…"
-            className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
+            onKeyDown={onKeyDown}
+            placeholder="Filter projects"
+            aria-label="Filter projects"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint focus:outline-none"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear filter"
+              className="grid size-[18px] shrink-0 place-items-center rounded-full text-faint hover:bg-soft hover:text-ink"
+            >
+              <X size={12} aria-hidden />
+            </button>
+          )}
         </div>
         <div className="flex max-h-[300px] flex-col gap-0.5 overflow-auto">
           {visible.length === 0 && (
-            <p className="px-2.5 py-2 text-xs text-faint">No project matches.</p>
+            <p className="px-2.5 py-3 text-sm text-faint">No project matches “{query}”.</p>
           )}
           {visible.map((project) => (
             <button
               key={project.id}
+              ref={(node) => {
+                if (project.id === picked) pickedRef.current = node
+              }}
               onClick={() => setPicked(project.id)}
+              onDoubleClick={() => onConfirm(project.id)}
               aria-pressed={project.id === picked}
-              className={`flex items-center gap-2 rounded-ctrl px-2.5 py-2 text-left text-sm ${
-                project.id === picked ? "bg-accent-soft text-ink" : "text-ink hover:bg-soft"
+              className={`flex items-center gap-2.5 rounded-ctrl px-2.5 py-2 text-left text-sm transition-colors ${
+                project.id === picked
+                  ? "bg-accent-soft text-ink shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
+                  : "text-text hover:bg-soft hover:text-ink"
               }`}
             >
               <span className="w-[18px] shrink-0 text-center">{project.emoji ?? "📁"}</span>

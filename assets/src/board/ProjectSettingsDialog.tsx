@@ -67,7 +67,6 @@ export function ProjectSettingsDialog({
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-muted">Name</span>
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}

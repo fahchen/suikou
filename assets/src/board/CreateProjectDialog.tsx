@@ -64,7 +64,6 @@ export function CreateProjectDialog({
 
       <Field label="Name">
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Data Platform"
