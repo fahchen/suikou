@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Search, Settings, Terminal, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { writeClipboard } from "../../lib/clipboard"
@@ -346,7 +346,7 @@ function ReviewActions({
         review={review}
         projects={elsewhere}
         onClose={() => setMoving(false)}
-        onPick={(projectId) => {
+        onConfirm={(projectId) => {
           move
             .dispatch({ review_id: review.id, project_id: projectId })
             .then(() => {
@@ -388,22 +388,41 @@ function Dot() {
   return <span aria-hidden className="inline-block size-[2px] shrink-0 rounded-full bg-faint opacity-70" />
 }
 
-/** Pick the project a review should be filed under instead. Moving only changes
- * where the review is listed — its checkout, comments and history travel with
- * it, and its scratch directory keeps the heading it was created under. */
+/** Pick the project a review should be filed under instead, then confirm. Moving
+ * only changes where the review is listed — its checkout, comments and history
+ * travel with it, and its scratch directory keeps the heading it was created
+ * under. Picking a row only selects it; the move happens on the button, so a
+ * mis-click in a long list costs nothing. The filter narrows the list without
+ * clearing the pick, so the button keeps naming what it will do. */
 function MoveReviewDialog({
   open,
   review,
   projects,
   onClose,
-  onPick,
+  onConfirm,
 }: {
   open: boolean
   review: BoardReview
   projects: BoardProject[]
   onClose: () => void
-  onPick: (projectId: string) => void
+  onConfirm: (projectId: string) => void
 }) {
+  const [picked, setPicked] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setPicked(null)
+      setQuery("")
+    }
+  }, [open])
+
+  const target = projects.find((project) => project.id === picked)
+  const needle = query.trim().toLowerCase()
+  const visible = needle
+    ? projects.filter((project) => project.name.toLowerCase().includes(needle))
+    : projects
+
   return (
     <Dialog open={open} onClose={onClose} className="sm:max-w-[420px]">
       <div className="flex flex-col gap-3 p-5">
@@ -414,15 +433,34 @@ function MoveReviewDialog({
           The checkout, comments and history come along. Generated output stays where it
           already is on disk.
         </p>
-        <div className="flex max-h-[320px] flex-col gap-0.5 overflow-auto">
-          {projects.map((project) => (
+        <div className="flex h-[28px] shrink-0 items-center gap-[7px] rounded-ctrl bg-canvas px-2.5 shadow-[inset_0_0_0_0.5px_var(--hair-strong)]">
+          <Search size={13} className="shrink-0 text-faint" aria-hidden />
+          <input
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter projects…"
+            className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
+          />
+        </div>
+        <div className="flex max-h-[300px] flex-col gap-0.5 overflow-auto">
+          {visible.length === 0 && (
+            <p className="px-2.5 py-2 text-xs text-faint">No project matches.</p>
+          )}
+          {visible.map((project) => (
             <button
               key={project.id}
-              onClick={() => onPick(project.id)}
-              className="flex items-center gap-2 rounded-ctrl px-2.5 py-2 text-left text-sm text-ink hover:bg-soft"
+              onClick={() => setPicked(project.id)}
+              aria-pressed={project.id === picked}
+              className={`flex items-center gap-2 rounded-ctrl px-2.5 py-2 text-left text-sm ${
+                project.id === picked ? "bg-accent-soft text-ink" : "text-ink hover:bg-soft"
+              }`}
             >
               <span className="w-[18px] shrink-0 text-center">{project.emoji ?? "📁"}</span>
               <span className="truncate">{project.name}</span>
+              {project.id === picked && (
+                <Check size={14} className="ml-auto shrink-0 text-accent" aria-hidden />
+              )}
             </button>
           ))}
         </div>
@@ -433,6 +471,13 @@ function MoveReviewDialog({
             className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft"
           >
             Cancel
+          </button>
+          <button
+            onClick={() => picked && onConfirm(picked)}
+            disabled={!target}
+            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+          >
+            {target ? `Move to ${target.name}` : "Move review"}
           </button>
         </div>
       </div>
