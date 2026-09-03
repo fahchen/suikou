@@ -60,7 +60,9 @@ repository must never reference `@scratch/<path>`.** A committed file has to
 keep meaning something on its own — in an editor, on GitHub, to a reader who has
 never run Suikou — and a scratch path means nothing outside the review that
 created it, so such a link is dead the moment it leaves the reviewer. Put the
-reference the other way round: cite the checkout file from the report.
+reference the other way round: cite the checkout file from the report. The
+server enforces this — a committed file asking for a `@scratch/` path is served
+a 404, not the file.
 
 `comment add` targets a review id and one covered `--path`, not an artifact id.
 Use a line or new-hunk anchor for a localized finding; use `--review-wide` only

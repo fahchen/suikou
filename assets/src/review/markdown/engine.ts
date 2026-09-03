@@ -23,10 +23,16 @@ export const markdown = new MarkdownIt({ html: true, linkify: true })
 // review's scratch directory instead. Only a file that already lives in the
 // checkout resolves relative to its own directory — that is where a relative
 // link has always pointed, and it is what keeps a repo's README rendering.
-function assetPath(dir: string, src: string): string {
-  if (src.startsWith("@scratch/")) return src
+//
+// The scratch marker works one way. A committed file naming `@scratch/` gets
+// `null` back and is left un-rewritten, because such a link is dead outside
+// Suikou and manufacturing a working URL for it here would hide that. The
+// server refuses the same reference on the artifact asset route.
+function assetPath(dir: string, src: string): string | null {
+  const fromScratch = dir === "@scratch" || dir.startsWith("@scratch/")
+  if (src.startsWith("@scratch/")) return fromScratch ? src : null
   if (src.startsWith("@project/")) return joinRelative("", src.slice("@project/".length))
-  if (dir === "@scratch" || dir.startsWith("@scratch/")) return joinRelative("", src)
+  if (fromScratch) return joinRelative("", src)
   return joinRelative(dir, src)
 }
 
@@ -35,7 +41,9 @@ function assetPath(dir: string, src: string): string {
 // untouched.
 function rewriteSrc(ctx: AssetContext, src: string): string {
   if (!isRepoRelative(src)) return src
-  return `/api/review/${ctx.reviewId}/files/raw?path=${encodeURIComponent(assetPath(ctx.dir, src))}`
+  const path = assetPath(ctx.dir, src)
+  if (path === null) return src
+  return `/api/review/${ctx.reviewId}/files/raw?path=${encodeURIComponent(path)}`
 }
 
 // The DOMPurify hook below runs on every `sanitize` call and needs the current

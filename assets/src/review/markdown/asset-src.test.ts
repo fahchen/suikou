@@ -8,10 +8,10 @@ import { sanitize } from "./engine"
 // silently fails to load.
 const CTX = { reviewId: "rv1", dir: "@scratch/reports" }
 
-const srcOf = (html: string) => /src="([^"]*)"/.exec(sanitize(html, CTX))?.[1] ?? ""
+const srcOf = (rendered: string) => /src="([^"]*)"/.exec(rendered)?.[1] ?? ""
 
 const pathOf = (html: string) =>
-  decodeURIComponent(new URL(srcOf(html), "http://x").searchParams.get("path") ?? "")
+  decodeURIComponent(new URL(srcOf(sanitize(html, CTX)), "http://x").searchParams.get("path") ?? "")
 
 describe("markdown image sources", () => {
   test("an unmarked src from a scratch file means the checkout, not its own folder", () => {
@@ -40,7 +40,17 @@ describe("markdown image sources", () => {
     expect(decodeURIComponent(found)).toBe("@scratchpad/shot.png")
   })
 
+  test("a checkout file naming the scratch root is refused, not rewritten", () => {
+    const html = `<img src="@scratch/charts/memory.png">`
+
+    expect(srcOf(sanitize(html, { reviewId: "rv1", dir: "docs" }))).toBe(
+      "@scratch/charts/memory.png",
+    )
+  })
+
   test("an external src is left alone", () => {
-    expect(srcOf(`<img src="https://example.com/x.png">`)).toBe("https://example.com/x.png")
+    expect(srcOf(sanitize(`<img src="https://example.com/x.png">`, CTX))).toBe(
+      "https://example.com/x.png",
+    )
   })
 })

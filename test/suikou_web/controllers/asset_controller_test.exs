@@ -54,6 +54,17 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert response(conn, 200) == "SCRATCH"
     end
+
+    # The marker works one way: a committed file citing the scratch directory
+    # would be a dead link everywhere but here, so it is refused rather than
+    # served.
+    test "404 when a checkout artifact reaches into the scratch directory", %{conn: conn} do
+      %{artifact: artifact} = project_with_asset("docs/guide.md", "img/diagram.png", "PNGDATA")
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/@scratch/shots/round-3.png")
+
+      assert response(conn, 404)
+    end
   end
 
   describe "GET /api/review/:artifact_id/content" do

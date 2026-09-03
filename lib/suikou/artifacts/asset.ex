@@ -11,7 +11,8 @@ defmodule Suikou.Artifacts.Asset do
   alias Suikou.ReviewRoots
   alias Suikou.Schemas.Artifact
 
-  @type resolve_error() :: :artifact_not_found | :unsafe_path | :not_a_file
+  @type resolve_error() ::
+          :artifact_not_found | :scratch_from_checkout | :unsafe_path | :not_a_file
   @type read_error() :: resolve_error() | :read_failed
 
   @doc """
@@ -25,8 +26,17 @@ defmodule Suikou.Artifacts.Asset do
   way `Path.safe_relative/2` runs against exactly one base.
 
   Returns `{:error, :artifact_not_found}` for an unknown artifact, `{:error,
-  :unsafe_path}` when the reference escapes its root, and `{:error,
-  :not_a_file}` when nothing regular lives at the target.
+  :unsafe_path}` when the reference escapes its root, `{:error,
+  :scratch_from_checkout}` when a committed file reaches into the scratch
+  directory, and `{:error, :not_a_file}` when nothing regular lives at the
+  target.
+
+  The scratch marker only works one way. A generated report may cite the code it
+  is about, but a file in the repository may not cite the report: a committed
+  file has to keep meaning something in an editor, on GitHub, or to a reader who
+  has never run Suikou, and a scratch path means nothing outside the review that
+  produced it. Refusing it here keeps a link that only resolves inside Suikou
+  from ever looking like it works.
 
   ## Examples
 
@@ -36,27 +46,44 @@ defmodule Suikou.Artifacts.Asset do
       Suikou.Artifacts.Asset.resolve(scratch_artifact.id, "docs/img/diagram.png")
       #=> {:ok, "/projects/app/docs/img/diagram.png"}
 
+      Suikou.Artifacts.Asset.resolve(artifact.id, "@scratch/report.md")
+      #=> {:error, :scratch_from_checkout}
+
       Suikou.Artifacts.Asset.resolve(artifact.id, "../../etc/passwd")
       #=> {:error, :unsafe_path}
 
   """
   @spec resolve(Ecto.UUID.t(), String.t()) :: {:ok, String.t()} | {:error, resolve_error()}
   def resolve(artifact_id, request_path) when is_binary(request_path) do
-    case load(artifact_id) do
+    with %Artifact{} = artifact <- load(artifact_id),
+         {:ok, reference} <- reference(artifact, request_path) do
+      resolve_under(artifact, reference)
+    else
       nil -> {:error, :artifact_not_found}
-      %Artifact{} = artifact -> resolve_under(artifact, reference(artifact, request_path))
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  # A marked reference addresses a root directly. An unmarked one is a checkout
-  # path, so only an artifact already in the checkout joins it onto its own
-  # directory — a scratch artifact would otherwise drag the reference into a root
-  # the writer did not name.
+  # A marked reference addresses a root directly, except that only a file already
+  # in the scratch directory may name it — see the one-way rule above. An
+  # unmarked reference is a checkout path, so only an artifact already in the
+  # checkout joins it onto its own directory; a scratch artifact would otherwise
+  # drag the reference into a root the writer did not name.
   defp reference(%Artifact{} = artifact, request_path) do
+    from_scratch? = ReviewRoots.scratch?(artifact.file_path)
+
     cond do
-      ReviewRoots.marked?(request_path) -> request_path
-      ReviewRoots.scratch?(artifact.file_path) -> request_path
-      true -> Path.join(Path.dirname(artifact.file_path), request_path)
+      ReviewRoots.scratch?(request_path) and not from_scratch? ->
+        {:error, :scratch_from_checkout}
+
+      ReviewRoots.marked?(request_path) ->
+        {:ok, request_path}
+
+      from_scratch? ->
+        {:ok, request_path}
+
+      true ->
+        {:ok, Path.join(Path.dirname(artifact.file_path), request_path)}
     end
   end
 
