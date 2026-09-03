@@ -180,6 +180,43 @@ defmodule Suikou.Projects do
   end
 
   @doc """
+  Returns the project grouping the repository `dir` belongs to, registering one
+  named after the repository when none does yet. An agent creating its first
+  review in a repository should not have to stop and ask for a board first —
+  the board is bookkeeping, and a name taken from the repository is the name a
+  human would have typed anyway. Rename it in the app if not.
+
+  Returns `{:error, :not_a_repository}` when `dir` is not a git working tree,
+  because a project registered from it could never be found again by a checkout.
+
+  ## Examples
+
+      Suikou.Projects.project_for_dir("/projects/app")
+      #=> {:ok, %Suikou.Schemas.Project{name: "app"}}
+
+      Suikou.Projects.project_for_dir("/tmp")
+      #=> {:error, :not_a_repository}
+
+  """
+  @spec project_for_dir(String.t()) ::
+          {:ok, Project.t()} | {:error, :not_a_repository | Ecto.Changeset.t()}
+  def project_for_dir(dir) do
+    case get_project_by_dir(dir) do
+      %Project{} = project -> {:ok, project}
+      nil -> register_project(%{name: repository_name(dir), path: dir})
+    end
+  end
+
+  # The repository's own name: the last segment of its identity, or of the
+  # checkout when it has no remote to take one from.
+  defp repository_name(dir) do
+    case Git.identity(dir) do
+      nil -> dir |> Path.expand() |> Path.basename()
+      identity -> identity |> Path.basename() |> String.replace_suffix(".git", "")
+    end
+  end
+
+  @doc """
   Lists all projects, ordered by name.
 
   ## Examples

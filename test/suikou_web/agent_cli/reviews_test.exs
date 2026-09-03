@@ -91,12 +91,29 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     end
 
     @tag :tmp_dir
-    test "refuses rather than registering an unknown repository", %{tmp_dir: dir} do
+    test "registers the repository's project rather than stopping to ask", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git_remote!(dir, "git@github.com:fahchen/launcher.git")
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
 
       payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
 
-      assert %{"review_id" => nil, "error" => "project_not_found"} = run(payload, &CLI.create/0)
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %Suikou.Schemas.Review{project_id: project_id} = Reviews.get_review(id)
+      assert %{name: "launcher"} = Suikou.Projects.get_project(project_id)
+    end
+
+    test "refuses a directory that belongs to no repository" do
+      # Outside the project tree: a directory *inside* one belongs to it, and
+      # would be registered rather than refused.
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+
+      payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
+
+      assert %{"review_id" => nil, "error" => "not_a_repository"} = run(payload, &CLI.create/0)
     end
 
     @tag :tmp_dir

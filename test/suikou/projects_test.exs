@@ -104,6 +104,32 @@ defmodule Suikou.ProjectsTest do
     end
   end
 
+  describe "project_for_dir/1" do
+    @tag :tmp_dir
+    test "registers a project named after the repository when none holds it", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/rate-limiter.git")
+
+      assert {:ok, %Project{name: "rate-limiter", identity: "github.com/fahchen/rate-limiter"}} =
+               Projects.project_for_dir(dir)
+    end
+
+    @tag :tmp_dir
+    test "returns the project already holding the repository", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
+      {:ok, %Project{id: id}} = Projects.register_project(%{name: "Chosen", path: dir})
+
+      assert {:ok, %Project{id: ^id, name: "Chosen"}} = Projects.project_for_dir(dir)
+    end
+
+    test "refuses a directory that is not a repository" do
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      assert {:error, :not_a_repository} = Projects.project_for_dir(dir)
+    end
+  end
+
   describe "list_projects/0" do
     test "returns projects ordered by name" do
       insert(:project, name: "Zed")

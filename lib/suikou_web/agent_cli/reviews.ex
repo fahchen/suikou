@@ -514,20 +514,23 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   # belongs to decides, which is what puts sibling worktrees in one project.
   defp with_project(payload, fun) do
     case resolve_project(payload) do
-      %Project{} = project -> fun.(project)
-      nil -> create_reply(nil, "project_not_found")
+      {:ok, %Project{} = project} -> fun.(project)
+      {:error, reason} -> create_reply(nil, AgentCLI.error(reason))
     end
   end
 
   defp resolve_project(%{"project_id" => project_id}) when is_binary(project_id) do
-    Projects.get_project(project_id)
+    case Projects.get_project(project_id) do
+      %Project{} = project -> {:ok, project}
+      nil -> {:error, :project_not_found}
+    end
   end
 
   defp resolve_project(%{"project_path" => path}) when is_binary(path) do
-    Projects.get_project_by_dir(Git.toplevel(path))
+    Projects.project_for_dir(Git.toplevel(path))
   end
 
-  defp resolve_project(_payload), do: nil
+  defp resolve_project(_payload), do: {:error, :project_not_found}
 
   defp created_review({:ok, %Review{} = review}) do
     BoardBroadcast.broadcast()
