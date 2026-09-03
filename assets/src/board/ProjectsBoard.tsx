@@ -209,6 +209,7 @@ function Board({ store }: { store: BoardStore }) {
         <NewReviewDialog
           store={store}
           project={selected}
+          checkouts={board?.checkouts ?? []}
           kind={
             editingReview
               ? editingReview.kind === "git_diff"

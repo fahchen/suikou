@@ -77,7 +77,9 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
       list(%{
         id: String.t(),
         name: String.t(),
-        path: String.t(),
+        # The checkout the project's most recent review used, or `nil` when it
+        # has none — a project is a label, so it has no directory of its own.
+        path: String.t() | nil,
         respect_gitignore: boolean(),
         emoji: String.t() | nil,
         review_instructions: String.t() | nil,
@@ -88,6 +90,9 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
             inserted_at: String.t(),
             kind: :file_selection | :git_diff,
             selections: list(String.t()),
+            project_path: String.t(),
+            scratch_path: String.t(),
+            respect_gitignore: boolean() | nil,
             base_ref: String.t() | nil,
             head_ref: String.t() | nil,
             refs_valid: boolean()

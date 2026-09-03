@@ -82,7 +82,14 @@ export function useFileContent(
       .then(async (response) => {
         if (cancelled) return
         if (!response.ok) {
-          const next: Content = { kind: "error", message: `Couldn't load file (${response.status}).`, status: response.status }
+          // A 404 here is almost always a file that has gone away — deleted from
+          // the checkout mid-review, or a checkout that no longer exists at all.
+          // Say so, rather than making the reader decode a status code.
+          const message =
+            response.status === 404
+              ? "File not found — it may have been deleted, or its checkout is gone."
+              : `Couldn't load file (${response.status}).`
+          const next: Content = { kind: "error", message, status: response.status }
           setContent(next)
           record(next)
           return

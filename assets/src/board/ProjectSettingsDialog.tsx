@@ -79,18 +79,11 @@ export function ProjectSettingsDialog({
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-muted">Name</span>
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
             className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
           />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted">Path</span>
-          <span className="flex h-[34px] items-center truncate rounded-ctrl border border-hair bg-soft px-3 font-mono text-xs text-faint">
-            {project.path}
-          </span>
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-muted">Review instructions</span>

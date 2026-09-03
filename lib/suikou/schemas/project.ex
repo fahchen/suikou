@@ -1,8 +1,17 @@
 defmodule Suikou.Schemas.Project do
   @moduledoc """
-  A directory on disk registered for review. Scanning a project lists its files
-  as candidate artifacts; the reviewer selects one to start reviewing it (see
-  BDR-0018). `path` is the absolute directory path and is unique.
+  A named board reviews are filed under. A project is a label, never a location:
+  the checkout a review reads from lives on the review itself.
+
+  `review_instructions` is the project's own guidance for a reviewing agent, read
+  alongside the global text in `Suikou.Settings`.
+
+  `identity` is the repository these reviews are about — a normalised `origin`
+  URL, or the main `.git` directory for a remote-less repository (see
+  `Suikou.Git.identity/1`). It exists so reviews created from different worktrees
+  of one repository land in one project without the agent arranging it. It is
+  optional and unique when present: a project made by hand, holding reviews from
+  unrelated directories, simply has none.
   """
 
   use Suikou.Schema
@@ -12,7 +21,7 @@ defmodule Suikou.Schemas.Project do
 
   typed_schema "projects" do
     field :name, :string, typed: [null: false]
-    field :path, :string, typed: [null: false]
+    field :identity, :string
     field :respect_gitignore, :boolean, typed: [null: false]
     field :emoji, :string
     field :review_instructions, :string
@@ -23,36 +32,51 @@ defmodule Suikou.Schemas.Project do
   end
 
   @doc """
-  Builds a changeset for a new project, requiring a non-blank name and path.
-
-  Whether `path` actually points at a directory is checked by the context, not
-  here, since it is a filesystem side effect.
+  Builds a changeset for a new project, requiring a non-blank name. `identity`
+  is resolved by the context from the directory the caller supplied, not cast
+  from params, so a caller can never claim another repository's identity.
 
   ## Examples
 
-      iex> Suikou.Schemas.Project.create_changeset(%{name: "Docs", path: "/tmp/docs"}).valid?
+      iex> Suikou.Schemas.Project.create_changeset(%{name: "Docs"}).valid?
       true
 
-      iex> Suikou.Schemas.Project.create_changeset(%{name: "  ", path: "/tmp/docs"}).valid?
+      iex> Suikou.Schemas.Project.create_changeset(%{name: "  "}).valid?
       false
 
   """
   @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(params) do
     %__MODULE__{}
-    |> cast(params, [:name, :path, :respect_gitignore, :emoji, :review_instructions])
-    |> validate_required([:name, :path])
+    |> cast(params, [:name, :respect_gitignore, :emoji, :review_instructions])
+    |> validate_required([:name])
     |> validate_format(:name, ~r/\S/, message: "can't be blank")
-    |> validate_format(:path, ~r/\S/, message: "can't be blank")
     |> validate_instructions()
-    |> unique_constraint(:path)
+    |> unique_constraint(:identity)
+  end
+
+  @doc """
+  Builds a changeset recording the repository `identity` a project groups by,
+  set programmatically from a resolved checkout rather than cast from params.
+
+  ## Examples
+
+      iex> Suikou.Schemas.Project.identity_changeset(%Suikou.Schemas.Project{}, "github.com/fahchen/suikou").valid?
+      true
+
+  """
+  @spec identity_changeset(t(), String.t()) :: Ecto.Changeset.t()
+  def identity_changeset(%__MODULE__{} = project, identity) do
+    project
+    |> change(identity: identity)
+    |> unique_constraint(:identity)
   end
 
   @doc """
   Builds a changeset to edit a project's settings: its display `name`, its
   `emoji` badge, its `review_instructions`, and whether it respects
-  `.gitignore`. `path` is identity and stays fixed — it must not move once
-  files are anchored to it.
+  `.gitignore`. `identity` is not editable — it is resolved from a checkout,
+  never typed in.
 
   ## Examples
 

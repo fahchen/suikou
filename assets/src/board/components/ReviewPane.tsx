@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { KeyboardEvent } from "react"
 import { Link } from "@tanstack/react-router"
 import type { CommandReply, StoreProxy } from "@musubi/react"
-import { Check, ChevronsUpDown, Clipboard, FileText, GitCompare, MoreHorizontal, Pencil, Settings, Terminal, Trash2 } from "lucide-react"
+import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, MoreHorizontal, Pencil, Search, Settings, Terminal, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { writeClipboard } from "../../lib/clipboard"
@@ -9,6 +10,7 @@ import { writeClipboard } from "../../lib/clipboard"
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
+import { Dialog, DialogTitle } from "../../components/ui/dialog"
 import { ProjectSettingsDialog } from "../ProjectSettingsDialog"
 import { ProjectPickerSheet } from "./ProjectNavigation"
 import {
@@ -70,7 +72,9 @@ export function ReviewPane({
             </span>
             <ChevronsUpDown size={15} className="shrink-0 text-muted lg:hidden" aria-hidden />
           </span>
-          <span className="truncate font-mono text-xs text-faint">{project.path}</span>
+          <span className="truncate font-mono text-xs text-faint">
+            {project.path ?? "no reviews yet"}
+          </span>
         </button>
         {store && (
           <ProjectActions
@@ -98,8 +102,9 @@ export function ReviewPane({
             store={store}
             review={review}
             files={filesFor(reviewFiles, review.id)}
+            elsewhere={projects.filter((candidate) => candidate.id !== project.id)}
             onEdit={onEditReview}
-            onDeleted={onChanged}
+            onChanged={onChanged}
           />
         ))}
       </div>
@@ -185,14 +190,18 @@ function ReviewRow({
   store,
   review,
   files,
+  elsewhere,
   onEdit,
-  onDeleted,
+  onChanged,
 }: {
   store: BoardStore | null
   review: BoardReview
   files: BoardReviewFile[]
+  /** Every project this review could be filed under instead of its current one. */
+  elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
-  onDeleted: () => void
+  /** Refetch the board — a delete or a move changes what it lists. */
+  onChanged: () => void
 }) {
   const isDiff = review.kind === "git_diff"
   const approved = files.length > 0 && files.every((file) => file.approved)
@@ -249,7 +258,15 @@ function ReviewRow({
           Approved
         </span>
       )}
-      {store && <ReviewActions store={store} review={review} onEdit={onEdit} onDeleted={onDeleted} />}
+      {store && (
+        <ReviewActions
+          store={store}
+          review={review}
+          elsewhere={elsewhere}
+          onEdit={onEdit}
+          onChanged={onChanged}
+        />
+      )}
     </div>
   )
 }
@@ -257,16 +274,20 @@ function ReviewRow({
 function ReviewActions({
   store,
   review,
+  elsewhere,
   onEdit,
-  onDeleted,
+  onChanged,
 }: {
   store: BoardStore
   review: BoardReview
+  elsewhere: BoardProject[]
   onEdit: (review: BoardReview) => void
-  onDeleted: () => void
+  onChanged: () => void
 }) {
   const remove = useMusubiCommand(store, "delete_review")
+  const move = useMusubiCommand(store, "move_review")
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [moving, setMoving] = useState(false)
 
   return (
     <>
@@ -304,12 +325,33 @@ function ReviewActions({
             <Pencil size={14} aria-hidden />
             Edit review
           </DropdownMenuItem>
+          {elsewhere.length > 0 && (
+            <DropdownMenuItem onClick={() => setMoving(true)}>
+              <FolderInput size={14} aria-hidden />
+              Move to project…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem destructive onClick={() => setConfirmDelete(true)}>
             <Trash2 size={14} aria-hidden />
             Delete review
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <MoveReviewDialog
+        open={moving}
+        review={review}
+        projects={elsewhere}
+        onClose={() => setMoving(false)}
+        onConfirm={(projectId) => {
+          move
+            .dispatch({ review_id: review.id, project_id: projectId })
+            .then(() => {
+              setMoving(false)
+              onChanged()
+            })
+            .catch(() => setMoving(false))
+        }}
+      />
       <ConfirmDialog
         open={confirmDelete}
         title={`Delete ${review.name}?`}
@@ -321,7 +363,7 @@ function ReviewActions({
             .dispatch({ review_id: review.id })
             .then(() => {
               setConfirmDelete(false)
-              onDeleted()
+              onChanged()
             })
             .catch(() => {})
         }}
@@ -340,6 +382,146 @@ function copyText(text: string, message: string, description: string) {
 
 function Dot() {
   return <span aria-hidden className="inline-block size-[2px] shrink-0 rounded-full bg-faint opacity-70" />
+}
+
+/** Pick the project a review should be filed under instead, then confirm. Moving
+ * only changes where the review is listed — its checkout, comments and history
+ * travel with it, and its scratch directory keeps the heading it was created
+ * under. Picking a row only selects it; the move happens on the button, so a
+ * mis-click in a long list costs nothing. The filter narrows the list without
+ * clearing the pick, so the button keeps naming what it will do. */
+function MoveReviewDialog({
+  open,
+  review,
+  projects,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean
+  review: BoardReview
+  projects: BoardProject[]
+  onClose: () => void
+  onConfirm: (projectId: string) => void
+}) {
+  const [picked, setPicked] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const pickedRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setPicked(null)
+      setQuery("")
+    }
+  }, [open])
+
+  const target = projects.find((project) => project.id === picked)
+  const needle = query.trim().toLowerCase()
+  const visible = needle
+    ? projects.filter((project) => project.name.toLowerCase().includes(needle))
+    : projects
+
+  // Keep the highlighted row in view when the arrows walk past the fold.
+  useEffect(() => {
+    pickedRef.current?.scrollIntoView({ block: "nearest" })
+  }, [picked])
+
+  // Arrows walk the filtered list and Enter commits, so the whole move can be
+  // done from the keyboard without the field stealing focus on open.
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      if (picked) onConfirm(picked)
+      return
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+    event.preventDefault()
+    if (visible.length === 0) return
+    const at = visible.findIndex((project) => project.id === picked)
+    const step = event.key === "ArrowDown" ? 1 : -1
+    const next = at === -1 ? (step === 1 ? 0 : visible.length - 1) : at + step
+    setPicked(visible[Math.min(Math.max(next, 0), visible.length - 1)].id)
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} className="sm:max-w-[420px]">
+      <div className="flex flex-col gap-3 p-5">
+        <DialogTitle className="text-base font-bold text-ink">
+          Move “{review.name}”
+        </DialogTitle>
+        <p className="text-xs text-muted">
+          The checkout, comments and history come along. Generated output stays where it
+          already is on disk.
+        </p>
+        <div className="group flex h-[34px] shrink-0 items-center gap-2 rounded-ctrl border border-hair-strong bg-canvas px-2.5 focus-within:border-accent-edge">
+          <Search
+            size={14}
+            className="shrink-0 text-faint transition-colors group-focus-within:text-muted"
+            aria-hidden
+          />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Filter projects"
+            aria-label="Filter projects"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-faint focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear filter"
+              className="grid size-[18px] shrink-0 place-items-center rounded-full text-faint hover:bg-soft hover:text-ink"
+            >
+              <X size={12} aria-hidden />
+            </button>
+          )}
+        </div>
+        <div className="flex max-h-[300px] flex-col gap-0.5 overflow-auto">
+          {visible.length === 0 && (
+            <p className="px-2.5 py-3 text-sm text-faint">No project matches “{query}”.</p>
+          )}
+          {visible.map((project) => (
+            <button
+              key={project.id}
+              ref={(node) => {
+                if (project.id === picked) pickedRef.current = node
+              }}
+              onClick={() => setPicked(project.id)}
+              onDoubleClick={() => onConfirm(project.id)}
+              aria-pressed={project.id === picked}
+              className={`flex items-center gap-2.5 rounded-ctrl px-2.5 py-2 text-left text-sm transition-colors ${
+                project.id === picked
+                  ? "bg-accent-soft text-ink shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
+                  : "text-text hover:bg-soft hover:text-ink"
+              }`}
+            >
+              <span className="w-[18px] shrink-0 text-center">{project.emoji ?? "📁"}</span>
+              <span className="truncate">{project.name}</span>
+              {project.id === picked && (
+                <Check size={14} className="ml-auto shrink-0 text-accent" aria-hidden />
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex-1" />
+          <button
+            onClick={onClose}
+            className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => picked && onConfirm(picked)}
+            disabled={!target}
+            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
+          >
+            {target ? `Move to ${target.name}` : "Move review"}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  )
 }
 
 function filesFor(grouped: ReviewFilesGrouped, reviewId: string): BoardReviewFile[] {

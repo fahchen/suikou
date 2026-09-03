@@ -56,6 +56,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
       field(:kind, :file | :diff)
       field(:latest_round, integer())
 
+      # Which board this review is filed under, so leaving it returns to that
+      # project rather than to whichever one the board last remembered.
+      field(:project_id, String.t() | nil)
+
       ProjectBoardContract.review_files_reply_field(:file_entries)
 
       field(
@@ -123,15 +127,15 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   # Start (or join) the review's file watcher, ref-counted by this store process.
-  # Watches the review's raw selections (files/dirs) so creates under a selected
-  # dir are noticed. Skipped when the review is gone, its project dir is missing,
-  # or it has no on-disk selections (a git-diff review), so a stale link still
-  # loads the page (just without the live-refresh signal).
+  # Watches the review's raw selections (files/dirs) across both of its roots, so
+  # creates under a selected dir are noticed. Skipped when the review is gone,
+  # its checkout is missing, or it has no on-disk selections (a git-diff review),
+  # so a stale link still loads the page (just without the live-refresh signal).
   defp watch_files(review_id) do
-    with %Review{project: project} = review <- Reviews.get_review(review_id),
-         true <- File.dir?(project.path),
+    with %Review{} = review <- Reviews.get_review(review_id),
+         true <- File.dir?(review.project_path),
          [_first | _rest] = selections <- selections(review) do
-      FileWatcher.subscribe(review_id, project.path, selections)
+      FileWatcher.subscribe(review, selections)
     else
       _absent -> :ok
     end
@@ -226,6 +230,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
             name: review.name,
             kind: review_kind(review),
             latest_round: latest_round(review_id),
+            project_id: review.project_id,
             file_entries: entries,
             files: Enum.map(entries, &file_identity/1),
             refs: Reviews.refs_snapshot(review)
@@ -238,6 +243,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
             name: "",
             kind: :file,
             latest_round: 0,
+            project_id: nil,
             file_entries: [],
             files: [],
             refs: nil

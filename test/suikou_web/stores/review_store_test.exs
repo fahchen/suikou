@@ -243,13 +243,11 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
 
     on_exit(fn -> File.rm_rf!(tmp) end)
 
-    project = insert(:project, path: tmp)
+    project = insert(:project)
+    project_path = tmp
 
     {:ok, review} =
-      Reviews.create_review(project, %{
-        name: "rv",
-        selections: paths
-      })
+      Reviews.create_review(project, %{project_path: project_path, name: "rv", selections: paths})
 
     %{project: project, review: Repo.preload(review, :project)}
   end

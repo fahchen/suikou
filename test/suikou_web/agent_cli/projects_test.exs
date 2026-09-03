@@ -12,7 +12,7 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
     test "emits every registered project" do
       project = insert(:project, name: "Docs")
 
-      assert %{"projects" => [%{"id" => id, "name" => "Docs", "path" => _path}]} =
+      assert %{"projects" => [%{"id" => id, "name" => "Docs", "identity" => nil}]} =
                run(%{}, &Projects.list/0)
 
       assert id == project.id

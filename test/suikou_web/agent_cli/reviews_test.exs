@@ -33,6 +33,24 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       assert %{"reviews" => [], "error" => "project_not_found"} =
                run(%{"project_id" => Ecto.UUID.generate()}, &CLI.list/0)
     end
+
+    @tag :tmp_dir
+    test "finds every review on the repository a directory belongs to", %{tmp_dir: dir} do
+      main = Path.join(dir, "main")
+      other = Path.join(dir, "other")
+      init_repo!(main)
+      git_remote!(main, "git@github.com:fahchen/example.git")
+      File.mkdir_p!(other)
+      project = insert(:project, identity: "github.com/fahchen/example")
+      insert(:review, name: "Here", project: project, project_path: main)
+      insert(:review, name: "Sibling worktree", project: project, project_path: other)
+      insert(:review, name: "Unrelated")
+
+      assert %{"reviews" => reviews, "error" => nil} = run(%{"path" => main}, &CLI.list/0)
+
+      assert ["Here", "Sibling worktree"] =
+               reviews |> Enum.map(& &1["name"]) |> Enum.sort()
+    end
   end
 
   describe "create/0" do
@@ -42,11 +60,60 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       {:ok, project} = Suikou.Projects.register_project(%{name: "Docs", path: dir})
       :ok = BoardBroadcast.subscribe()
 
-      payload = %{"project_id" => project.id, "name" => "Launch", "selections" => ["plan.md"]}
+      payload = %{
+        "project_id" => project.id,
+        "project_path" => dir,
+        "name" => "Launch",
+        "selections" => ["plan.md"]
+      }
+
+      assert %{"review_id" => id, "scratch_path" => scratch, "error" => nil} =
+               run(payload, &CLI.create/0)
+
+      assert is_binary(id)
+      assert String.ends_with?(scratch, id)
+      assert File.dir?(scratch)
+      assert_receive :board_changed
+    end
+
+    @tag :tmp_dir
+    test "files a review under the project grouping its repository", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git_remote!(dir, "git@github.com:fahchen/example.git")
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+      {:ok, project} = Suikou.Projects.register_project(%{name: "Example", path: dir})
+
+      payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
 
       assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
-      assert is_binary(id)
-      assert_receive :board_changed
+      assert %Suikou.Schemas.Review{project_id: project_id} = Reviews.get_review(id)
+      assert project_id == project.id
+    end
+
+    @tag :tmp_dir
+    test "registers the repository's project rather than stopping to ask", %{tmp_dir: dir} do
+      init_repo!(dir)
+      git_remote!(dir, "git@github.com:fahchen/launcher.git")
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+
+      payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
+
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %Suikou.Schemas.Review{project_id: project_id} = Reviews.get_review(id)
+      assert %{name: "launcher"} = Suikou.Projects.get_project(project_id)
+    end
+
+    test "refuses a directory that belongs to no repository" do
+      # Outside the project tree: a directory *inside* one belongs to it, and
+      # would be registered rather than refused.
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      File.write!(Path.join(dir, "plan.md"), "# Plan\n")
+
+      payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
+
+      assert %{"review_id" => nil, "error" => "not_a_repository"} = run(payload, &CLI.create/0)
     end
 
     @tag :tmp_dir
@@ -57,6 +124,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       payload = %{
         "project_id" => project.id,
+        "project_path" => dir,
         "name" => "Topic vs main",
         "base_ref" => "main",
         "head_ref" => "topic"
@@ -143,8 +211,9 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     @tag :tmp_dir
     test "replaces the selection and broadcasts the board", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
-      review = insert(:review, project: project)
+      project = insert(:project)
+      project_path = dir
+      review = insert(:review, project: project, project_path: project_path)
       :ok = BoardBroadcast.subscribe()
 
       assert %{"error" => nil} =
@@ -350,6 +419,8 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     git!(dir, ["add", "."])
     git!(dir, ["commit", "-q", "-m", "seed"])
   end
+
+  defp git_remote!(dir, url), do: git!(dir, ["remote", "add", "origin", url])
 
   defp branch!(dir, name, edit) when is_function(edit, 0) do
     git!(dir, ["checkout", "-q", "-b", name])

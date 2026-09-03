@@ -9,6 +9,8 @@ defmodule Suikou.Git do
   `-`, so a hostile ref can never be parsed as an option (see BDR-0020).
   """
 
+  alias Suikou.ReviewRoots
+
   @type repo_dir() :: String.t()
   @type ref() :: String.t()
   @type rel_path() :: String.t()
@@ -51,6 +53,95 @@ defmodule Suikou.Git do
     case run(dir, ["rev-parse", "--show-toplevel"]) do
       {:ok, out} -> Path.expand(String.trim(out)) == Path.expand(dir)
       {:error, _reason} -> false
+    end
+  end
+
+  @doc """
+  Resolves `dir` to the working tree root of the repository containing it, or
+  to `dir` itself when it is not inside one. A review pins the root rather than
+  whatever subdirectory the agent happened to run in, so its paths stay stable.
+
+  Either way the answer is canonical: git resolves symlinks itself, and the
+  non-repository fallback is put through `Suikou.ReviewRoots.canonical/1` so one
+  directory never comes back spelled two ways.
+
+  ## Examples
+
+      Suikou.Git.toplevel("/projects/app/lib")
+      #=> "/projects/app"
+
+      Suikou.Git.toplevel("/tmp")
+      #=> "/tmp"
+
+  """
+  @spec toplevel(repo_dir()) :: String.t()
+  def toplevel(dir) do
+    expanded = Path.expand(dir)
+
+    case run(expanded, ["rev-parse", "--show-toplevel"]) do
+      {:ok, out} -> out |> String.trim() |> Path.expand()
+      {:error, _reason} -> ReviewRoots.canonical(expanded)
+    end
+  end
+
+  @doc """
+  Resolves `dir` to the identity of the repository it belongs to, so every
+  worktree of one repository answers the same value and can be grouped under one
+  project. Returns `nil` when `dir` is not a git working tree.
+
+  The `origin` remote wins when there is one: its URL is normalised so
+  `git@github.com:fahchen/suikou.git`, `https://github.com/fahchen/suikou.git`
+  and `ssh://git@github.com/fahchen/suikou` all collapse to
+  `github.com/fahchen/suikou`, which makes worktrees, clones and a re-clone after
+  `rm -rf` agree. Without a remote it falls back to `--git-common-dir` rather
+  than `--git-dir`, because a linked worktree reports the *main* repository's
+  `.git` there — so remote-less worktrees still agree.
+
+  ## Examples
+
+      Suikou.Git.identity("/projects/app")
+      #=> "github.com/fahchen/suikou"
+
+      Suikou.Git.identity("/tmp")
+      #=> nil
+
+  """
+  @spec identity(repo_dir()) :: String.t() | nil
+  def identity(dir) do
+    # Deliberately not guarded by `repo?/1`: identity describes the repository,
+    # not the directory, so a subdirectory answers the same value — and `repo?/1`
+    # compares an expanded path against git's own, which disagree the moment the
+    # directory is reached through a symlink (`/tmp` on macOS).
+    remote_identity(dir) || common_dir_identity(dir)
+  end
+
+  defp remote_identity(dir) do
+    case run(dir, ["remote", "get-url", "origin"]) do
+      {:ok, out} -> out |> String.trim() |> normalize_remote()
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp normalize_remote(""), do: nil
+
+  defp normalize_remote(url) do
+    url
+    |> String.replace(~r{^[a-z0-9+.-]+://}i, "")
+    |> String.replace(~r{^[^/@]+@}, "")
+    |> String.replace(":", "/", global: false)
+    |> String.replace_suffix(".git", "")
+    |> String.trim_trailing("/")
+    |> String.downcase()
+    |> case do
+      "" -> nil
+      identity -> identity
+    end
+  end
+
+  defp common_dir_identity(dir) do
+    case run(dir, ["rev-parse", "--path-format=absolute", "--git-common-dir"]) do
+      {:ok, out} -> out |> String.trim() |> Path.expand()
+      {:error, _reason} -> nil
     end
   end
 

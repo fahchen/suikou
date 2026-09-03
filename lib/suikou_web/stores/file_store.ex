@@ -13,6 +13,7 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Musubi.Socket
   alias Suikou.Critique
   alias Suikou.Reads
+  alias Suikou.ReviewRoots
   alias Suikou.Reviews
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
@@ -206,8 +207,9 @@ defmodule SuikouWeb.Stores.FileStore do
     abs =
       with review_id when is_binary(review_id) <- socket.assigns[:review_id],
            path when is_binary(path) <- socket.assigns[:path],
-           %Review{project: %{path: project_path}} <- Reviews.get_review(review_id) do
-        Path.join(project_path, path)
+           %Review{} = review <- Reviews.get_review(review_id),
+           {:ok, absolute} <- ReviewRoots.absolute(review, path) do
+        absolute
       else
         _absent -> nil
       end

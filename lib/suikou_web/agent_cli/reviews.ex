@@ -10,6 +10,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias Suikou.Critique
   alias Suikou.Events
   alias Suikou.Export
+  alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Push
   alias Suikou.Reviews
@@ -30,8 +31,10 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   @default_poll_window_ms 25_000
 
   @doc """
-  Emits a project's reviews as `%{reviews: [%{id, name, kind, selections}]}`, or
-  `%{reviews: [], error}` when the project is unknown. Reads `%{"project_id"}`.
+  Emits reviews as `%{reviews: [...], error}`, filtered either by `"project_id"`
+  or by `"path"` — a directory, which answers for the whole repository it belongs
+  to, across every worktree and every project those reviews are filed under. That
+  is how an agent finds work it did not create from nothing but a checkout.
 
   ## Examples
 
@@ -39,38 +42,58 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       SuikouWeb.AgentCLI.Reviews.list()
       #=> :ok  # emits {"reviews":[{"id":"0192…","name":"Spec","kind":"file_selection","selections":[]}],"error":null}
 
+      # stdin: {"path": "/projects/app"}
+      SuikouWeb.AgentCLI.Reviews.list()
+      #=> :ok  # emits {"reviews":[{"id":"0192…","project_id":"0192…","project_path":"/projects/app",…}],"error":null}
+
   """
   @spec list() :: :ok
   def list do
     payload = AgentCLI.read_payload()
 
-    reply =
-      case Projects.get_project(payload["project_id"]) do
-        %Project{} = project ->
-          %{reviews: Enum.map(Reviews.list_for_project(project), &review_summary/1), error: nil}
+    AgentCLI.emit(listed(payload))
+  end
 
-        nil ->
-          %{reviews: [], error: "project_not_found"}
-      end
+  defp listed(%{"path" => path}) when is_binary(path) do
+    reviews = path |> Git.toplevel() |> Reviews.list_for_dir() |> Enum.map(&review_summary/1)
 
-    AgentCLI.emit(reply)
+    %{reviews: reviews, error: nil}
+  end
+
+  defp listed(payload) do
+    case Projects.get_project(payload["project_id"]) do
+      %Project{} = project ->
+        %{reviews: Enum.map(Reviews.list_for_project(project), &review_summary/1), error: nil}
+
+      nil ->
+        %{reviews: [], error: "project_not_found"}
+    end
   end
 
   @doc """
-  Creates a review and emits `%{review_id}` or `%{error}`, broadcasting the board
-  on success. The source is chosen by payload shape: `"base_ref"`/`"head_ref"`
-  present builds a git-diff review, otherwise `"selections"` builds a
-  file-selection review. Reads `%{"project_id", "name", …}`.
+  Creates a review and emits `%{review_id, scratch_path}` or `%{error}`,
+  broadcasting the board on success. The source is chosen by payload shape:
+  `"base_ref"`/`"head_ref"` present builds a git-diff review, otherwise
+  `"selections"` builds a file-selection review.
+
+  The project is the one grouping the repository `"project_path"` belongs to, so
+  a review created from any worktree lands with its siblings; `"project_id"`
+  overrides that lookup. An unknown repository answers `project_not_found`
+  rather than registering one, leaving that decision with the human.
+
+  `scratch_path` comes back because creation is the moment the agent needs it:
+  it is the directory to write generated output into, addressed afterwards as
+  `@scratch/…`.
 
   ## Examples
 
-      # stdin: {"project_id": "0192…", "name": "Spec", "selections": ["docs"]}
+      # stdin: {"project_path": "/projects/app", "name": "Spec", "selections": ["docs"]}
       SuikouWeb.AgentCLI.Reviews.create()
-      #=> :ok  # emits {"review_id":"0192…","error":null}
+      #=> :ok  # emits {"review_id":"0192…","scratch_path":"/home/me/.local/share/suikou/app-3f9c2e1a/0192…","error":null}
 
       # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic"}
       SuikouWeb.AgentCLI.Reviews.create()
-      #=> :ok  # emits {"review_id":"0192…","error":null}
+      #=> :ok  # emits {"review_id":"0192…","scratch_path":"…","error":null}
 
   """
   @spec create() :: :ok
@@ -78,7 +101,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
     payload = AgentCLI.read_payload()
 
     reply =
-      with_project(payload["project_id"], fn project ->
+      with_project(payload, fn project ->
         created_review(create_source(project, payload))
       end)
 
@@ -87,12 +110,25 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   defp create_source(project, %{"base_ref" => base, "head_ref" => head} = payload)
        when is_binary(base) and is_binary(head) do
-    Reviews.create_diff_review(project, %{name: payload["name"], base_ref: base, head_ref: head})
+    Reviews.create_diff_review(project, %{
+      name: payload["name"],
+      project_path: checkout(payload),
+      base_ref: base,
+      head_ref: head
+    })
   end
 
   defp create_source(project, payload) do
-    Reviews.create_review(project, %{name: payload["name"], selections: payload["selections"]})
+    Reviews.create_review(project, %{
+      name: payload["name"],
+      project_path: checkout(payload),
+      selections: payload["selections"]
+    })
   end
+
+  # The agent sends wherever it is standing; a review pins the repository root so
+  # its paths mean the same thing from any subdirectory.
+  defp checkout(payload), do: payload |> Map.get("project_path", ".") |> Git.toplevel()
 
   @doc """
   Emits a review's metadata, current files, and the project's review
@@ -474,19 +510,41 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp notify_body(message) when is_binary(message) and message != "", do: message
   defp notify_body(_absent), do: "Ready for review"
 
-  defp with_project(project_id, fun) do
-    case Projects.get_project(project_id) do
-      %Project{} = project -> fun.(project)
-      nil -> %{review_id: nil, error: "project_not_found"}
+  # An explicit project wins; otherwise the repository the working directory
+  # belongs to decides, which is what puts sibling worktrees in one project.
+  defp with_project(payload, fun) do
+    case resolve_project(payload) do
+      {:ok, %Project{} = project} -> fun.(project)
+      {:error, reason} -> create_reply(nil, AgentCLI.error(reason))
     end
   end
 
-  defp created_review({:ok, %Review{} = review}) do
-    BoardBroadcast.broadcast()
-    %{review_id: review.id, error: nil}
+  defp resolve_project(%{"project_id" => project_id}) when is_binary(project_id) do
+    case Projects.get_project(project_id) do
+      %Project{} = project -> {:ok, project}
+      nil -> {:error, :project_not_found}
+    end
   end
 
-  defp created_review({:error, reason}), do: %{review_id: nil, error: AgentCLI.error(reason)}
+  defp resolve_project(%{"project_path" => path}) when is_binary(path) do
+    Projects.project_for_dir(Git.toplevel(path))
+  end
+
+  defp resolve_project(_payload), do: {:error, :project_not_found}
+
+  defp created_review({:ok, %Review{} = review}) do
+    BoardBroadcast.broadcast()
+    create_reply(review, nil)
+  end
+
+  defp created_review({:error, reason}), do: create_reply(nil, AgentCLI.error(reason))
+
+  # One shape for every `create` outcome, so a caller never has to branch on
+  # which keys are present.
+  defp create_reply(nil, error), do: %{review_id: nil, scratch_path: nil, error: error}
+
+  defp create_reply(%Review{} = review, error),
+    do: %{review_id: review.id, scratch_path: review.scratch_path, error: error}
 
   defp mutate(review_id, fun) do
     with_review(review_id, fn review ->
@@ -529,7 +587,15 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp review_summary(%Review{} = review) do
     {kind, selections} = kind_and_selections(review)
 
-    %{id: review.id, name: review.name, kind: kind, selections: selections}
+    %{
+      id: review.id,
+      name: review.name,
+      kind: kind,
+      selections: selections,
+      project_id: review.project_id,
+      project_path: review.project_path,
+      scratch_path: review.scratch_path
+    }
   end
 
   defp kind_and_selections(%Review{source: %FileSelection{selection_paths: paths}}) do

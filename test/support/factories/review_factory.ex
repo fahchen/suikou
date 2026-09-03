@@ -6,6 +6,7 @@ defmodule Suikou.Factories.ReviewFactory do
       alias Suikou.Artifacts
       alias Suikou.Critique
       alias Suikou.Repo
+      alias Suikou.ReviewRoots
       alias Suikou.Rounds
       alias Suikou.Schemas.Artifact
       alias Suikou.Schemas.Comment
@@ -27,6 +28,10 @@ defmodule Suikou.Factories.ReviewFactory do
         %Review{
           name: sequence(:name, &"Review #{&1}"),
           project: build(:project),
+          project_path:
+            sequence(:project_path, &Path.join(System.tmp_dir!(), "suikou-project-#{&1}")),
+          scratch_path:
+            sequence(:scratch_path, &Path.join(System.tmp_dir!(), "suikou-scratch-#{&1}")),
           source: %FileSelection{selection_paths: []}
         }
       end
@@ -34,7 +39,6 @@ defmodule Suikou.Factories.ReviewFactory do
       def project_factory do
         %Project{
           name: sequence(:name, &"Project #{&1}"),
-          path: sequence(:path, &Path.join(System.tmp_dir!(), "suikou-project-#{&1}")),
           respect_gitignore: true
         }
       end
@@ -93,12 +97,10 @@ defmodule Suikou.Factories.ReviewFactory do
       # minted yet — the state a reviewing agent finds before the human has
       # opened anything, and the shape the agent authoring path takes.
       def covered_file(content, path \\ "doc.md") do
-        project = insert(:project)
-        File.mkdir_p!(Path.join(project.path, Path.dirname(path)))
-        File.write!(Path.join(project.path, path), content)
-
-        review =
-          insert(:review, project: project, source: %FileSelection{selection_paths: [path]})
+        review = insert(:review, source: %FileSelection{selection_paths: [path]})
+        {:ok, absolute} = ReviewRoots.absolute(review, path)
+        File.mkdir_p!(Path.dirname(absolute))
+        File.write!(absolute, content)
 
         %{review: review, path: path}
       end
@@ -117,7 +119,7 @@ defmodule Suikou.Factories.ReviewFactory do
 
       defp write_source(artifact_id, content) do
         artifact = Artifact |> Repo.get!(artifact_id) |> Repo.preload(review: :project)
-        path = Path.join(artifact.review.project.path, artifact.file_path)
+        {:ok, path} = ReviewRoots.absolute(artifact.review, artifact.file_path)
         File.mkdir_p!(Path.dirname(path))
         File.write!(path, content)
       end

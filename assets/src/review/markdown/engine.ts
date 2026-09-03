@@ -18,12 +18,31 @@ export const markdown = new MarkdownIt({ html: true, linkify: true })
   .use(sub)
   .use(sup)
 
+// The checkout is the default root: an unmarked src is a path under it, and a
+// review's file list spells those without a marker. `@scratch/` opts into the
+// review's scratch directory instead. Only a file that already lives in the
+// checkout resolves relative to its own directory — that is where a relative
+// link has always pointed, and it is what keeps a repo's README rendering.
+//
+// The scratch marker works one way. A committed file naming `@scratch/` gets
+// `null` back and is left un-rewritten, because such a link is dead outside
+// Suikou and manufacturing a working URL for it here would hide that. The
+// server refuses the same reference on the artifact asset route.
+function assetPath(dir: string, src: string): string | null {
+  const fromScratch = dir === "@scratch" || dir.startsWith("@scratch/")
+  if (src.startsWith("@scratch/")) return fromScratch ? src : null
+  if (src.startsWith("@project/")) return joinRelative("", src.slice("@project/".length))
+  if (fromScratch) return joinRelative("", src)
+  return joinRelative(dir, src)
+}
+
 // A repo-relative image src (no scheme, not root/protocol/anchor) is rewritten
-// to the review's live raw-asset endpoint, resolved against the previewed file's
-// directory; anything absolute or external is left untouched.
+// to the review's live raw-asset endpoint; anything absolute or external is left
+// untouched.
 function rewriteSrc(ctx: AssetContext, src: string): string {
   if (!isRepoRelative(src)) return src
-  const path = joinRelative(ctx.dir, src)
+  const path = assetPath(ctx.dir, src)
+  if (path === null) return src
   return `/api/review/${ctx.reviewId}/files/raw?path=${encodeURIComponent(path)}`
 }
 

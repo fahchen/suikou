@@ -39,9 +39,9 @@ defmodule Suikou.Artifacts.DiffSource do
   @spec create(Review.t(), String.t()) ::
           {:ok, %{artifact: Artifact.t(), round: Round.t()}}
           | {:error, create_error()}
-  def create(%Review{source: %GitDiff{} = git_diff, project: project} = review, path)
+  def create(%Review{source: %GitDiff{} = git_diff} = review, path)
       when is_binary(path) do
-    case Git.file_diff(project.path, git_diff.base_ref, git_diff.head_ref, path) do
+    case Git.file_diff(review.project_path, git_diff.base_ref, git_diff.head_ref, path) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> Repo.transaction(fn -> Snapshot.mint!(review, path, diff) end)
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -62,8 +62,13 @@ defmodule Suikou.Artifacts.DiffSource do
 
   """
   @spec read(Artifact.t()) :: {:ok, binary()} | {:error, read_error()}
-  def read(%Artifact{review: %Review{source: %GitDiff{} = git_diff, project: project}} = artifact) do
-    case Git.file_diff(project.path, git_diff.base_ref, git_diff.head_ref, artifact.file_path) do
+  def read(%Artifact{review: %Review{source: %GitDiff{} = git_diff} = review} = artifact) do
+    case Git.file_diff(
+           review.project_path,
+           git_diff.base_ref,
+           git_diff.head_ref,
+           artifact.file_path
+         ) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> {:ok, diff}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}

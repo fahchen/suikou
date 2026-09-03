@@ -20,6 +20,7 @@ defmodule Suikou.Reviews do
   alias Suikou.Git
   alias Suikou.Projects
   alias Suikou.Repo
+  alias Suikou.ReviewRoots
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Project
   alias Suikou.Schemas.Review
@@ -29,58 +30,231 @@ defmodule Suikou.Reviews do
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
-  directories. Only the selection is stored — no artifacts are minted. Files
-  become artifacts lazily when first opened (see `open_file/2`).
+  directories, reading them from the checkout at `params.project_path`. Only the
+  selection is stored — no artifacts are minted. Files become artifacts lazily
+  when first opened (see `open_file/2`).
 
   ## Examples
 
-      Suikou.Reviews.create_review(project, %{name: "Launch docs", selections: ["docs", "plan.md"]})
+      Suikou.Reviews.create_review(project, %{name: "Launch docs", project_path: "/projects/app", selections: ["docs", "plan.md"]})
       #=> {:ok, %Suikou.Schemas.Review{name: "Launch docs"}}
 
-      Suikou.Reviews.create_review(project, %{name: "Launch docs", selections: []})
+      Suikou.Reviews.create_review(project, %{name: "Launch docs", project_path: "/projects/app", selections: []})
       #=> {:error, :no_files}
 
   """
   @spec create_review(Project.t(), map()) ::
-          {:ok, Review.t()} | {:error, :no_files | Ecto.Changeset.t()}
+          {:ok, Review.t()}
+          | {:error, :no_files | scratch_error() | Ecto.Changeset.t()}
   def create_review(%Project{} = project, params) do
     selections = Map.get(params, :selections, [])
 
     changeset =
-      Review.create_changeset(project, %{
+      Review.create_changeset(project, project_path(params), %{
         name: Map.get(params, :name),
+        respect_gitignore: Map.get(params, :respect_gitignore),
         source: %{__type__: "file_selection", selection_paths: selections}
       })
 
     cond do
       selections == [] -> {:error, :no_files}
       not changeset.valid? -> {:error, changeset}
-      true -> Repo.insert(changeset)
+      true -> insert_with_roots(project, changeset)
+    end
+  end
+
+  # Stored as given, only expanded. Deciding *which* directory a checkout is —
+  # a repository root rather than the subdirectory an agent happened to run in —
+  # belongs to the adapter that knows where the caller stood, not here.
+  defp project_path(params), do: params |> Map.get(:project_path, ".") |> Path.expand()
+
+  # `scratch_path` is named for the review's own id, so it can only be written
+  # once the row exists. The directory is created here so the path a caller is
+  # handed back is usable immediately — and a review whose scratch directory
+  # could not be created is rolled back rather than handed out pointing at
+  # nothing, since a permission or disk error is the caller's to report.
+  defp insert_with_roots(%Project{} = project, changeset) do
+    Repo.transaction(fn ->
+      review = Repo.insert!(changeset)
+      scratch = ReviewRoots.scratch_dir(project, review.id)
+
+      case File.mkdir_p(scratch) do
+        :ok -> review |> Review.scratch_changeset(scratch) |> Repo.update!()
+        {:error, reason} -> Repo.rollback({:scratch_unwritable, reason})
+      end
+    end)
+  end
+
+  @doc """
+  Returns the checkout most recently reviewed under `project`, or `nil` when it
+  has no reviews yet. The board browses and creates from this: a project is a
+  label with no directory of its own, so the last checkout its reviews used is
+  the only working directory it can offer.
+
+  ## Examples
+
+      Suikou.Reviews.latest_project_path(project)
+      #=> "/projects/app"
+
+  """
+  @spec latest_project_path(Project.t()) :: String.t() | nil
+  def latest_project_path(%Project{} = project) do
+    query =
+      from(r in Review,
+        as: :review,
+        where: r.project_id == ^project.id,
+        order_by: [desc: r.id],
+        limit: 1,
+        select: r.project_path
+      )
+
+    Repo.one(query)
+  end
+
+  @doc """
+  Answers whether `review`'s file listings skip `.gitignore` matches. A review
+  answers for itself when it was set, and falls back to its project otherwise, so
+  one noisy review can be loosened without loosening the whole board.
+
+  ## Examples
+
+      Suikou.Reviews.respect_gitignore?(review)
+      #=> true
+
+  """
+  @spec respect_gitignore?(Review.t()) :: boolean()
+  def respect_gitignore?(%Review{respect_gitignore: nil} = review) do
+    review = Repo.preload(review, :project)
+    review.project.respect_gitignore
+  end
+
+  def respect_gitignore?(%Review{respect_gitignore: respect}), do: respect
+
+  @doc """
+  Files a review under another project. A project is a label, so this only
+  changes where the review is listed: its checkout, its comments and its history
+  all belong to the review and come along untouched.
+
+  Its scratch directory keeps the heading it was created under — a stored path
+  never moves, and the generated files are already sitting there.
+
+  ## Examples
+
+      Suikou.Reviews.move_review(review, other_project)
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+  """
+  @spec move_review(Review.t(), Project.t()) ::
+          {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
+  def move_review(%Review{} = review, %Project{} = project) do
+    review
+    |> Review.move_changeset(project)
+    |> Repo.update()
+    |> broadcast_review_change()
+  end
+
+  @doc """
+  Sets whether a review's file listings respect `.gitignore`, or clears the
+  override with `nil` so its project decides again.
+
+  ## Examples
+
+      Suikou.Reviews.set_respect_gitignore(review, false)
+      #=> {:ok, %Suikou.Schemas.Review{respect_gitignore: false}}
+
+  """
+  @spec set_respect_gitignore(Review.t(), boolean() | nil) ::
+          {:ok, Review.t()} | {:error, Ecto.Changeset.t()}
+  def set_respect_gitignore(%Review{} = review, respect) do
+    review
+    |> Review.gitignore_changeset(respect)
+    |> Repo.update()
+    |> broadcast_review_change()
+  end
+
+  @doc """
+  Lists every checkout reviews already read from, most recently used first and
+  without repeats. The board completes a directory from this rather than asking
+  a human to retype one, since a project holds no path of its own.
+
+  ## Examples
+
+      Suikou.Reviews.list_checkouts()
+      #=> ["/projects/app", "/projects/docs"]
+
+  """
+  @spec list_checkouts() :: [String.t()]
+  def list_checkouts do
+    query =
+      from(r in Review,
+        as: :review,
+        group_by: r.project_path,
+        order_by: [desc: max(r.id)],
+        select: r.project_path
+      )
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Lists reviews that read from the repository `dir` belongs to, newest first,
+  across every worktree of it and every project they are filed under. This is
+  how an agent finds work it did not create from nothing but a directory.
+
+  ## Examples
+
+      Suikou.Reviews.list_for_dir("/projects/app")
+      #=> [%Suikou.Schemas.Review{project_path: "/projects/app"}]
+
+  """
+  @spec list_for_dir(String.t()) :: [Review.t()]
+  def list_for_dir(dir) do
+    root = Path.expand(dir)
+
+    # The project match is what carries sibling worktrees: they were grouped by
+    # repository identity at creation, so one lookup reaches all of them. The
+    # path match catches a review filed under a hand-picked project, whose
+    # identity says nothing about this checkout.
+    from(r in Review, as: :review, order_by: [desc: r.id])
+    |> where_at_or_grouped_with(root)
+    |> Repo.all()
+    |> preload_active()
+  end
+
+  defp where_at_or_grouped_with(query, root) do
+    case Projects.get_project_by_dir(root) do
+      %Project{id: id} ->
+        where(query, [review: r], r.project_path == ^root or r.project_id == ^id)
+
+      nil ->
+        where(query, [review: r], r.project_path == ^root)
     end
   end
 
   @doc """
-  Lists `project`'s candidate branches together with its resolved default
-  branch, for the board's diff-review creation picker (see BDR-0020).
+  Lists the candidate branches of the checkout at `path`, together with its
+  resolved default branch, for the board's diff-review creation picker (see
+  BDR-0020).
+
   Returns local branches under `:branches` and `origin/*` remote-tracking
   branches under `:remote_branches`, each sorted by descending commit date.
   `:default` is the repository default branch via `Suikou.Git.default_branch/1`
   and is the suggested base. `:remote_branches` is `[]` when no `origin`
   remote is configured.
 
-  Returns `{:error, :not_a_git_repo}` when `project.path` is not a git working
-  tree, and `{:error, :git_error}` when git fails.
+  Returns `{:error, :not_a_git_repo}` when `path` is not a git working tree,
+  and `{:error, :git_error}` when git fails.
 
   ## Examples
 
-      Suikou.Reviews.list_branches(project)
+      Suikou.Reviews.list_branches("/projects/app")
       #=> {:ok, %{branches: ["topic", "main"], remote_branches: ["origin/main"], default: "main"}}
 
   """
-  @spec list_branches(Project.t()) ::
+  @spec list_branches(String.t()) ::
           {:ok, %{branches: [String.t()], remote_branches: [String.t()], default: String.t()}}
           | {:error, :not_a_git_repo | :git_error}
-  def list_branches(%Project{path: path}) do
+  def list_branches(path) do
     with {:ok, branches} <- local_or_error(path),
          {:ok, remote_branches} <- remote_or_error(path),
          {:ok, default} <- default_or_error(path) do
@@ -136,17 +310,21 @@ defmodule Suikou.Reviews do
              | :head_ref_not_found
              | :no_changes
              | :git_error
+             | scratch_error()
              | Ecto.Changeset.t()}
   def create_diff_review(%Project{} = project, params) do
-    with :ok <- ensure_git_repo(project),
-         {:ok, base} <- resolve_base_ref(project, params),
+    path = project_path(params)
+
+    with :ok <- ensure_git_repo(path),
+         {:ok, base} <- resolve_base_ref(path, params),
          {:ok, head} <- fetch_head_ref(params),
-         :ok <- ensure_ref(project, base, :base_ref_not_found),
-         :ok <- ensure_ref(project, head, :head_ref_not_found),
-         :ok <- ensure_changes(project, base, head) do
+         :ok <- ensure_ref(path, base, :base_ref_not_found),
+         :ok <- ensure_ref(path, head, :head_ref_not_found),
+         :ok <- ensure_changes(path, base, head) do
       changeset =
-        Review.create_changeset(project, %{
+        Review.create_changeset(project, path, %{
           name: Map.get(params, :name),
+          respect_gitignore: Map.get(params, :respect_gitignore),
           source: %{
             __type__: "git_diff",
             base_ref: base,
@@ -154,7 +332,7 @@ defmodule Suikou.Reviews do
           }
         })
 
-      if changeset.valid?, do: Repo.insert(changeset), else: {:error, changeset}
+      if changeset.valid?, do: insert_with_roots(project, changeset), else: {:error, changeset}
     end
   end
 
@@ -176,7 +354,7 @@ defmodule Suikou.Reviews do
     # Force-load every artifact, including soft-removed ones, so a re-covered
     # file is restored rather than left dangling (see BDR-0018).
     review = Repo.preload(review, [:project, :artifacts], force: true)
-    target = MapSet.new(expand(review.project, selections))
+    target = MapSet.new(expand(review, selections))
     artifacts = review.artifacts
 
     result =
@@ -276,7 +454,7 @@ defmodule Suikou.Reviews do
   def open_file(%Review{source: %FileSelection{selection_paths: paths}} = review, path) do
     review = Repo.preload(review, :project)
 
-    if path in expand(review.project, paths) do
+    if path in expand(review, paths) do
       mint_or_get(review, path, &Artifacts.create_from_file/2)
     else
       {:error, :not_covered}
@@ -286,7 +464,7 @@ defmodule Suikou.Reviews do
   def open_file(%Review{source: %GitDiff{} = git_diff} = review, path) do
     review = Repo.preload(review, :project)
 
-    case changed_paths(review.project, git_diff) do
+    case changed_paths(review.project_path, git_diff) do
       {:ok, paths} ->
         if path in paths,
           do: mint_or_get(review, path, &Artifacts.create_from_diff/2),
@@ -327,6 +505,12 @@ defmodule Suikou.Reviews do
   def delete_review(%Review{} = review), do: Repo.delete(review)
 
   @typedoc """
+  The scratch directory could not be created — a permission or disk error from
+  `File.mkdir_p/1`, carried so the caller can say which.
+  """
+  @type scratch_error() :: {:scratch_unwritable, File.posix()}
+
+  @typedoc """
   Diff review's ref identity: the branch names the reviewer picked at creation.
   Refs are resolved live on every render — a vanished ref surfaces as an error
   page in the workspace (see BDR-0025). `refs_valid` is `false` when either
@@ -355,13 +539,13 @@ defmodule Suikou.Reviews do
   @spec refs_snapshot(Review.t()) :: refs_snapshot() | nil
   def refs_snapshot(%Review{source: %FileSelection{}}), do: nil
 
-  def refs_snapshot(%Review{source: %GitDiff{} = git_diff, project: %Project{} = project}) do
+  def refs_snapshot(%Review{source: %GitDiff{} = git_diff} = review) do
     %{
       base_ref: git_diff.base_ref,
       head_ref: git_diff.head_ref,
       refs_valid:
-        Git.ref_exists?(project.path, git_diff.base_ref) and
-          Git.ref_exists?(project.path, git_diff.head_ref)
+        Git.ref_exists?(review.project_path, git_diff.base_ref) and
+          Git.ref_exists?(review.project_path, git_diff.head_ref)
     }
   end
 
@@ -390,8 +574,8 @@ defmodule Suikou.Reviews do
           | {:error, :not_a_diff_review | Git.list_commits_error()}
   def list_diff_commits(%Review{source: %FileSelection{}}), do: {:error, :not_a_diff_review}
 
-  def list_diff_commits(%Review{source: %GitDiff{} = git_diff, project: %Project{} = project}) do
-    Git.list_commits(project.path, git_diff.base_ref, git_diff.head_ref)
+  def list_diff_commits(%Review{source: %GitDiff{} = git_diff} = review) do
+    Git.list_commits(review.project_path, git_diff.base_ref, git_diff.head_ref)
   end
 
   @doc """
@@ -421,9 +605,8 @@ defmodule Suikou.Reviews do
   def fetch_commit_diff(%Review{source: %FileSelection{}}, _sha),
     do: {:error, :not_a_diff_review}
 
-  def fetch_commit_diff(%Review{source: %GitDiff{}, project: %Project{} = project}, sha)
-      when is_binary(sha) do
-    case Git.commit_diff(project.path, sha) do
+  def fetch_commit_diff(%Review{source: %GitDiff{}} = review, sha) when is_binary(sha) do
+    case Git.commit_diff(review.project_path, sha) do
       {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
       {:error, reason} -> {:error, reason}
     end
@@ -495,11 +678,9 @@ defmodule Suikou.Reviews do
     removed = for a <- review.artifacts, not is_nil(a.removed_at), do: a
 
     active_entries =
-      review.project
+      review
       |> expand(paths)
-      |> Enum.map(
-        &file_entry(&1, Map.get(active, &1), file_content_hash(review.project, &1), nil, nil)
-      )
+      |> Enum.map(&file_entry(&1, Map.get(active, &1), file_content_hash(review, &1), nil, nil))
 
     removed_entries = Enum.map(removed, &soft_removed_entry/1)
     active_entries ++ removed_entries
@@ -535,11 +716,11 @@ defmodule Suikou.Reviews do
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
     lens = normalize_lens(review, lens)
 
-    case lens_changed_with_status(review.project, git_diff, lens) do
+    case lens_changed_with_status(review.project_path, git_diff, lens) do
       {:ok, entries} ->
         sorted = Enum.sort_by(entries, & &1.path)
         paths = Enum.map(sorted, & &1.path)
-        {blobs, stats} = lens_blobs_and_stats(review.project, git_diff, lens, paths)
+        {blobs, stats} = lens_blobs_and_stats(review.project_path, git_diff, lens, paths)
 
         Enum.map(sorted, fn %{path: path, status: status} ->
           file_entry(
@@ -708,16 +889,16 @@ defmodule Suikou.Reviews do
     Enum.any?(list_files(review, lens), &(&1.path == path))
   end
 
-  defp read_content_by_path(%Review{source: %FileSelection{}, project: project}, path, _lens) do
-    file_selection_content_source(project, path)
+  defp read_content_by_path(%Review{source: %FileSelection{}} = review, path, _lens) do
+    file_selection_content_source(review, path)
   end
 
   defp read_content_by_path(
-         %Review{source: %GitDiff{} = git_diff, project: project},
+         %Review{source: %GitDiff{} = git_diff} = review,
          path,
          lens
        ) do
-    case lens_file_diff(project, git_diff, lens, path) do
+    case lens_file_diff(review.project_path, git_diff, lens, path) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -759,33 +940,31 @@ defmodule Suikou.Reviews do
       else: {:error, :path_not_in_review}
   end
 
-  defp read_raw_by_path(%Review{source: %FileSelection{}, project: project}, path) do
-    file_selection_content_source(project, path)
+  defp read_raw_by_path(%Review{source: %FileSelection{}} = review, path) do
+    file_selection_content_source(review, path)
   end
 
-  defp read_raw_by_path(%Review{source: %GitDiff{} = git_diff, project: project}, path) do
-    case Git.show_blob(project.path, git_diff.head_ref, path) do
+  defp read_raw_by_path(%Review{source: %GitDiff{} = git_diff} = review, path) do
+    case Git.show_blob(review.project_path, git_diff.head_ref, path) do
       {:ok, bytes} -> {:ok, {:inline, bytes, MIME.from_path(path)}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
     end
   end
 
-  defp file_selection_content_source(%Project{} = project, path) do
-    case Path.safe_relative(path, project.path) do
-      {:ok, relative} ->
-        absolute = Path.join(project.path, relative)
+  defp file_selection_content_source(%Review{} = review, path) do
+    case ReviewRoots.absolute(review, path) do
+      {:ok, absolute} ->
         if File.regular?(absolute), do: {:ok, {:file, absolute}}, else: {:error, :not_a_file}
 
-      :error ->
+      {:error, :unsafe_path} ->
         {:error, :unsafe_path}
     end
   end
 
-  defp file_content_hash(%Project{path: project_path}, rel_path) do
-    absolute = Path.join(project_path, rel_path)
-
-    with true <- File.regular?(absolute),
+  defp file_content_hash(%Review{} = review, rel_path) do
+    with {:ok, absolute} <- ReviewRoots.absolute(review, rel_path),
+         true <- File.regular?(absolute),
          {:ok, bytes} <- File.read(absolute) do
       Base.encode16(:crypto.hash(:sha256, bytes))
     else
@@ -793,7 +972,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp head_blob_ids(%Project{path: project_path}, %GitDiff{head_ref: head_ref}, paths) do
+  defp head_blob_ids(project_path, %GitDiff{head_ref: head_ref}, paths) do
     case Git.blob_ids(project_path, head_ref, paths) do
       {:ok, map} -> map
       {:error, _reason} -> %{}
@@ -805,16 +984,38 @@ defmodule Suikou.Reviews do
   # added under a selected directory appear without editing the selection. A
   # selected file is dropped when the project no longer lists it (gitignored or
   # under `.git`), so a stale selection never leaks once the toggle is on.
-  defp expand(%Project{} = project, paths) do
+  defp expand(%Review{} = review, paths) do
+    respect = respect_gitignore?(review)
+
     paths
-    |> Enum.flat_map(fn path ->
-      cond do
-        File.dir?(Path.join(project.path, path)) -> Projects.list_files(project, path)
-        Projects.listable?(project, path) -> [path]
-        true -> []
-      end
-    end)
+    |> Enum.flat_map(&expand_path(review, respect, &1))
     |> Enum.uniq()
+  end
+
+  # A selected path is expanded under whichever root its marker names, and a
+  # scratch expansion re-prefixes the walk's results so every path the review
+  # deals in stays review-relative.
+  defp expand_path(%Review{} = review, respect, path) do
+    case ReviewRoots.locate(review, path) do
+      {:ok, base, relative} -> expand_under(base, respect, relative, path)
+      {:error, :unsafe_path} -> []
+    end
+  end
+
+  defp expand_under(base, respect, relative, path) do
+    cond do
+      File.dir?(Path.join(base, relative)) -> walk_under(base, respect, relative, path)
+      Projects.listable?(base, respect, relative) -> [path]
+      true -> []
+    end
+  end
+
+  defp walk_under(base, respect, relative, path) do
+    walked = Projects.list_files(base, respect, relative)
+
+    if ReviewRoots.scratch?(path),
+      do: Enum.map(walked, &ReviewRoots.scratch_path/1),
+      else: walked
   end
 
   defp broadcast_review_change({:ok, %Review{id: review_id}} = result) do
@@ -882,17 +1083,17 @@ defmodule Suikou.Reviews do
     Repo.preload(reviews, [:project, artifacts: active])
   end
 
-  defp ensure_git_repo(%Project{path: path}) do
+  defp ensure_git_repo(path) do
     if Git.repo?(path), do: :ok, else: {:error, :not_a_git_repo}
   end
 
-  defp resolve_base_ref(%Project{} = project, params) do
+  defp resolve_base_ref(path, params) do
     case Map.get(params, :base_ref) do
       ref when is_binary(ref) and ref != "" ->
         {:ok, ref}
 
       _missing ->
-        case Git.default_branch(project.path) do
+        case Git.default_branch(path) do
           {:ok, ref} -> {:ok, ref}
           {:error, :not_a_repo} -> {:error, :not_a_git_repo}
         end
@@ -906,14 +1107,14 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp ensure_ref(%Project{path: path}, ref, error) do
+  defp ensure_ref(path, ref, error) do
     if Git.ref_exists?(path, ref), do: :ok, else: {:error, error}
   end
 
   # Refs/repo are already validated above, so an empty list means a base==head
   # (or otherwise no-change) pair — reject before persisting an empty review. A
   # git failure here is a real error, distinct from "no diff".
-  defp ensure_changes(%Project{path: path}, base, head) do
+  defp ensure_changes(path, base, head) do
     case Git.changed_files(path, base, head) do
       {:ok, []} -> {:error, :no_changes}
       {:ok, [_head | _rest]} -> :ok
@@ -922,7 +1123,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp changed_paths(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+  defp changed_paths(path, %GitDiff{base_ref: base, head_ref: head}) do
     case Git.changed_files(path, base, head) do
       {:ok, paths} -> {:ok, paths}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -930,7 +1131,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp changed_with_status(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+  defp changed_with_status(path, %GitDiff{base_ref: base, head_ref: head}) do
     case Git.changed_files_with_status(path, base, head) do
       {:ok, entries} -> {:ok, entries}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -938,7 +1139,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp diff_stats(%Project{path: path}, %GitDiff{base_ref: base, head_ref: head}) do
+  defp diff_stats(path, %GitDiff{base_ref: base, head_ref: head}) do
     case Git.diff_stats(path, base, head) do
       {:ok, stats} -> stats
       {:error, _reason} -> %{}
@@ -1019,11 +1220,11 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp lens_changed_with_status(project, git_diff, %{scope: :all, worktree: :diff}) do
-    changed_with_status(project, git_diff)
+  defp lens_changed_with_status(path, git_diff, %{scope: :all, worktree: :diff}) do
+    changed_with_status(path, git_diff)
   end
 
-  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+  defp lens_changed_with_status(path, _git_diff, %{
          scope: {:commits, [sha]},
          worktree: :diff
        }) do
@@ -1041,7 +1242,7 @@ defmodule Suikou.Reviews do
   # the last entry is `oldest`; we walk oldest → newest so newer statuses
   # overwrite. Root-safe because each `commit_files/2` handles the root
   # commit on its own.
-  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+  defp lens_changed_with_status(path, _git_diff, %{
          scope: {:commits, [_first | _rest] = shas},
          worktree: :diff
        }) do
@@ -1052,7 +1253,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+  defp lens_changed_with_status(path, _git_diff, %{
          scope: :all,
          worktree: :staged
        }) do
@@ -1063,7 +1264,7 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp lens_changed_with_status(%Project{path: path}, _git_diff, %{
+  defp lens_changed_with_status(path, _git_diff, %{
          scope: :all,
          worktree: :unstaged
        }) do
@@ -1074,26 +1275,26 @@ defmodule Suikou.Reviews do
     end
   end
 
-  defp lens_blobs_and_stats(project, git_diff, %{scope: :all, worktree: :diff}, paths) do
-    {head_blob_ids(project, git_diff, paths), diff_stats(project, git_diff)}
+  defp lens_blobs_and_stats(path, git_diff, %{scope: :all, worktree: :diff}, paths) do
+    {head_blob_ids(path, git_diff, paths), diff_stats(path, git_diff)}
   end
 
   # Non-default lenses skip cached blob ids + line stats. Content hash is nil
   # (no stable cache key against the live worktree/commit view — the frontend
   # always refetches under a lens); +N/−M chips are omitted for the same
   # reason. These are follow-ups if the reviewer wants them.
-  defp lens_blobs_and_stats(_project, _git_diff, _lens, _paths), do: {%{}, %{}}
+  defp lens_blobs_and_stats(_path, _git_diff, _lens, _paths), do: {%{}, %{}}
 
   # Full-file context so the reviewer can expand every gap client-side; the
   # renderer folds long unchanged runs back down to a GitHub-style default view.
   # ponytail: only the default lens ships full context — commit/staged/unstaged
   # views stay at git's -U3; widen them if reviewers ask.
-  defp lens_file_diff(%Project{path: path}, git_diff, %{scope: :all, worktree: :diff}, rel_path) do
+  defp lens_file_diff(path, git_diff, %{scope: :all, worktree: :diff}, rel_path) do
     Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, rel_path, 1_000_000)
   end
 
   defp lens_file_diff(
-         %Project{path: path},
+         path,
          _git_diff,
          %{scope: {:commits, [sha]}, worktree: :diff},
          rel_path
@@ -1102,7 +1303,7 @@ defmodule Suikou.Reviews do
   end
 
   defp lens_file_diff(
-         %Project{path: path},
+         path,
          _git_diff,
          %{scope: {:commits, [newest | _rest] = shas}, worktree: :diff},
          rel_path
@@ -1111,7 +1312,7 @@ defmodule Suikou.Reviews do
   end
 
   defp lens_file_diff(
-         %Project{path: path},
+         path,
          _git_diff,
          %{scope: :all, worktree: :staged},
          rel_path
@@ -1120,7 +1321,7 @@ defmodule Suikou.Reviews do
   end
 
   defp lens_file_diff(
-         %Project{path: path},
+         path,
          _git_diff,
          %{scope: :all, worktree: :unstaged},
          rel_path

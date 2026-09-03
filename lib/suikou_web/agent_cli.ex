@@ -91,8 +91,13 @@ defmodule SuikouWeb.AgentCLI do
       #=> "anchor.start_line must be greater than 0"
 
   """
-  @spec error(atom() | Ecto.Changeset.t()) :: String.t()
+  @spec error(atom() | {atom(), atom()} | Ecto.Changeset.t()) :: String.t()
   def error(reason) when is_atom(reason), do: Atom.to_string(reason)
+
+  # A reason that carries detail, e.g. `{:scratch_unwritable, :eacces}`. Both
+  # halves are named so the agent can act on the kind and report the cause.
+  def error({reason, detail}) when is_atom(reason) and is_atom(detail),
+    do: "#{reason}: #{detail}"
 
   def error(%Ecto.Changeset{} = changeset) do
     changeset |> messages("") |> Enum.join(", ")

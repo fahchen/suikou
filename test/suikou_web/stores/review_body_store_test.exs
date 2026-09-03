@@ -16,8 +16,16 @@ defmodule SuikouWeb.Stores.ReviewBodyStoreTest do
       File.write!(Path.join(tmp, "lib/a.ex"), "a\n")
       on_exit(fn -> File.rm_rf!(tmp) end)
 
-      project = insert(:project, path: tmp)
-      {:ok, review} = Reviews.create_review(project, %{name: "rv", selections: ["lib/a.ex"]})
+      project = insert(:project)
+      project_path = tmp
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "rv",
+          selections: ["lib/a.ex"]
+        })
+
       %{review_id: Repo.preload(review, :project).id}
     end
 

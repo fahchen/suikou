@@ -16,11 +16,16 @@ defmodule Suikou.ProjectsTest do
 
   describe "register_project/1" do
     @tag :tmp_dir
-    test "registers an existing directory, storing an absolute path", %{tmp_dir: dir} do
-      assert {:ok, %Project{name: "Docs"} = project} =
-               Projects.register_project(%{name: "Docs", path: dir})
+    test "resolves the given directory to a repository identity", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
 
-      assert project.path == Path.expand(dir)
+      assert {:ok, %Project{name: "Docs", identity: "github.com/fahchen/example"}} =
+               Projects.register_project(%{name: "Docs", path: dir})
+    end
+
+    test "registers a board with no directory and no identity" do
+      assert {:ok, %Project{name: "Docs", identity: nil}} =
+               Projects.register_project(%{name: "Docs"})
     end
 
     test "rejects a path that is not a directory" do
@@ -29,16 +34,99 @@ defmodule Suikou.ProjectsTest do
     end
 
     test "rejects a blank name" do
-      assert {:error, %Ecto.Changeset{}} =
-               Projects.register_project(%{name: "  ", path: "/tmp"})
+      assert {:error, %Ecto.Changeset{}} = Projects.register_project(%{name: "  "})
+    end
+
+    test "rejects a directory that is not a repository" do
+      # Outside the project tree: a directory *inside* one answers that
+      # repository's identity, which is the behaviour this guards, not breaks.
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      assert {:error, :not_a_repository} =
+               Projects.register_project(%{name: "Loose", path: dir})
     end
 
     @tag :tmp_dir
-    test "rejects a duplicate path", %{tmp_dir: dir} do
+    test "rejects a second project for the same repository", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
       {:ok, _project} = Projects.register_project(%{name: "A", path: dir})
 
       assert {:error, %Ecto.Changeset{}} =
                Projects.register_project(%{name: "B", path: dir})
+    end
+
+    test "allows any number of boards with no identity" do
+      {:ok, _a} = Projects.register_project(%{name: "A"})
+
+      assert {:ok, %Project{}} = Projects.register_project(%{name: "B"})
+    end
+  end
+
+  describe "get_project_by_dir/1" do
+    @tag :tmp_dir
+    test "finds the project grouping a worktree of the same repository", %{tmp_dir: dir} do
+      init_repo(dir, "https://github.com/fahchen/example.git")
+      {:ok, project} = Projects.register_project(%{name: "Example", path: dir})
+
+      assert %Project{id: id} = Projects.get_project_by_dir(dir)
+      assert id == project.id
+    end
+
+    @tag :tmp_dir
+    test "claims a project that predates identity from one of its own reviews",
+         %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
+      {:ok, project} = Projects.register_project(%{name: "Legacy"})
+
+      {:ok, _review} =
+        Reviews.create_review(project, %{name: "Old", project_path: dir, selections: ["."]})
+
+      assert %Project{id: id, identity: "github.com/fahchen/example"} =
+               Projects.get_project_by_dir(dir)
+
+      assert id == project.id
+      assert %Project{identity: "github.com/fahchen/example"} = Projects.get_project(project.id)
+    end
+
+    @tag :tmp_dir
+    test "does not claim a project that never reviewed this checkout", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
+      {:ok, _project} = Projects.register_project(%{name: "Unrelated"})
+
+      assert Projects.get_project_by_dir(dir) == nil
+    end
+
+    @tag :tmp_dir
+    test "answers nil for a directory that is not a repository", %{tmp_dir: dir} do
+      assert Projects.get_project_by_dir(dir) == nil
+    end
+  end
+
+  describe "project_for_dir/1" do
+    @tag :tmp_dir
+    test "registers a project named after the repository when none holds it", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/rate-limiter.git")
+
+      assert {:ok, %Project{name: "rate-limiter", identity: "github.com/fahchen/rate-limiter"}} =
+               Projects.project_for_dir(dir)
+    end
+
+    @tag :tmp_dir
+    test "returns the project already holding the repository", %{tmp_dir: dir} do
+      init_repo(dir, "git@github.com:fahchen/example.git")
+      {:ok, %Project{id: id}} = Projects.register_project(%{name: "Chosen", path: dir})
+
+      assert {:ok, %Project{id: ^id, name: "Chosen"}} = Projects.project_for_dir(dir)
+    end
+
+    test "refuses a directory that is not a repository" do
+      dir = Path.join(System.tmp_dir!(), "loose-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      assert {:error, :not_a_repository} = Projects.project_for_dir(dir)
     end
   end
 
@@ -76,7 +164,14 @@ defmodule Suikou.ProjectsTest do
          %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
       {:ok, project} = Projects.register_project(%{name: "Docs", path: dir})
-      {:ok, review} = Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+
+      {:ok, review} =
+        Reviews.create_review(project, %{
+          project_path: dir,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
+
       {:ok, artifact} = Reviews.open_file(review, "plan.md")
       round = Repo.get_by!(Round, artifact_id: artifact.id, number: 0)
       comment = published_comment(round.id, %{body: "Needs a fix"})
@@ -98,7 +193,7 @@ defmodule Suikou.ProjectsTest do
     end
   end
 
-  describe "list_files/1" do
+  describe "list_files/3" do
     @tag :tmp_dir
     test "lists every file type relative to the project, sorted", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "readme.md"), "# readme\n")
@@ -106,9 +201,7 @@ defmodule Suikou.ProjectsTest do
       File.write!(Path.join(dir, "docs/plan.md"), "# plan\n")
       File.write!(Path.join(dir, "notes.txt"), "plain text\n")
 
-      project = build(:project, path: dir)
-
-      assert ["docs/plan.md", "notes.txt", "readme.md"] = Projects.list_files(project)
+      assert ["docs/plan.md", "notes.txt", "readme.md"] = Projects.list_files(dir, true)
     end
 
     @tag :tmp_dir
@@ -119,9 +212,7 @@ defmodule Suikou.ProjectsTest do
       File.write!(Path.join(dir, "draft.tmp.md"), "# scratch\n")
       File.write!(Path.join(dir, ".gitignore"), "node_modules/\n*.tmp.md\n")
 
-      project = build(:project, path: dir)
-
-      assert [".gitignore", "readme.md"] = Projects.list_files(project)
+      assert [".gitignore", "readme.md"] = Projects.list_files(dir, true)
     end
 
     @tag :tmp_dir
@@ -131,10 +222,8 @@ defmodule Suikou.ProjectsTest do
       File.write!(Path.join(dir, "node_modules/pkg/dep.md"), "# vendored\n")
       File.write!(Path.join(dir, ".gitignore"), "node_modules/\n")
 
-      project = build(:project, path: dir, respect_gitignore: false)
-
       assert [".gitignore", "node_modules/pkg/dep.md", "readme.md"] =
-               Projects.list_files(project)
+               Projects.list_files(dir, false)
     end
 
     @tag :tmp_dir
@@ -143,9 +232,7 @@ defmodule Suikou.ProjectsTest do
       File.write!(Path.join(dir, "scratch.md"), "# scratch\n")
       File.write!(Path.join(dir, ".gitignore"), "*.md\n!keep.md\n")
 
-      project = build(:project, path: dir)
-
-      assert [".gitignore", "keep.md"] = Projects.list_files(project)
+      assert [".gitignore", "keep.md"] = Projects.list_files(dir, true)
     end
 
     @tag :tmp_dir
@@ -153,10 +240,15 @@ defmodule Suikou.ProjectsTest do
       File.mkdir_p!(Path.join(dir, ".git"))
       File.write!(Path.join(dir, ".git/config"), "[core]\n")
 
-      project = build(:project, path: dir, respect_gitignore: false)
-
-      assert [] = Projects.list_files(project, ".git")
-      assert [] = Projects.list_dir(project, ".git")
+      assert [] = Projects.list_files(dir, false, ".git")
+      assert [] = Projects.list_dir(dir, false, ".git")
     end
+  end
+
+  # A real repository, since identity is resolved by shelling out to git.
+  defp init_repo(dir, origin) do
+    {_out, 0} = System.cmd("git", ["init", "-q"], cd: dir, stderr_to_stdout: true)
+    {_out, 0} = System.cmd("git", ["remote", "add", "origin", origin], cd: dir)
+    :ok
   end
 end

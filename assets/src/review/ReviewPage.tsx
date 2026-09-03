@@ -142,6 +142,18 @@ const sideRailSortKey = (scope: string): string => `suikou-side-sort:${scope}`
 // bump it when the reply shape changes so deployed clients discard stale entries.
 const structureCacheKey = (reviewId: string): string => `suikou-structure:v1:${reviewId}`
 
+// The board reads this on mount to choose the selected project; see
+// `ProjectsBoard`.
+const BOARD_SELECTED_PROJECT_KEY = "suikou-board-selected-project"
+
+function rememberBoardProject(projectId: string | null): void {
+  try {
+    if (projectId) localStorage.setItem(BOARD_SELECTED_PROJECT_KEY, projectId)
+  } catch {
+    // A private window with storage denied still navigates fine.
+  }
+}
+
 function readStructureCache(reviewId: string): Structure | null {
   try {
     const raw = localStorage.getItem(structureCacheKey(reviewId))
@@ -310,6 +322,10 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           if (cancelled) return
           setStructure(reply)
           writeStructureCache(reviewId, reply)
+          // Leaving a review should land on the board it was filed under, not on
+          // whichever project the board happened to remember. Opening one is the
+          // moment we know which that is.
+          rememberBoardProject(reply.project_id)
         })
         .catch(() => {
           if (cancelled) return

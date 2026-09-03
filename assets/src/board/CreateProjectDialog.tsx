@@ -7,8 +7,9 @@ import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
 import type { BoardStore } from "./types"
 
-/** Register a directory as a project: a name and an absolute path, plus the
- * gitignore-respect flag. Dispatches create_project and refetches the board. */
+/** Register a project: a name, an optional emoji and the gitignore-respect flag.
+ * No directory — a project is a label, and the checkout is named when its first
+ * review is created. Dispatches create_project and refetches the board. */
 export function CreateProjectDialog({
   store,
   open,
@@ -22,7 +23,6 @@ export function CreateProjectDialog({
 }) {
   const create = useMusubiCommand(store, "create_project")
   const [name, setName] = useState("")
-  const [path, setPath] = useState("")
   const [emoji, setEmoji] = useState<string | null>(null)
   const [respectGitignore, setRespectGitignore] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +31,6 @@ export function CreateProjectDialog({
   useEffect(() => {
     if (!open) return
     setName("")
-    setPath("")
     setEmoji(null)
     setRespectGitignore(true)
     setError(null)
@@ -39,10 +38,9 @@ export function CreateProjectDialog({
 
   const submit = () => {
     const trimmedName = name.trim()
-    const trimmedPath = path.trim()
-    if (!trimmedName || !trimmedPath) return
+    if (!trimmedName) return
     create
-      .dispatch({ name: trimmedName, path: trimmedPath, respect_gitignore: respectGitignore, emoji })
+      .dispatch({ name: trimmedName, respect_gitignore: respectGitignore, emoji })
       .then((reply) => {
         if (reply.error || !reply.project_id) {
           setError(reply.error ?? "create_failed")
@@ -66,20 +64,11 @@ export function CreateProjectDialog({
 
       <Field label="Name">
           <input
-            autoFocus
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Data Platform"
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
-          />
-        </Field>
-        <Field label="Path">
-          <input
-            value={path}
-            onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
-            placeholder="/Users/you/code/project"
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 font-mono text-xs text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
           />
         </Field>
 
@@ -111,7 +100,7 @@ export function CreateProjectDialog({
           </button>
           <button
             onClick={submit}
-            disabled={busy || !name.trim() || !path.trim()}
+            disabled={busy || !name.trim()}
             className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create project"}

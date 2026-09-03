@@ -34,6 +34,37 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert response(conn, 404)
     end
+
+    # The checkout is the default root, so a report written into the scratch
+    # directory reaches the code it is about without naming a root, and reaches
+    # a file beside itself by naming one.
+    test "an unmarked reference from a scratch artifact reads the checkout",
+         %{conn: conn} do
+      %{artifact: artifact} = scratch_artifact_with_assets()
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/docs/diagram.png")
+
+      assert response(conn, 200) == "CHECKOUT"
+    end
+
+    test "a @scratch reference from a scratch artifact reads its own root", %{conn: conn} do
+      %{artifact: artifact} = scratch_artifact_with_assets()
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/@scratch/shots/round-3.png")
+
+      assert response(conn, 200) == "SCRATCH"
+    end
+
+    # The marker works one way: a committed file citing the scratch directory
+    # would be a dead link everywhere but here, so it is refused rather than
+    # served.
+    test "404 when a checkout artifact reaches into the scratch directory", %{conn: conn} do
+      %{artifact: artifact} = project_with_asset("docs/guide.md", "img/diagram.png", "PNGDATA")
+
+      conn = get(conn, "/api/review/#{artifact.id}/asset/@scratch/shots/round-3.png")
+
+      assert response(conn, 404)
+    end
   end
 
   describe "GET /api/review/:artifact_id/content" do
@@ -93,10 +124,12 @@ defmodule SuikouWeb.AssetControllerTest do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -120,7 +153,7 @@ defmodule SuikouWeb.AssetControllerTest do
       artifact =
         insert(:artifact,
           file_path: "gone.md",
-          review: build(:review, project: build(:project, path: dir))
+          review: build(:review, project: build(:project), project_path: dir)
         )
 
       conn = get(conn, "/api/review/#{artifact.id}/content")
@@ -134,10 +167,15 @@ defmodule SuikouWeb.AssetControllerTest do
     test "serves an on-disk file from a file-selection review without minting",
          %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/content", path: "plan.md")
 
@@ -150,10 +188,15 @@ defmodule SuikouWeb.AssetControllerTest do
     test "serves TypeScript source as text in an all-files review", %{conn: conn, tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "src"))
       File.write!(Path.join(dir, "src/push.ts"), "export const enabled = true\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["src/push.ts"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["src/push.ts"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/content", path: "src/push.ts")
 
@@ -166,10 +209,12 @@ defmodule SuikouWeb.AssetControllerTest do
          %{conn: conn, tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -189,10 +234,15 @@ defmodule SuikouWeb.AssetControllerTest do
          %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "secret.txt"), "shh\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/content", path: "secret.txt")
 
@@ -203,10 +253,15 @@ defmodule SuikouWeb.AssetControllerTest do
     test "404 when the path tries to traverse out of the project",
          %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/content", path: "../../etc/passwd")
 
@@ -239,10 +294,12 @@ defmodule SuikouWeb.AssetControllerTest do
       git!(dir, ["add", "."])
       git!(dir, ["commit", "-q", "-m", "add b"])
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -275,10 +332,12 @@ defmodule SuikouWeb.AssetControllerTest do
       {sha_b, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
       sha_b = String.trim(sha_b)
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -302,10 +361,12 @@ defmodule SuikouWeb.AssetControllerTest do
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "seed.txt"), "committed\n") end)
       File.write!(Path.join(dir, "seed.txt"), "worktree edit\n")
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -329,10 +390,12 @@ defmodule SuikouWeb.AssetControllerTest do
       {sha, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: dir)
       sha = String.trim(sha)
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -352,10 +415,12 @@ defmodule SuikouWeb.AssetControllerTest do
     test "400 when scope=commits has an invalid hex sha", %{conn: conn, tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -371,10 +436,12 @@ defmodule SuikouWeb.AssetControllerTest do
     test "400 when scope=commits is empty", %{conn: conn, tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -389,10 +456,12 @@ defmodule SuikouWeb.AssetControllerTest do
     test "400 for an unknown scope keyword", %{conn: conn, tmp_dir: dir} do
       init_repo!(dir)
       branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -411,10 +480,15 @@ defmodule SuikouWeb.AssetControllerTest do
          %{conn: conn, tmp_dir: dir} do
       File.mkdir_p!(Path.join(dir, "img"))
       File.write!(Path.join(dir, "img/logo.png"), "PNGDATA")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["img"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["img"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/raw", path: "img/logo.png")
 
@@ -432,10 +506,12 @@ defmodule SuikouWeb.AssetControllerTest do
       File.write!(Path.join(dir, "img/logo.png"), "PNGDATA")
       git!(dir, ["add", "."])
       git!(dir, ["commit", "-q", "-m", "add image"])
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -455,10 +531,12 @@ defmodule SuikouWeb.AssetControllerTest do
       File.write!(Path.join(dir, "push.ts"), "export const enabled = true\n")
       git!(dir, ["add", "."])
       git!(dir, ["commit", "-q", "-m", "add TypeScript source"])
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -475,10 +553,15 @@ defmodule SuikouWeb.AssetControllerTest do
          %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
       File.write!(Path.join(dir, "secret.png"), "PNGDATA")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/raw", path: "secret.png")
 
@@ -489,10 +572,15 @@ defmodule SuikouWeb.AssetControllerTest do
     test "404 when the path tries to traverse out of the project",
          %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/files/raw", path: "../../etc/passwd")
 
@@ -523,10 +611,12 @@ defmodule SuikouWeb.AssetControllerTest do
       git!(dir, ["add", "."])
       git!(dir, ["commit", "-q", "-m", "second"])
 
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
         Suikou.Reviews.create_diff_review(project, %{
+          project_path: project_path,
           name: "Diff",
           base_ref: "main",
           head_ref: "topic"
@@ -548,10 +638,15 @@ defmodule SuikouWeb.AssetControllerTest do
     @tag :tmp_dir
     test "404 for a file-selection review", %{conn: conn, tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
-      project = insert(:project, path: dir)
+      project = insert(:project)
+      project_path = dir
 
       {:ok, review} =
-        Suikou.Reviews.create_review(project, %{name: "Launch", selections: ["plan.md"]})
+        Suikou.Reviews.create_review(project, %{
+          project_path: project_path,
+          name: "Launch",
+          selections: ["plan.md"]
+        })
 
       conn = get(conn, "/api/review/#{review.id}/commits")
 
@@ -606,10 +701,29 @@ defmodule SuikouWeb.AssetControllerTest do
     artifact =
       insert(:artifact,
         file_path: file_path,
-        review: build(:review, project: build(:project, path: dir))
+        review: build(:review, project: build(:project), project_path: dir)
       )
 
     %{artifact: artifact, dir: dir}
+  end
+
+  defp scratch_artifact_with_assets do
+    dir = Path.join(System.tmp_dir!(), "suikou-asset-#{System.unique_integer([:positive])}")
+    scratch = Path.join(System.tmp_dir!(), "suikou-scratch-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(Path.join(dir, "docs"))
+    File.mkdir_p!(Path.join(scratch, "shots"))
+    on_exit(fn -> File.rm_rf!(dir) && File.rm_rf!(scratch) end)
+
+    File.write!(Path.join([dir, "docs", "diagram.png"]), "CHECKOUT")
+    File.write!(Path.join([scratch, "shots", "round-3.png"]), "SCRATCH")
+
+    artifact =
+      insert(:artifact,
+        file_path: "@scratch/report.md",
+        review: build(:review, project: build(:project), project_path: dir, scratch_path: scratch)
+      )
+
+    %{artifact: artifact}
   end
 
   defp project_with_asset(file_path, asset_path, content) do
@@ -624,7 +738,7 @@ defmodule SuikouWeb.AssetControllerTest do
     artifact =
       insert(:artifact,
         file_path: file_path,
-        review: build(:review, project: build(:project, path: dir))
+        review: build(:review, project: build(:project), project_path: dir)
       )
 
     %{artifact: artifact, dir: dir}

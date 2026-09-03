@@ -2,30 +2,52 @@ defmodule Suikou.Artifacts.Asset do
   @moduledoc """
   Resolves and reads an artifact's files live from disk: its own reviewed source
   (`content_path/1`, `read_content/1`) and the assets its markdown references
-  (`resolve/2`). Every path is interpreted relative to the artifact's directory
-  inside its project and validated so a reference can never escape the project.
+  (`resolve/2`). Every path is resolved under one of the review's two content
+  roots and validated so a reference can never escape the root it names — see
+  `Suikou.ReviewRoots`.
   """
 
   alias Suikou.Repo
+  alias Suikou.ReviewRoots
   alias Suikou.Schemas.Artifact
 
-  @type resolve_error() :: :artifact_not_found | :unsafe_path | :not_a_file
+  @type resolve_error() ::
+          :artifact_not_found | :scratch_from_checkout | :unsafe_path | :not_a_file
   @type read_error() :: resolve_error() | :read_failed
 
   @doc """
   Resolves `request_path`, an asset reference from `artifact_id`'s markdown, to
-  an absolute file path under the artifact's project.
+  an absolute file path under one of its review's roots.
 
-  The reference is joined onto the artifact's directory, then checked with
-  `Path.safe_relative/2` so a `../` chain can never escape the project. Returns
-  `{:error, :artifact_not_found}` for an unknown artifact, `{:error,
-  :unsafe_path}` when the reference escapes the project, and `{:error,
-  :not_a_file}` when nothing regular lives at the target.
+  The checkout is the default root: an unmarked reference is a path under it,
+  and `@scratch` opts into the review's scratch directory instead. Only an
+  artifact that already lives in the checkout resolves a reference relative to
+  its own directory — that is where a relative link has always pointed. Either
+  way `Path.safe_relative/2` runs against exactly one base.
+
+  Returns `{:error, :artifact_not_found}` for an unknown artifact, `{:error,
+  :unsafe_path}` when the reference escapes its root, `{:error,
+  :scratch_from_checkout}` when a committed file reaches into the scratch
+  directory, and `{:error, :not_a_file}` when nothing regular lives at the
+  target.
+
+  The scratch marker only works one way. A generated report may cite the code it
+  is about, but a file in the repository may not cite the report: a committed
+  file has to keep meaning something in an editor, on GitHub, or to a reader who
+  has never run Suikou, and a scratch path means nothing outside the review that
+  produced it. Refusing it here keeps a link that only resolves inside Suikou
+  from ever looking like it works.
 
   ## Examples
 
       Suikou.Artifacts.Asset.resolve(artifact.id, "img/diagram.png")
       #=> {:ok, "/projects/app/docs/img/diagram.png"}
+
+      Suikou.Artifacts.Asset.resolve(scratch_artifact.id, "docs/img/diagram.png")
+      #=> {:ok, "/projects/app/docs/img/diagram.png"}
+
+      Suikou.Artifacts.Asset.resolve(artifact.id, "@scratch/report.md")
+      #=> {:error, :scratch_from_checkout}
 
       Suikou.Artifacts.Asset.resolve(artifact.id, "../../etc/passwd")
       #=> {:error, :unsafe_path}
@@ -33,22 +55,45 @@ defmodule Suikou.Artifacts.Asset do
   """
   @spec resolve(Ecto.UUID.t(), String.t()) :: {:ok, String.t()} | {:error, resolve_error()}
   def resolve(artifact_id, request_path) when is_binary(request_path) do
-    case load(artifact_id) do
-      nil ->
-        {:error, :artifact_not_found}
+    with %Artifact{} = artifact <- load(artifact_id),
+         {:ok, reference} <- reference(artifact, request_path) do
+      resolve_under(artifact, reference)
+    else
+      nil -> {:error, :artifact_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-      %Artifact{} = artifact ->
-        resolve_under(artifact, Path.join(Path.dirname(artifact.file_path), request_path))
+  # A marked reference addresses a root directly, except that only a file already
+  # in the scratch directory may name it — see the one-way rule above. An
+  # unmarked reference is a checkout path, so only an artifact already in the
+  # checkout joins it onto its own directory; a scratch artifact would otherwise
+  # drag the reference into a root the writer did not name.
+  defp reference(%Artifact{} = artifact, request_path) do
+    from_scratch? = ReviewRoots.scratch?(artifact.file_path)
+
+    cond do
+      ReviewRoots.scratch?(request_path) and not from_scratch? ->
+        {:error, :scratch_from_checkout}
+
+      ReviewRoots.marked?(request_path) ->
+        {:ok, request_path}
+
+      from_scratch? ->
+        {:ok, request_path}
+
+      true ->
+        {:ok, Path.join(Path.dirname(artifact.file_path), request_path)}
     end
   end
 
   @doc """
-  Resolves an artifact's own source file to an absolute path under its project,
+  Resolves an artifact's own source file to an absolute path under its root,
   bounds-checked the same way as `resolve/2`. The reviewed content is read live
   from disk rather than stored, so callers serve or read this path on demand.
 
   Returns `{:error, :artifact_not_found}` for an unknown artifact, `{:error,
-  :unsafe_path}` when the stored path escapes the project, and `{:error,
+  :unsafe_path}` when the stored path escapes its root, and `{:error,
   :not_a_file}` when the file is missing or not regular.
 
   ## Examples
@@ -69,12 +114,11 @@ defmodule Suikou.Artifacts.Asset do
   end
 
   defp resolve_under(%Artifact{} = artifact, candidate) do
-    with {:ok, relative} <- safe_relative(candidate, artifact.review.project.path),
-         absolute = Path.join(artifact.review.project.path, relative),
+    with {:ok, absolute} <- ReviewRoots.absolute(artifact.review, candidate),
          true <- File.regular?(absolute) do
       {:ok, absolute}
     else
-      :error -> {:error, :unsafe_path}
+      {:error, :unsafe_path} -> {:error, :unsafe_path}
       false -> {:error, :not_a_file}
     end
   end
@@ -130,13 +174,6 @@ defmodule Suikou.Artifacts.Asset do
     case Repo.get(Artifact, artifact_id) do
       nil -> nil
       %Artifact{} = artifact -> Repo.preload(artifact, review: :project)
-    end
-  end
-
-  defp safe_relative(candidate, project_path) do
-    case Path.safe_relative(candidate, project_path) do
-      {:ok, relative} -> {:ok, relative}
-      :error -> :error
     end
   end
 end
