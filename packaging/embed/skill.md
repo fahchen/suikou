@@ -51,9 +51,16 @@ to discard a review rather than calling `set-files` without paths.
 Never write generated output — a report, a screenshot, a summary — into the
 repository. `review create` answers with a `scratch_path`: write those files
 there and add them to the review as `@scratch/<name>`, an ordinary path
-argument. Inside a scratch file's Markdown, `@project/<path>` references a file
-in the checkout and `@scratch/<path>` one beside it; a plain relative link keeps
-working as it does anywhere else.
+argument.
+
+The reference rules follow from that, and they are not symmetric. The checkout
+is the default root, so inside a scratch file an unmarked path reaches the
+checkout and `@scratch/<path>` reaches a file beside it. **A file in the
+repository must never reference `@scratch/<path>`.** A committed file has to
+keep meaning something on its own — in an editor, on GitHub, to a reader who has
+never run Suikou — and a scratch path means nothing outside the review that
+created it, so such a link is dead the moment it leaves the reviewer. Put the
+reference the other way round: cite the checkout file from the report.
 
 `comment add` targets a review id and one covered `--path`, not an artifact id.
 Use a line or new-hunk anchor for a localized finding; use `--review-wide` only
@@ -101,9 +108,7 @@ between replying and waiting again. A timeout emits `{"status":"timeout", ...}`.
 ## The review loop
 
 1. Create the review from inside the checkout with no `--project`; on
-   `project_not_found`, ask the human before registering one. Read the
-   `instructions` the review's project returns and follow them for the whole
-   review.
+   `project_not_found`, ask the human before registering one.
 2. Capture `review_id` and `scratch_path`, then run `review url` and give the
    resulting URL to the human. Only run `review open` if asked because it opens
    a browser.
