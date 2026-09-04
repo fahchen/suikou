@@ -1,4 +1,6 @@
-import { Dices, X } from "lucide-react"
+import { Dices } from "lucide-react"
+
+import { Button } from "./button"
 
 // A spread of project-flavored glyphs for the "surprise me" button.
 const RANDOM_POOL = [
@@ -29,9 +31,10 @@ function lastEmoji(raw: string): string | null {
   return null
 }
 
-/** Single-emoji badge input rendered by the system emoji font. The user picks
- * with their OS emoji panel (⌃⌘Space on macOS, the emoji key on mobile) or
- * pastes one; the field keeps only the last emoji. `value` is null when empty. */
+/** Project icon field: a single-emoji badge rendered by the system emoji font.
+ * The user picks with their OS emoji panel (⌃⌘Space on macOS, the emoji key on
+ * mobile), pastes one, or rolls a random one; the field keeps only the last
+ * emoji. `value` is null when the field is empty. */
 export function EmojiPicker({
   value,
   onChange,
@@ -42,33 +45,29 @@ export function EmojiPicker({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
-        <input
-          value={value ?? ""}
-          onChange={(event) => onChange(lastEmoji(event.target.value))}
-          placeholder="🙂"
-          aria-label="Emoji"
-          className="size-[40px] shrink-0 rounded-ctrl border border-hair-strong bg-canvas text-center text-xl leading-none placeholder:opacity-40 focus:border-accent-edge focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => onChange(RANDOM_POOL[Math.floor(Math.random() * RANDOM_POOL.length)])}
-          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl bg-soft px-2.5 text-xs font-medium text-text hover:bg-control"
-        >
+        {/* The glyph is painted by a centred span, not by the input: an emoji's
+            own metrics leave it sitting off-centre inside a text field. */}
+        <div className="relative size-[35px] shrink-0">
+          <span
+            className={`pointer-events-none absolute inset-0 grid place-items-center text-lg leading-none ${value ? "" : "opacity-40"}`}
+            aria-hidden
+          >
+            {value ?? "🙂"}
+          </span>
+          <input
+            value={value ?? ""}
+            onChange={(event) => onChange(lastEmoji(event.target.value))}
+            aria-label="Project icon"
+            className="size-full rounded-ctrl border border-hair-strong bg-canvas text-center text-lg leading-none text-transparent caret-transparent focus-visible:border-accent-edge focus-visible:outline-none"
+          />
+        </div>
+        <Button variant="outline" size="lg" onClick={() => onChange(RANDOM_POOL[Math.floor(Math.random() * RANDOM_POOL.length)])}>
           <Dices size={14} aria-hidden />
           Random
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          disabled={value === null}
-          className="inline-flex h-[32px] items-center gap-1.5 rounded-ctrl px-2.5 text-xs font-medium text-muted hover:bg-soft disabled:opacity-40"
-        >
-          <X size={14} aria-hidden />
-          Clear
-        </button>
+        </Button>
       </div>
       <p className="text-xs text-faint">
-        Pick from your system emoji panel (⌃⌘Space on macOS), or paste one.
+        Pick from your system emoji panel (⌃⌘Space on macOS), or paste one. Empty the field for no icon.
       </p>
     </div>
   )

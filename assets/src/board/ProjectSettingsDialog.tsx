@@ -2,9 +2,11 @@ import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
+import { Button } from "../components/ui/button"
 import { Checkbox } from "../components/ui/checkbox"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
+import { Field } from "../components/ui/field"
 import { Textarea } from "../components/ui/textarea"
 import type { BoardProject, BoardStore } from "./types"
 
@@ -71,69 +73,56 @@ export function ProjectSettingsDialog({
       <div className="flex items-center gap-3">
         <DialogTitle className="text-base font-bold text-ink">Project settings</DialogTitle>
         <span className="flex-1" />
-        <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="rounded-full bg-soft">
           <X size={15} aria-hidden />
-        </button>
+        </Button>
       </div>
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-semibold text-muted">Name</span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && submit()}
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted">Review instructions</span>
-          <span className="text-xs leading-[1.4] text-faint">
-            Agents reviewing this project follow these, after the global ones.
-          </span>
-          <Textarea
-            value={instructions}
-            onChange={(event) => setInstructions(event.target.value)}
-            rows={4}
-            maxLength={MAX_INSTRUCTIONS}
-            placeholder="e.g. Report any Repo call inside queries/."
-            className="max-h-[200px] overflow-y-auto"
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted">Emoji</span>
-          <EmojiPicker value={emoji} onChange={setEmoji} />
-        </label>
+      <Field label="Name">
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+        />
+      </Field>
 
-        <button
-          type="button"
-          onClick={() => setRespectGitignore((v) => !v)}
-          className="flex items-center gap-2.5 text-left text-xs text-text"
-        >
-          <span className="pointer-events-none flex">
-            <Checkbox
-              checked={respectGitignore}
-              onCheckedChange={setRespectGitignore}
-              aria-label="Respect .gitignore"
-            />
-          </span>
-          Respect .gitignore when listing files
-        </button>
+      <Field label="Review instructions" hint="Agents reviewing this project follow these, after the global ones.">
+        <Textarea
+          value={instructions}
+          onChange={(event) => setInstructions(event.target.value)}
+          rows={4}
+          maxLength={MAX_INSTRUCTIONS}
+          placeholder="e.g. Report any Repo call inside queries/."
+          className="max-h-[200px] overflow-y-auto"
+        />
+      </Field>
 
-        {error && <p className="text-xs text-request">{error}</p>}
+      <Field label="Project icon">
+        <EmojiPicker value={emoji} onChange={setEmoji} />
+      </Field>
 
-        <div className="flex items-center gap-2 pt-1">
-          <span className="flex-1" />
-          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft">
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy || !name.trim()}
-            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
-          >
-            {busy ? "Saving…" : "Save changes"}
-          </button>
-        </div>
+      <button
+        type="button"
+        onClick={() => setRespectGitignore((v) => !v)}
+        className="flex items-center gap-2.5 text-left text-xs text-text"
+      >
+        <span className="pointer-events-none flex">
+          <Checkbox checked={respectGitignore} onCheckedChange={setRespectGitignore} aria-label="Respect .gitignore" />
+        </span>
+        Respect .gitignore when listing files
+      </button>
+
+      {error && <p className="text-xs text-request">{error}</p>}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <Button size="lg" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="accent" size="lg" onClick={submit} disabled={busy || !name.trim()}>
+          {busy ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
     </Dialog>
   )
 }

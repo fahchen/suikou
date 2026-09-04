@@ -1,10 +1,12 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 
 import { useMusubiCommand } from "../musubi"
+import { Button } from "../components/ui/button"
 import { Checkbox } from "../components/ui/checkbox"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
+import { Field } from "../components/ui/field"
 import type { BoardStore } from "./types"
 
 /** Register a project: a name, an optional emoji and the gitignore-respect flag.
@@ -57,64 +59,46 @@ export function CreateProjectDialog({
       <div className="flex items-center gap-3">
         <DialogTitle className="text-base font-bold text-ink">New project</DialogTitle>
         <span className="flex-1" />
-        <button onClick={onClose} aria-label="Close" className="grid size-[28px] place-items-center rounded-full bg-soft text-muted hover:text-ink">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="rounded-full bg-soft">
           <X size={15} aria-hidden />
-        </button>
+        </Button>
       </div>
 
       <Field label="Name">
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Data Platform"
-            onKeyDown={(event) => event.key === "Enter" && submit()}
-            className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
-          />
-        </Field>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Data Platform"
+          onKeyDown={(event) => event.key === "Enter" && submit()}
+          className="h-[34px] w-full rounded-ctrl border border-hair-strong bg-canvas px-3 text-sm text-ink placeholder:text-faint focus:border-accent-edge focus:outline-none"
+        />
+      </Field>
 
-        <Field label="Emoji">
-          <EmojiPicker value={emoji} onChange={setEmoji} />
-        </Field>
+      <Field label="Project icon">
+        <EmojiPicker value={emoji} onChange={setEmoji} />
+      </Field>
 
-        <button
-          type="button"
-          onClick={() => setRespectGitignore((v) => !v)}
-          className="flex items-center gap-2.5 text-left text-xs text-text"
-        >
-          <span className="pointer-events-none flex">
-            <Checkbox
-              checked={respectGitignore}
-              onCheckedChange={setRespectGitignore}
-              aria-label="Respect .gitignore"
-            />
-          </span>
-          Respect .gitignore when listing files
-        </button>
+      <button
+        type="button"
+        onClick={() => setRespectGitignore((v) => !v)}
+        className="flex items-center gap-2.5 text-left text-xs text-text"
+      >
+        <span className="pointer-events-none flex">
+          <Checkbox checked={respectGitignore} onCheckedChange={setRespectGitignore} aria-label="Respect .gitignore" />
+        </span>
+        Respect .gitignore when listing files
+      </button>
 
-        {error && <p className="text-xs text-request">{error}</p>}
+      {error && <p className="text-xs text-request">{error}</p>}
 
-        <div className="flex items-center gap-2 pt-1">
-          <span className="flex-1" />
-          <button onClick={onClose} className="inline-flex h-[32px] items-center rounded-ctrl px-3 text-sm font-medium text-muted hover:bg-soft">
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy || !name.trim()}
-            className="inline-flex h-[32px] items-center rounded-ctrl bg-accent px-4 text-sm font-semibold text-on-accent hover:brightness-110 disabled:opacity-50"
-          >
-            {busy ? "Creating…" : "Create project"}
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <Button size="lg" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="accent" size="lg" onClick={submit} disabled={busy || !name.trim()}>
+          {busy ? "Creating…" : "Create project"}
+        </Button>
+      </div>
     </Dialog>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold text-muted">{label}</span>
-      {children}
-    </label>
   )
 }
