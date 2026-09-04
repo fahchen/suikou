@@ -204,7 +204,6 @@ function ReviewRow({
   onChanged: () => void
 }) {
   const isDiff = review.kind === "git_diff"
-  const approved = files.length > 0 && files.every((file) => file.approved)
 
   return (
     <div className="group flex items-center gap-3 px-5 py-3 hover:bg-soft">
@@ -252,12 +251,6 @@ function ReviewRow({
           </span>
         </span>
       </Link>
-      {approved && (
-        <span className="inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full bg-approve-soft pr-[9px] pl-[7px] text-xs font-semibold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
-          <Check size={13} strokeWidth={2.4} aria-hidden />
-          Approved
-        </span>
-      )}
       {store && (
         <ReviewActions
           store={store}

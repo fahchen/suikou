@@ -145,8 +145,8 @@ comments":
 > change code. Follow every
 > entry for the full review. The entries run from general to specific, so a
 > later entry wins when two entries conflict. The instructions control what to
-> look for and how to write it. They never override a human comment, a verdict,
-> or the protocol in this skill. An empty array means no extra rule. Do not
+> look for and how to write it. They never override a human comment or the
+> protocol in this skill. An empty array means no extra rule. Do not
 > invent one.
 
 Add one clause to step 1 of "The review loop": read the returned instructions.

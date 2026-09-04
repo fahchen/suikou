@@ -4,10 +4,10 @@
 </h1>
 
 **A workbench for deliberate code review.** Read closely, anchor comments to
-exact lines, set a verdict per file, submit a round, iterate.
+exact lines, submit a round, iterate.
 
 Suikou runs as a single-file binary on your own machine and exposes a small CLI,
-so an agent can open a review and hand it to you to sign off.
+so an agent can open a review and hand it to you to read.
 
 ![Suikou reviewing a file in the Suikou Light theme](assets/brand/screenshot.png)
 
@@ -20,8 +20,6 @@ so an agent can open a review and hand it to you to sign off.
   on HTML, click any element instead. Anchors survive re-reads and diffs.
 - **Structured critique.** Every comment carries intent — a required fix, a
   question that needs an answer, or a note — so an agent can act on it directly.
-- **File-by-file verdicts.** Every file carries its own state; a round isn't done
-  until each one is judged.
 - **Two review modes.** Browse whole files, or a branch/commit diff scoped to
   just what changed.
 - **Rendered HTML review.** HTML files render live in a sandboxed preview —

@@ -1,7 +1,8 @@
 ---
 id: BDR-0015
 title: Critique is delivered as reviews carrying a verdict (GitHub model)
-status: accepted
+status: superseded
+superseded_by: BDR-0027
 date: 2026-06-07
 summary: The reviewer submits comments as a review batch that carries one verdict — approve, request_changes, or comment — and approval is folded into the approve verdict rather than being a separate action
 ---

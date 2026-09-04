@@ -2,7 +2,6 @@ import { type ReactNode, useState } from "react"
 import type { StoreProxy } from "@musubi/react"
 import {
   AlertTriangle,
-  FileText,
   MessageSquare,
   Send,
 } from "lucide-react"
@@ -15,40 +14,19 @@ import { Popover } from "../../components/ui/popover"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
 
-export type Verdict = "approve" | "request_changes" | "comment"
 export type ReviewSummary = {
   perFile: {
     path: string
-    draftVerdict: Verdict | null
-    latestVerdict: Verdict | null
-    approved: boolean
     openBlockers: number
     pending: number
     unresolved: number
   }[]
-  verdict: Verdict | null
-  defaultVerdict: Verdict
-  reviewed: number
-  draftVerdicts: number
   pendingComments: number
   blockerCount: number
-  allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
   waiting: number
 }
-
-export const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
-  approve: { label: "Approve", short: "Approved" },
-  request_changes: { label: "Request changes", short: "Request changes" },
-  comment: { label: "Comment", short: "Comment" },
-}
-
-const SUBMIT_ROWS: { verdict: Verdict; hint: string }[] = [
-  { verdict: "request_changes", hint: "" },
-  { verdict: "comment", hint: "no verdict" },
-  { verdict: "approve", hint: "all files" },
-]
 
 const SUBMIT_BTN =
   "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-ctrl bg-accent px-3 text-xs font-semibold text-on-accent hover:brightness-[1.06] active:translate-y-px"
@@ -66,12 +44,6 @@ export function SubmitButton({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
-  const [chosen, setChosen] = useState<Verdict>(review.defaultVerdict)
-
-  const openPanel = (set: (open: boolean) => void) => (open: boolean) => {
-    if (open) setChosen(review.defaultVerdict)
-    set(open)
-  }
 
   const openFile = (path: string) => {
     setPopoverOpen(false)
@@ -80,7 +52,7 @@ export function SubmitButton({
   }
 
   const run = () => {
-    void submit.dispatch({ verdict: chosen }).finally(() => {
+    void submit.dispatch({}).finally(() => {
       setConfirm(false)
       setPopoverOpen(false)
       setSheetOpen(false)
@@ -92,7 +64,7 @@ export function SubmitButton({
       <div className="hidden lg:block">
         <Popover
           open={popoverOpen}
-          onOpenChange={openPanel(setPopoverOpen)}
+          onOpenChange={setPopoverOpen}
           className="w-[290px] p-[7px]"
           render={
             <button type="button" className={SUBMIT_BTN}>
@@ -105,8 +77,6 @@ export function SubmitButton({
             review={review}
             heading
             onSelectFile={openFile}
-            chosen={chosen}
-            onChoose={setChosen}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
@@ -114,7 +84,7 @@ export function SubmitButton({
       </div>
       <button
         type="button"
-        onClick={() => openPanel(setSheetOpen)(true)}
+        onClick={() => setSheetOpen(true)}
         className={`lg:hidden ${SUBMIT_BTN}`}
       >
         Submit
@@ -129,8 +99,6 @@ export function SubmitButton({
           <SubmitPanel
             review={review}
             onSelectFile={openFile}
-            chosen={chosen}
-            onChoose={setChosen}
             submitting={submit.isPending}
             onSubmit={() => setConfirm(true)}
           />
@@ -139,7 +107,6 @@ export function SubmitButton({
       <SubmitConfirm
         open={confirm}
         review={review}
-        verdict={chosen}
         pending={submit.isPending}
         onCancel={() => setConfirm(false)}
         onConfirm={run}
@@ -148,31 +115,20 @@ export function SubmitButton({
   )
 }
 
-export function verdictText(verdict: Verdict): string {
-  return verdict === "request_changes" ? "text-request" : verdict === "approve" ? "text-approve" : "text-accent-bright"
-}
-
 function SubmitPanel({
   review,
   heading = false,
   onSelectFile,
-  chosen,
-  onChoose,
   submitting,
   onSubmit,
 }: {
   review: ReviewSummary
   heading?: boolean
   onSelectFile: (path: string) => void
-  chosen: Verdict
-  onChoose: (verdict: Verdict) => void
   submitting: boolean
   onSubmit: () => void
 }) {
-  const softGate = chosen === "approve" && review.blockerCount > 0
   const filesWithComments = review.perFile.filter((f) => f.unresolved > 0 || f.pending > 0)
-  const hasContent = review.hasUnpublished || review.pendingComments > 0 || review.draftVerdicts > 0
-  const canSubmit = chosen === "approve" || hasContent
 
   return (
     <>
@@ -181,39 +137,9 @@ function SubmitPanel({
           Finish review
         </div>
       )}
-      <div className="flex flex-col">
-        {SUBMIT_ROWS.map(({ verdict, hint }) => {
-          const on = chosen === verdict
-          return (
-            <button
-              key={verdict}
-              type="button"
-              onClick={() => onChoose(verdict)}
-              className={`flex items-center gap-2.5 rounded-ctrl px-[9px] py-2 text-left text-sm ${on ? "bg-soft" : "hover:bg-soft/60"}`}
-            >
-              <VerdictRadio verdict={verdict} on={on} />
-              <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>
-                {VERDICT_META[verdict].label}
-              </span>
-              {hint && <span className="ml-auto text-xs text-faint">{hint}</span>}
-            </button>
-          )
-        })}
-      </div>
-      <div className="my-1.5 h-px bg-hair-strong" />
       <div className="flex flex-col gap-1.5 px-[9px] py-1 text-xs text-text">
         <SummaryRow icon={MessageSquare} n={review.pendingComments} label="pending comments" />
-        <SummaryRow icon={FileText} n={review.draftVerdicts} label="draft verdicts" />
       </div>
-      {softGate && (
-        <div className="mx-1 mt-1.5 mb-[9px] flex items-start gap-2 rounded-ctrl border border-amber-edge bg-amber-soft px-[11px] py-2.5 text-xs leading-[1.45] text-amber-deep">
-          <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
-          <span>
-            <b className="font-bold">{review.blockerCount} open fix_required.</b> Approving anyway is
-            allowed, you have the final call.
-          </span>
-        </div>
-      )}
       {filesWithComments.length > 0 && (
         <div className="px-1 pb-1.5">
           <p className="mb-1.5 px-[5px] text-2xs font-bold uppercase tracking-[0.05em] text-faint">Files with comments</p>
@@ -223,11 +149,11 @@ function SubmitPanel({
       <div className="flex flex-col gap-1.5 px-1 pt-1 pb-1">
         <button
           type="button"
-          disabled={!canSubmit || submitting}
+          disabled={submitting}
           onClick={onSubmit}
           className="inline-flex h-[35px] items-center justify-center rounded-ctrl bg-accent text-sm font-semibold text-on-accent hover:brightness-[1.06] disabled:opacity-50"
         >
-          {canSubmit ? "Submit review" : "Nothing to submit"}
+          Submit review
         </button>
       </div>
     </>
@@ -269,19 +195,6 @@ function FileCommentList({
   )
 }
 
-function VerdictRadio({ verdict, on }: { verdict: Verdict; on: boolean }) {
-  const ring = verdict === "request_changes" ? "border-request" : verdict === "approve" ? "border-approve" : "border-accent"
-  const dot = verdict === "request_changes" ? "bg-request" : verdict === "approve" ? "bg-approve" : "bg-accent"
-
-  return (
-    <span
-      className={`grid size-4 shrink-0 place-items-center rounded-full border-[1.5px] ${on ? ring : "border-hair-strong"}`}
-    >
-      {on && <span className={`size-2 rounded-full ${dot}`} />}
-    </span>
-  )
-}
-
 function SummaryRow({ icon: Icon, n, label }: { icon: typeof MessageSquare; n: number; label: string }) {
   return (
     <div className="flex items-center gap-2">
@@ -296,14 +209,12 @@ function SummaryRow({ icon: Icon, n, label }: { icon: typeof MessageSquare; n: n
 function SubmitConfirm({
   open,
   review,
-  verdict,
   pending,
   onCancel,
   onConfirm,
 }: {
   open: boolean
   review: ReviewSummary
-  verdict: Verdict
   pending: boolean
   onCancel: () => void
   onConfirm: () => void
@@ -311,19 +222,14 @@ function SubmitConfirm({
   return (
     <Dialog open={open} onClose={onCancel} className="gap-3 p-5 sm:max-w-[380px]">
       <div className="flex items-center gap-2.5">
-        <span className={`grid size-[30px] shrink-0 place-items-center rounded-[9px] ${verdictSoft(verdict)}`}>
-          <Send size={16} className={verdictText(verdict)} aria-hidden />
+        <span className="grid size-[30px] shrink-0 place-items-center rounded-[9px] bg-accent-soft">
+          <Send size={16} className="text-accent-bright" aria-hidden />
         </span>
-        <DialogTitle className="text-sm font-bold text-ink">
-          Submit this review as <span className={verdictText(verdict)}>{VERDICT_META[verdict].label}</span>?
-        </DialogTitle>
+        <DialogTitle className="text-sm font-bold text-ink">Submit this review?</DialogTitle>
       </div>
       <div className="flex flex-col gap-2 text-xs text-text">
         <ConfirmLine icon={MessageSquare}>
           Publishes <b className="font-bold text-ink">{review.pendingComments}</b> pending comments across all files
-        </ConfirmLine>
-        <ConfirmLine icon={FileText}>
-          Records <b className="font-bold text-ink">{review.draftVerdicts}</b> draft file verdicts
         </ConfirmLine>
         {review.blockerCount > 0 && (
           <ConfirmLine icon={AlertTriangle}>
@@ -358,12 +264,4 @@ function ConfirmLine({ icon: Icon, children }: { icon: typeof MessageSquare; chi
       <span className="leading-[1.45]">{children}</span>
     </div>
   )
-}
-
-function verdictSoft(verdict: Verdict): string {
-  return verdict === "request_changes"
-    ? "bg-request-soft"
-    : verdict === "approve"
-      ? "bg-approve-soft"
-      : "bg-accent-soft"
 }

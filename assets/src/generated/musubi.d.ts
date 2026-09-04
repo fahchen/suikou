@@ -94,7 +94,7 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ArtifactsInboxStore": StoreDef<
       "SuikouWeb.Stores.ArtifactsInboxStore",
       {
-        artifacts: Array<{ id: string; title: string; approved: boolean; latest_round: number | null }>
+        artifacts: Array<{ id: string; title: string; latest_round: number | null }>
       },
       {},
       {}
@@ -213,17 +213,9 @@ declare namespace Musubi {
         path: string
         current_round: { number: number; content_hash: string; is_latest: boolean }
         comments: Musubi.StoreField<"SuikouWeb.Stores.CommentsStore">
-        latest_verdict: "approve" | "request_changes" | "comment" | null
-        draft_verdict: "approve" | "request_changes" | "comment" | null
         disk_token: string | null
       },
       {
-        set_draft_verdict: {
-          payload: {
-            verdict: "approve" | "request_changes" | "comment"
-          }
-          reply: never
-        }
         add_comment: {
           payload: {
             scope: "review" | "artifact" | "located"
@@ -231,10 +223,6 @@ declare namespace Musubi {
             body: string
             anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
           }
-          reply: never
-        }
-        dismiss_approval: {
-          payload: {}
           reply: never
         }
         request_content: {
@@ -249,14 +237,14 @@ declare namespace Musubi {
       "SuikouWeb.Stores.ProjectBoardStore",
       {
         projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean }> }>
-        review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>>
+        review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>>
       },
       {
         load_board: {
           payload: {}
           reply: {
             projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean }> }>
-            review_files: Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>
+            review_files: Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>
             checkouts: string[]
           }
         }
@@ -390,7 +378,7 @@ declare namespace Musubi {
             review_id: string
           }
           reply: {
-            files: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }>
+            files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }>
             error: string | null
           }
         }
@@ -439,18 +427,14 @@ declare namespace Musubi {
             kind: "file" | "diff"
             latest_round: number
             project_id: string | null
-            file_entries: Array<{ path: string; artifact_id: string | null; approved: boolean; verdict: "approve" | "request_changes" | "comment" | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }>
+            file_entries: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }>
             files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; artifact: { id: string; title: string } | null; current_round: { content_hash: string } | null }>
             refs: { base_ref: string; head_ref: string; refs_valid: boolean } | null
           }
         }
         submit_review: {
-          payload: {
-            verdict: "approve" | "request_changes" | "comment"
-          }
-          reply: {
-            warnings: string[]
-          }
+          payload: {}
+          reply: never
         }
         select_round: {
           payload: {

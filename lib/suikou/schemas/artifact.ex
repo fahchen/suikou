@@ -1,9 +1,6 @@
 defmodule Suikou.Schemas.Artifact do
   @moduledoc """
   A generated unit under review, bound across rounds by a server-minted id.
-
-  `approved_round` holds the round number an `approve` verdict accepted, or
-  `nil` when the artifact is not approved.
   """
 
   use Suikou.Schema
@@ -13,7 +10,6 @@ defmodule Suikou.Schemas.Artifact do
 
   typed_schema "artifacts" do
     field :title, :string, typed: [null: false]
-    field :approved_round, :integer
     field :file_path, :string, typed: [null: false]
     field :removed_at, :utc_datetime
 
@@ -72,33 +68,5 @@ defmodule Suikou.Schemas.Artifact do
   @spec restore_changeset(t()) :: Ecto.Changeset.t()
   def restore_changeset(artifact) do
     change(artifact, removed_at: nil)
-  end
-
-  @doc """
-  Builds a changeset recording the round number an `approve` verdict accepted.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Artifact.approve_changeset(%Suikou.Schemas.Artifact{}, 2).changes
-      %{approved_round: 2}
-
-  """
-  @spec approve_changeset(t(), integer()) :: Ecto.Changeset.t()
-  def approve_changeset(artifact, round_number) do
-    change(artifact, approved_round: round_number)
-  end
-
-  @doc """
-  Builds a changeset clearing approval, used on dismissal and on round advance.
-
-  ## Examples
-
-      iex> Suikou.Schemas.Artifact.clear_approval_changeset(%Suikou.Schemas.Artifact{approved_round: 2}).changes
-      %{approved_round: nil}
-
-  """
-  @spec clear_approval_changeset(t()) :: Ecto.Changeset.t()
-  def clear_approval_changeset(artifact) do
-    change(artifact, approved_round: nil)
   end
 end

@@ -1,7 +1,8 @@
 ---
 id: BDR-0013
 title: Approval model — verdict-based, latest-only, reversible, approve-only
-status: accepted
+status: superseded
+superseded_by: BDR-0027
 date: 2026-06-07
 summary: Approval is a review submitted with verdict approve on the latest round; the reviewer can dismiss it, submitting a later round supersedes it, and approve is the only terminal disposition
 ---

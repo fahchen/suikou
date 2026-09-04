@@ -894,7 +894,7 @@
   }
 
   /* Tailwind v4's Preflight gives buttons `cursor: default`, on the reasoning
-     that native controls do. This app is a workbench of them — gutters, verdict
+     that native controls do. This app is a workbench of them — gutters, status
      chips, comment actions, menu items — where the pointer is what tells a
      reader the thing under it responds. Restore it once here rather than at
      ninety-odd call sites; a call site that genuinely differs still wins, since

@@ -26,7 +26,6 @@ defmodule Suikou.Reviews do
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.ReviewSource.FileSelection
   alias Suikou.Schemas.ReviewSource.GitDiff
-  alias Suikou.Submissions
 
   @doc """
   Creates a review under a project from a non-empty selection of files and
@@ -649,7 +648,7 @@ defmodule Suikou.Reviews do
   @doc """
   Lists a review's current files by expanding its selection against disk. Each
   entry carries the file path, the id of its already-minted active artifact
-  (or `nil` when the file has not been opened yet), whether it is approved,
+  (or `nil` when the file has not been opened yet),
   `content_hash` — a stable cache key for the file's current bytes (SHA-256
   hex of the on-disk file for a selection review; the head ref's git blob hash
   for a diff review) — and `change_status`, the file's diff modification kind
@@ -664,7 +663,7 @@ defmodule Suikou.Reviews do
   ## Examples
 
       Suikou.Reviews.list_files(review)
-      #=> [%{path: "docs/plan.md", artifact_id: nil, approved: false, content_hash: "AB12...",
+      #=> [%{path: "docs/plan.md", artifact_id: nil, content_hash: "AB12...",
       #     change_status: nil, added: nil, deleted: nil}]
 
   """
@@ -740,8 +739,6 @@ defmodule Suikou.Reviews do
   @typep file_entry() :: %{
            path: String.t(),
            artifact_id: Ecto.UUID.t() | nil,
-           approved: boolean(),
-           verdict: :approve | :request_changes | :comment | nil,
            content_hash: String.t() | nil,
            change_status: Git.change_status() | nil,
            added: non_neg_integer() | nil,
@@ -750,26 +747,17 @@ defmodule Suikou.Reviews do
          }
 
   defp file_entry(path, artifact, content_hash, change_status, stats) do
-    {artifact_id, approved, verdict} = artifact_review_state(artifact)
     {added, deleted} = split_stats(stats)
 
     %{
       path: path,
-      artifact_id: artifact_id,
-      approved: approved,
-      verdict: verdict,
+      artifact_id: artifact && artifact.id,
       content_hash: content_hash,
       change_status: change_status,
       added: added,
       deleted: deleted,
       soft_removed: false
     }
-  end
-
-  defp artifact_review_state(nil), do: {nil, false, nil}
-
-  defp artifact_review_state(%Artifact{} = artifact) do
-    {artifact.id, not is_nil(artifact.approved_round), file_verdict(artifact)}
   end
 
   defp soft_removed_entry(%Artifact{} = artifact) do
@@ -780,18 +768,6 @@ defmodule Suikou.Reviews do
 
   defp split_stats(nil), do: {nil, nil}
   defp split_stats(%{added: added, deleted: deleted}), do: {added, deleted}
-
-  # Per-file verdict: the reviewer's explicit choice on this file. Prefer the
-  # latest submitted verdict (a closed round's recorded outcome); fall back to
-  # the latest round's `draft_verdict` so an in-progress choice still surfaces
-  # as "reviewed" before submission. `nil` means the reviewer has not touched
-  # this file's verdict yet — distinct from `:comment`.
-  defp file_verdict(%Artifact{} = artifact) do
-    case Submissions.latest_verdict_for_artifact(artifact.id) do
-      nil -> Submissions.draft_verdict_for_artifact(artifact.id)
-      verdict -> verdict
-    end
-  end
 
   @type content_source() ::
           {:file, String.t()} | {:inline, binary(), String.t()}

@@ -2,9 +2,7 @@ defmodule Suikou.Export do
   @moduledoc """
   Read-only export for the agent. Per artifact (`export/1`) it reflects the
   latest round: the published critique visible in that round (with published
-  thread replies), and the artifact's standing verdict —
-  the latest submitted round's verdict, since the current round is always an
-  unsubmitted draft (see BDR-0014). A comment is a single row visible in round N
+  thread replies, see BDR-0014). A comment is a single row visible in round N
   when `authored_round <= N` and it is unresolved or resolved in round N or
   later, so a still-open comment shows every round until resolved without being
   copied. `export_review/2` aggregates that view across a review's minted
@@ -37,7 +35,6 @@ defmodule Suikou.Export do
   alias Suikou.Schemas.Reaction
   alias Suikou.Schemas.Reply
   alias Suikou.Schemas.Review
-  alias Suikou.Schemas.Submission
   alias Suikou.Settings
   alias Suikou.Submissions
 
@@ -79,7 +76,6 @@ defmodule Suikou.Export do
   @type t :: %{
           artifact_id: Ecto.UUID.t(),
           title: String.t(),
-          verdict: Submission.verdict() | nil,
           comments: [comment_view()]
         }
 
@@ -92,12 +88,12 @@ defmodule Suikou.Export do
 
   @doc """
   Exports the agent-facing view of an artifact: its published critique with
-  replies and the latest verdict. Changes no state.
+  replies. Changes no state.
 
   ## Examples
 
       Suikou.Export.export(artifact.id)
-      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", verdict: :request_changes, comments: []}}
+      #=> {:ok, %{artifact_id: "0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f", title: "docs/plan.md", comments: []}}
 
       Suikou.Export.export("0192c9f4-7e3a-7b3a-8c3a-1a2b3c4d5e6f")
       #=> {:error, :artifact_not_found}
@@ -158,7 +154,6 @@ defmodule Suikou.Export do
     %{
       artifact_id: artifact.id,
       title: artifact.title,
-      verdict: Submissions.latest_verdict_for_artifact(artifact.id),
       comments: published_comments(artifact.id, round, scope, lines)
     }
   end

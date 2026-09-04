@@ -12,75 +12,47 @@ defmodule SuikouWeb.Stores.ReviewStoreTest do
   alias Suikou.Rounds
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Round
-  alias Suikou.Submissions
   alias SuikouWeb.Stores.ReviewStore
 
   describe "submit_review" do
     test "broadcasts, advances every minted file, and publishes pending critique" do
       %{review: review} = file_selection_review(["first.md", "second.md"])
-      {:ok, drafted_artifact} = Reviews.open_file(review, "first.md")
-      {:ok, comment_only_artifact} = Reviews.open_file(review, "second.md")
-      drafted = Rounds.latest(drafted_artifact.id)
-      comment_only = Rounds.latest(comment_only_artifact.id)
+      {:ok, first_artifact} = Reviews.open_file(review, "first.md")
+      {:ok, second_artifact} = Reviews.open_file(review, "second.md")
+      second = Rounds.latest(second_artifact.id)
 
-      {:ok, _round} = Submissions.set_draft_verdict(drafted.id, :request_changes)
-
-      pending_comment(comment_only.id, %{
+      pending_comment(second.id, %{
         scope: :review,
         critique_type: :note,
         body: "publish me"
       })
 
-      %Artifact{review_id: review_id} = Reads.get_artifact(drafted.artifact_id)
+      %Artifact{review_id: review_id} = Reads.get_artifact(first_artifact.id)
       Events.subscribe(review_id)
 
       page = mount_review(review_id)
 
-      {:ok, %{warnings: []}} =
-        Testing.dispatch_command(page, :submit_review, %{"verdict" => "comment"})
+      {:ok, %{}} = Testing.dispatch_command(page, :submit_review, %{})
 
       assert_receive {:review_changed, ^review_id, _artifact_id}
 
-      # The drafted file keeps its own verdict; the other takes the review verdict.
-      # Both advance a round, and the review-scoped pending comment publishes.
-      assert %Round{number: 1} = Rounds.latest(drafted_artifact.id)
-      assert Submissions.latest_verdict_for_artifact(drafted_artifact.id) == :request_changes
-      assert %Round{number: 1} = Rounds.latest(comment_only_artifact.id)
-      assert Submissions.latest_verdict_for_artifact(comment_only_artifact.id) == :comment
+      # Both files advance a round, and the review-scoped pending comment publishes.
+      assert %Round{number: 1} = Rounds.latest(first_artifact.id)
+      assert %Round{number: 1} = Rounds.latest(second_artifact.id)
 
-      [published] = Reads.list_comments(comment_only)
+      [published] = Reads.list_comments(second)
       assert %{status: :published} = published
     end
 
-    test "applies the chosen review verdict to files that have no draft" do
+    test "submitting an untouched review mints nothing and advances nothing" do
       %{review: review} = file_selection_review(["first.md"])
-      {:ok, artifact} = Reviews.open_file(review, "first.md")
-      %Artifact{review_id: review_id} = Reads.get_artifact(artifact.id)
-      Events.subscribe(review_id)
+      review_id = review.id
 
       page = mount_review(review_id)
 
-      {:ok, %{warnings: _warnings}} =
-        Testing.dispatch_command(page, :submit_review, %{"verdict" => "approve"})
+      {:ok, %{}} = Testing.dispatch_command(page, :submit_review, %{})
 
-      assert_receive {:review_changed, ^review_id, _artifact_id}
-      assert %Round{number: 1} = Rounds.latest(artifact.id)
-      assert Submissions.latest_verdict_for_artifact(artifact.id) == :approve
-    end
-
-    test "a per-file draft verdict overrides the chosen review verdict" do
-      %{review: review} = file_selection_review(["first.md"])
-      {:ok, artifact} = Reviews.open_file(review, "first.md")
-      round = Rounds.latest(artifact.id)
-      {:ok, _round} = Submissions.set_draft_verdict(round.id, :request_changes)
-      %Artifact{review_id: review_id} = Reads.get_artifact(artifact.id)
-
-      page = mount_review(review_id)
-
-      {:ok, %{warnings: _warnings}} =
-        Testing.dispatch_command(page, :submit_review, %{"verdict" => "approve"})
-
-      assert Submissions.latest_verdict_for_artifact(artifact.id) == :request_changes
+      assert Reads.list_review_artifacts(review_id) == []
     end
   end
 

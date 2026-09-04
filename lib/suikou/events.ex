@@ -4,7 +4,7 @@ defmodule Suikou.Events do
 
   Contexts broadcast `{:review_changed, review_id, artifact_id}` after every
   persisted write that affects a review. `artifact_id` scopes the change to one
-  file when the write is artifact-local (a comment, reply, resolve, or verdict),
+  file when the write is artifact-local (a comment, reply, or resolve),
   letting the `SuikouWeb.Stores.ReviewStore` root refresh only that file's
   subtree; it is `nil` for review-level changes (a file opened or removed) where
   the whole body re-derives its file list. A plain broadcast (not

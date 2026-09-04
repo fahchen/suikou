@@ -16,7 +16,7 @@ defmodule Suikou.ChangesWatcher do
   after the grace window.
 
   It is the review's sole `Suikou.Events` subscriber: on any review-level change
-  (comment, verdict, file opened/removed) or watched-file edit it drops its
+  (comment, file opened/removed) or watched-file edit it drops its
   caches and then relays the event to every connected store, which routes the
   refresh into Musubi. Invalidating before relaying means a store's follow-up
   refetch never races an unswept cache.
@@ -119,7 +119,7 @@ defmodule Suikou.ChangesWatcher do
     # reads resolve to the test's Ecto sandbox owner (prod-inert; no sandbox).
     Process.put(:"$callers", callers)
     # Two separate PubSub topics, both invalidate the cache: `subscribe/1` for
-    # review-level changes (comment/verdict/file open-remove), `subscribe_fs/1`
+    # review-level changes (comment/file open-remove), `subscribe_fs/1`
     # for watched-file disk edits.
     Events.subscribe(review_id)
     Events.subscribe_fs(review_id)

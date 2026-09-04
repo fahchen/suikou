@@ -217,16 +217,12 @@ defmodule Suikou.ReviewsTest do
                %{
                  path: "docs/plan.md",
                  artifact_id: id,
-                 approved: false,
-                 verdict: nil,
                  content_hash: plan_hash,
                  change_status: nil
                },
                %{
                  path: "docs/spec.md",
                  artifact_id: nil,
-                 approved: false,
-                 verdict: nil,
                  content_hash: spec_hash,
                  change_status: nil
                }
@@ -736,16 +732,12 @@ defmodule Suikou.ReviewsTest do
                %{
                  path: "a.txt",
                  artifact_id: nil,
-                 approved: false,
-                 verdict: nil,
                  content_hash: a_hash,
                  change_status: :added
                },
                %{
                  path: "docs/b.txt",
                  artifact_id: nil,
-                 approved: false,
-                 verdict: nil,
                  content_hash: b_hash,
                  change_status: :added
                }

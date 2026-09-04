@@ -192,7 +192,7 @@ defmodule Suikou.Critique.Comments do
   @doc """
   Marks an Open comment resolved by `identity` at the latest round, whoever
   authored it. Resolution is a claim that the critique was addressed, not a
-  verdict on it, so it records who made the claim — the human reopens anything
+  judgment on it, so it records who made the claim — the human reopens anything
   they disagree with.
 
   ## Examples

@@ -92,15 +92,6 @@ defmodule SuikouWeb.Stores.ReviewStore do
   end
 
   command :submit_review do
-    payload do
-      # The review-level verdict chosen in the submit panel, applied to every
-      # minted file that carries no per-file draft verdict of its own.
-      field(:verdict, :approve | :request_changes | :comment)
-    end
-
-    reply do
-      field(:warnings, list(String.t()))
-    end
   end
 
   command :select_round do
@@ -155,7 +146,7 @@ defmodule SuikouWeb.Stores.ReviewStore do
     # The `reload` tag tells the body which slice to re-query: a review-level
     # change (file opened/removed) reshapes the file list and the static chrome,
     # so it reloads everything; an artifact-scoped change (a comment, reply, or
-    # verdict) only moves the review-wide aggregates, so the body skips the
+    # resolve) only moves the review-wide aggregates, so the body skips the
     # disk/git file walk and the static chrome and re-queries the counts alone.
     # The changed file's own store and comment thread refresh by their
     # deterministic ids, never the whole tree. No store fans out from `update/2`,
@@ -253,16 +244,13 @@ defmodule SuikouWeb.Stores.ReviewStore do
     {:reply, reply, socket}
   end
 
-  @spec handle_command(:submit_review, map(), Socket.t()) :: {:reply, map(), Socket.t()}
-  def handle_command(:submit_review, payload, socket) do
-    review_verdict = payload["verdict"]
+  @spec handle_command(:submit_review, map(), Socket.t()) :: {:noreply, Socket.t()}
+  def handle_command(:submit_review, _payload, socket) do
+    socket.assigns.review_id
+    |> Reads.list_review_artifacts()
+    |> Enum.each(&submit_artifact/1)
 
-    warnings =
-      socket.assigns.review_id
-      |> Reads.list_review_artifacts()
-      |> Enum.reduce([], &submit_artifact(&1, review_verdict, &2))
-
-    {:reply, %{warnings: warnings}, socket}
+    {:noreply, socket}
   end
 
   @spec handle_command(:select_round, map(), Socket.t()) :: {:noreply, Socket.t()}
@@ -282,31 +270,14 @@ defmodule SuikouWeb.Stores.ReviewStore do
     end
   end
 
-  defp submit_artifact(%Artifact{} = artifact, review_verdict, warnings) do
-    case {verdict_to_submit(artifact, review_verdict), Rounds.latest(artifact.id)} do
-      {nil, _round} ->
-        warnings
-
-      {_verdict, nil} ->
-        warnings
-
-      {verdict, %Round{} = round} ->
-        case Submissions.submit(round.id, verdict) do
-          {:ok, %{warnings: round_warnings}} ->
-            warnings ++ Enum.map(round_warnings, &Atom.to_string/1)
-
-          {:error, _reason} ->
-            warnings
-        end
+  # Submitting the review advances every minted file: each artifact's latest
+  # round records a submission, and the first of them publishes the review's
+  # pending critique.
+  defp submit_artifact(%Artifact{} = artifact) do
+    case Rounds.latest(artifact.id) do
+      %Round{} = round -> Submissions.submit(round.id)
+      nil -> :ok
     end
-  end
-
-  # A file's submit verdict: its own per-file draft chip when set, else the
-  # review-level verdict chosen in the submit panel. So approving the whole review
-  # advances every minted file — those with an explicit draft keep it, the rest
-  # take the review verdict — and submitting publishes their pending critique.
-  defp verdict_to_submit(%Artifact{} = artifact, review_verdict) do
-    Submissions.draft_verdict_for_artifact(artifact.id) || review_verdict
   end
 
   defp review_kind(%Review{source: %GitDiff{}}), do: :diff

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { ArrowDownUp, Check, ChevronDown, ChevronRight, CircleCheck, Files, Lock, MessageSquare, MessageSquarePlus } from "lucide-react"
+import { ArrowDownUp, ChevronDown, ChevronRight, Files, Lock, MessageSquare, MessageSquarePlus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { CommentDisplayMode } from "../../stores/ui-store"
@@ -23,26 +23,21 @@ import {
   writeDocView,
 } from "./EditorSurface"
 import { DiffView } from "./DiffView"
-import { VerdictChip } from "./ReviewChrome"
 import { CommentThread } from "./comments/CommentThread"
 import { FileCommentComposer } from "./comments/FileCommentComposer"
 import type { Comment, CommentsStoreProxy } from "./comments/shared"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
-type Verdict = "approve" | "request_changes" | "comment"
 type ChangeStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null
 
 /** One file's slice of the stacked view: its static entry joined with its live
- * FileStore proxy, streamed comments, and rolled-up verdict. */
+ * FileStore proxy and streamed comments. */
 export type StackedFileDatum = {
   path: string
   changeStatus: ChangeStatus
   proxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   comments: Comment[]
-  draftVerdict: Verdict | null
-  latestVerdict: Verdict | null
-  approved: boolean
   openBlockers: number
 }
 
@@ -54,9 +49,6 @@ const STATUS_BADGE: Record<Exclude<ChangeStatus, null>, { letter: string; classN
   copied: { letter: "C", className: "bg-soft text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]", title: "Copied" },
   type_changed: { letter: "T", className: "bg-soft text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]", title: "Type changed" },
 }
-
-const effectiveVerdict = (file: StackedFileDatum): Verdict | null => file.draftVerdict ?? file.latestVerdict
-const isReviewed = (file: StackedFileDatum): boolean => effectiveVerdict(file) !== null && file.openBlockers === 0
 
 // Per-file collapse state, persisted so a refresh keeps the outline. `null` means
 // the reviewer never toggled this file, so the caller falls back to its reviewed
@@ -79,17 +71,15 @@ export const commentStartLine = (comment: Comment): number | null =>
   comment.anchor?.type === "line_range" ? comment.anchor.start_line : null
 
 /** D11 stacked all-files view: every file in the review rendered top to bottom in
- * one vertical scroll, each with a sticky header (status · path · view toggle ·
- * per-file verdict chip) then its content and inline threads. A scroll-spy reports
- * the file currently in view so the navigator can mark it; "Hide reviewed" drops
- * files that already carry a verdict. */
+ * one vertical scroll, each with a sticky header (status · path · view toggle)
+ * then its content and inline threads. A scroll-spy reports the file currently
+ * in view so the navigator can mark it. */
 export const StackedFiles = observer(function StackedFiles({
   reviewId,
   files,
   readOnly,
   selectedRound,
   commentDisplay,
-  hideReviewed,
   focusedCommentId,
   onFocusComment,
   onClearFocus,
@@ -103,7 +93,6 @@ export const StackedFiles = observer(function StackedFiles({
   readOnly: boolean
   selectedRound: number
   commentDisplay: CommentDisplayMode
-  hideReviewed: boolean
   focusedCommentId: string | null
   onFocusComment: (commentId: string | null) => void
   onClearFocus: () => void
@@ -115,7 +104,7 @@ export const StackedFiles = observer(function StackedFiles({
   const containerRef = useRef<HTMLDivElement>(null)
   const showThreads = commentDisplay === "inline"
   const showComments = commentDisplay !== "hidden"
-  const shown = hideReviewed ? files.filter((f) => !isReviewed(f)) : files
+  const shown = files
 
   // Scroll-spy: mark the file whose header sits near the top of the scroll as the
   // one "in view", so the navigator tracks the reader down the stack.
@@ -145,8 +134,8 @@ export const StackedFiles = observer(function StackedFiles({
         <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
           <Lock size={15} className="shrink-0 text-muted" aria-hidden />
           <span>
-            Round {selectedRound} is superseded and read-only. You can read its comments, but new comments
-            and verdicts only go on the latest round.
+            Round {selectedRound} is superseded and read-only. You can read its comments, but new
+            comments only go on the latest round.
           </span>
         </div>
       )}
@@ -160,11 +149,7 @@ export const StackedFiles = observer(function StackedFiles({
         }}
       >
         {shown.length === 0 ? (
-          files.length === 0 ? (
-            <FileNotice icon={Files} title="No files in this review" body="Add files from the project board or check that the review's selection is not empty." />
-          ) : (
-            <FileNotice icon={CircleCheck} title="Every file has a verdict" body="Nothing left to review under the current filter. Toggle Hide reviewed off to see the finished files again." />
-          )
+          <FileNotice icon={Files} title="No files in this review" body="Add files from the project board or check that the review's selection is not empty." />
         ) : (
           shown.map((file) => (
             <StackedFile
@@ -244,11 +229,11 @@ const StackedFile = observer(function StackedFile({
   const sectionRef = useRef<HTMLElement>(null)
   const [mounted, setMounted] = useState(false)
   // Manual per-file collapse: reviewer clicks the chevron to hide the body.
-  // Persisted per file so a refresh keeps the outline; an already-reviewed file
-  // defaults to collapsed. While in the viewport a collapsed body stays mounted
+  // Persisted per file so a refresh keeps the outline; a file the reviewer has
+  // not touched opens expanded. While in the viewport a collapsed body stays mounted
   // (just hidden) for an instant re-expand — the IntersectionObserver only
   // destroys it once the file scrolls out of view ("离开视口才销毁").
-  const [collapsed, setCollapsed] = useState(() => readCollapsed(draftScope) ?? isReviewed(file))
+  const [collapsed, setCollapsed] = useState(() => readCollapsed(draftScope) ?? false)
   useEffect(() => {
     writeCollapsed(draftScope, collapsed)
   }, [draftScope, collapsed])
@@ -367,12 +352,6 @@ const StackedFile = observer(function StackedFile({
           <span className="font-normal text-faint">{dir}</span>
           {name}
         </span>
-        {isReviewed(file) && (
-          <span className="inline-flex h-[19px] shrink-0 items-center gap-1 rounded-full bg-approve-soft px-2 text-2xs font-bold text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]">
-            <Check size={11} aria-hidden />
-            Reviewed
-          </span>
-        )}
         <span className="flex-1" />
         {previewable && !isDiff && (
           <Segmented<"source" | "preview">
@@ -394,9 +373,6 @@ const StackedFile = observer(function StackedFile({
           >
             <MessageSquarePlus size={14} aria-hidden />
           </button>
-        )}
-        {!readOnly && file.proxy && (
-          <VerdictChip file={file} proxy={file.proxy} />
         )}
       </header>
       {fileComposing && file.proxy && (

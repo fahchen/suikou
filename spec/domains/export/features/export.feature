@@ -1,8 +1,8 @@
 @export
 Feature: Critique export
   As an agent
-  I want to read the human's published critique and the latest verdict
-  So that I can act on the feedback and know whether the work is accepted
+  I want to read the human's published critique
+  So that I can act on the feedback
 
   Background:
     Given Suikou is running locally
@@ -33,21 +33,6 @@ Feature: Critique export
     Scenario: The latest snapshot content travels with the critique
       When the agent exports the artifact
       Then the latest round's snapshot content is included
-
-  Rule: Export includes the latest verdict
-
-    Scenario: An approved artifact reports its approval
-      Given the artifact is approved at round 2
-      When the agent exports the artifact
-      Then the export reports the latest verdict as "approve"
-      And it reports the artifact as approved
-      And it reports round 2 as the approved round
-
-    Scenario: A round whose latest review requested changes reports it
-      Given the latest round's latest review had verdict "request_changes"
-      When the agent exports the artifact
-      Then the export reports the latest verdict as "request_changes"
-      And it reports the artifact as not approved
 
   Rule: Export includes thread replies
 

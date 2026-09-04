@@ -116,7 +116,7 @@ Feature: Authoring structured critique
       And the file is still unopened
 
   # Resolving says the critique was addressed — a claim about the work, not a
-  # verdict on it — so it records who made the claim (see BDR-0026).
+  # judgment on it — so it records who made the claim (see BDR-0026).
   Rule: A resolution records who claimed the critique addressed
 
     Scenario: An agent's resolution carries its name
