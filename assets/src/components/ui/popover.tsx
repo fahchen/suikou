@@ -12,6 +12,7 @@ import { POPUP_MOTION } from "./motion"
 export function Popover({
   render,
   anchor,
+  collisionBoundary,
   children,
   open,
   onOpenChange,
@@ -22,6 +23,7 @@ export function Popover({
 }: {
   render?: ReactElement
   anchor?: BasePopover.Positioner.Props["anchor"]
+  collisionBoundary?: BasePopover.Positioner.Props["collisionBoundary"]
   children: ReactNode
   open?: boolean
   onOpenChange?: BasePopover.Root.Props["onOpenChange"]
@@ -38,7 +40,14 @@ export function Popover({
     <BasePopover.Root open={open} onOpenChange={onOpenChange}>
       {render && <BasePopover.Trigger render={render} />}
       <BasePopover.Portal>
-        <BasePopover.Positioner anchor={anchor} side={side} align={align} sideOffset={6} className="z-50">
+        <BasePopover.Positioner
+          anchor={anchor}
+          collisionBoundary={collisionBoundary}
+          side={side}
+          align={align}
+          sideOffset={6}
+          className="z-50 transition-opacity duration-100 data-[anchor-hidden]:pointer-events-none data-[anchor-hidden]:opacity-0"
+        >
           <BasePopover.Popup
             className={`${chromeClass} outline-none ${POPUP_MOTION} ${className ?? ""}`}
           >

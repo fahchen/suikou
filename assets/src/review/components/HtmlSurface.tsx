@@ -55,8 +55,9 @@ export const HtmlView = observer(function HtmlView({
     localStorage.removeItem(elOpenKey)
     return null
   })
-  const [tick, setTick] = useState(0)
+  const [, setTick] = useState(0)
   const [addingComment, setAddingComment] = useState(false)
+  const [anchorEl, setAnchorEl] = useState<HTMLDivElement | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const [screenHeight, setScreenHeight] = useState(0)
 
@@ -182,22 +183,6 @@ export const HtmlView = observer(function HtmlView({
     setAddingComment(false)
   }, [overlay?.selector, overlay?.kind])
 
-  // Virtual anchor over the reported iframe rect; Base UI flips the panel above
-  // the element on its own when the viewport has no room below it.
-  const overlayAnchor = useMemo(() => {
-    if (!overlay) return null
-    const rect = overlay.rect
-    return () => ({
-      getBoundingClientRect: () => {
-        const frame = frameRef.current?.getBoundingClientRect()
-        const left = frame ? frame.left + rect.left * zoom : 0
-        const top = frame ? frame.top + rect.top * zoom : 0
-        return new DOMRect(left, top, rect.width * zoom, rect.height * zoom)
-      },
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlay, zoom, tick])
-
   return (
     <div ref={rootRef} className="flex shrink-0 flex-col bg-editor p-[14px]">
       {strandedComments.length > 0 && (
@@ -244,6 +229,14 @@ export const HtmlView = observer(function HtmlView({
           />
           {!interactive && (
             <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+              {/* A real element for the panel to hang off: Base UI keeps a popup
+                  glued to a DOM anchor as it moves, which a rect alone cannot do.
+                  It tracks the element the iframe reports, clamped to the frame,
+                  so the panel follows the target while it is on screen and rests
+                  against the edge the target scrolled past. */}
+              {overlay && (
+                <div ref={setAnchorEl} style={anchorBox(overlay.rect, zoom, frameRef.current?.clientHeight ?? 0)} className="absolute" />
+              )}
               {hover && (
                 <div
                   className="absolute rounded-[4px] bg-accent-soft ring-1 ring-inset ring-accent-edge"
@@ -276,7 +269,7 @@ export const HtmlView = observer(function HtmlView({
           )}
         </div>
       </div>
-      {overlay && overlayAnchor && !interactive && (
+      {overlay && anchorEl && !interactive && (
         <Popover
           open
           onOpenChange={(next, details) => {
@@ -284,7 +277,8 @@ export const HtmlView = observer(function HtmlView({
             // press, so only explicit dismissals (Escape, close button) close it.
             if (!next && details.reason !== "outside-press") applyOverlay(null)
           }}
-          anchor={overlayAnchor}
+          anchor={anchorEl}
+          collisionBoundary={frameRef.current ?? undefined}
           align="start"
           chrome={false}
           className="w-[340px] overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
@@ -336,6 +330,22 @@ export const HtmlView = observer(function HtmlView({
     </div>
   )
 })
+
+/** The anchor box for a reported element rect, clamped to the frame's visible
+ * area. A target scrolled out of the preview would otherwise drag the panel off
+ * with it, and a target taller than the frame would leave the panel no side to
+ * open on, so a tall one anchors to a band at its visible top. */
+export function anchorBox(rect: ElRect, zoom: number, frameHeight: number) {
+  const left = rect.left * zoom
+  const width = rect.width * zoom
+  const top = rect.top * zoom
+  const bottom = top + rect.height * zoom
+  if (!frameHeight) return { left, top, width, height: bottom - top }
+  const clampedTop = Math.min(Math.max(top, 0), frameHeight - 1)
+  const clampedBottom = Math.max(Math.min(bottom, frameHeight), clampedTop + 1)
+  const band = Math.max(frameHeight / 3, 1)
+  return { left, top: clampedTop, width, height: Math.min(clampedBottom - clampedTop, band) }
+}
 
 function elDraftKey(scope: string, selector: string): string {
   return `suikou-eldraft:${scope}:${selector}`
