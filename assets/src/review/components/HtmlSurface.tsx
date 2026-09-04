@@ -1,4 +1,3 @@
-import { createPortal } from "react-dom"
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
@@ -6,6 +5,7 @@ import { Crosshair, Lock, MessageSquarePlus, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
+import { Popover } from "../../components/ui/popover"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
 
@@ -55,7 +55,7 @@ export const HtmlView = observer(function HtmlView({
     localStorage.removeItem(elOpenKey)
     return null
   })
-  const [, setTick] = useState(0)
+  const [tick, setTick] = useState(0)
   const [addingComment, setAddingComment] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const [screenHeight, setScreenHeight] = useState(0)
@@ -182,14 +182,21 @@ export const HtmlView = observer(function HtmlView({
     setAddingComment(false)
   }, [overlay?.selector, overlay?.kind])
 
-  const frameRect = frameRef.current?.getBoundingClientRect()
-  const overlayPos =
-    overlay && frameRect
-      ? {
-          left: Math.min(Math.max(frameRect.left + overlay.rect.left * zoom, 8), window.innerWidth - 348),
-          top: Math.min(frameRect.top + overlay.rect.bottom * zoom + 8, window.innerHeight - 90),
-        }
-      : null
+  // Virtual anchor over the reported iframe rect; Base UI flips the panel above
+  // the element on its own when the viewport has no room below it.
+  const overlayAnchor = useMemo(() => {
+    if (!overlay) return null
+    const rect = overlay.rect
+    return () => ({
+      getBoundingClientRect: () => {
+        const frame = frameRef.current?.getBoundingClientRect()
+        const left = frame ? frame.left + rect.left * zoom : 0
+        const top = frame ? frame.top + rect.top * zoom : 0
+        return new DOMRect(left, top, rect.width * zoom, rect.height * zoom)
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay, zoom, tick])
 
   return (
     <div ref={rootRef} className="flex shrink-0 flex-col bg-editor p-[14px]">
@@ -269,59 +276,63 @@ export const HtmlView = observer(function HtmlView({
           )}
         </div>
       </div>
-      {overlay &&
-        overlayPos &&
-        !interactive &&
-        createPortal(
-          <div
-            style={{ position: "fixed", left: overlayPos.left, top: overlayPos.top, zIndex: 40, width: 340 }}
-            className="overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
-          >
-            <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-xs">
-              <span className="truncate font-mono text-accent-bright">{overlay.selector}</span>
-              <span className="flex-1" />
+      {overlay && overlayAnchor && !interactive && (
+        <Popover
+          open
+          onOpenChange={(next, details) => {
+            // The preview click that opens the panel also reads as an outside
+            // press, so only explicit dismissals (Escape, close button) close it.
+            if (!next && details.reason !== "outside-press") applyOverlay(null)
+          }}
+          anchor={overlayAnchor}
+          align="start"
+          chrome={false}
+          className="w-[340px] overflow-hidden rounded-panel border border-hair-strong bg-surface shadow-[0_16px_40px_oklch(0%_0_0/0.32)]"
+        >
+          <div className="flex items-center gap-2 border-b border-hair px-3 py-2 text-xs">
+            <span className="truncate font-mono text-accent-bright">{overlay.selector}</span>
+            <span className="flex-1" />
+            <button
+              type="button"
+              onClick={() => applyOverlay(null)}
+              className="grid size-[18px] shrink-0 place-items-center rounded text-faint hover:bg-soft hover:text-ink"
+              aria-label="Close"
+            >
+              <X size={13} aria-hidden />
+            </button>
+          </div>
+          <div className="max-h-[60vh] overflow-auto p-2.5">
+            {quote && (
+              <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
+                “{quote}”
+              </div>
+            )}
+            {openThreads.map((comment) => (
+              <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" />
+            ))}
+            {showComposer ? (
+              <Composer
+                anchorLabel="this element"
+                draftKey={elDraftKey(draftScope, overlay.selector)}
+                pending={addComment.isPending}
+                chrome={false}
+                onSubmit={submit}
+                onCancel={() => (overlay.kind === "compose" ? applyOverlay(null) : setAddingComment(false))}
+                className={openThreads.length > 0 ? "m-0 mt-2" : "m-0"}
+              />
+            ) : (
               <button
                 type="button"
-                onClick={() => applyOverlay(null)}
-                className="grid size-[18px] shrink-0 place-items-center rounded text-faint hover:bg-soft hover:text-ink"
-                aria-label="Close"
+                onClick={() => setAddingComment(true)}
+                className="mt-1 flex w-full items-center justify-center gap-1 rounded-ctrl border border-dashed border-hair-strong py-1.5 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
               >
-                <X size={13} aria-hidden />
+                <MessageSquarePlus size={13} aria-hidden />
+                Add comment
               </button>
-            </div>
-            <div className="max-h-[60vh] overflow-auto p-2.5">
-              {quote && (
-                <div className="mb-2 truncate rounded-md bg-soft px-2.5 py-1.5 font-mono text-xs text-muted shadow-[inset_0_0_0_1px_var(--hair-strong)]">
-                  “{quote}”
-                </div>
-              )}
-              {openThreads.map((comment) => (
-                <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="mb-2 last:mb-0" />
-              ))}
-              {showComposer ? (
-                <Composer
-                  anchorLabel="this element"
-                  draftKey={elDraftKey(draftScope, overlay.selector)}
-                  pending={addComment.isPending}
-                  chrome={false}
-                  onSubmit={submit}
-                  onCancel={() => (overlay.kind === "compose" ? applyOverlay(null) : setAddingComment(false))}
-                  className={openThreads.length > 0 ? "m-0 mt-2" : "m-0"}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAddingComment(true)}
-                  className="mt-1 flex w-full items-center justify-center gap-1 rounded-ctrl border border-dashed border-hair-strong py-1.5 text-xs font-semibold text-muted hover:bg-soft hover:text-ink"
-                >
-                  <MessageSquarePlus size={13} aria-hidden />
-                  Add comment
-                </button>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+            )}
+          </div>
+        </Popover>
+      )}
     </div>
   )
 })
