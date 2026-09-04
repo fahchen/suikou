@@ -33,20 +33,19 @@ Feature: Critique lifecycle
       Then the comment no longer exists
 
   # Submitting a review publishes every pending comment across the whole review
-  # — all files at once, not just the submitted file. The verdict and the round
-  # advance stay per file: only the submitted round records a verdict and opens a
-  # next round. The agent only ever sees the published set (see BDR-0008,
-  # BDR-0019).
+  # — all files at once, not just the submitted file. The round advance stays per
+  # file: only the submitted round records a submission and opens a next round.
+  # The agent only ever sees the published set (see BDR-0008, BDR-0019).
   Rule: Submitting a review publishes the review's pending comments
 
     Scenario: Submitting a review publishes every pending comment on the round
       Given two pending comments on round 1
-      When the reviewer submits a review of round 1 with verdict "comment"
+      When the reviewer submits a review of round 1
       Then both comments become published
 
     Scenario: Submitting one file publishes a sibling file's pending comments
       Given a second markdown artifact in the same review with a pending comment
-      When the reviewer submits a review of round 1 with verdict "comment"
+      When the reviewer submits a review of round 1
       Then the sibling file's pending comment becomes published
       And the sibling file stays on its current round
 
@@ -54,24 +53,6 @@ Feature: Critique lifecycle
       Given a pending comment on round 1
       When the agent exports the round 1 critique
       Then the pending comment is not included
-
-  # A review records the disposition of the round it was submitted on (see BDR-0015).
-  Rule: A submitted review records its verdict
-
-    Scenario Outline: Each review carries one verdict
-      Given a pending comment on round 1
-      When the reviewer submits a review of round 1 with verdict "<verdict>"
-      Then the review is recorded with verdict "<verdict>"
-
-      Examples:
-        | verdict         |
-        | approve         |
-        | request_changes |
-        | comment         |
-
-    Scenario: An unrecognised verdict is rejected
-      When the reviewer submits a review of round 1 with verdict "merge"
-      Then the review is rejected
 
   Rule: A published comment cannot be edited
 

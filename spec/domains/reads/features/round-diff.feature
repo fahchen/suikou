@@ -24,10 +24,3 @@ Feature: Round diff
       When the reviewer views the diff between round 1 and round 2
       Then the resolved, newly added, and still-open comments are shown
 
-  Rule: A round diff shows the verdict change
-
-    Scenario: A change in the latest verdict between rounds is rendered
-      Given round 1's latest review had verdict "request_changes"
-      And round 2's latest review had verdict "approve"
-      When the reviewer views the diff between round 1 and round 2
-      Then the verdict change from "request_changes" to "approve" is shown

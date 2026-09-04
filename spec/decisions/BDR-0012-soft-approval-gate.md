@@ -1,7 +1,8 @@
 ---
 id: BDR-0012
 title: Approval is soft-gated — unresolved critique warns but never blocks
-status: accepted
+status: superseded
+superseded_by: BDR-0027
 date: 2026-06-07
 summary: The reviewer may submit an approve verdict even with open comments (including fix_required); the system warns but does not block, because the human holds final judgment
 ---
