@@ -19,16 +19,18 @@ type Target = "comment" | "reply"
 const agentChipTitle = (reaction: CommentReaction): string =>
   reaction.by.length > 0 ? `Reacted by ${reaction.by.map((actor) => actor.name).join(", ")}` : "Agent reaction"
 
+// Agent pills and human chips are the same shell so the row reads as one scale.
+const CHIP = "inline-flex h-[22px] shrink-0 items-center rounded-full ring-1 ring-inset coarse:h-[28px]"
 const CHIP_ENTER = { scale: 0.6, opacity: 0 }
 const CHIP_SHOWN = { scale: 1, opacity: 1 }
 const CHIP_TRANSITION = { duration: 0.15, ease: "easeOut" } as const
 
-/** Reactions on a comment or reply. Humans pick from an approval/opposition
- * scale (`HUMAN_REACTIONS`) via the popover and can toggle their own chips.
- * Agent reactions (any glyph, `actor === "agent"`) render as read-only markers
- * with the glyph docked to the reacting agent — the human can't add or remove them.
- * Several agents can land on the same emoji, so the marker and title name
- * who is behind the count. */
+/** Reactions on a comment or reply. Each chip is the same pill: an agent
+ * reaction (`actor === "agent"`) reads "who reacted, then what they said" and
+ * is read-only, while the human's own chip toggles off when pressed. Several
+ * agents can land on the same emoji, so the chip counts and its title names
+ * them. The picker sits first in the row and steps aside once a human reaction
+ * is there — there is only ever one. */
 export function Reactions({
   reactions,
   targetId,
@@ -48,6 +50,9 @@ export function Reactions({
   const removeReply = useMusubiCommand(commentsProxy as CommentsStoreProxy, "remove_reply_reaction")
   const [open, setOpen] = useState(false)
   const mine = new Map(reactions.map((reaction) => [reaction.emoji, reaction.mine]))
+  // One human reaction per comment: once it is there the picker has nothing to
+  // add, so it steps aside. Press the chip to take the reaction back.
+  const humanReacted = reactions.some((reaction) => reaction.actor === "human")
 
   const toggle = (emoji: HumanReactionEmoji, event: MouseEvent) => {
     event.stopPropagation()
@@ -63,36 +68,73 @@ export function Reactions({
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      {/* The picker keeps the first slot so it never moves as chips come and go. */}
+      {!humanReacted && (
+        <Popover
+          open={open}
+          onOpenChange={setOpen}
+          side="top"
+          align="start"
+          chrome={false}
+          render={
+            <button
+              type="button"
+              aria-label="Add reaction"
+              onClick={(event) => event.stopPropagation()}
+              className="grid size-[22px] shrink-0 place-items-center rounded-full text-muted ring-1 ring-inset ring-hair-strong transition-colors coarse:size-[28px] hover:bg-soft hover:text-ink"
+            >
+              <SmilePlus size={13} aria-hidden />
+            </button>
+          }
+        >
+          <div className="inline-flex items-center gap-0.5 rounded-full bg-surface p-1 shadow-[0_8px_24px_oklch(0%_0_0/0.25)] ring-1 ring-inset ring-hair-strong">
+            {HUMAN_REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={emoji}
+                onClick={(event) => {
+                  toggle(emoji, event)
+                  setOpen(false)
+                }}
+                className="grid size-[28px] place-items-center rounded-full text-base transition-colors hover:bg-soft"
+              >
+                {reactionGlyph(emoji)}
+              </button>
+            ))}
+          </div>
+        </Popover>
+      )}
       {/* initial={false} so chips present on first render don't pop; only chips
-          added or removed later animate, with layout easing neighbours over. */}
-      <AnimatePresence initial={false}>
+          added or removed later animate, and they fade in place rather than
+          sliding the row around. popLayout takes a leaving chip out of the flow
+          at once, so the row does not shuffle right and back while it fades. */}
+      <AnimatePresence initial={false} mode="popLayout">
         {reactions.map((reaction) => {
           const agent = reaction.by[0]
           return reaction.actor === "agent" ? (
             <motion.span
               key={reaction.emoji}
-              layout
               initial={CHIP_ENTER}
               animate={CHIP_SHOWN}
               exit={CHIP_ENTER}
               transition={CHIP_TRANSITION}
               title={agentChipTitle(reaction)}
-              className="relative inline-flex shrink-0 pr-1 pt-1"
+              // One pill, same height as a human chip: who reacted, then what
+              // they said. Corner-pinned glyphs used to hang outside the tile.
+              className={`${CHIP} gap-1 bg-soft px-1.5 ring-hair-strong`}
             >
               {agent ? (
-                <AuthorBadge author={{ kind: "agent", ...agent }} size="sm" appearance="marker" />
+                <AuthorBadge author={{ kind: "agent", ...agent }} size="sm" appearance="bare" />
               ) : (
-                <span className="grid size-5 place-items-center rounded-[6px] bg-control text-muted"><Bot size={11} aria-hidden /></span>
+                <Bot size={11} className="text-muted" aria-hidden />
               )}
-              <span className="absolute -right-0.5 -top-0.5 grid size-[15px] place-items-center text-[9px] leading-none">
-                {reactionGlyph(reaction.emoji)}
-              </span>
-              {reaction.count > 1 && <span className="absolute -bottom-0.5 -right-1 rounded-full bg-control px-1 font-mono text-[9px] leading-[13px] text-muted ring-1 ring-hair">{reaction.count}</span>}
+              <span className="text-[11px] leading-none">{reactionGlyph(reaction.emoji)}</span>
+              {reaction.count > 1 && <span className="font-mono text-[10px] leading-none text-muted">×{reaction.count}</span>}
             </motion.span>
           ) : (
             <motion.button
               key={reaction.emoji}
-              layout
               initial={CHIP_ENTER}
               animate={CHIP_SHOWN}
               exit={CHIP_ENTER}
@@ -100,7 +142,7 @@ export function Reactions({
               type="button"
               aria-pressed={reaction.mine}
               onClick={(event) => toggle(reaction.emoji as HumanReactionEmoji, event)}
-              className={`inline-flex h-[22px] items-center rounded-full px-2 text-xs leading-none ring-1 ring-inset transition-colors ${
+              className={`${CHIP} px-2 text-xs leading-none transition-colors coarse:px-2.5 ${
                 reaction.mine
                   ? "bg-accent-soft text-accent-bright ring-accent-edge"
                   : "bg-soft text-muted ring-hair-strong hover:text-ink"
@@ -111,44 +153,6 @@ export function Reactions({
           )
         })}
       </AnimatePresence>
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        side="top"
-        align="start"
-        chrome={false}
-        render={
-          <button
-            type="button"
-            aria-label="Add reaction"
-            onClick={(event) => event.stopPropagation()}
-            className={`grid size-[22px] shrink-0 place-items-center rounded-full text-muted ring-1 ring-inset ring-hair-strong transition-colors hover:bg-soft hover:text-ink ${
-              reactions.length === 0 && !open ? "opacity-100 md:opacity-0 md:group-hover/comment:opacity-100 md:group-hover/reply:opacity-100" : ""
-            }`}
-          >
-            <SmilePlus size={13} aria-hidden />
-          </button>
-        }
-      >
-        <div className="inline-flex items-center gap-0.5 rounded-full bg-surface p-1 shadow-[0_8px_24px_oklch(0%_0_0/0.25)] ring-1 ring-inset ring-hair-strong">
-          {HUMAN_REACTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              aria-label={emoji}
-              onClick={(event) => {
-                toggle(emoji, event)
-                setOpen(false)
-              }}
-              className={`grid size-[28px] place-items-center rounded-full text-base transition-colors hover:bg-soft ${
-                mine.get(emoji) ? "bg-accent-soft ring-1 ring-inset ring-accent-edge" : ""
-              }`}
-            >
-              {reactionGlyph(emoji)}
-            </button>
-          ))}
-        </div>
-      </Popover>
     </div>
   )
 }

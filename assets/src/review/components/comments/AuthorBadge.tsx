@@ -36,7 +36,7 @@ export const AuthorBadge = observer(function AuthorBadge({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center text-xs font-bold leading-none ${
+      className={`inline-flex min-w-0 items-center text-xs font-bold leading-none ${
         marker
           ? "min-w-10 flex-col gap-0.5 text-2xs font-medium text-muted"
           : agent
@@ -62,7 +62,10 @@ export const AuthorBadge = observer(function AuthorBadge({
           <User size={iconSize} />
         )}
       </span>
-      {label && <span className="leading-none">{label}</span>}
+      {/* Inside a comment card (`@container/card`) a cramped row drops the name:
+          the glyph still says who it was, and the anchor, reactions and actions
+          need the room. Elsewhere the query never matches and the name stays. */}
+      {label && <span className="truncate leading-none @max-[24rem]/card:hidden">{label}</span>}
     </span>
   )
 })

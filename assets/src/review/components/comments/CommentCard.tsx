@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronRight, Crosshair } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 
 import { Tooltip } from "../../../components/ui/tooltip"
 import { AuthorBadge } from "./AuthorBadge"
@@ -14,7 +14,6 @@ export function CommentCard({
   collapsible = false,
   collapsed = false,
   onToggleCollapse,
-  onFocus,
   onHover,
   onLeave,
   metaLine,
@@ -33,7 +32,6 @@ export function CommentCard({
   collapsible?: boolean
   collapsed?: boolean
   onToggleCollapse?: () => void
-  onFocus?: () => void
   onHover?: () => void
   onLeave?: () => void
   metaLine?: ReactNode
@@ -71,11 +69,11 @@ export function CommentCard({
       data-side-comment-id={comment.id}
       onPointerEnter={onHover}
       onPointerLeave={onLeave}
-      className={`group/comment ${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
+      className={`group/comment @container/card ${className} overflow-hidden rounded-panel shadow-sm ring-1 ring-inset ${meta.card} ${
         focused ? "ring-2 ring-accent-edge" : ""
       } ${comment.resolved ? "opacity-65" : ""}`}
     >
-      <div className={`@container/hdr flex min-w-0 items-center ${headerClassName}`}>
+      <div className={`flex min-w-0 items-center ${headerClassName}`}>
         <span aria-hidden className="-mr-1.5 h-[26px] w-0 shrink-0" />
         {collapsible && onToggleCollapse && (
           <button
@@ -87,7 +85,7 @@ export function CommentCard({
               event.stopPropagation()
               onToggleCollapse()
             }}
-            className="-m-1 grid size-6 shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation hover:bg-soft hover:text-ink"
+            className="-m-1 grid size-6 shrink-0 place-items-center rounded-ctrl text-muted touch-manipulation coarse:size-[32px] hover:bg-soft hover:text-ink"
           >
             <span
               className={`grid place-items-center transition-transform duration-250 ease-out-quint ${
@@ -113,19 +111,6 @@ export function CommentCard({
           }
         />
         {renderedMetaLine}
-        {onFocus && (
-          <button
-            type="button"
-            aria-label={focused ? "Clear comment focus" : "Focus comment"}
-            title={focused ? "Clear comment focus" : "Focus comment"}
-            onClick={onFocus}
-            className={`grid size-[19px] shrink-0 place-items-center rounded-ctrl transition-colors ${
-              focused ? "bg-accent-soft text-accent-bright" : "text-muted hover:bg-soft hover:text-ink"
-            }`}
-          >
-            <Crosshair size={11} aria-hidden />
-          </button>
-        )}
         <TimeAgo iso={comment.inserted_at} />
         {collapsed && summaryText && (
           <span className="min-w-0 flex-1 truncate self-center text-xs leading-none text-muted">
@@ -184,7 +169,7 @@ function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean
           </>
         }
         render={
-          <span className="inline-flex shrink-0 items-center text-amber line-through decoration-amber/80 [&_button]:line-through [&_button]:decoration-amber/80 [&_span]:line-through [&_span]:decoration-amber/80">
+          <span className="inline-flex min-w-0 items-center overflow-hidden text-amber line-through decoration-amber/80 [&_button]:line-through [&_button]:decoration-amber/80 [&_span]:line-through [&_span]:decoration-amber/80">
             {metaLine}
           </span>
         }
@@ -203,7 +188,7 @@ function renderMetaLine(metaLine: ReactNode, outdated: boolean, drifted: boolean
             This comment was remapped to nearby content after the file changed.
           </>
         }
-        render={<span className="inline-flex shrink-0 items-center">{metaLine}</span>}
+        render={<span className="inline-flex min-w-0 items-center overflow-hidden">{metaLine}</span>}
       />
     )
   }

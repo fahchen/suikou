@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "./shiki-themes.css";
 
+/* Input capability, not viewport width: an iPad is as wide as a laptop yet
+   never hovers, and a laptop with a touchscreen is the other way round.
+   `hoverable:` gates hover-to-reveal affordances; `coarse:` sizes controls for
+   a finger. */
+@custom-variant hoverable (@media (hover: hover) and (pointer: fine));
+@custom-variant coarse (@media (pointer: coarse));
+
 /* Suikou design tokens. Suikou Dark is the default (:root); every theme is a
    `[data-theme]` block that only swaps surface, ink, accent, and semantic
    colours. The structural grammar (spacing, radii, components) is

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { Check, CornerDownRight, Pencil, RotateCcw } from "lucide-react"
+import { Check, CornerDownRight, Pencil } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
-import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
+import { AnchorLabel, CommentActionButton, ConfirmDeleteIconButton, ResolveToggle } from "./CommentActions"
 import { CommentCard } from "./CommentCard"
 import { Composer } from "./Composer"
 import { AuthorBadge } from "./AuthorBadge"
@@ -111,12 +111,11 @@ export function CommentThread({
         collapsible
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((value) => !value)}
-        onFocus={onFocus}
         metaLine={
           anchorLabel ? (
-            <span className="inline-flex items-center gap-1 font-mono text-xs text-muted">
-              {anchorLabel}
-              {pending ? "" : <span className="text-muted/60 @max-[20rem]/hdr:hidden">R{comment.authored_round}</span>}
+            <span className="inline-flex min-w-0 items-center gap-1 font-mono text-xs text-muted">
+              <AnchorLabel label={anchorLabel} focused={focused} onFocus={onFocus} />
+              {!pending && <span className="shrink-0 text-muted/60 @max-[24rem]/card:hidden">R{comment.authored_round}</span>}
             </span>
           ) : undefined
         }
@@ -137,21 +136,9 @@ export function CommentThread({
                 onConfirm={deleteComment}
               />
             )}
-            {!pending &&
-              (comment.resolved ? (
-                <CommentActionButton
-                  icon={RotateCcw}
-                  label="Reopen"
-                  onClick={reopenComment}
-                />
-              ) : (
-                <CommentActionButton
-                  icon={Check}
-                  label="Resolve"
-                  tone="approve"
-                  onClick={resolveComment}
-                />
-              ))}
+            {collapsed && !pending && (
+              <ResolveToggle resolved={comment.resolved} onResolve={resolveComment} onReopen={reopenComment} />
+            )}
           </div>
         }
         body={
@@ -184,12 +171,16 @@ export function CommentThread({
               className="min-w-0 px-0.5"
             />
             <div className="ml-auto flex items-center gap-0.5">
-              {!pending &&
-                (comment.resolved ? (
-                  <CommentActionButton icon={RotateCcw} label="Reopen" reveal="comment-hover" onClick={reopenComment} />
-                ) : (
-                  <CommentActionButton icon={Check} label="Resolve" tone="approve" reveal="comment-hover" onClick={resolveComment} />
-                ))}
+              {/* The header carries this pair while collapsed; rendering it here
+                  too would leave a second, inert copy in every collapsed card. */}
+              {!collapsed && !pending && (
+                <ResolveToggle
+                  resolved={comment.resolved}
+                  reveal="comment-hover"
+                  onResolve={resolveComment}
+                  onReopen={reopenComment}
+                />
+              )}
               {pending ? (
                 <CommentActionButton icon={Pencil} label="Edit" reveal="comment-hover" onClick={() => setEditing(true)} />
               ) : canReply && !replying ? (
