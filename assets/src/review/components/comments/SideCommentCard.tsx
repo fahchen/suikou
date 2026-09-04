@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { Check, CornerDownRight, Pencil, RotateCcw } from "lucide-react"
+import { CornerDownRight, Pencil } from "lucide-react"
 
 import { useMusubiCommand } from "../../../musubi"
 import { renderMarkdown } from "../../markdown"
-import { CommentActionButton, ConfirmDeleteIconButton } from "./CommentActions"
+import { AnchorLabel, CommentActionButton, ConfirmDeleteIconButton, ResolveToggle } from "./CommentActions"
 import { CommentCard } from "./CommentCard"
 import { Composer } from "./Composer"
 import { Reply } from "./Reply"
@@ -92,19 +92,7 @@ export function SideCommentCard({
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((value) => !value)}
         summaryText={comment.body}
-        metaLine={
-          anchor ? (
-            <button
-              type="button"
-              onClick={onFocusLine}
-              className="shrink-0 rounded-ctrl px-1.5 py-0.5 font-mono text-xs font-semibold text-muted hover:bg-soft hover:text-accent-bright"
-            >
-              {label}
-            </button>
-          ) : (
-            <span className="shrink-0 font-mono text-xs font-semibold text-muted">{label}</span>
-          )
-        }
+        metaLine={<AnchorLabel label={label} onFocus={anchor ? onFocusLine : undefined} />}
         headerActions={
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             {(!collapsed || pending) && (
@@ -114,23 +102,9 @@ export function SideCommentCard({
                 onConfirm={deleteComment}
               />
             )}
-            {!pending &&
-              (comment.resolved ? (
-                <CommentActionButton
-                  icon={RotateCcw}
-                  label="Reopen"
-                  size="sm"
-                  onClick={reopenComment}
-                />
-              ) : (
-                <CommentActionButton
-                  icon={Check}
-                  label="Resolve"
-                  size="sm"
-                  tone="approve"
-                  onClick={resolveComment}
-                />
-              ))}
+            {collapsed && !pending && (
+              <ResolveToggle size="sm" resolved={comment.resolved} onResolve={resolveComment} onReopen={reopenComment} />
+            )}
           </div>
         }
         body={
@@ -155,21 +129,24 @@ export function SideCommentCard({
         }
         actions={
           <div className="mt-2 flex items-center gap-2 text-2xs font-semibold text-muted">
-            {!pending &&
-              (comment.resolved ? (
-                <CommentActionButton icon={RotateCcw} label="Reopen" size="sm" reveal="comment-hover" onClick={reopenComment} />
-              ) : (
-                <CommentActionButton icon={Check} label="Resolve" size="sm" tone="approve" reveal="comment-hover" onClick={resolveComment} />
-              ))}
+            {/* The header carries this pair while collapsed; rendering it here
+                too would leave a second, inert copy in every collapsed card. */}
+            {!collapsed && !pending && (
+              <ResolveToggle
+                size="sm"
+                resolved={comment.resolved}
+                reveal="comment-hover"
+                onResolve={resolveComment}
+                onReopen={reopenComment}
+              />
+            )}
             {comment.replies.length > 0 && <span className="tabular-nums">{comment.replies.length} replies</span>}
             <span className="flex-1" />
             {pending ? (
               <CommentActionButton icon={Pencil} label="Edit" size="sm" reveal="comment-hover" onClick={() => setEditing(true)} />
             ) : canReply && !replying ? (
               <CommentActionButton icon={CornerDownRight} label="Reply" size="sm" reveal="comment-hover" onClick={() => setReplying(true)} />
-            ) : (
-              null
-            )}
+            ) : null}
           </div>
         }
         composer={

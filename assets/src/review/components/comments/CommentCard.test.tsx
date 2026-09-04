@@ -12,7 +12,7 @@ class ResizeObserverStub {
 vi.stubGlobal("ResizeObserver", ResizeObserverStub)
 
 describe("CommentCard", () => {
-  test("keeps focus activation on its explicit control, not the thread card", () => {
+  test("keeps focus activation on the control it is handed, not the thread card", () => {
     const onFocus = vi.fn()
 
     render(
@@ -20,7 +20,11 @@ describe("CommentCard", () => {
         comment={comment}
         className=""
         body={<p>Comment body</p>}
-        onFocus={onFocus}
+        metaLine={
+          <button type="button" onClick={onFocus}>
+            L1
+          </button>
+        }
       />,
     )
 
@@ -28,7 +32,7 @@ describe("CommentCard", () => {
     expect(card).not.toHaveAttribute("role", "button")
     expect(card).not.toHaveClass("cursor-pointer")
 
-    fireEvent.click(screen.getByRole("button", { name: "Focus comment" }))
+    fireEvent.click(screen.getByRole("button", { name: "L1" }))
     expect(onFocus).toHaveBeenCalledOnce()
   })
 
