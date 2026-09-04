@@ -9,7 +9,7 @@ product
 Developers running a local, server-authoritative code review over work produced
 by AI coding agents. They are the reviewer and the operator at once: they stage
 a review (a set of files, or a diff between two refs), read closely, leave
-anchored comments, set a verdict per file, submit a round, and iterate as the
+anchored comments, submit a round, and iterate as the
 agent responds. They live in this surface for long stretches and switch between
 reading code, reading prose (markdown), and inspecting rendered HTML. They are
 fluent: they expect keyboard reach, dense information, and no hand-holding.
@@ -19,12 +19,12 @@ Sessions are focused and often long; the tool is a workbench, not a destination.
 
 Suikou turns "review the agent's output" into a real workbench. It reorganizes a
 GitHub-style "files changed" view into a three-surface workspace (a file
-navigator, a reading/commenting editor, and round/verdict/submit controls
+navigator, a reading/commenting editor, and round/submit controls
 reached from the toolbar) so a single reviewer can drive many rounds of
 human-in-the-loop iteration with an agent. Two review kinds are first class:
 file_selection (review files at their current state) and git_diff (review a diff
-between refs). Comments anchor to lines, diff hunks, or HTML elements; verdicts
-are per file and batch-submitted per round; the agent replies and re-snapshots
+between refs). Comments anchor to lines, diff hunks, or HTML elements; a
+round's critique is batch-submitted together; the agent replies and re-snapshots
 feed the next round. Success is a reviewer who can hold the whole review in their
 head and move through it quickly, with the tool never getting in the way of the
 code and the comments.
@@ -58,17 +58,17 @@ them.
 1. Code and comments are the product; chrome recedes. The work under review must
    dominate the screen. Toolbars, meters, and status are support, sized and
    colored to stay out of the way.
-2. One fact, one home. A given piece of state (reviewed count, connection,
+2. One fact, one home. A given piece of state (open-comment count, connection,
    current file) has a single canonical place. No surface echoes a number a
    neighbor already shows.
 3. States are first class. Every meaningful state (empty, draft, outdated,
-   stranded, approved, refs-moved, branch-deleted) is a complete, legible page,
+   stranded, refs-moved, branch-deleted) is a complete, legible page,
    not an afterthought or a toast.
 4. Expert density over hand-holding. Favor compact layouts, keyboard reach, and
    trust in the user. No onboarding scaffolding, no explanatory noise on a
    surface the user already understands.
 5. Faithful to the domain. The UI mirrors the real review model (kinds, rounds,
-   anchors, verdicts, agent replies) exactly. No fake affordances, no controls
+   anchors, agent replies) exactly. No fake affordances, no controls
    that imply behavior the runtime does not have.
 
 ## Accessibility & Inclusion

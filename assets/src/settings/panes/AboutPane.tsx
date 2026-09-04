@@ -19,7 +19,7 @@ export const AboutPane = observer(function AboutPane() {
       </div>
       <p className="max-w-[52ch] text-xs leading-[1.5] text-muted">
         推敲 is the act of weighing the exact word to use. Suikou turns review into a real workbench:
-        read closely, anchor comments, set a verdict per file, submit a round, iterate.
+        read closely, anchor comments, submit a round, iterate.
       </p>
       <figure className="max-w-[52ch] rounded-[10px] border border-hair bg-soft px-4 py-3">
         <blockquote

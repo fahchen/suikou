@@ -21,7 +21,7 @@ faint teal/blue glow so panels read as glass over depth, not paint on a wall.
 Strategy: **restrained**. Tinted near-black neutrals carry the whole surface; a
 single cyan-to-teal-to-blue accent appears sparingly (primary action, selection,
 focus), amber marks numbers and "attention" states, and green/red are reserved
-for verdicts and diffs. Saturated color is information, never decoration. OKLCH
+for diffs and blocking critique. Saturated color is information, never decoration. OKLCH
 only; never `#000`/`#fff`; chroma drops as lightness approaches the extremes.
 
 ### Surfaces (cool-tinted charcoals, hue ~228-236)
@@ -59,8 +59,8 @@ only; never `#000`/`#fff`; chroma drops as lightness approaches the extremes.
 ### Semantic
 
 - amber (numbers, attention, outdated/drifted/refs-moved): `--amber: oklch(80% 0.12 78)`, deep `oklch(72% 0.13 70)`
-- approve (verdict, success): `--approve: oklch(76% 0.15 152)`
-- request changes (verdict, danger): `--request: oklch(70% 0.17 22)`
+- approve (added lines, success): `--approve: oklch(76% 0.15 152)`
+- request (deleted lines, blockers, danger): `--request: oklch(70% 0.17 22)`
 - comment types: fix_required = red `oklch(72% 0.17 22)`, needs_answer = blue `oklch(74% 0.13 240)`, note = neutral `oklch(68% 0.01 235)`
 - diff: add `oklch(62% 0.10 150 / 0.16)` bg + ink `oklch(82% 0.14 150)`; del `oklch(60% 0.13 22 / 0.16)` bg + ink `oklch(80% 0.14 22)`
 - Every semantic color is paired with a glyph or label (A/M/D, type pill, +/-
@@ -101,7 +101,7 @@ highlight (`--panel-spec`). The app sits on a `--desk` radial-gradient glow
 ## Radii and spacing
 
 `--r-win: 16px` (app window), `--r-panel: 13px` (panels/threads), `--r-ctrl: 9px`
-(buttons/inputs), `--r-pill: 999px` (chips, verdicts, type pills). Vary padding
+(buttons/inputs), `--r-pill: 999px` (chips, type pills). Vary padding
 for rhythm; do not pad everything equally. Avoid card-in-card; nested cards are
 wrong.
 
@@ -117,7 +117,7 @@ wrong.
   picture, doc; not color emoji), the name, then a trailing slot for a comment
   count or, in a diff review, `+N / -M` stats. Selected row is a full accent
   background fill with a hairline ring, never a left stripe.
-- **Editor**: a file head (path, view toggle, per-file verdict chip), then the
+- **Editor**: a file head (path, view toggle, file-comment affordance), then the
   content. Source uses a line gutter with a hover-only add-comment affordance.
   Markdown previews block by block. HTML renders in a light sandboxed iframe
   (the one bright surface, because it is the user's content) with a comment/
@@ -128,8 +128,8 @@ wrong.
   Threads appear inline at their line, or, in side mode, in a right rail aligned
   to lines and collapsible to one line when dense. The same comment is never
   shown in both places.
-- **Pills and chips**: verdict chips (approve/request/comment/none) and comment
-  type pills are pill-radius, soft-filled, with an inset ring in their color.
+- **Pills and chips**: change-status badges and comment type pills are
+  pill-radius, soft-filled, with an inset ring in their color.
 - **Status bar**: a 29px bar that carries current context only (file, line,
   view, round, and a mode note), plus the single connection indicator at the
   far right. Progress counts live in the navigator meter, not here.

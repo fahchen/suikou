@@ -16,8 +16,9 @@ the command reference, and it does not describe JSON shapes that change.
 
 ## The loop
 
-Run this from inside the checkout you want reviewed. You are done when the human
-approves — `verdict: "approve"` on every artifact you were asked about.
+Run this from inside the checkout you want reviewed. A review carries no verdict
+and no approval state: you are done when every comment on the artifacts you were
+asked about is resolved or answered and the human stops opening rounds.
 
 1. **Create.** `suikou review create --name "<name>" <paths…>` (or `--diff
    base..head`). No project id: the working directory decides which board it is
@@ -54,9 +55,9 @@ is reserved.
 ## What only the human may do
 
 You may add and reply to comments, resolve and reopen them, react, and change a
-review's file selection. **Only the human submits a round, sets a verdict, or
-approves.** No command does those for them. Asked to approve, say so to the
-human rather than reaching for another command.
+review's file selection. **Only the human submits a round.** No command does
+that for them. There is no approve command and no verdict to set — asked to
+approve, say so to the human rather than reaching for another command.
 
 ## Waiting
 
@@ -68,7 +69,7 @@ no work from you.
 
 `--rounds` and `--all` choose which published comments a snapshot carries. They
 are content scope, never a wait target. A timeout emits `{"status":"timeout",
-…}` — a state to report or keep waiting from, not an approval or a rejection.
+…}` — a state to report or keep waiting from, not a signal the review ended.
 
 Use `review export` when you need the current snapshot without blocking.
 
@@ -100,7 +101,7 @@ works. Cite the checkout from the report, never the report from the checkout.
 `project list`, `review show`, `review export`, and `review wait` carry an
 `instructions` array for the project. Follow every entry for the whole review;
 later entries win over earlier ones. They shape what to look for and how to
-write it, and never override a human comment, a verdict, or this skill. An
+write it, and never override a human comment or this skill. An
 empty array means no extra rule — do not invent one.
 
 ## Reviewing alongside other agents
