@@ -55,7 +55,7 @@ export const AboutPane = observer(function AboutPane() {
           about living out of anyone&rsquo;s reach. One character decides who is host, who is guest,
           and whether the night makes a sound.
         </p>
-        <p className="border-l-2 border-accent-edge pl-3 text-sm leading-[1.5] text-ink">
+        <p className="text-sm font-medium leading-[1.5] text-ink">
           Reviewing code is the same act: not catching typos, but weighing what each choice actually
           changes.
         </p>
