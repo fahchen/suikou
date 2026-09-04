@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, Clipboard, FileText, FolderInput, GitCompare, Mo
 import { toast } from "sonner"
 
 import { writeClipboard } from "../../lib/clipboard"
+import { hashEmoji } from "../emoji"
 
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
@@ -55,11 +56,9 @@ export function ReviewPane({
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-surface lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
       <div className="flex shrink-0 items-center gap-3 px-5 py-[14px] pt-4">
-        {project.emoji && (
-          <span aria-hidden className="shrink-0 text-lg leading-none">
-            {project.emoji}
-          </span>
-        )}
+        <span aria-hidden className="shrink-0 text-lg leading-none">
+          {project.emoji ?? hashEmoji(project.id)}
+        </span>
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
@@ -214,10 +213,9 @@ function ReviewRow({
       >
         <span
           aria-hidden
-          title={isDiff ? "Git diff review" : "File selection review"}
-          className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
+          className="grid size-[34px] shrink-0 place-items-center rounded-[9px] bg-soft text-[17px] leading-none shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
         >
-          {isDiff ? <GitCompare size={18} strokeWidth={1.8} /> : <FileText size={18} strokeWidth={1.7} />}
+          {hashEmoji(review.id)}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
           <span className="truncate text-sm font-semibold tracking-[-0.012em] text-ink">
@@ -488,7 +486,7 @@ function MoveReviewDialog({
                   : "text-text hover:bg-soft hover:text-ink"
               }`}
             >
-              <span className="w-[18px] shrink-0 text-center">{project.emoji ?? "📁"}</span>
+              <span className="w-[18px] shrink-0 text-center">{project.emoji ?? hashEmoji(project.id)}</span>
               <span className="truncate">{project.name}</span>
               {project.id === picked && (
                 <Check size={14} className="ml-auto shrink-0 text-accent" aria-hidden />

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { Check, Folder, Search } from "lucide-react"
+import { Check, Search } from "lucide-react"
 
 import { Dialog } from "../../components/ui/dialog"
+import { hashEmoji } from "../emoji"
 
 export type ProjectNavProject = {
   id: string
@@ -38,7 +39,7 @@ export function Sidebar({
                   : "text-text hover:bg-soft"
               }`}
             >
-              <ProjectGlyph project={project} size={16} active={active} />
+              <ProjectGlyph project={project} size={16} />
               <span className="min-w-0 flex-1 truncate">{project.name}</span>
             </button>
           )
@@ -99,7 +100,7 @@ export function ProjectPickerSheet({
                 active ? "bg-accent-soft font-semibold text-accent-bright" : "text-text hover:bg-soft"
               }`}
             >
-              <ProjectGlyph project={project} size={17} active={active} />
+              <ProjectGlyph project={project} size={17} />
               <span className="min-w-0 flex-1 truncate">{project.name}</span>
               {active && <Check size={16} strokeWidth={2.4} className="shrink-0 text-accent" aria-hidden />}
             </button>
@@ -111,29 +112,10 @@ export function ProjectPickerSheet({
   )
 }
 
-function ProjectGlyph({
-  project,
-  size,
-  active,
-}: {
-  project: ProjectNavProject
-  size: number
-  active?: boolean
-}) {
-  if (project.emoji) {
-    return (
-      <span aria-hidden className="shrink-0 leading-none" style={{ fontSize: size }}>
-        {project.emoji}
-      </span>
-    )
-  }
-
+function ProjectGlyph({ project, size }: { project: ProjectNavProject; size: number }) {
   return (
-    <Folder
-      size={size}
-      strokeWidth={1.7}
-      className={active ? "text-accent-bright" : "text-muted"}
-      aria-hidden
-    />
+    <span aria-hidden className="shrink-0 leading-none" style={{ fontSize: size }}>
+      {project.emoji ?? hashEmoji(project.id)}
+    </span>
   )
 }

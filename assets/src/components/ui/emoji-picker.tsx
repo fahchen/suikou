@@ -34,13 +34,16 @@ function lastEmoji(raw: string): string | null {
 /** Project icon field: a single-emoji badge rendered by the system emoji font.
  * The user picks with their OS emoji panel (⌃⌘Space on macOS, the emoji key on
  * mobile), pastes one, or rolls a random one; the field keeps only the last
- * emoji. `value` is null when the field is empty. */
+ * emoji. `value` is null when the field is empty, and `placeholder` shows,
+ * faded, whatever gets drawn in its place elsewhere. */
 export function EmojiPicker({
   value,
   onChange,
+  placeholder = "🙂",
 }: {
   value: string | null
   onChange: (value: string | null) => void
+  placeholder?: string
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -52,7 +55,7 @@ export function EmojiPicker({
             className={`pointer-events-none absolute inset-0 grid place-items-center text-lg leading-none ${value ? "" : "opacity-40"}`}
             aria-hidden
           >
-            {value ?? "🙂"}
+            {value ?? placeholder}
           </span>
           <input
             value={value ?? ""}
@@ -67,7 +70,8 @@ export function EmojiPicker({
         </Button>
       </div>
       <p className="text-xs text-faint">
-        Pick from your system emoji panel (⌃⌘Space on macOS), or paste one. Empty the field for no icon.
+        Pick from your system emoji panel (⌃⌘Space on macOS), or paste one. Empty the field to keep the
+        one Suikou picked.
       </p>
     </div>
   )

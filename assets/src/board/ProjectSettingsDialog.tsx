@@ -6,6 +6,7 @@ import { Button } from "../components/ui/button"
 import { Checkbox } from "../components/ui/checkbox"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { EmojiPicker } from "../components/ui/emoji-picker"
+import { hashEmoji } from "./emoji"
 import { Field } from "../components/ui/field"
 import { Textarea } from "../components/ui/textarea"
 import type { BoardProject, BoardStore } from "./types"
@@ -99,7 +100,7 @@ export function ProjectSettingsDialog({
       </Field>
 
       <Field label="Project icon">
-        <EmojiPicker value={emoji} onChange={setEmoji} />
+        <EmojiPicker value={emoji} onChange={setEmoji} placeholder={hashEmoji(project.id)} />
       </Field>
 
       <button
