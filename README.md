@@ -32,6 +32,34 @@ so an agent can open a review and hand it to you to read.
 - **Yours alone.** Single user, no cloud, runs on your own machine and reachable
   from any of your devices.
 
+## The name
+
+推敲 (*suikou*) is the act of weighing which word is exactly the right one.
+
+```
+賈島《題李凝幽居》
+
+閒居少鄰並，草徑入荒園。
+鳥宿池邊樹，僧敲月下門。
+過橋分野色，移石動雲根。
+暫去還來此，幽期不負言。
+```
+
+Jia Dao (779–843) rode into Chang'an unable to settle the second couplet: did
+the monk **推** *push* the moonlit gate, or **敲** *knock at* it? Miming both
+gestures on his donkey, he rode straight into Han Yu's procession — who heard
+him out and picked 敲. The word for revision has meant those two characters ever
+since.
+
+The choice is not about sound alone. *Knock* puts someone behind the door and a
+single noise into a silent night; the monk arrives as a guest. *Push* leaves the
+gate unlatched and the monk alone at his own door, colder and more of a piece
+with a poem about living out of anyone's reach. One character decides who is
+host, who is guest, and whether the night makes a sound.
+
+Reviewing code is the same act: not catching typos, but weighing what each
+choice actually changes.
+
 ## Package & install
 
 Requires [mise](https://mise.jdx.dev) (provisions Elixir/Erlang/Bun).
