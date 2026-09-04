@@ -5,7 +5,7 @@
 # Seeds one artifact through two review rounds so the markdown review UI has a
 # realistic surface: rich markdown (headings, a mermaid diagram, a table, a
 # fenced code block, a blockquote), line/file/review comments of every critique
-# type, a published verdict, a resolved comment, threaded replies, and a
+# type, a resolved comment, threaded replies, and a
 # carried-forward round.
 
 import Ecto.Query
@@ -152,10 +152,9 @@ r1 = Rounds.latest(artifact.id)
     body: "Solid direction. A couple of blockers on identifiers and durability."
   })
 
-# Submit the round-0 review: publishes the pending comments, records a verdict,
-# and opens the draft round 1 (content copied forward, unresolved critique
-# carried).
-{:ok, %{next_round: r2}} = Submissions.submit(r1.id, :request_changes)
+# Submit the round-0 review: publishes the pending comments and opens the draft
+# round 1 (content copied forward, unresolved critique carried).
+{:ok, %{next_round: r2}} = Submissions.submit(r1.id)
 
 # A thread on the overview blocker, then resolve the dead-letter note.
 {:ok, _} =

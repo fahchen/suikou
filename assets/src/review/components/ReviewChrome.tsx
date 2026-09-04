@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import type { StoreProxy } from "@musubi/react"
-import { Check, ChevronDown, ChevronLeft, Circle, GitCompare, MessageSquare, RotateCcw, SlidersHorizontal, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, GitCompare, MessageSquare, SlidersHorizontal } from "lucide-react"
 
 import { toast } from "sonner"
 
@@ -15,30 +15,13 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 import { Button } from "../../components/ui/button"
-import { Popover } from "../../components/ui/popover"
 import { CommentsOverview, type CommentFile } from "./CommentsOverview"
 import type { Comment } from "./comments/shared"
-import { SubmitButton, type ReviewSummary, VERDICT_META, verdictText, type Verdict } from "./ReviewPanels"
+import { SubmitButton, type ReviewSummary } from "./ReviewPanels"
 
 type ReviewStore = StoreProxy<"SuikouWeb.Stores.ReviewStore", Musubi.Stores>
-type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
-
-type PerFile = {
-  draftVerdict: Verdict | null
-  latestVerdict: Verdict | null
-  approved: boolean
-}
 
 type RoundSummary = { number: number; comment_count: number; unresolved_count: number }
-
-const VERDICT_CHIP: Record<
-  Verdict,
-  { icon: typeof Check; className: string }
-> = {
-  approve: { icon: Check, className: "bg-approve-soft text-approve shadow-[inset_0_0_0_0.5px_var(--approve-edge)]" },
-  request_changes: { icon: X, className: "bg-request-soft text-request shadow-[inset_0_0_0_0.5px_var(--request-edge)]" },
-  comment: { icon: MessageSquare, className: "bg-soft text-text shadow-[inset_0_0_0_0.5px_var(--hair-strong)]" },
-}
 
 export function Toolbar({
   name,
@@ -92,75 +75,6 @@ export function Toolbar({
   )
 }
 
-export function VerdictChip({ file, proxy }: { file: PerFile; proxy: FileStoreProxy }) {
-  const setVerdict = useMusubiCommand(proxy, "set_draft_verdict")
-  const dismiss = useMusubiCommand(proxy, "dismiss_approval")
-  const [open, setOpen] = useState(false)
-  const effective = file.draftVerdict ?? file.latestVerdict
-  const chip = effective ? VERDICT_CHIP[effective] : null
-  const Icon = chip?.icon ?? Circle
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      align="end"
-      className="w-[220px] p-2"
-      render={
-        <button
-          type="button"
-          title={`Per-file verdict${effective ? `: ${VERDICT_META[effective].label}` : ""}`}
-          className={`inline-flex h-[25px] shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-semibold sm:px-2.5 ${
-            chip ? chip.className : "border border-dashed border-hair-strong bg-soft/50 text-muted"
-          }`}
-        >
-          <Icon size={13} aria-hidden />
-          <span className="hidden sm:inline">{effective ? VERDICT_META[effective].label : "No verdict"}</span>
-          {file.draftVerdict !== null && (
-            <span className="size-1.5 rounded-full bg-amber" title="Unsubmitted draft" aria-hidden />
-          )}
-          <ChevronDown size={11} className="opacity-70" aria-hidden />
-        </button>
-      }
-    >
-      <div className="px-1 pt-1 pb-1.5 text-2xs font-bold uppercase tracking-[0.06em] text-faint">
-        File verdict
-      </div>
-      <div className="flex flex-col">
-        {(["approve", "request_changes", "comment"] as Verdict[]).map((verdict) => {
-          const meta = VERDICT_CHIP[verdict]
-          const on = effective === verdict
-          return (
-            <button
-              key={verdict}
-              type="button"
-              onClick={() => void setVerdict.dispatch({ verdict })}
-              className={`flex items-center gap-2.5 rounded-ctrl px-2 py-1.5 text-left text-sm ${on ? "bg-soft" : "hover:bg-soft/60"}`}
-            >
-              <meta.icon size={14} className={verdictText(verdict)} aria-hidden />
-              <span className={`font-medium ${on ? verdictText(verdict) : "text-ink"}`}>{VERDICT_META[verdict].label}</span>
-              <span className={`ml-auto size-1.5 shrink-0 rounded-full bg-accent ${on ? "" : "opacity-0"}`} aria-hidden />
-            </button>
-          )
-        })}
-      </div>
-      {file.approved && (
-        <>
-          <div className="my-1.5 h-px bg-hair-strong" />
-          <button
-            type="button"
-            onClick={() => void dismiss.dispatch({})}
-            className="flex w-full items-center gap-2 rounded-ctrl px-2 py-1.5 text-left text-xs text-text hover:bg-soft"
-          >
-            <RotateCcw size={13} className="text-muted" aria-hidden />
-            Dismiss approval
-          </button>
-        </>
-      )}
-    </Popover>
-  )
-}
-
 export function StatusBar({
   path,
   connected,
@@ -184,7 +98,6 @@ export function StatusBar({
   desktop: boolean
   onOpenComment: (path: string, comment: Comment) => void
 }) {
-  const total = review.perFile.length
   const blockers = review.blockerCount
   const waiting = useStickyWaiting(review.waiting)
 
@@ -215,11 +128,6 @@ export function StatusBar({
         <span className="sm:hidden">R{round}</span>
       </span>
       {readOnly && <span className="font-semibold text-muted">· read-only</span>}
-      <StatusDot />
-      <span className="shrink-0 tabular-nums">
-        {review.reviewed}/{total}
-        <span className="hidden md:inline"> reviewed</span>
-      </span>
       <StatusDot />
       <CommentsOverview
         files={commentFiles}

@@ -23,9 +23,9 @@ import { MarkdownPreview, Source } from "./components/EditorBodies"
 import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
-import { ChangeStatusLetter, FileList, HideReviewedToggle, NavHeader, orderByTree } from "./components/FileNavigator"
+import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useScopeCommits } from "./components/ScopePicker"
-import { StatusBar, Toolbar, VerdictChip } from "./components/ReviewChrome"
+import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
 import { INLINE_COMMENT_MAX_WIDTH_CLASS } from "./components/comments/shared"
@@ -39,29 +39,10 @@ type Comment = ReviewSnapshot["body"]["files"][number]["comments"]["items"][numb
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type CommentsStoreProxy = StoreProxy<"SuikouWeb.Stores.CommentsStore", Musubi.Stores>
 type CritiqueType = "fix_required" | "needs_answer" | "note"
-type Verdict = "approve" | "request_changes" | "comment"
 type Range = { start: number; end: number }
 type BodyFile = ReviewSnapshot["body"]["files"][number]
 type HighlightRange = Range | null
 type FilePosition = { index: number; total: number; previousPath: string | null; nextPath: string | null }
-
-const VERDICT_META: Record<Verdict, { label: string; short: string }> = {
-  approve: { label: "Approve", short: "Approved" },
-  request_changes: { label: "Request changes", short: "Request changes" },
-  comment: { label: "Comment", short: "Comment" },
-}
-
-function verdictText(verdict: Verdict): string {
-  return verdict === "request_changes" ? "text-request" : verdict === "approve" ? "text-approve" : "text-accent-bright"
-}
-
-function verdictSoft(verdict: Verdict): string {
-  return verdict === "request_changes"
-    ? "bg-request-soft"
-    : verdict === "approve"
-      ? "bg-approve-soft"
-      : "bg-accent-soft"
-}
 
 /** An open blocker is a published fix_required comment that has not been
  * resolved — the review's hard "needs work" signal. */
@@ -74,45 +55,17 @@ const commentRange = (comment: Comment | null): HighlightRange =>
     ? { start: comment.anchor.start_line, end: comment.anchor.end_line }
     : null
 
-/** The review-level verdict rolled up from each file's effective verdict (its
- * unpublished draft if set, else its last published verdict): any request wins,
- * else all-approve is Approve, else any set is Comment. */
-function rollupVerdict(effective: (Verdict | null)[]): Verdict | null {
-  if (effective.some((v) => v === "request_changes")) return "request_changes"
-  if (effective.length > 0 && effective.every((v) => v === "approve")) return "approve"
-  if (effective.some((v) => v !== null)) return "comment"
-  return null
-}
-
-/** The verdict the submit panel opens on, from the review's unresolved
- * comments (pending ones count too): any fix_required → request_changes,
- * else any note/needs_answer → comment, else approve. */
-function defaultVerdictFor(comments: Comment[]): Verdict {
-  const unresolved = comments.filter((c) => c.status === "pending" || !c.resolved)
-  if (unresolved.some((c) => c.critique_type === "fix_required")) return "request_changes"
-  if (unresolved.some((c) => c.critique_type === "note" || c.critique_type === "needs_answer")) return "comment"
-  return "approve"
-}
-
 type PerFile = {
   path: string
-  draftVerdict: Verdict | null
-  latestVerdict: Verdict | null
-  approved: boolean
   openBlockers: number
   pending: number
   unresolved: number
 }
-type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number; verdict: Verdict | null }
+type RoundCompare = { from: number; to: number; resolved: number; added: number; open: number }
 type ReviewSummary = {
   perFile: PerFile[]
-  verdict: Verdict | null
-  defaultVerdict: Verdict
-  reviewed: number
-  draftVerdicts: number
   pendingComments: number
   blockerCount: number
-  allApproved: boolean
   unresolved: number
   hasUnpublished: boolean
   waiting: number
@@ -362,7 +315,6 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
   const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
   const [stackedScrollTarget, setStackedScrollTarget] = useState<StackedScrollTarget | null>(null)
-  const [hideReviewed, setHideReviewed] = useState(false)
   // A comment picked from the status-bar browser may live in another file; hold
   // the target until that file is the selected one, then scroll its line in.
   const [pendingScroll, setPendingScroll] = useState<{ path: string; line: number | null; commentId: string } | null>(
@@ -469,9 +421,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // token the content was loaded at, the file changed on disk (see Editor).
   const diskToken = fileIndex >= 0 ? (snap?.body?.files[fileIndex]?.disk_token ?? null) : null
 
-  // Join each file's static entry (published verdict, approved) with its live
-  // FileStore snapshot (draft verdict, streamed comments) so the verdict chip,
-  // blocker dots, overview, and submit panel all read one consistent view.
+  // Join each file's static entry with its live FileStore snapshot (streamed
+  // comments) so the blocker dots, overview, and submit panel all read one
+  // consistent view.
   const bodyFiles = snap?.body?.files ?? []
   // Every file that carries comments, for the status-bar comments browser.
   const commentFiles = useMemo(
@@ -509,9 +461,6 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       const live = liveByPath.get(e.path)
       return {
         path: e.path,
-        draftVerdict: (live?.draft_verdict ?? null) as Verdict | null,
-        latestVerdict: (e.verdict ?? null) as Verdict | null,
-        approved: e.approved,
         openBlockers: live ? live.comments.items.filter(isOpenBlocker).length : 0,
         pending: live ? live.comments.items.filter((c) => c.status === "pending").length : 0,
         unresolved: live ? live.comments.items.filter((c) => c.status === "published" && !c.resolved).length : 0,
@@ -520,13 +469,8 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     const blockerCount = perFile.reduce((n, f) => n + f.openBlockers, 0)
     return {
       perFile,
-      verdict: rollupVerdict(perFile.map((f) => f.draftVerdict ?? f.latestVerdict)),
-      defaultVerdict: defaultVerdictFor(entries.flatMap((e) => liveByPath.get(e.path)?.comments.items ?? [])),
-      reviewed: perFile.filter((f) => (f.draftVerdict ?? f.latestVerdict) !== null).length,
-      draftVerdicts: perFile.filter((f) => f.draftVerdict !== null).length,
       pendingComments: perFile.reduce((n, f) => n + f.pending, 0),
       blockerCount,
-      allApproved: perFile.length > 0 && perFile.every((f) => f.approved),
       unresolved: snap?.body?.round_summaries.find((r) => r.number === snap.body.selected_round)?.unresolved_count ?? blockerCount,
       hasUnpublished: snap?.body?.has_unpublished ?? false,
       waiting: snap?.body?.waiting_count ?? 0,
@@ -537,17 +481,8 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     () => new Map(review.perFile.map((f) => [f.path, f])),
     [review],
   )
-  // "Hide reviewed" drops files that carry a verdict with no open blockers —
-  // the same test the stacked view uses — from the navigator list.
-  const navEntries = useMemo(() => {
-    if (!hideReviewed) return entries
-    return entries.filter((e) => {
-      const s = statusByPath.get(e.path)
-      return !(s != null && (s.draftVerdict ?? s.latestVerdict) !== null && s.openBlockers === 0)
-    })
-  }, [entries, statusByPath, hideReviewed])
-  // D11 stacked view data: each file's static entry joined with its live proxy,
-  // streamed comments, and rolled-up verdict — the whole review at once.
+  // D11 stacked view data: each file's static entry joined with its live proxy
+  // and streamed comments — the whole review at once.
   const stackedFiles = useMemo<StackedFileDatum[]>(() => {
     if (!stacked) return []
     const indexByPath = new Map(bodyFiles.map((f, i) => [f.path, i]))
@@ -562,20 +497,16 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         proxy,
         commentsProxy: proxy?.comments ?? null,
         comments: live ? live.comments.items : [],
-        draftVerdict: (live?.draft_verdict ?? null) as Verdict | null,
-        latestVerdict: (e.verdict ?? null) as Verdict | null,
-        approved: e.approved,
         openBlockers: per?.openBlockers ?? 0,
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stacked, entries, snap, statusByPath])
-  const selectedLive = review.perFile.find((f) => f.path === selectedPath) ?? null
   const focusedComment = comments.find((comment) => comment.id === focusedCommentId) ?? null
   const highlightedRange = hoveredRange ?? commentRange(focusedComment)
 
   // Multi-round: a past round is read-only — you can read its published threads
-  // but new comments and verdicts only land on the latest round.
+  // but new comments only land on the latest round.
   const roundSummaries = snap?.body?.round_summaries ?? []
   const latestRound = snap?.body?.latest_round ?? 0
   const selectedRound = snap?.body?.selected_round ?? latestRound
@@ -596,9 +527,9 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         else if (!c.resolved) open += 1
       }
     }
-    return { from: selectedRound - 1, to: selectedRound, resolved, added, open, verdict: review.verdict }
+    return { from: selectedRound - 1, to: selectedRound, resolved, added, open }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap, selectedRound, review.verdict])
+  }, [snap, selectedRound])
 
   const navSelected = stacked ? (stackedCurrentPath ?? selectedPath) : selectedPath
   const reviewName = structure?.name
@@ -679,12 +610,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
         }`}
       >
         <aside className="hidden min-h-0 flex-col pt-3 lg:flex">
-          <NavHeader
-            entries={entries}
-            reviewed={review.reviewed}
-            hideReviewed={hideReviewed}
-            onToggleHideReviewed={() => setHideReviewed((on) => !on)}
-          />
+          <NavHeader entries={entries} />
           {isDiff && (
             <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-3">
               <button
@@ -716,7 +642,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
               <ScopePickerBody commits={scopeCommits} />
             </div>
           ) : (
-            <FileList entries={navEntries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
+            <FileList entries={entries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
           )}
         </aside>
         <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
@@ -733,7 +659,6 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             readOnly={readOnly}
             selectedRound={selectedRound}
             commentDisplay={commentDisplay}
-            hideReviewed={hideReviewed}
             focusedCommentId={focusedCommentId}
             onFocusComment={setFocusedCommentId}
             onClearFocus={() => setFocusedCommentId(null)}
@@ -752,7 +677,6 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             fileProxy={fileProxy}
             diskToken={diskToken}
             commentsProxy={commentsProxy}
-            verdict={selectedLive}
             readOnly={readOnly}
             selectedRound={selectedRound}
             compare={selectedRound < latestRound ? compare : null}
@@ -806,10 +730,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           <FileText size={16} className="text-muted" aria-hidden />
           <DialogTitle className="text-base font-bold text-ink">Files</DialogTitle>
           <span className="flex-1" />
-          <span className="text-xs font-semibold text-muted tabular-nums">
-            {review.reviewed}/{entries.length}
-          </span>
-          <HideReviewedToggle hideReviewed={hideReviewed} onToggle={() => setHideReviewed((on) => !on)} />
+          <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
         </div>
         {isDiff && (
           <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-4">
@@ -843,7 +764,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           </div>
         ) : (
           <div className="flex min-h-0 flex-col overflow-hidden pt-2">
-            <FileList entries={navEntries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
+            <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
           </div>
         )}
       </Dialog>
@@ -853,8 +774,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
 })
 
 /** E2 artifact-scope comments: file-level discussion not tied to a line, shown
- * as a band above the content. Independent of the verdict — a file can carry any
- * number of these. Reuses the shared comment thread and composer used elsewhere. */
+ * as a band above the content. A file can carry any number of these. Reuses the shared comment thread and composer used elsewhere. */
 function ArtifactComments({
   comments,
   fileProxy,
@@ -939,7 +859,6 @@ function Editor({
   fileProxy,
   diskToken,
   commentsProxy,
-  verdict,
   readOnly,
   selectedRound,
   compare,
@@ -961,7 +880,6 @@ function Editor({
   fileProxy: FileStoreProxy | null
   diskToken: string | null
   commentsProxy: CommentsStoreProxy | null
-  verdict: PerFile | null
   readOnly: boolean
   selectedRound: number
   compare: RoundCompare | null
@@ -1363,17 +1281,14 @@ function Editor({
             <MessageSquarePlus size={16} aria-hidden />
           </button>
         )}
-        {!readOnly && entry && fileProxy && verdict && (
-          <VerdictChip file={verdict} proxy={fileProxy} />
-        )}
       </div>
       {compare && <CompareBar compare={compare} />}
       {readOnly && entry && (
         <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
           <Lock size={15} className="shrink-0 text-muted" aria-hidden />
           <span>
-            Round {selectedRound} is superseded and read-only. You can read its comments, but new comments
-            and verdicts only go on the latest round.
+            Round {selectedRound} is superseded and read-only. You can read its comments, but new
+            comments only go on the latest round.
           </span>
         </div>
       )}
@@ -1498,7 +1413,7 @@ function Editor({
 }
 
 /** A7: what changed between the prior round and the selected one — resolved,
- * new, and still-open comment counts, plus the round's verdict. */
+ * new, and still-open comment counts. */
 function CompareBar({ compare }: { compare: RoundCompare }) {
   return (
     <div className="shrink-0 border-b border-hair-strong bg-surface">
@@ -1514,17 +1429,6 @@ function CompareBar({ compare }: { compare: RoundCompare }) {
         <CompareStat n={compare.resolved} label="resolved" tone="approve" />
         <CompareStat n={compare.added} label="new" tone="accent" />
         <CompareStat n={compare.open} label="still open" tone="amber" />
-        {compare.verdict && (
-          <>
-            <span className="flex-1" />
-            <span className="text-2xs font-bold uppercase tracking-wide text-faint">Verdict</span>
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${verdictSoft(compare.verdict)} ${verdictText(compare.verdict)}`}
-            >
-              {VERDICT_META[compare.verdict].label}
-            </span>
-          </>
-        )}
       </div>
     </div>
   )
@@ -1551,9 +1455,6 @@ function CompareStat({ n, label, tone }: { n: number; label: string; tone: "appr
  * line-number gutter mapping it back to source. A reviewer anchors a comment to
  * a whole block — the gutter is a click target, and published/pending threads
  * whose located anchor falls in a block render beneath it, mirroring Source. */
-
-/** H2 review overview — the draft verdict rollup, open-blocker list, and round
- * stats. No longer a persistent column; opened from the toolbar Review button. */
 
 /** BDR-0025: when a diff review's `base_ref` or `head_ref` no longer resolves
  * in the project's git tree, the content area falls back to this notice.

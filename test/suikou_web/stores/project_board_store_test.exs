@@ -756,7 +756,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
 
       page = Testing.mount(ProjectBoardStore)
 
-      assert {:ok, %{files: [%{path: "plan.md", artifact_id: nil, approved: false}], error: nil}} =
+      assert {:ok, %{files: [%{path: "plan.md", artifact_id: nil}], error: nil}} =
                Testing.dispatch_command(page, :list_review_files, %{review_id: review.id})
     end
 

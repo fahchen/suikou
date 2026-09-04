@@ -290,7 +290,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       # the current count of 0) before raising the count, so the wake is a real
       # increase rather than a no-op recompute.
       wait_until_waiting(task.pid)
-      {:ok, _result} = Submissions.submit(round.id, :comment)
+      {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
                task |> Task.await() |> Jason.decode!()
@@ -299,7 +299,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     test "returns at once when the target round is already submitted" do
       round = insert(:round)
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
-      {:ok, _result} = Submissions.submit(round.id, :comment)
+      {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
                run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/0)
@@ -313,7 +313,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
 
       wait_until_waiting(task.pid)
-      {:ok, _result} = Submissions.submit(round.id, :comment)
+      {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"submission_version" => 1} = task |> Task.await() |> Jason.decode!()
     end
@@ -335,7 +335,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
 
       wait_until_waiting(task.pid)
-      {:ok, _result} = Submissions.submit(round1.id, :comment)
+      {:ok, _result} = Submissions.submit(round1.id)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
                task |> Task.await() |> Jason.decode!()
@@ -383,7 +383,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
           agent("Claude", "🪄")
         )
 
-      {:ok, _result} = Submissions.submit(round.id, :comment)
+      {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
                run(%{"review_id" => review.id, "until_round" => 1}, &CLI.wait/0)

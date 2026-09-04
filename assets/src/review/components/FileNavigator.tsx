@@ -1,21 +1,16 @@
 import { useMemo, useState } from "react"
-import { Check, ChevronRight, Eye, EyeOff, FileText, Folder, MessageSquare, Search, X } from "lucide-react"
+import { ChevronRight, FileText, Folder, MessageSquare, Search } from "lucide-react"
 
 import { FileIcon } from "../../board/FileIcon"
 
-type Verdict = "approve" | "request_changes" | "comment"
-
 export type ReviewFileEntry = {
   path: string
-  verdict: Verdict | null
   added: number | null
   deleted: number | null
   change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null
 }
 
 export type ReviewFileStatus = {
-  draftVerdict: Verdict | null
-  latestVerdict: Verdict | null
   openBlockers: number
   unresolved: number
 }
@@ -61,45 +56,14 @@ type TreeNode =
 
 const EMPTY_SET: Set<string> = new Set()
 
-export function NavHeader({
-  entries,
-  reviewed,
-  hideReviewed,
-  onToggleHideReviewed,
-}: {
-  entries: ReviewFileEntry[]
-  reviewed: number
-  hideReviewed: boolean
-  onToggleHideReviewed: () => void
-}) {
+export function NavHeader({ entries }: { entries: ReviewFileEntry[] }) {
   return (
     <div className="flex items-center gap-[7px] px-3 pb-2">
       <FileText size={15} className="text-muted" aria-hidden />
       <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Files</h3>
       <span className="flex-1" />
-      <span className="text-xs font-semibold text-muted tabular-nums">
-        {reviewed}/{entries.length}
-      </span>
-      <HideReviewedToggle hideReviewed={hideReviewed} onToggle={onToggleHideReviewed} />
+      <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
     </div>
-  )
-}
-
-/** Eye toggle that hides files already carrying a verdict from the navigator.
- * Lives in both the desktop nav header and the mobile files sheet header. */
-export function HideReviewedToggle({ hideReviewed, onToggle }: { hideReviewed: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={hideReviewed}
-      title={hideReviewed ? "Show reviewed files" : "Hide reviewed files"}
-      className={`grid size-[22px] shrink-0 place-items-center rounded-ctrl transition-colors ${
-        hideReviewed ? "bg-accent-soft text-accent-bright" : "text-muted hover:bg-soft hover:text-ink"
-      }`}
-    >
-      {hideReviewed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
-    </button>
   )
 }
 
@@ -326,7 +290,6 @@ function FileRow({
   const status = entry.change_status ? STATUS_META[entry.change_status] : null
   const blockers = live?.openBlockers ?? 0
   const unresolved = live?.unresolved ?? 0
-  const verdict = live ? (live.draftVerdict ?? live.latestVerdict) : entry.verdict
 
   return (
     <button
@@ -370,12 +333,6 @@ function FileRow({
         >
           {blockers}
         </span>
-      ) : verdict === "approve" ? (
-        <Check size={13} className="shrink-0 text-approve" aria-label="Approved" />
-      ) : verdict === "request_changes" ? (
-        <X size={13} className="shrink-0 text-request" aria-label="Request changes" />
-      ) : verdict === "comment" ? (
-        <MessageSquare size={12} className="shrink-0 text-muted" aria-label="Comment" />
       ) : null}
     </button>
   )

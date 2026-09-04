@@ -159,8 +159,8 @@ defmodule SuikouWeb.AssetController do
 
   @doc """
   Lists a review's files under the given scope × worktree lens, as JSON:
-  `{"files": [{path, change_status, added, deleted, verdict, approved,
-  soft_removed, artifact_id, content_hash}]}`. Powers the file navigator's
+  `{"files": [{path, change_status, added, deleted, soft_removed, artifact_id,
+  content_hash}]}`. Powers the file navigator's
   scope-aware refresh (BDR-0025): when the reviewer switches scope or worktree,
   the navigator refetches from here instead of the static
   `load_review_structure` payload. 404 for an unknown review or invalid lens

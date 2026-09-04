@@ -75,9 +75,9 @@ defmodule Suikou.Factories.ReviewFactory do
       # forward and carrying unresolved published critique), writes `content` to
       # the artifact's file on disk, then re-snapshots the new draft round so its
       # content and carried line anchors reflect the change.
-      def advance(artifact_id, content, verdict \\ :comment) do
+      def advance(artifact_id, content) do
         latest = Rounds.latest(artifact_id)
-        {:ok, %{next_round: next}} = Submissions.submit(latest.id, verdict)
+        {:ok, %{next_round: next}} = Submissions.submit(latest.id)
         write_source(artifact_id, content)
         {:ok, round} = Artifacts.resnapshot(next.id)
         %{round: round}

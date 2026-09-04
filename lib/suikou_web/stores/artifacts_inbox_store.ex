@@ -4,8 +4,8 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStore do
 
   Takes no mount params, so a client can mount it before it knows which
   artifact to open — it replaces the REST bootstrap the review SPA used to
-  discover a starting `artifact_id`. Each entry carries the artifact's title,
-  approval state, and latest round number; selection of a specific artifact
+  discover a starting `artifact_id`. Each entry carries the artifact's title
+  and latest round number; selection of a specific artifact
   stays with `SuikouWeb.Stores.ReviewStore`. Read-only: no commands.
   """
 
@@ -22,7 +22,6 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStore do
       list(%{
         id: String.t(),
         title: String.t(),
-        approved: boolean(),
         latest_round: integer() | nil
       })
     )
@@ -48,7 +47,6 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStore do
     %{
       id: artifact.id,
       title: artifact.title,
-      approved: not is_nil(artifact.approved_round),
       latest_round: Rounds.latest_number(artifact.id)
     }
   end

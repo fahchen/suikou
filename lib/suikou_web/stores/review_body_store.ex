@@ -6,7 +6,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
   The static review structure (name, kind, file list, per-file identity) is
   served separately by `SuikouWeb.Stores.ReviewStore`'s `load_review_structure`
   command and rendered from client state, so this snapshot carries only what must
-  stream live: the file children (comments/verdicts), `has_unpublished`,
+  stream live: the file children (comments), `has_unpublished`,
   `round_summaries`, the selected/latest round, and a `structure_version` the
   client watches to refetch the structure when the file list reshapes.
 
@@ -54,7 +54,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     # Bumps whenever the review's static structure changes (a file opened or
     # removed, reshaping the file list). The client watches it and refetches
     # `load_review_structure` so the chrome and per-file identity stay current.
-    # Comments, counts, and verdicts stream live and never touch this.
+    # Comments and counts stream live and never touch this.
     field(:structure_version, integer())
 
     # How many agent CLIs are blocked in `wait` on this review right now. The
@@ -167,7 +167,7 @@ defmodule SuikouWeb.Stores.ReviewBodyStore do
     Socket.assign(socket, :structure_version, (socket.assigns[:structure_version] || 0) + 1)
   end
 
-  # Review-wide counts that any critique or verdict write can move. Both queries
+  # Review-wide counts that any critique write can move. Both queries
   # are safe on a missing review (they read empty), so no `get_review` guard.
   defp reload_aggregates(socket) do
     review_id = socket.assigns.review_id

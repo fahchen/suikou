@@ -2,9 +2,9 @@ defmodule SuikouWeb.Stores.FileStore do
   @moduledoc """
   Child store backing one review file.
 
-  Owns the file-scoped round selector, verdict state, and comment thread. Files
-  that have not been opened yet render an empty thread until their first comment
-  or verdict write mints the artifact.
+  Owns the file-scoped round selector and comment thread. Files that have not
+  been opened yet render an empty thread until their first comment mints the
+  artifact.
   """
 
   use Musubi.Store
@@ -19,13 +19,12 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
-  alias Suikou.Submissions
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
 
   # The live snapshot carries only what must stream in real time: the comment
-  # thread, the file's verdicts, and the viewed round number. The file's static
+  # thread and the viewed round number. The file's static
   # identity (path title, artifact, content hashes, change status) is served by
   # `SuikouWeb.Stores.ReviewStore`'s `load_review_structure` command and joined to
   # this row by `path` on the client. `path` stays here as that join key.
@@ -39,8 +38,6 @@ defmodule SuikouWeb.Stores.FileStore do
     })
 
     field(:comments, CommentsStore.state())
-    field(:latest_verdict, :approve | :request_changes | :comment | nil)
-    field(:draft_verdict, :approve | :request_changes | :comment | nil)
 
     # The on-disk file's identity (mtime + size), recomputed every render, so a
     # disk change — or a reconnect mount that follows one — carries a fresh token
@@ -48,12 +45,6 @@ defmodule SuikouWeb.Stores.FileStore do
     # and marks the open content stale when this differs. `nil` when the path is
     # gone. No stored counter: correctness rests on the render-time comparison.
     field(:disk_token, String.t() | nil)
-  end
-
-  command :set_draft_verdict do
-    payload do
-      field(:verdict, :approve | :request_changes | :comment)
-    end
   end
 
   command :add_comment do
@@ -64,9 +55,6 @@ defmodule SuikouWeb.Stores.FileStore do
 
       CommentContract.optional_anchor_field()
     end
-  end
-
-  command :dismiss_approval do
   end
 
   # The client fires this when it opens/requests this file's content. It kicks
@@ -107,48 +95,12 @@ defmodule SuikouWeb.Stores.FileStore do
       path: socket.assigns.path,
       current_round: socket.assigns[:current_round] || current_round(0, "", true),
       comments: comments_child(socket),
-      latest_verdict: socket.assigns[:latest_verdict],
-      draft_verdict: socket.assigns[:draft_verdict],
       disk_token: disk_token(socket)
     }
   end
 
   @impl Musubi.Store
   @spec handle_command(atom(), map(), Socket.t()) :: {:noreply, Socket.t()}
-  def handle_command(:set_draft_verdict, payload, socket) do
-    socket =
-      case ensure_artifact(socket) do
-        {:ok, artifact_id, socket} ->
-          case Rounds.latest(artifact_id) do
-            %Round{id: round_id} ->
-              _result = Submissions.set_draft_verdict(round_id, payload["verdict"])
-              socket
-
-            nil ->
-              socket
-          end
-
-        {:error, socket} ->
-          socket
-      end
-
-    {:noreply, socket}
-  end
-
-  def handle_command(:dismiss_approval, _payload, socket) do
-    socket =
-      case socket.assigns[:artifact_id] do
-        artifact_id when is_binary(artifact_id) ->
-          _result = Submissions.dismiss(artifact_id)
-          socket
-
-        _absent ->
-          socket
-      end
-
-    {:noreply, socket}
-  end
-
   def handle_command(:request_content, _payload, socket) do
     {:noreply, start_reanchor(socket)}
   end
@@ -264,15 +216,11 @@ defmodule SuikouWeb.Stores.FileStore do
         socket
         |> Socket.assign(:current_round, render_current_round(viewed, latest))
         |> Socket.assign(:current_round_id, viewed && viewed.id)
-        |> Socket.assign(:latest_verdict, Submissions.latest_verdict_for_artifact(artifact.id))
-        |> Socket.assign(:draft_verdict, latest && latest.draft_verdict)
 
       _missing ->
         socket
         |> Socket.assign(:current_round, current_round(0, "", true))
         |> Socket.assign(:current_round_id, nil)
-        |> Socket.assign(:latest_verdict, nil)
-        |> Socket.assign(:draft_verdict, nil)
     end
   end
 

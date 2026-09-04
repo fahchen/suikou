@@ -31,22 +31,5 @@ defmodule SuikouWeb.Stores.ArtifactsInboxStoreTest do
 
       assert %{artifacts: [%{latest_round: 1}]} = Testing.render(page)
     end
-
-    test "marks an artifact approved once a round is approved" do
-      artifact = insert(:round).artifact
-      Suikou.Submissions.submit(Suikou.Rounds.latest(artifact.id).id, :approve)
-
-      page = Testing.mount(ArtifactsInboxStore)
-
-      assert %{artifacts: [%{approved: true}]} = Testing.render(page)
-    end
-
-    test "an unapproved artifact reports approved false" do
-      insert(:round)
-
-      page = Testing.mount(ArtifactsInboxStore)
-
-      assert %{artifacts: [%{approved: false}]} = Testing.render(page)
-    end
   end
 end
