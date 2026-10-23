@@ -71,6 +71,8 @@ Each render reports whether the stack tip tree still equals the head tip tree. O
 
 A stacked review opens in the stack view, on the first unread step. The view and step live in the URL.
 
+A stack-view file is commentable only when its path is in the source diff; a path a step touches with no net source change is read-only, because rounds snapshot the source diff.
+
 ### 5. UI
 
 - **Board card**: the `Diff` pill becomes `Stack · N commits`; the refs line adds `· stack <stack_ref>`; out of sync turns the pill amber.

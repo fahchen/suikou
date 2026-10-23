@@ -85,3 +85,10 @@ Feature: Restacked review
       And its quote does not appear in step 3's patch
       When the reviewer steps to step 3
       Then the comment is shown in the stranded band
+
+    # Rounds snapshot the source diff, so only its paths can carry comments.
+    Scenario: A file a step touches with no net source change is read-only
+      Given a step adds a file that a later step removes
+      When the reviewer opens that file in the step
+      Then the file is shown
+      And commenting on it is disabled
