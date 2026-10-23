@@ -29,3 +29,6 @@ Shared domain terminology (ubiquitous language) for Suikou.
 | Outdated | A located comment whose captured quote no longer appears in the current snapshot: retained but without a valid anchor, awaiting the reviewer to relocate it. Derived live, not stored. |
 | Round diff | The rendered difference between two rounds: the snapshot text diff plus the critique state changes (resolved, added, still-open). |
 | Export | A read-only, self-contained, structured (JSON) rendering of an artifact's latest round for agent consumption: the round's published critique (with replies and per-comment critique types), and its snapshot content. Reading it never mutates state. |
+| Review stack | A branch an agent cuts from a git-diff review's source branch: the same change re-cut into small commits, ordered by dependency, one behaviour each. Attached to the review as `stack_ref` only when its tip tree equals the source tip tree on the same merge-base. A second way to read the review, never what ships (see BDR-0028). |
+| Step | One commit of a review stack, read against its first parent together with its full commit message. Steps are numbered oldest first. |
+| In sync | A review stack whose tip tree still equals the source tip tree. Out of sync once the source moves; the agent restores sync by cherry-picking the source's new commits onto the stack. Derived live, not stored. |
