@@ -118,6 +118,94 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "list_diff_commits/2 in the stack view" do
+    setup :stacked_review
+
+    test "lists the stack's steps newest first with their full messages", %{review: review} do
+      assert {:ok,
+              [
+                %{subject: "add b", body: "Second step."},
+                %{subject: "add a.txt", body: ""}
+              ]} = Reviews.list_diff_commits(review, :stack)
+    end
+
+    test "answers :no_stack for a review without a stack", %{dir: dir, project: project} do
+      {:ok, review} = create(project, dir, nil)
+
+      assert {:error, :no_stack} = Reviews.list_diff_commits(review, :stack)
+    end
+  end
+
+  describe "list_files/2 in the stack view" do
+    setup [:stacked_review, :steps]
+
+    test "lists the whole stack diff under scope all", %{review: review} do
+      assert ["a.txt", "b.txt"] = paths(Reviews.list_files(review, %{view: :stack}))
+    end
+
+    test "lists only one step's files under a single-commit scope",
+         %{review: review, first: first, second: second} do
+      assert ["a.txt"] =
+               paths(Reviews.list_files(review, %{view: :stack, scope: {:commits, [first]}}))
+
+      assert ["b.txt"] =
+               paths(Reviews.list_files(review, %{view: :stack, scope: {:commits, [second]}}))
+    end
+
+    test "keeps an out-of-sync stack readable", %{dir: dir, review: review, second: second} do
+      commit_on!(dir, "feat", [{"fix.txt", "fix\n"}])
+
+      assert ["b.txt"] =
+               paths(Reviews.list_files(review, %{view: :stack, scope: {:commits, [second]}}))
+    end
+  end
+
+  describe "fetch_content_by_path/3 in the stack view" do
+    setup [:stacked_review, :steps]
+
+    test "renders one step's patch", %{review: review, second: second} do
+      lens = %{view: :stack, scope: {:commits, [second]}}
+
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(review, "b.txt", lens)
+
+      assert diff =~ "+b"
+    end
+
+    test "renders base...stack under scope all", %{review: review} do
+      assert {:ok, {:inline, diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(review, "a.txt", %{view: :stack})
+
+      assert diff =~ "+a"
+    end
+
+    test "rejects a path the step does not touch", %{review: review, second: second} do
+      lens = %{view: :stack, scope: {:commits, [second]}}
+
+      assert {:error, :path_not_in_review} = Reviews.fetch_content_by_path(review, "a.txt", lens)
+    end
+
+    test "rejects a source commit as outside the stack", %{review: review} do
+      {:ok, [%{sha: source_sha}]} = Reviews.list_diff_commits(review)
+      lens = %{view: :stack, scope: {:commits, [source_sha]}}
+
+      assert {:error, :commit_not_in_range} =
+               Reviews.fetch_content_by_path(review, "a.txt", lens)
+    end
+
+    test "rejects a working-tree worktree", %{review: review} do
+      assert {:error, :invalid_scope_worktree_combination} =
+               Reviews.fetch_content_by_path(review, "a.txt", %{view: :stack, worktree: :staged})
+    end
+
+    test "answers :no_stack for a review without a stack", %{dir: dir, project: project} do
+      {:ok, review} = create(project, dir, nil)
+
+      assert {:error, :no_stack} =
+               Reviews.fetch_content_by_path(review, "a.txt", %{view: :stack})
+    end
+  end
+
   defp create(project, dir, stack) do
     Reviews.create_diff_review(project, %{
       project_path: dir,
@@ -132,6 +220,13 @@ defmodule Suikou.ReviewsStackTest do
     {:ok, review} = create(project, dir, "feat-review")
     %{review: review}
   end
+
+  defp steps(%{review: review}) do
+    {:ok, [%{sha: second}, %{sha: first}]} = Reviews.list_diff_commits(review, :stack)
+    %{first: first, second: second}
+  end
+
+  defp paths(entries), do: Enum.map(entries, & &1.path)
 
   defp diff_review(%{dir: dir, project: project}) do
     {:ok, review} = create(project, dir, nil)

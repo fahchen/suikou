@@ -646,10 +646,18 @@ defmodule Suikou.Reviews do
   the axis stays orthogonal to the working-tree state axis (staged/unstaged),
   which lives on `head_ref` (worktree) and is not exposed here.
 
+  `view` picks which branch: `:source` (default) lists the review's own range;
+  `:stack` lists the review stack's steps, the commits of
+  `merge-base(base_ref, stack_ref)..stack_ref` (BDR-0028), answering
+  `{:error, :no_stack}` when the review has none.
+
   Returns `{:error, :not_a_diff_review}` for a file-selection review, so the
   caller can 404 without pattern-branching on the source type.
 
   ## Examples
+
+      Suikou.Reviews.list_diff_commits(stacked_review, :stack)
+      #=> {:ok, [%{sha: "7c6d...", subject: "Add the API", body: "..."}, %{sha: "5e4f...", subject: "Add the schema", body: ""}]}
 
       Suikou.Reviews.list_diff_commits(diff_review)
       #=> {:ok, [%{sha: "0a1b...", subject: "second", body: ""}, %{sha: "9f8e...", subject: "first", body: ""}]}
@@ -658,13 +666,29 @@ defmodule Suikou.Reviews do
       #=> {:error, :not_a_diff_review}
 
   """
-  @spec list_diff_commits(Review.t()) ::
+  @spec list_diff_commits(Review.t(), view()) ::
           {:ok, [Git.commit_entry()]}
-          | {:error, :not_a_diff_review | Git.list_commits_error()}
-  def list_diff_commits(%Review{source: %FileSelection{}}), do: {:error, :not_a_diff_review}
+          | {:error, :not_a_diff_review | :no_stack | Git.list_commits_error()}
+  def list_diff_commits(review, view \\ :source)
 
-  def list_diff_commits(%Review{source: %GitDiff{} = git_diff} = review) do
+  def list_diff_commits(%Review{source: %FileSelection{}}, _view),
+    do: {:error, :not_a_diff_review}
+
+  def list_diff_commits(%Review{source: %GitDiff{} = git_diff} = review, :source) do
     Git.list_commits(review.project_path, git_diff.base_ref, git_diff.head_ref)
+  end
+
+  def list_diff_commits(%Review{source: %GitDiff{stack_ref: nil}}, :stack),
+    do: {:error, :no_stack}
+
+  # The fork point is an ancestor of the stack, so the three-dot range below
+  # collapses to `fork..stack`: exactly the stack's own steps.
+  def list_diff_commits(%Review{source: %GitDiff{} = git_diff} = review, :stack) do
+    path = review.project_path
+
+    with {:ok, fork} <- Git.merge_base(path, git_diff.base_ref, git_diff.stack_ref) do
+      Git.list_commits(path, fork, git_diff.stack_ref)
+    end
   end
 
   @doc """
@@ -784,8 +808,10 @@ defmodule Suikou.Reviews do
   pinned `base_ref...head_ref` diff exactly like `list_files/1`, so callers
   that do not care about the lens see no behaviour change. A single-element
   `commits` list scopes to that commit's own patch; a longer list narrows to
-  the range spanning them (newest first per `list_diff_commits/1`). A
-  file-selection review ignores the lens.
+  the range spanning them (newest first per `list_diff_commits/1`). The
+  `:stack` view reads the review stack instead (see `view()`); a review
+  without a stack lists nothing there. A file-selection review ignores the
+  lens.
 
   ## Examples
 
@@ -804,6 +830,7 @@ defmodule Suikou.Reviews do
     review = Repo.preload(review, [:project, :artifacts], force: true)
     active = for a <- review.artifacts, is_nil(a.removed_at), into: %{}, do: {a.file_path, a}
     lens = normalize_lens(review, lens)
+    git_diff = viewed_source(git_diff, lens)
 
     case lens_changed_with_status(review.project_path, git_diff, lens) do
       {:ok, entries} ->
@@ -869,12 +896,21 @@ defmodule Suikou.Reviews do
   carries the reviewer's commit-range selection: `:all` (or an empty commits
   list, normalized to `:all`) keeps the full range; a `{:commits, shas}` tuple
   narrows to those commits (newest first per `list_diff_commits/1`) — one sha
-  is a single commit's patch, two or more span a sub-range.
+  is a single commit's patch, two or more span a sub-range. `:view` (default
+  `:source`) reads the review through its stack instead, see `view()`.
   """
   @type lens() :: %{
+          optional(:view) => view(),
           optional(:scope) => :all | {:commits, [String.t()]},
           optional(:worktree) => :diff | :staged | :unstaged
         }
+  @typedoc """
+  Which branch a git-diff review is read through (BDR-0028 §4): `:source`, the
+  review's own `base_ref...head_ref`, or `:stack`, its review stack. Under
+  `:stack`, scope `:all` is `base_ref...stack_ref` and a commits scope picks
+  steps of the stack; the worktree axis stays `:diff`.
+  """
+  @type view() :: :source | :stack
   @type content_by_path_error() ::
           :path_not_in_review
           | :unsafe_path
@@ -884,6 +920,7 @@ defmodule Suikou.Reviews do
           | :not_changed
           | :commit_not_in_range
           | :invalid_scope_worktree_combination
+          | :no_stack
   @type raw_by_path_error() ::
           :path_not_in_review
           | :unsafe_path
@@ -920,18 +957,22 @@ defmodule Suikou.Reviews do
 
   @doc """
   Live-lens variant of `fetch_content_by_path/2` (BDR-0024). `lens` is a map
-  with optional `:scope` (`:all` or `{:commits, [sha, ...]}`) and `:worktree`
-  (`:diff`, `:staged`, `:unstaged`) keys. The default `%{}` matches
-  `fetch_content_by_path/2` exactly.
+  with optional `:view` (`:source` or `:stack`), `:scope` (`:all` or
+  `{:commits, [sha, ...]}`) and `:worktree` (`:diff`, `:staged`, `:unstaged`)
+  keys. The default `%{}` matches `fetch_content_by_path/2` exactly.
 
-  Rejects a non-empty `commits` selection paired with `worktree ∈ {:staged,
-  :unstaged}` as `:invalid_scope_worktree_combination`, and rejects any sha
-  that is not in the review's `base_ref...head_ref` range as
+  Rejects a non-empty `commits` selection or the `:stack` view paired with
+  `worktree ∈ {:staged, :unstaged}` as `:invalid_scope_worktree_combination`,
+  the `:stack` view on a review without a stack as `:no_stack`, and any sha
+  outside the viewed range (`base_ref...head_ref`, or the stack's steps) as
   `:commit_not_in_range`. File-selection reviews ignore the lens.
 
   ## Examples
 
       Suikou.Reviews.fetch_content_by_path(diff_review, "a.txt", %{worktree: :staged})
+      #=> {:ok, {:inline, "diff --git a/a.txt b/a.txt\\n...", "text/x-diff"}}
+
+      Suikou.Reviews.fetch_content_by_path(stacked_review, "a.txt", %{view: :stack, scope: {:commits, [step]}})
       #=> {:ok, {:inline, "diff --git a/a.txt b/a.txt\\n...", "text/x-diff"}}
 
   """
@@ -942,6 +983,7 @@ defmodule Suikou.Reviews do
     review = Repo.preload(review, [:project])
 
     with :ok <- validate_lens(lens),
+         :ok <- validate_view(review, lens),
          :ok <- validate_scope_in_range(review, lens),
          true <- path_in_review?(review, path, lens) do
       read_content_by_path(review, path, normalize_lens(review, lens))
@@ -964,7 +1006,7 @@ defmodule Suikou.Reviews do
          path,
          lens
        ) do
-    case lens_file_diff(review.project_path, git_diff, lens, path) do
+    case lens_file_diff(review.project_path, viewed_source(git_diff, lens), lens, path) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
@@ -1247,15 +1289,17 @@ defmodule Suikou.Reviews do
   # diff). An empty `commits` list normalizes to `:all` so downstream match
   # arms don't need to special-case it.
   defp normalize_lens(review, lens) do
+    view = Map.get(lens, :view, :source)
+
     scope =
       case Map.get(lens, :scope, :all) do
         {:commits, []} -> :all
-        {:commits, shas} -> {:commits, order_commits(review, shas)}
+        {:commits, shas} -> {:commits, order_commits(review, view, shas)}
         other -> other
       end
 
     worktree = Map.get(lens, :worktree, :diff)
-    %{scope: scope, worktree: worktree}
+    %{view: view, scope: scope, worktree: worktree}
   end
 
   # Reorder a client-supplied sha selection into `list_diff_commits/1`'s
@@ -1263,8 +1307,8 @@ defmodule Suikou.Reviews do
   # order, so downstream range/union derivations that assume newest-first
   # (`lens_file_diff`, `lens_changed_with_status`) must not trust it. Falls
   # back to the given order when the canonical list is unavailable.
-  defp order_commits(review, shas) do
-    case list_diff_commits(review) do
+  defp order_commits(review, view, shas) do
+    case list_diff_commits(review, view) do
       {:ok, entries} ->
         selected = MapSet.new(shas)
         ordered = for %{sha: sha} <- entries, MapSet.member?(selected, sha), do: sha
@@ -1275,16 +1319,24 @@ defmodule Suikou.Reviews do
     end
   end
 
+  # A commit selection or the stack view pins the diff to commits, so neither
+  # combines with a working-tree worktree.
   defp validate_lens(lens) do
     scope = Map.get(lens, :scope, :all)
     worktree = Map.get(lens, :worktree, :diff)
+    pinned? = match?({:commits, [_first | _rest]}, scope) or Map.get(lens, :view) == :stack
 
-    if match?({:commits, [_first | _rest]}, scope) and worktree in [:staged, :unstaged] do
+    if pinned? and worktree in [:staged, :unstaged] do
       {:error, :invalid_scope_worktree_combination}
     else
       :ok
     end
   end
+
+  defp validate_view(%Review{source: %GitDiff{stack_ref: nil}}, %{view: :stack}),
+    do: {:error, :no_stack}
+
+  defp validate_view(%Review{}, _lens), do: :ok
 
   defp validate_scope_in_range(%Review{source: %FileSelection{}}, _lens), do: :ok
 
@@ -1297,12 +1349,12 @@ defmodule Suikou.Reviews do
         :ok
 
       {:commits, shas} when is_list(shas) ->
-        commits_in_range(review, shas)
+        commits_in_range(review, Map.get(lens, :view, :source), shas)
     end
   end
 
-  defp commits_in_range(review, shas) do
-    case list_diff_commits(review) do
+  defp commits_in_range(review, view, shas) do
+    case list_diff_commits(review, view) do
       {:ok, entries} ->
         known = MapSet.new(entries, & &1.sha)
 
@@ -1314,6 +1366,14 @@ defmodule Suikou.Reviews do
         {:error, :commit_not_in_range}
     end
   end
+
+  # The stack view reads the same lens dispatch with the stack tip standing in
+  # for the head: scope `:all` becomes `base...stack`, and commit scopes already
+  # address commits by sha.
+  defp viewed_source(%GitDiff{} = git_diff, %{view: :stack}),
+    do: %{git_diff | head_ref: git_diff.stack_ref}
+
+  defp viewed_source(%GitDiff{} = git_diff, _lens), do: git_diff
 
   defp lens_changed_with_status(path, git_diff, %{scope: :all, worktree: :diff}) do
     changed_with_status(path, git_diff)
