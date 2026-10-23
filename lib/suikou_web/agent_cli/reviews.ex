@@ -74,7 +74,8 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   Creates a review and emits `%{review_id, scratch_path}` or `%{error}`,
   broadcasting the board on success. The source is chosen by payload shape:
   `"base_ref"`/`"head_ref"` present builds a git-diff review, otherwise
-  `"selections"` builds a file-selection review.
+  `"selections"` builds a file-selection review. A git-diff review takes an
+  optional `"stack_ref"`, the review stack to attach (see BDR-0028).
 
   The project is the one grouping the repository `"project_path"` belongs to, so
   a review created from any worktree lands with its siblings; `"project_id"`
@@ -92,6 +93,10 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       #=> :ok  # emits {"review_id":"0192…","scratch_path":"/home/me/.local/share/suikou/app-3f9c2e1a/0192…","error":null}
 
       # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic"}
+      SuikouWeb.AgentCLI.Reviews.create()
+      #=> :ok  # emits {"review_id":"0192…","scratch_path":"…","error":null}
+
+      # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic", "stack_ref": "topic-review"}
       SuikouWeb.AgentCLI.Reviews.create()
       #=> :ok  # emits {"review_id":"0192…","scratch_path":"…","error":null}
 
@@ -114,7 +119,8 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       name: payload["name"],
       project_path: checkout(payload),
       base_ref: base,
-      head_ref: head
+      head_ref: head,
+      stack_ref: payload["stack_ref"]
     })
   end
 
@@ -237,6 +243,29 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   def set_files do
     payload = AgentCLI.read_payload()
     AgentCLI.emit(mutate(payload["review_id"], &Reviews.set_selection(&1, payload["files"])))
+  end
+
+  @doc """
+  Attaches a review stack to a git-diff review from `%{"review_id",
+  "stack_ref"}` and emits `%{error}`. Broadcasts the board on success. A stack
+  whose tip tree differs from the source's is rejected with the differing
+  paths (see BDR-0028).
+
+  ## Examples
+
+      # stdin: {"review_id": "0192…", "stack_ref": "topic-review"}
+      SuikouWeb.AgentCLI.Reviews.set_stack()
+      #=> :ok  # emits {"error":null}
+
+      # stdin: {"review_id": "0192…", "stack_ref": "topic-partial"}
+      SuikouWeb.AgentCLI.Reviews.set_stack()
+      #=> :ok  # emits {"error":"stack_not_equivalent: lib/app.ex"}
+
+  """
+  @spec set_stack() :: :ok
+  def set_stack do
+    payload = AgentCLI.read_payload()
+    AgentCLI.emit(mutate(payload["review_id"], &Reviews.set_stack(&1, payload["stack_ref"])))
   end
 
   @doc """
@@ -592,6 +621,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
       name: review.name,
       kind: kind,
       selections: selections,
+      stack_ref: stack_ref(review),
       project_id: review.project_id,
       project_path: review.project_path,
       scratch_path: review.scratch_path
@@ -603,4 +633,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   defp kind_and_selections(%Review{source: %GitDiff{}}), do: {:git_diff, []}
+
+  defp stack_ref(%Review{source: %GitDiff{stack_ref: stack_ref}}), do: stack_ref
+  defp stack_ref(%Review{}), do: nil
 end

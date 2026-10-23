@@ -134,6 +134,24 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       assert %{source: %GitDiff{base_ref: "main", head_ref: "topic"}} = Reviews.get_review(id)
     end
 
+    @tag :tmp_dir
+    test "attaches a stack given with the diff", %{tmp_dir: dir} do
+      stacked_repo!(dir)
+      {:ok, project} = Suikou.Projects.register_project(%{name: "Diff", path: dir})
+
+      payload = %{
+        "project_id" => project.id,
+        "project_path" => dir,
+        "name" => "Topic",
+        "base_ref" => "main",
+        "head_ref" => "topic",
+        "stack_ref" => "topic-review"
+      }
+
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{source: %GitDiff{stack_ref: "topic-review"}} = Reviews.get_review(id)
+    end
+
     test "emits project_not_found for an unknown project" do
       payload = %{"project_id" => Ecto.UUID.generate(), "name" => "X", "selections" => []}
 
@@ -163,6 +181,32 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
                run(%{"review_id" => Ecto.UUID.generate()}, &CLI.show/0)
+    end
+  end
+
+  describe "set_stack/0" do
+    @describetag :tmp_dir
+    setup :diff_review
+
+    test "attaches the stack, broadcasts the board, and shows it", %{review: review} do
+      :ok = BoardBroadcast.subscribe()
+
+      assert %{"error" => nil} =
+               run(%{"review_id" => review.id, "stack_ref" => "topic-review"}, &CLI.set_stack/0)
+
+      assert_receive :board_changed
+
+      assert %{"stack_ref" => "topic-review"} = run(%{"review_id" => review.id}, &CLI.show/0)
+    end
+
+    test "lists the differing paths of a non-equivalent stack", %{review: review} do
+      assert %{"error" => "stack_not_equivalent: b.txt"} =
+               run(%{"review_id" => review.id, "stack_ref" => "topic-partial"}, &CLI.set_stack/0)
+    end
+
+    test "emits review_not_found for an unknown review" do
+      assert %{"error" => "review_not_found"} =
+               run(%{"review_id" => Ecto.UUID.generate(), "stack_ref" => "x"}, &CLI.set_stack/0)
     end
   end
 
@@ -410,6 +454,39 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
     else
       _other -> wait_until_waiting(pid)
     end
+  end
+
+  defp diff_review(%{tmp_dir: dir}) do
+    stacked_repo!(dir)
+    {:ok, project} = Suikou.Projects.register_project(%{name: "Diff", path: dir})
+
+    {:ok, review} =
+      Reviews.create_diff_review(project, %{
+        project_path: dir,
+        name: "Topic",
+        base_ref: "main",
+        head_ref: "topic"
+      })
+
+    %{review: review}
+  end
+
+  # `topic` adds a.txt and b.txt; `topic-review` re-cuts them as two steps and
+  # `topic-partial` carries only a.txt.
+  defp stacked_repo!(dir) do
+    init_repo!(dir)
+
+    branch!(dir, "topic", fn ->
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      File.write!(Path.join(dir, "b.txt"), "b\n")
+    end)
+
+    git!(dir, ["checkout", "-q", "main"])
+    branch!(dir, "topic-partial", fn -> File.write!(Path.join(dir, "a.txt"), "a\n") end)
+    git!(dir, ["checkout", "-q", "-b", "topic-review"])
+    File.write!(Path.join(dir, "b.txt"), "b\n")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "step b"])
   end
 
   defp init_repo!(dir) do

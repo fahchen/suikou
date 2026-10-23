@@ -75,7 +75,8 @@ defmodule SuikouWeb.AgentCLI do
   @doc """
   Renders a backend error reason as a human-readable string for the JSON result.
 
-  Atoms become their string form; a changeset becomes `"field message, …"`.
+  Atoms become their string form; a reason carrying paths becomes `"reason:
+  path, …"`; a changeset becomes `"field message, …"`.
 
   Walks nested changesets, so an invalid embed reports `"anchor.start_line must
   be greater than 0"` rather than the empty string a top-level-only read gives —
@@ -87,17 +88,26 @@ defmodule SuikouWeb.AgentCLI do
       SuikouWeb.AgentCLI.error(:review_not_found)
       #=> "review_not_found"
 
+      SuikouWeb.AgentCLI.error({:stack_not_equivalent, ["lib/app.ex", "test/app_test.exs"]})
+      #=> "stack_not_equivalent: lib/app.ex, test/app_test.exs"
+
       SuikouWeb.AgentCLI.error(changeset_with_a_bad_anchor)
       #=> "anchor.start_line must be greater than 0"
 
   """
-  @spec error(atom() | {atom(), atom()} | Ecto.Changeset.t()) :: String.t()
+  @spec error(atom() | {atom(), atom()} | {atom(), [String.t()]} | Ecto.Changeset.t()) ::
+          String.t()
   def error(reason) when is_atom(reason), do: Atom.to_string(reason)
 
   # A reason that carries detail, e.g. `{:scratch_unwritable, :eacces}`. Both
   # halves are named so the agent can act on the kind and report the cause.
   def error({reason, detail}) when is_atom(reason) and is_atom(detail),
     do: "#{reason}: #{detail}"
+
+  # A reason that names the paths it is about, e.g. a review stack whose tree
+  # differs from its source at `{:stack_not_equivalent, paths}`.
+  def error({reason, paths}) when is_atom(reason) and is_list(paths),
+    do: "#{reason}: #{Enum.join(paths, ", ")}"
 
   def error(%Ecto.Changeset{} = changeset) do
     changeset |> messages("") |> Enum.join(", ")

@@ -139,8 +139,10 @@ function fileArgs(files: string[]): string[] {
 
 // `review create` picks its source from what's supplied: `--diff base..head`
 // (git-diff) XOR positional files (file-selection). Requires exactly one.
+// `--stack <branch>` attaches a review stack and only goes with `--diff`.
 function createSource(values: Values, files: string[]): Record<string, unknown> {
   const diff = typeof values.diff === "string" ? values.diff : undefined
+  const stack = typeof values.stack === "string" ? values.stack : undefined
   // The checkout is always where the agent is standing; the server resolves it
   // to a repository root and to the project grouping that repository, so a
   // second worktree lands beside its siblings without the agent arranging it.
@@ -151,11 +153,18 @@ function createSource(values: Values, files: string[]): Record<string, unknown> 
     if (files.length > 0) throw new UsageError("give either files or --diff, not both")
     const match = diff.match(/^(.+?)\.\.(.+)$/)
     if (!match) throw new UsageError(`invalid --diff ${diff}; expected base..head`)
-    return { ...base, base_ref: match[1], head_ref: match[2] }
+    return { ...base, base_ref: match[1], head_ref: match[2], ...(stack ? { stack_ref: stack } : {}) }
   }
 
+  if (stack !== undefined) throw new UsageError("--stack needs --diff base..head")
   if (files.length === 0) throw new UsageError("expected file args or --diff base..head")
   return { ...base, selections: files }
+}
+
+// `set-stack` takes the stack branch as the single positional after the id.
+function stackBranch(files: string[]): string {
+  if (files.length !== 1) throw new UsageError("expected exactly one stack branch")
+  return files[0]
 }
 
 // `react` takes its emoji as the single positional after the id. The agent may
@@ -303,12 +312,17 @@ const registry: Record<string, Record<string, CommandSpec>> = {
     },
     create: {
       expr: "SuikouWeb.AgentCLI.Reviews.create()",
-      options: { project: { type: "string" }, name: { type: "string" }, diff: { type: "string" } },
+      options: {
+        project: { type: "string" },
+        name: { type: "string" },
+        diff: { type: "string" },
+        stack: { type: "string" }
+      },
       required: ["name"],
       // Source is chosen by what's given: positional files → file-selection;
       // `--diff base..head` → git-diff. Exactly one; createSource enforces it.
       payload: ({ values, files }) => createSource(values, files),
-      summary: "create a review (--name; file1 file2 … | --diff base..head)"
+      summary: "create a review (--name; file1 file2 … | --diff base..head [--stack branch])"
     },
     show: {
       expr: "SuikouWeb.AgentCLI.Reviews.show()",
@@ -357,6 +371,15 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       // `set-files <id>` from silently wiping it — use `delete` to drop a review.
       payload: ({ id, files }) => ({ review_id: id, files }),
       summary: "replace a review's file selection (<review-id> file1 file2 …)"
+    },
+    "set-stack": {
+      expr: "SuikouWeb.AgentCLI.Reviews.set_stack()",
+      options: {},
+      id: { name: "review-id", required: true },
+      // Attaching verifies the stack carries exactly the source change; a
+      // rejection lists the paths that differ.
+      payload: ({ id, files }) => ({ review_id: id, stack_ref: stackBranch(files) }),
+      summary: "attach a review stack to a git-diff review (<review-id> <branch>)"
     },
     "add-files": {
       expr: "SuikouWeb.AgentCLI.Reviews.add_files()",

@@ -38,6 +38,11 @@ defmodule SuikouWeb.AgentCLITest do
       assert AgentCLI.error(:review_not_found) == "review_not_found"
     end
 
+    test "renders a reason carrying paths with the paths listed" do
+      assert "stack_not_equivalent: a.txt, lib/b.ex" =
+               AgentCLI.error({:stack_not_equivalent, ["a.txt", "lib/b.ex"]})
+    end
+
     test "renders a changeset as comma-joined field messages" do
       changeset =
         %Suikou.Schemas.Project{}
