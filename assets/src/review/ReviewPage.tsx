@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { reaction } from "mobx"
 import { observer } from "mobx-react-lite"
 import type { CommandReply, StoreProxy, StoreSnapshot } from "@musubi/react"
-import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, RotateCw, WifiOff } from "lucide-react"
+import { AlertTriangle, ArrowRight, Layers, ChevronDown, ChevronLeft, ChevronRight, Code, Eye, FileQuestion, Files, FileText, Info, Loader2, Lock, Maximize2, MessageSquare, MessageSquarePlus, MousePointerClick, Minus, Plus, RotateCw, WifiOff } from "lucide-react"
 
 import { scrollBehavior } from "../lib/utils"
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
+import { Button } from "../components/ui/button"
 import { Segmented } from "../components/ui/segmented"
 import { Sheet, SheetContent, SheetTitle } from "../components/ui/sheet"
 import { Tooltip } from "../components/ui/tooltip"
@@ -26,7 +27,7 @@ import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
-import { adjacentStep, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
+import { adjacentStep, StackOutOfSyncBanner, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
 import { StackProgress } from "../stores/stack-progress"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
@@ -440,10 +441,15 @@ const Shell = observer(function Shell({
     )
   }, [navigate, reviewId])
   // Pin the resolved step into the store (and so the URL) once the stack's
-  // steps are known, so a reload lands back on it.
+  // steps are known, so a reload lands back on it. An empty list — no steps,
+  // or a failed read — pins nothing, so a transient error never overwrites the
+  // step the URL asked for.
+  const stepCount = steps?.length ?? 0
   useEffect(() => {
-    if (inStack && stackStep !== null && uiStore.stackStep !== stackStep) uiStore.setStackStep(stackStep)
-  }, [inStack, stackStep])
+    if (inStack && stepCount > 0 && stackStep !== null && uiStore.stackStep !== stackStep) {
+      uiStore.setStackStep(stackStep)
+    }
+  }, [inStack, stepCount, stackStep])
   // `[` / `]` step through the stack, unless the reader is typing.
   useEffect(() => {
     if (!inStack || stackStep === null || !steps) return
@@ -833,20 +839,55 @@ const Shell = observer(function Shell({
             store={store}
           />
         ) : inStack ? (
-          steps && stackStep !== null ? (
+          refs?.stack_valid === false ? (
+            <FileNotice
+              icon={AlertTriangle}
+              title="Stack unavailable"
+              body={
+                <>
+                  The stack branch no longer exists. Ask the agent to re-attach a stack with{" "}
+                  <code className="font-mono">suikou review set-stack</code>. The source view is unaffected.
+                </>
+              }
+              meta={refs.stack_ref ?? undefined}
+              tone="request"
+              action={
+                <Button variant="outline" onClick={() => uiStore.setDiffView("source")}>
+                  View source
+                </Button>
+              }
+            />
+          ) : steps && steps.length === 0 ? (
+            <FileNotice
+              icon={Layers}
+              title="This stack has no steps"
+              body="The stack branch adds no commits on top of its base."
+              meta={refs?.stack_ref ?? undefined}
+            />
+          ) : steps && stackStep !== null ? (
             <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto]">
-              <StepHeader
-                steps={steps}
-                step={stackStep}
-                stackRef={refs?.stack_ref ?? ""}
-                progress={progress}
-                bar={
-                  desktopLayout && !wideLayout
-                    ? { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }
-                    : undefined
-                }
-                compact={!desktopLayout}
-              />
+              <div>
+                {refs?.stack_in_sync === false && (
+                  <StackOutOfSyncBanner
+                    headRef={refs.head_ref}
+                    stackRef={refs.stack_ref ?? ""}
+                    compact={!desktopLayout}
+                    onViewSource={() => uiStore.setDiffView("source")}
+                  />
+                )}
+                <StepHeader
+                  steps={steps}
+                  step={stackStep}
+                  stackRef={refs?.stack_ref ?? ""}
+                  progress={progress}
+                  bar={
+                    desktopLayout && !wideLayout
+                      ? { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }
+                      : undefined
+                  }
+                  compact={!desktopLayout}
+                />
+              </div>
               {editorSurface}
               {desktopLayout ? (
                 <StepFooter steps={steps} step={stackStep} onStep={goToStep} />

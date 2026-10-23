@@ -1,6 +1,6 @@
 import { observer } from "mobx-react-lite"
 import type { ReactNode } from "react"
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Layers } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Layers } from "lucide-react"
 
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
@@ -443,6 +443,63 @@ export function StepFooter({
         <span className="truncate">{next === null ? "Next" : stepSubject(steps, next)}</span>
         <ChevronRight size={14} aria-hidden />
       </Button>
+    </div>
+  )
+}
+
+/** The stack has drifted from its source: new source commits are not on the
+ * stack yet. A warning, never a block — the steps stay readable and
+ * commentable. `compact` (phones) folds the explanation into one line that
+ * expands on tap. */
+export function StackOutOfSyncBanner({
+  headRef,
+  stackRef,
+  compact = false,
+  onViewSource,
+}: {
+  headRef: string
+  stackRef: string
+  compact?: boolean
+  onViewSource: () => void
+}) {
+  const message = (
+    <>
+      <span className="font-mono font-semibold">{headRef}</span> has changes not yet on the stack. Ask the agent to
+      cherry-pick them onto <span className="font-mono font-semibold">{stackRef}</span>.
+    </>
+  )
+  const viewSource = (
+    <Button variant="outline" size="sm" onClick={onViewSource} className="shrink-0">
+      View source
+    </Button>
+  )
+  const frame = "shrink-0 border-b border-amber-edge bg-amber-soft px-4 text-xs leading-[1.45] text-ink"
+  const icon = <AlertTriangle size={15} className="shrink-0 text-amber" aria-hidden />
+
+  if (compact) {
+    return (
+      <Collapsible role="status" className={frame}>
+        <CollapsibleTrigger className="group flex min-h-[36px] w-full items-center gap-2 text-left">
+          {icon}
+          <span className="min-w-0 flex-1 truncate font-semibold">Stack out of sync with its source</span>
+          <ChevronDown
+            size={14}
+            className="shrink-0 text-muted transition-transform group-data-[panel-open]:rotate-180"
+            aria-hidden
+          />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <p className="pb-2">{message}</p>
+          <div className="pb-2.5">{viewSource}</div>
+        </CollapsibleContent>
+      </Collapsible>
+    )
+  }
+  return (
+    <div role="status" className={`flex items-center gap-2.5 py-2 ${frame}`}>
+      {icon}
+      <p className="min-w-0 flex-1">{message}</p>
+      {viewSource}
     </div>
   )
 }
