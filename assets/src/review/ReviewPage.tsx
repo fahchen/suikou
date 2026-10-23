@@ -22,12 +22,12 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, lensQueryString, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, lensQueryString, NoticeBand, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
-import { adjacentStep, StackOutOfSyncBanner, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
+import { adjacentStep, OutsideNetChangeNotice, StackOutOfSyncBanner, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
 import { StackProgress } from "../stores/stack-progress"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
@@ -557,7 +557,14 @@ const Shell = observer(function Shell({
   // The matching child proxies for authoring: the file's FileStore (add_comment)
   // and its CommentsStore (reply/edit/delete). `store.body` is safe to walk once
   // the snapshot carries a body — the same guard `fileIndex >= 0` implies.
-  const fileProxy: FileStoreProxy | null = fileIndex >= 0 && snap?.body ? store.body.files[fileIndex] : null
+  // In the stack view a step may touch a path the source diff does not carry
+  // (added by one step, removed by a later one): rounds snapshot the source
+  // diff, so such a file reads but takes no comments (BDR-0028).
+  const sourcePaths = useMemo(() => new Set((structure?.file_entries ?? []).map((e) => e.path)), [structure])
+  const outsideNetChange = (path: string): boolean => inStack && !sourcePaths.has(path)
+  const selectedOutside = selectedPath !== null && outsideNetChange(selectedPath)
+  const fileProxy: FileStoreProxy | null =
+    fileIndex >= 0 && snap?.body && !selectedOutside ? store.body.files[fileIndex] : null
   const commentsProxy: CommentsStoreProxy | null = fileProxy?.comments ?? null
   // The open file's on-disk identity, streamed live. When it differs from the
   // token the content was loaded at, the file changed on disk (see Editor).
@@ -632,10 +639,12 @@ const Shell = observer(function Shell({
       const bi = indexByPath.get(e.path)
       const live = bi != null ? bodyFiles[bi] : null
       const per = statusByPath.get(e.path)
-      const proxy = bi != null && snap?.body ? store.body.files[bi] : null
+      const outside = outsideNetChange(e.path)
+      const proxy = bi != null && snap?.body && !outside ? store.body.files[bi] : null
       return {
         path: e.path,
         changeStatus: e.change_status ?? null,
+        outsideNetChange: outside,
         proxy,
         commentsProxy: proxy?.comments ?? null,
         comments: live ? live.comments.items : [],
@@ -643,7 +652,7 @@ const Shell = observer(function Shell({
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stacked, entries, snap, statusByPath])
+  }, [stacked, entries, snap, statusByPath, inStack, sourcePaths])
   const focusedComment = comments.find((comment) => comment.id === focusedCommentId) ?? null
   const highlightedRange = hoveredRange ?? commentRange(focusedComment)
 
@@ -799,6 +808,7 @@ const Shell = observer(function Shell({
       onSelectFile={select}
       filePosition={filePosition}
       diffLens={diffLens}
+      outsideNetChange={selectedOutside}
     />
   )
 
@@ -1148,6 +1158,7 @@ function Editor({
   onSelectFile,
   filePosition,
   diffLens,
+  outsideNetChange,
 }: {
   reviewId: string
   entry: FileEntry | null
@@ -1169,6 +1180,7 @@ function Editor({
   onSelectFile: (path: string) => void
   filePosition: FilePosition | null
   diffLens?: DiffLens
+  outsideNetChange: boolean
 }) {
   const dir = entry ? entry.path.slice(0, entry.path.lastIndexOf("/") + 1) : ""
   const name = entry ? entry.path.slice(entry.path.lastIndexOf("/") + 1) : ""
@@ -1560,14 +1572,12 @@ function Editor({
         )}
       </div>
       {compare && <CompareBar compare={compare} />}
+      {outsideNetChange && entry && <OutsideNetChangeNotice />}
       {readOnly && entry && (
-        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
-          <Lock size={15} className="shrink-0 text-muted" aria-hidden />
-          <span>
-            Round {selectedRound} is superseded and read-only. You can read its comments, but new
-            comments only go on the latest round.
-          </span>
-        </div>
+        <NoticeBand icon={Lock}>
+          Round {selectedRound} is superseded and read-only. You can read its comments, but new comments only go on
+          the latest round.
+        </NoticeBand>
       )}
       {entry && htmlFile && htmlMode !== "source" && content.kind === "text" ? (
         <div

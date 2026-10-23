@@ -18,6 +18,7 @@ import {
   FileNotice,
   ImageView,
   LoadingNotice,
+  NoticeBand,
   readDocView,
   useFileContent,
   writeDocView,
@@ -25,6 +26,7 @@ import {
 import { DiffView } from "./DiffView"
 import { CommentThread } from "./comments/CommentThread"
 import { FileCommentComposer } from "./comments/FileCommentComposer"
+import { OutsideNetChangeNotice } from "./StackView"
 import type { Comment, CommentsStoreProxy } from "./comments/shared"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
@@ -35,6 +37,9 @@ type ChangeStatus = "added" | "modified" | "deleted" | "renamed" | "copied" | "t
 export type StackedFileDatum = {
   path: string
   changeStatus: ChangeStatus
+  /** A stack-view file outside the source diff: readable, never commentable
+   * (its `proxy` is null). */
+  outsideNetChange: boolean
   proxy: FileStoreProxy | null
   commentsProxy: CommentsStoreProxy | null
   comments: Comment[]
@@ -131,13 +136,10 @@ export const StackedFiles = observer(function StackedFiles({
   return (
     <div className="flex min-h-0 min-w-0 flex-col bg-editor">
       {readOnly && (
-        <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
-          <Lock size={15} className="shrink-0 text-muted" aria-hidden />
-          <span>
-            Round {selectedRound} is superseded and read-only. You can read its comments, but new
-            comments only go on the latest round.
-          </span>
-        </div>
+        <NoticeBand icon={Lock}>
+          Round {selectedRound} is superseded and read-only. You can read its comments, but new comments only go on
+          the latest round.
+        </NoticeBand>
       )}
       <div
         ref={containerRef}
@@ -375,6 +377,7 @@ const StackedFile = observer(function StackedFile({
           </button>
         )}
       </header>
+      {file.outsideNetChange && <OutsideNetChangeNotice />}
       {fileComposing && file.proxy && (
         <div className="border-b border-hair-strong px-3.5 py-2">
           <FileCommentComposer

@@ -557,6 +557,18 @@ export function FileNotice({
   )
 }
 
+/** A quiet one-line band under a file's head saying why the file reads but
+ * takes no new comments: a superseded round, or a stack-view file outside the
+ * branch's net change. */
+export function NoticeBand({ icon: Icon, children }: { icon: typeof Binary; children: React.ReactNode }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2.5 border-b border-hair bg-soft/40 px-4 py-2 text-xs leading-[1.45] text-muted">
+      <Icon size={15} className="shrink-0 text-muted" aria-hidden />
+      <span>{children}</span>
+    </div>
+  )
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   const kb = bytes / 1024

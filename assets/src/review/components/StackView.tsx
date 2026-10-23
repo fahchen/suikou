@@ -1,6 +1,6 @@
 import { observer } from "mobx-react-lite"
 import type { ReactNode } from "react"
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Layers } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, MessageSquareOff } from "lucide-react"
 
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
@@ -9,6 +9,7 @@ import { Segmented } from "../../components/ui/segmented"
 import { Toggle } from "../../components/ui/toggle"
 import type { StackProgress } from "../../stores/stack-progress"
 import type { ReviewView, StackStep } from "../../stores/ui-store"
+import { NoticeBand } from "./EditorSurface"
 import { FileRow, type ReviewFileEntry, type ReviewFileStatus } from "./FileNavigator"
 import type { ScopeCommit } from "./ScopePicker"
 
@@ -503,4 +504,11 @@ export function StackOutOfSyncBanner({
       {viewSource}
     </div>
   )
+}
+
+/** A file a step touches with no net change on the source branch (added by
+ * one step, removed by a later one): it reads as usual but takes no comments,
+ * since rounds snapshot the source diff and it is not in it. */
+export function OutsideNetChangeNotice() {
+  return <NoticeBand icon={MessageSquareOff}>Not in the branch's net change: nothing to comment on here.</NoticeBand>
 }
