@@ -36,7 +36,7 @@ defmodule Suikou.Git do
   @type worktree_file_diff_error() :: :not_a_repo | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
   @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
-  @type commit_entry() :: %{sha: String.t(), subject: String.t()}
+  @type commit_entry() :: %{sha: String.t(), subject: String.t(), body: String.t()}
 
   @doc """
   Returns `true` when `dir` is the working tree of a git repository.
@@ -537,15 +537,16 @@ defmodule Suikou.Git do
 
   @doc """
   Lists commits reachable from `head` but not from `base` (three-dot semantics,
-  `git log base...head`), most recent first. Each entry carries the full SHA
-  and the commit subject line. Powers the future commit-by-commit navigation
+  `git log base...head`), most recent first. Each entry carries the full SHA,
+  the commit subject line, and the body after it (`""` when the message has
+  none) — a review stack's step shows its full commit message (BDR-0028). Powers the future commit-by-commit navigation
   axis for diff reviews (see Phase P4 diff-review requirements 2026-07-10).
   Returns `{:ok, []}` when `base` and `head` point at the same commit.
 
   ## Examples
 
       Suikou.Git.list_commits("/projects/app", "main", "topic")
-      #=> {:ok, [%{sha: "0a1b...", subject: "second"}, %{sha: "9f8e...", subject: "first"}]}
+      #=> {:ok, [%{sha: "0a1b...", subject: "second", body: "Why it changed."}, %{sha: "9f8e...", subject: "first", body: ""}]}
 
   """
   @spec list_commits(repo_dir(), ref(), ref()) ::
@@ -559,7 +560,7 @@ defmodule Suikou.Git do
          {:ok, out} <-
            run(dir, [
              "log",
-             "--format=%H%x00%s",
+             "--format=%H%x00%s%x00%b",
              "-z",
              base <> "..." <> head
            ]) do
@@ -780,14 +781,17 @@ defmodule Suikou.Git do
     end
   end
 
-  # `git log --format=%H%x00%s -z` emits `<sha>\0<subject>\0` per commit. Split
-  # on NUL and pair the tokens; a trailing empty tail from the final NUL is
-  # dropped by `trim: true`.
+  # `git log --format=%H%x00%s%x00%b -z` emits `<sha>\0<subject>\0<body>` per
+  # commit, NUL-separated. Split without trimming — an empty body is an empty
+  # token — and take the tokens in threes; a trailing empty tail from a final NUL
+  # is dropped as an incomplete chunk.
   defp parse_commit_log(out) do
     out
-    |> String.split(<<0>>, trim: true)
-    |> Enum.chunk_every(2, 2, :discard)
-    |> Enum.map(fn [sha, subject] -> %{sha: sha, subject: subject} end)
+    |> String.split(<<0>>)
+    |> Enum.chunk_every(3, 3, :discard)
+    |> Enum.map(fn [sha, subject, body] ->
+      %{sha: sha, subject: subject, body: String.trim_trailing(body)}
+    end)
   end
 
   defp parse_ls_tree(out) do

@@ -132,7 +132,7 @@ defmodule SuikouWeb.AssetController do
 
   @doc """
   Lists a diff review's commit range (three-dot `base_ref...head_ref`), newest
-  first, as JSON `{"commits": [{"sha", "subject"}]}`. Answers 404 for a
+  first, as JSON `{"commits": [{"sha", "subject", "body"}]}`. Answers 404 for a
   file-selection review, an unknown review, or a git error (deleted ref,
   invalid ref, non-repo project) — the review chrome already surfaces the
   branch-deleted state via `refs_snapshot/1` (`refs_valid: false`), so this
@@ -141,7 +141,7 @@ defmodule SuikouWeb.AssetController do
   ## Examples
 
       get(conn, "/api/review/0192.../commits")
-      #=> 200, {"commits": [{"sha": "0a1b...", "subject": "second"}]}
+      #=> 200, {"commits": [{"sha": "0a1b...", "subject": "second", "body": ""}]}
 
       get(conn, "/api/review/<file-selection-review>/commits")
       #=> 404

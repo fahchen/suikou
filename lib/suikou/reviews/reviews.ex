@@ -641,7 +641,7 @@ defmodule Suikou.Reviews do
   @doc """
   Lists the commits reachable from a diff review's `head_ref` but not from its
   `base_ref` (three-dot semantics), newest first. Each entry carries the full
-  SHA and the commit subject. Powers the future commit-by-commit navigation
+  SHA, the commit subject, and the commit body. Powers the future commit-by-commit navigation
   axis for diff reviews (see Phase P4 diff-review requirements 2026-07-10);
   the axis stays orthogonal to the working-tree state axis (staged/unstaged),
   which lives on `head_ref` (worktree) and is not exposed here.
@@ -652,7 +652,7 @@ defmodule Suikou.Reviews do
   ## Examples
 
       Suikou.Reviews.list_diff_commits(diff_review)
-      #=> {:ok, [%{sha: "0a1b...", subject: "second"}, %{sha: "9f8e...", subject: "first"}]}
+      #=> {:ok, [%{sha: "0a1b...", subject: "second", body: ""}, %{sha: "9f8e...", subject: "first", body: ""}]}
 
       Suikou.Reviews.list_diff_commits(file_review)
       #=> {:error, :not_a_diff_review}

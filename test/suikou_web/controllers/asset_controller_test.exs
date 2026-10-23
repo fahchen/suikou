@@ -626,7 +626,7 @@ defmodule SuikouWeb.AssetControllerTest do
 
       assert %{
                "commits" => [
-                 %{"sha" => sha2, "subject" => "second"},
+                 %{"sha" => sha2, "subject" => "second", "body" => ""},
                  %{"sha" => _sha1, "subject" => "first"}
                ]
              } =

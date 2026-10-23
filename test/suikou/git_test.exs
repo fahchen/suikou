@@ -408,12 +408,16 @@ defmodule Suikou.GitTest do
       commit!(dir, "first topic commit")
       File.write!(Path.join(dir, "b.txt"), "b\n")
       git!(["add", "."], cd: dir)
-      commit!(dir, "second topic commit")
+      commit!(dir, "second topic commit\n\nWhy it changed.\n\nMore detail.")
 
       assert {:ok,
               [
-                %{sha: sha1, subject: "second topic commit"},
-                %{sha: sha2, subject: "first topic commit"}
+                %{
+                  sha: sha1,
+                  subject: "second topic commit",
+                  body: "Why it changed.\n\nMore detail."
+                },
+                %{sha: sha2, subject: "first topic commit", body: ""}
               ]} =
                Git.list_commits(dir, "main", "topic")
 
