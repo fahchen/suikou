@@ -75,6 +75,33 @@ type ReviewSummary = {
   waiting: number
 }
 
+/** Counts the times the tab comes back into view: focus, or the page turning
+ * visible again. A moved branch (a commit on the source, a cherry-pick onto
+ * the stack) emits no server event, so this is when an open review re-reads
+ * its refs. Focus and visibility often fire together; one return counts once. */
+function useResumeCount(): number {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let last = 0
+    const resume = () => {
+      if (document.visibilityState !== "visible") return
+      const now = Date.now()
+      if (now - last < 1000) return
+      last = now
+      setCount((n) => n + 1)
+    }
+    window.addEventListener("focus", resume)
+    document.addEventListener("visibilitychange", resume)
+    return () => {
+      window.removeEventListener("focus", resume)
+      document.removeEventListener("visibilitychange", resume)
+    }
+  }, [])
+
+  return count
+}
+
 function useMediaQuery(media: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(media).matches)
 
@@ -279,7 +306,14 @@ const Shell = observer(function Shell({
   // Refetching the structure on every bump is what keeps the navigator live;
   // without it the list only refreshes on mount and reconnect.
   const structureVersion = snap?.body?.structure_version ?? 0
+  // Git refs move without any server event, so the structure (and with it the
+  // refs' stack sync, BDR-0028) is also re-read whenever the tab comes back.
+  const resumeCount = useResumeCount()
   const [structure, setStructure] = useState<Structure | null>(() => readStructureCache(reviewId))
+  // Bumps on every structure reply — mount, reconnect, a version bump, or a
+  // resume — so reads that follow the refs (the stack's steps and a step's
+  // files) re-run whenever the refs were re-read.
+  const [structureLoads, setStructureLoads] = useState(0)
   const structRef = useRef<Structure | null>(null)
   structRef.current = structure
 
@@ -301,6 +335,7 @@ const Shell = observer(function Shell({
         .then((reply) => {
           if (cancelled) return
           setStructure(reply)
+          setStructureLoads((n) => n + 1)
           writeStructureCache(reviewId, reply)
           // Leaving a review should land on the board it was filed under, not on
           // whichever project the board happened to remember. Opening one is the
@@ -319,7 +354,7 @@ const Shell = observer(function Shell({
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, reviewId, structureVersion])
+  }, [connected, reviewId, structureVersion, resumeCount])
 
   const isDiff = structure?.kind === "diff"
   // Restacked review (BDR-0028): a review with a stack opens in the stack view
@@ -331,7 +366,7 @@ const Shell = observer(function Shell({
   const view: ReviewView = hasStack ? (uiStore.diffView ?? (stackReady ? "stack" : "source")) : "source"
   const inStack = view === "stack"
   // The `/commits` reply is newest first; steps are numbered oldest first.
-  const stackRead = useReviewCommits(reviewId, stackReady, "stack", structureVersion)
+  const stackRead = useReviewCommits(reviewId, stackReady, "stack", structureLoads)
   const stackCommits = stackRead.commits
   const steps = useMemo(() => (stackCommits ? [...stackCommits].reverse() : null), [stackCommits])
   const progress = useMemo(() => new StackProgress(reviewId), [reviewId])
@@ -352,7 +387,7 @@ const Shell = observer(function Shell({
   // endpoint; fall back to the static structure payload for the default lens
   // (no fetch, no round-trip). A stack step shows nothing until its own list
   // lands: the previous step's files would pick the wrong file to open.
-  const lensed = useLensedFileEntries(reviewId, diffLens, structureVersion)
+  const lensed = useLensedFileEntries(reviewId, diffLens, structureLoads)
   const rawEntries: FileEntry[] | null = inStack
     ? lensQuery && lensed?.key === lensedEntriesKey(reviewId, lensQuery)
       ? lensed.files
