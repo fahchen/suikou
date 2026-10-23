@@ -112,6 +112,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                        head_ref: "topic",
                        refs_valid: true,
                        stack_ref: nil,
+                       stack_valid: nil,
                        stack_in_sync: nil,
                        stack_commit_count: nil
                      }
@@ -156,6 +157,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                    reviews: [
                      %{
                        stack_ref: "topic-review",
+                       stack_valid: true,
                        stack_in_sync: true,
                        stack_commit_count: 2
                      }

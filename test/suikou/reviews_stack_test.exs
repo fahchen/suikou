@@ -85,7 +85,7 @@ defmodule Suikou.ReviewsStackTest do
     setup :stacked_review
 
     test "reports an in-sync stack", %{review: review} do
-      assert %{stack_ref: "feat-review", refs_valid: true, stack_in_sync: true} =
+      assert %{stack_ref: "feat-review", refs_valid: true, stack_valid: true, stack_in_sync: true} =
                Reviews.refs_snapshot(review)
     end
 
@@ -104,17 +104,30 @@ defmodule Suikou.ReviewsStackTest do
       assert %{refs_valid: true, stack_in_sync: true} = Reviews.refs_snapshot(review)
     end
 
-    test "treats a vanished stack ref as a vanished ref", %{dir: dir, review: review} do
+    test "disables only the stack when its ref vanishes", %{dir: dir, review: review} do
       git!(dir, ["branch", "-D", "feat-review"])
 
-      assert %{stack_ref: "feat-review", refs_valid: false, stack_in_sync: false} =
+      assert %{
+               stack_ref: "feat-review",
+               refs_valid: true,
+               stack_valid: false,
+               stack_in_sync: false
+             } =
                Reviews.refs_snapshot(review)
+
+      assert ["a.txt", "b.txt"] = paths(Reviews.list_files(review, %{}))
+
+      assert {:ok, {:inline, _diff, "text/x-diff"}} =
+               Reviews.fetch_content_by_path(review, "a.txt")
+
+      assert {:error, :path_not_in_review} =
+               Reviews.fetch_content_by_path(review, "a.txt", %{view: :stack})
     end
 
     test "carries no stack fields for a review without a stack", %{dir: dir, project: project} do
       {:ok, review} = create(project, dir, nil)
 
-      assert %{stack_ref: nil, refs_valid: true, stack_in_sync: nil} =
+      assert %{stack_ref: nil, refs_valid: true, stack_valid: nil, stack_in_sync: nil} =
                Reviews.refs_snapshot(review)
     end
   end

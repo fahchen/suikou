@@ -641,6 +641,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       head_ref: nil,
       refs_valid: false,
       stack_ref: nil,
+      stack_valid: nil,
       stack_in_sync: nil,
       stack_commit_count: nil
     }
@@ -653,9 +654,9 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # of the review's chosen name. `refs_valid` is `false` when either side no
   # longer resolves in the project's git tree, so the workspace can surface a
   # branch-deleted error page instead of a stale snapshot (BDR-0025). A review
-  # stack adds its branch, whether it is still in sync with the source, and its
-  # step count for the card's `Stack · N commits` pill; all `nil` without one
-  # (BDR-0028).
+  # stack adds its branch, whether that branch still resolves, whether it is
+  # still in sync with the source, and its step count for the card's
+  # `Stack · N commits` pill; all `nil` without one (BDR-0028).
   defp render_review(%Review{source: %GitDiff{}} = review) do
     refs = Reviews.refs_snapshot(review)
 
@@ -672,6 +673,7 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       head_ref: refs.head_ref,
       refs_valid: refs.refs_valid,
       stack_ref: refs.stack_ref,
+      stack_valid: refs.stack_valid,
       stack_in_sync: refs.stack_in_sync,
       stack_commit_count: stack_commit_count(review)
     }

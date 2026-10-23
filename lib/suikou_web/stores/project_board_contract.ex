@@ -96,9 +96,11 @@ defmodule SuikouWeb.Stores.ProjectBoardContract do
             base_ref: String.t() | nil,
             head_ref: String.t() | nil,
             refs_valid: boolean(),
-            # The review stack (BDR-0028): its branch, whether its tip tree still
-            # equals the source's, and its step count. All `nil` without a stack.
+            # The review stack (BDR-0028): its branch, whether that branch still
+            # resolves, whether its tip tree still equals the source's, and its
+            # step count. All `nil` without a stack.
             stack_ref: String.t() | nil,
+            stack_valid: boolean() | nil,
             stack_in_sync: boolean() | nil,
             stack_commit_count: integer() | nil
           })
