@@ -639,7 +639,10 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       respect_gitignore: review.respect_gitignore,
       base_ref: nil,
       head_ref: nil,
-      refs_valid: false
+      refs_valid: false,
+      stack_ref: nil,
+      stack_in_sync: nil,
+      stack_commit_count: nil
     }
   end
 
@@ -649,7 +652,10 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
   # let the card display the compared refs (e.g. `main..topic`) independently
   # of the review's chosen name. `refs_valid` is `false` when either side no
   # longer resolves in the project's git tree, so the workspace can surface a
-  # branch-deleted error page instead of a stale snapshot (BDR-0025).
+  # branch-deleted error page instead of a stale snapshot (BDR-0025). A review
+  # stack adds its branch, whether it is still in sync with the source, and its
+  # step count for the card's `Stack · N commits` pill; all `nil` without one
+  # (BDR-0028).
   defp render_review(%Review{source: %GitDiff{}} = review) do
     refs = Reviews.refs_snapshot(review)
 
@@ -664,8 +670,18 @@ defmodule SuikouWeb.Stores.ProjectBoardStore do
       respect_gitignore: review.respect_gitignore,
       base_ref: refs.base_ref,
       head_ref: refs.head_ref,
-      refs_valid: refs.refs_valid
+      refs_valid: refs.refs_valid,
+      stack_ref: refs.stack_ref,
+      stack_in_sync: refs.stack_in_sync,
+      stack_commit_count: stack_commit_count(review)
     }
+  end
+
+  defp stack_commit_count(review) do
+    case Reviews.list_diff_commits(review, :stack) do
+      {:ok, commits} -> length(commits)
+      {:error, _reason} -> nil
+    end
   end
 
   # Walks every project's reviews on first mount, populating the async

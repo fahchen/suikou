@@ -110,7 +110,54 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
                        selections: [],
                        base_ref: "main",
                        head_ref: "topic",
-                       refs_valid: true
+                       refs_valid: true,
+                       stack_ref: nil,
+                       stack_in_sync: nil,
+                       stack_commit_count: nil
+                     }
+                   ]
+                 }
+               ]
+             } = Testing.render(page)
+    end
+
+    @tag :tmp_dir
+    test "exposes a git-diff review's stack, sync, and step count on the card",
+         %{tmp_dir: dir} do
+      init_repo!(dir)
+      git!(dir, ["checkout", "-q", "-b", "topic"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      File.write!(Path.join(dir, "b.txt"), "y\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "topic"])
+      git!(dir, ["checkout", "-q", "-b", "topic-review", "main"])
+      File.write!(Path.join(dir, "a.txt"), "x\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "step a"])
+      File.write!(Path.join(dir, "b.txt"), "y\n")
+      git!(dir, ["add", "."])
+      git!(dir, ["commit", "-q", "-m", "step b"])
+      {:ok, project} = Projects.register_project(%{name: "Repo", path: dir})
+
+      {:ok, _review} =
+        Reviews.create_diff_review(project, %{
+          project_path: dir,
+          name: "Topic",
+          base_ref: "main",
+          head_ref: "topic",
+          stack_ref: "topic-review"
+        })
+
+      page = Testing.mount(ProjectBoardStore)
+
+      assert %{
+               projects: [
+                 %{
+                   reviews: [
+                     %{
+                       stack_ref: "topic-review",
+                       stack_in_sync: true,
+                       stack_commit_count: 2
                      }
                    ]
                  }

@@ -236,14 +236,14 @@ declare namespace Musubi {
     "SuikouWeb.Stores.ProjectBoardStore": StoreDef<
       "SuikouWeb.Stores.ProjectBoardStore",
       {
-        projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean }> }>
+        projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean; stack_ref: string | null; stack_in_sync: boolean | null; stack_commit_count: number | null }> }>
         review_files: Musubi.AsyncField<Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>>
       },
       {
         load_board: {
           payload: {}
           reply: {
-            projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean }> }>
+            projects: Array<{ id: string; name: string; path: string | null; respect_gitignore: boolean; emoji: string | null; review_instructions: string | null; reviews: Array<{ id: string; name: string; inserted_at: string; kind: "file_selection" | "git_diff"; selections: string[]; project_path: string; scratch_path: string; respect_gitignore: boolean | null; base_ref: string | null; head_ref: string | null; refs_valid: boolean; stack_ref: string | null; stack_in_sync: boolean | null; stack_commit_count: number | null }> }>
             review_files: Array<{ review_id: string; files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }> }>
             checkouts: string[]
           }
