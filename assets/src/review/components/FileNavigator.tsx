@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { ChevronRight, Folder, MessageSquare, MessageSquareOff, Search } from "lucide-react"
 
 import { FileIcon } from "../../board/FileIcon"
@@ -52,8 +52,12 @@ export function ChangeStatusLetter({
   )
 }
 
-type TreeNode =
-  | { kind: "dir"; name: string; path: string; children: TreeNode[] }
+/** A folder row may stand for a chain of folders that each hold only the next
+ * one (VS Code's compact folders): `segments` lists them outermost first, and
+ * `path` is the innermost, whose children the row opens onto. */
+type DirSegment = { name: string; path: string }
+export type TreeNode =
+  | { kind: "dir"; segments: DirSegment[]; path: string; children: TreeNode[] }
   | { kind: "file"; name: string; path: string; entry: ReviewFileEntry }
 
 const EMPTY_SET: Set<string> = new Set()
@@ -125,6 +129,20 @@ export function FileList({
       else next.add(path)
       return next
     })
+  const openDirs = (paths: string[]) =>
+    setClosedDirs((prev) => {
+      const next = new Set(prev)
+      for (const path of paths) next.delete(path)
+      return next
+    })
+  // Opening a file (from a link, prev/next, or a comment) unfolds the folders
+  // above it, so the selection is never hidden in a collapsed folder.
+  useEffect(() => {
+    if (!selectedPath) return
+    const parts = selectedPath.split("/").slice(0, -1)
+    const ancestors = parts.map((_, index) => parts.slice(0, index + 1).join("/"))
+    setClosedDirs((prev) => (ancestors.some((dir) => prev.has(dir)) ? new Set([...prev].filter((dir) => !ancestors.includes(dir))) : prev))
+  }, [selectedPath])
 
   return (
     <>
@@ -152,6 +170,7 @@ export function FileList({
           status={status}
           closedDirs={needle ? EMPTY_SET : closedDirs}
           onToggleDir={toggleDir}
+          onOpenDirs={openDirs}
         />
         {shown.length === 0 && <p className="px-3 py-4 text-center text-xs text-faint">No files match.</p>}
       </div>
@@ -205,7 +224,9 @@ export function orderByTree<T extends { path: string }>(entries: T[]): T[] {
   return out
 }
 
-function buildTree(entries: ReviewFileEntry[]): TreeNode[] {
+/** The navigator's folder tree: folders before files, alphabetical, with
+ * single-child folder chains compacted into one row. */
+export function buildTree(entries: ReviewFileEntry[]): TreeNode[] {
   const root: TreeNode[] = []
   const dirs = new Map<string, Extract<TreeNode, { kind: "dir" }>>()
 
@@ -219,7 +240,7 @@ function buildTree(entries: ReviewFileEntry[]): TreeNode[] {
       let dir = dirs.get(prefix)
 
       if (!dir) {
-        dir = { kind: "dir", name: segs[index], path: prefix, children: [] }
+        dir = { kind: "dir", segments: [{ name: segs[index], path: prefix }], path: prefix, children: [] }
         dirs.set(prefix, dir)
         level.push(dir)
       }
@@ -230,15 +251,28 @@ function buildTree(entries: ReviewFileEntry[]): TreeNode[] {
     level.push({ kind: "file", name: segs[segs.length - 1], path: entry.path, entry })
   }
 
+  const label = (node: TreeNode) => (node.kind === "dir" ? node.segments[0]!.name : node.name)
   const sort = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "dir" ? -1 : 1))
+    nodes.sort((a, b) => (a.kind === b.kind ? label(a).localeCompare(label(b)) : a.kind === "dir" ? -1 : 1))
     for (const node of nodes) {
       if (node.kind === "dir") sort(node.children)
     }
   }
 
   sort(root)
-  return root
+  return root.map(compactFolders)
+}
+
+/** Fold a folder whose only child is another folder into one row, all the
+ * way down the chain. */
+function compactFolders(node: TreeNode): TreeNode {
+  if (node.kind !== "dir") return node
+  let dir = node
+  while (dir.children.length === 1 && dir.children[0]!.kind === "dir") {
+    const only = dir.children[0] as Extract<TreeNode, { kind: "dir" }>
+    dir = { kind: "dir", segments: [...dir.segments, ...only.segments], path: only.path, children: only.children }
+  }
+  return { ...dir, children: dir.children.map(compactFolders) }
 }
 
 function TreeNodes({
@@ -250,6 +284,7 @@ function TreeNodes({
   status,
   closedDirs,
   onToggleDir,
+  onOpenDirs,
 }: {
   nodes: TreeNode[]
   depth: number
@@ -259,27 +294,15 @@ function TreeNodes({
   status: Map<string, ReviewFileStatus>
   closedDirs: Set<string>
   onToggleDir: (path: string) => void
+  onOpenDirs: (paths: string[]) => void
 }) {
   return (
     <>
       {nodes.map((node) =>
         node.kind === "dir" ? (
           <div key={node.path}>
-            <button
-              type="button"
-              onClick={() => onToggleDir(node.path)}
-              style={{ paddingLeft: 9 + depth * 12 }}
-              className="flex h-[27px] w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-xs text-text hover:bg-soft"
-            >
-              <ChevronRight
-                size={13}
-                className={`shrink-0 text-faint transition-transform ${closedDirs.has(node.path) ? "" : "rotate-90"}`}
-                aria-hidden
-              />
-              <Folder size={14} className="shrink-0 text-muted" aria-hidden />
-              <span className="min-w-0 flex-1 truncate">{node.name}</span>
-            </button>
-            {!closedDirs.has(node.path) && (
+            <DirRow node={node} depth={depth} closedDirs={closedDirs} onToggleDir={onToggleDir} onOpenDirs={onOpenDirs} />
+            {!node.segments.some((segment) => closedDirs.has(segment.path)) && (
               <TreeNodes
                 nodes={node.children}
                 depth={depth + 1}
@@ -289,6 +312,7 @@ function TreeNodes({
                 status={status}
                 closedDirs={closedDirs}
                 onToggleDir={onToggleDir}
+                onOpenDirs={onOpenDirs}
               />
             )}
           </div>
@@ -305,6 +329,75 @@ function TreeNodes({
         ),
       )}
     </>
+  )
+}
+
+/** A folder row. A compacted chain shows each folder as its own target, so a
+ * click collapses at that level; the chevron opens the whole chain when any
+ * of it is closed, else closes it at the innermost folder. */
+function DirRow({
+  node,
+  depth,
+  closedDirs,
+  onToggleDir,
+  onOpenDirs,
+}: {
+  node: Extract<TreeNode, { kind: "dir" }>
+  depth: number
+  closedDirs: Set<string>
+  onToggleDir: (path: string) => void
+  onOpenDirs: (paths: string[]) => void
+}) {
+  const closed = node.segments.some((segment) => closedDirs.has(segment.path))
+  const toggleChain = () => (closed ? onOpenDirs(node.segments.map((segment) => segment.path)) : onToggleDir(node.path))
+  const chevron = (
+    <ChevronRight size={13} className={`shrink-0 text-faint transition-transform ${closed ? "" : "rotate-90"}`} aria-hidden />
+  )
+  const rowClass = "flex h-[27px] w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-xs text-text"
+  if (node.segments.length === 1) {
+    return (
+      <button
+        type="button"
+        onClick={toggleChain}
+        aria-expanded={!closed}
+        style={{ paddingLeft: 9 + depth * 12 }}
+        className={`${rowClass} hover:bg-soft`}
+      >
+        {chevron}
+        <Folder size={14} className="shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{node.segments[0]!.name}</span>
+      </button>
+    )
+  }
+  return (
+    <div style={{ paddingLeft: 9 + depth * 12 }} className={`${rowClass} hover:bg-soft`}>
+      <button
+        type="button"
+        onClick={toggleChain}
+        aria-expanded={!closed}
+        aria-label={node.path}
+        className="flex shrink-0 items-center gap-1.5 self-stretch"
+      >
+        {chevron}
+        <Folder size={14} className="shrink-0 text-muted" aria-hidden />
+      </button>
+      <span className="flex min-w-0 flex-1 items-center overflow-hidden">
+        {node.segments.map((segment, index) => (
+          <span key={segment.path} className="flex min-w-0 shrink items-center last:shrink-0 last:max-w-full">
+            {index > 0 && <span className="shrink-0 px-px text-faint">/</span>}
+            <button
+              type="button"
+              onClick={() => onToggleDir(segment.path)}
+              aria-expanded={!closedDirs.has(segment.path)}
+              title={segment.path}
+              className="min-w-0 truncate rounded-[3px] hover:text-ink hover:underline"
+            >
+              {segment.name}
+            </button>
+          </span>
+        ))}
+      </span>
+    </div>
   )
 }
 
