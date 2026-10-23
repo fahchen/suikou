@@ -26,7 +26,7 @@ import { MarkdownPreview, Source } from "./components/EditorBodies"
 import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, lensQueryString, NoticeBand, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
-import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
+import { ChangeStatusLetter, ExplorerTabs, FileList, orderByTree, type ExplorerTab } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
 import { adjacentStep, OutsideNetChangeNotice, StackOutOfSyncBanner, StackSyncBadge, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
 import { StackProgress } from "../stores/stack-progress"
@@ -374,7 +374,7 @@ const Shell = observer(function Shell({
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
   const [stepsDrawerOpen, setStepsDrawerOpen] = useState(false)
-  const [filesSheetTab, setFilesSheetTab] = useState<"files" | "scope">("files")
+  const [filesSheetTab, setFilesSheetTab] = useState<ExplorerTab>("files")
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
   const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
   const [stackedCurrentPath, setStackedCurrentPath] = useState<string | null>(null)
@@ -752,6 +752,33 @@ const Shell = observer(function Shell({
       />
     ) : null
 
+  // The source view's explorer, shared by the desktop column and the phone's
+  // Files sheet: Files (with its count) and Scope tabs for a diff review, the
+  // bare tree with its count in the filter for a file selection.
+  const explorer = (selectedFile: string | null, onSelectFile: (path: string) => void) => {
+    const files = (
+      <FileList
+        entries={entries}
+        isDiff={isDiff}
+        selectedPath={selectedFile}
+        onSelect={onSelectFile}
+        status={statusByPath}
+        count={isDiff ? undefined : entries.length}
+      />
+    )
+    return isDiff ? (
+      <ExplorerTabs
+        tab={filesSheetTab}
+        onTab={setFilesSheetTab}
+        fileCount={entries.length}
+        files={files}
+        scope={<ScopePickerBody commits={scopeCommits} />}
+      />
+    ) : (
+      files
+    )
+  }
+
   const editorSurface = stacked ? (
     <StackedFiles
       reviewId={reviewId}
@@ -825,40 +852,7 @@ const Shell = observer(function Shell({
       >
         <aside className={`hidden min-h-0 flex-col pt-3 ${inStack ? "xl:flex" : "lg:flex"}`}>
           {viewSwitch}
-          {inStack ? stepRail : <NavHeader entries={entries} />}
-          {isDiff && !inStack && (
-            <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-3">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filesSheetTab === "files"}
-                onClick={() => setFilesSheetTab("files")}
-                className={`inline-flex h-[26px] shrink-0 items-center text-xs font-semibold ${
-                  filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
-                }`}
-              >
-                Files
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filesSheetTab === "scope"}
-                onClick={() => setFilesSheetTab("scope")}
-                className={`inline-flex h-[26px] shrink-0 items-center text-xs font-semibold ${
-                  filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
-                }`}
-              >
-                Scope
-              </button>
-            </div>
-          )}
-          {inStack ? null : filesSheetTab === "scope" && isDiff ? (
-            <div className="flex min-h-0 flex-col overflow-auto pt-1">
-              <ScopePickerBody commits={scopeCommits} />
-            </div>
-          ) : (
-            <FileList entries={entries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
-          )}
+          {inStack ? stepRail : explorer(navSelected, navSelect)}
         </aside>
         <div
           className={`grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)] ${
@@ -993,46 +987,12 @@ const Shell = observer(function Shell({
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
           <DialogTitle className="text-base font-bold text-ink">Files</DialogTitle>
-          <span className="flex-1" />
-          <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
         </div>
         {hasStack && <div className="pt-3">{viewSwitch}</div>}
-        {isDiff && !inStack && (
-          <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-4">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filesSheetTab === "files"}
-              onClick={() => setFilesSheetTab("files")}
-              className={`inline-flex h-[32px] shrink-0 items-center text-sm font-semibold ${
-                filesSheetTab === "files" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
-              }`}
-            >
-              Files
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filesSheetTab === "scope"}
-              onClick={() => setFilesSheetTab("scope")}
-              className={`inline-flex h-[32px] shrink-0 items-center text-sm font-semibold ${
-                filesSheetTab === "scope" ? "text-ink shadow-[inset_0_-1.5px_0_0_var(--accent)]" : "text-muted hover:text-ink"
-              }`}
-            >
-              Scope
-            </button>
-          </div>
-        )}
         {inStack ? (
           <div className="flex min-h-0 flex-col overflow-hidden">{stepRail}</div>
-        ) : filesSheetTab === "scope" && isDiff ? (
-          <div className="flex min-h-0 flex-col overflow-auto pt-1">
-            <ScopePickerBody commits={scopeCommits} />
-          </div>
         ) : (
-          <div className="flex min-h-0 flex-col overflow-hidden pt-2">
-            <FileList entries={entries} isDiff={isDiff} selectedPath={selectedPath} onSelect={select} status={statusByPath} />
-          </div>
+          <div className={`flex min-h-0 flex-col overflow-hidden ${isDiff ? "" : "pt-2"}`}>{explorer(selectedPath, select)}</div>
         )}
       </Dialog>
       <SettingsModal />

@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react"
-import { ChevronRight, FileText, Folder, MessageSquare, MessageSquareOff, Search } from "lucide-react"
+import { useMemo, useState, type ReactNode } from "react"
+import { ChevronRight, Folder, MessageSquare, MessageSquareOff, Search } from "lucide-react"
 
 import { FileIcon } from "../../board/FileIcon"
+import { Badge } from "../../components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
 
 export type ReviewFileEntry = {
   path: string
@@ -56,29 +58,59 @@ type TreeNode =
 
 const EMPTY_SET: Set<string> = new Set()
 
-export function NavHeader({ entries }: { entries: ReviewFileEntry[] }) {
+export type ExplorerTab = "files" | "scope"
+
+/** A diff review's explorer: the Files tab (carrying the file count, so no
+ * separate title row repeats it) and the Scope tab. */
+export function ExplorerTabs({
+  tab,
+  onTab,
+  fileCount,
+  files,
+  scope,
+}: {
+  tab: ExplorerTab
+  onTab: (tab: ExplorerTab) => void
+  fileCount: number
+  files: ReactNode
+  scope: ReactNode
+}) {
   return (
-    <div className="flex items-center gap-[7px] px-3 pb-2">
-      <FileText size={15} className="text-muted" aria-hidden />
-      <h3 className="text-xs font-bold tracking-[-0.01em] text-ink">Files</h3>
-      <span className="flex-1" />
-      <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
-    </div>
+    <Tabs value={tab} onValueChange={(value: ExplorerTab) => onTab(value)} className="flex-1">
+      <TabsList>
+        <TabsTrigger value="files">
+          Files
+          <Badge>{fileCount}</Badge>
+        </TabsTrigger>
+        <TabsTrigger value="scope">Scope</TabsTrigger>
+      </TabsList>
+      <TabsContent value="files" className="flex flex-col pt-2">
+        {files}
+      </TabsContent>
+      <TabsContent value="scope" className="flex flex-col overflow-auto pt-1">
+        {scope}
+      </TabsContent>
+    </Tabs>
   )
 }
 
+/** The file tree with its filter. `count` puts the file count in the filter
+ * box, for an explorer with no Files tab to carry it (a file-selection
+ * review). */
 export function FileList({
   entries,
   isDiff,
   selectedPath,
   onSelect,
   status,
+  count,
 }: {
   entries: ReviewFileEntry[]
   isDiff: boolean
   selectedPath: string | null
   onSelect: (path: string) => void
   status: Map<string, ReviewFileStatus>
+  count?: number
 }) {
   const [query, setQuery] = useState("")
   const [closedDirs, setClosedDirs] = useState<Set<string>>(new Set())
@@ -104,6 +136,11 @@ export function FileList({
           placeholder="Filter files…"
           className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-faint focus:outline-none"
         />
+        {count !== undefined && (
+          <span className="shrink-0 text-2xs font-semibold text-muted tabular-nums" aria-label={`${count} files`}>
+            {count}
+          </span>
+        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto px-1.5 pb-2">
         <TreeNodes
