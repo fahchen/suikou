@@ -279,17 +279,23 @@ function KindBadge({ review }: { review: BoardReview }) {
       </Badge>
     )
   }
+  // Amber alone carries no meaning to a screen reader or a colour-blind eye:
+  // each warning names itself in a tooltip and in hidden text.
   if (review.stack_valid === false) {
+    const why = `Stack branch ${review.stack_ref} is missing`
     return (
-      <Badge variant="warning" shape="label">
+      <Badge variant="warning" shape="label" title={why}>
         Stack · missing
+        <span className="sr-only">: {why}</span>
       </Badge>
     )
   }
   const count = review.stack_commit_count
+  const drift = review.stack_in_sync === false ? `Stack out of sync with ${review.head_ref}` : null
   return (
-    <Badge variant={review.stack_in_sync === false ? "warning" : "open"} shape="label">
+    <Badge variant={drift ? "warning" : "open"} shape="label" title={drift ?? undefined}>
       {count === null ? "Stack" : `Stack · ${count} ${count === 1 ? "commit" : "commits"}`}
+      {drift && <span className="sr-only">: {drift}</span>}
     </Badge>
   )
 }
