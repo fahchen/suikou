@@ -295,6 +295,27 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "open_file/2 on a stacked review" do
+    setup :stacked_review
+
+    # An artifact's rounds snapshot the pinned base...head diff, so a path a step
+    # touches without a net source change has nothing to snapshot.
+    test "opens only paths in the source diff, not stack-only paths",
+         %{dir: dir, review: review} do
+      branch_from!(dir, "helper-stack", "main", [{"a.txt", "a\n"}, {"helper.txt", "h\n"}])
+      File.rm!(Path.join(dir, "helper.txt"))
+      write_commit!(dir, [{"b.txt", "b\n"}], "add b, drop helper")
+      {:ok, review} = Reviews.set_stack(review, "helper-stack")
+      {:ok, [_second, %{sha: first}]} = Reviews.list_diff_commits(review, :stack)
+
+      assert [%{path: "a.txt"}, %{path: "helper.txt", artifact_id: nil}] =
+               Reviews.list_files(review, %{view: :stack, scope: {:commits, [first]}})
+
+      assert {:error, :not_covered} = Reviews.open_file(review, "helper.txt")
+      assert {:ok, %{file_path: "a.txt"}} = Reviews.open_file(review, "a.txt")
+    end
+  end
+
   defp create(project, dir, stack) do
     Reviews.create_diff_review(project, %{
       project_path: dir,

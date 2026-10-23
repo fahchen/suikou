@@ -502,6 +502,12 @@ defmodule Suikou.Reviews do
   0) on first open, restoring it if it was soft-removed, or returning the
   existing one. Rejects a path not covered by the stored selection.
 
+  A git-diff review covers the files in its `base_ref...head_ref` diff, because
+  an artifact's rounds snapshot that diff. A path only a review stack's step
+  touches — a helper added and later removed, or a change the stack carries
+  while out of sync — has no source diff to snapshot and is rejected as
+  `:not_covered` (BDR-0028).
+
   ## Examples
 
       Suikou.Reviews.open_file(review, "docs/plan.md")
