@@ -23,12 +23,13 @@ defmodule Suikou.ChangesWatcher do
 
   ## ponytail caveat
 
-  External git activity that no `Suikou.Events` covers — a `git commit` on the
-  head ref, or an unstaged/staged edit in a diff review (which starts no
-  `FileWatcher`) — is not observed, so the same lens can serve a stale result
-  until an event fires, the reviewer switches lens, or the process ages out and
-  restarts. Every read was live before this cache; add a git-HEAD/index poll to
-  invalidate if that staleness ever bites.
+  Entries are keyed by the lens plus the tip SHAs it reads
+  (`Suikou.Reviews.lens_tips/2`), so a moved base, head, or stack branch is a
+  cache miss. Working-tree activity that no `Suikou.Events` covers — an
+  unstaged/staged edit in a diff review (which starts no `FileWatcher`) — is
+  not observed, so a worktree lens can serve a stale result until an event
+  fires, the reviewer switches lens, or the process ages out and restarts. Add
+  an index poll to invalidate if that staleness ever bites.
   """
 
   use GenServer
@@ -142,18 +143,22 @@ defmodule Suikou.ChangesWatcher do
   end
 
   def handle_call({:list_files, lens}, _from, state) do
-    case Map.fetch(state.files, lens) do
+    review = Reviews.get_review(state.review_id)
+    key = {lens, tips(review, lens)}
+
+    case Map.fetch(state.files, key) do
       {:ok, entries} ->
         {:reply, entries, state}
 
       :error ->
-        entries = compute_files(state.review_id, lens)
-        {:reply, entries, %{state | files: Map.put(state.files, lens, entries)}}
+        entries = compute_files(review, lens)
+        {:reply, entries, %{state | files: Map.put(state.files, key, entries)}}
     end
   end
 
   def handle_call({:fetch_content, path, lens}, _from, state) do
-    key = {path, lens}
+    review = Reviews.get_review(state.review_id)
+    key = {path, lens, tips(review, lens)}
 
     case Map.fetch(state.content, key) do
       {:ok, result} ->
@@ -163,7 +168,7 @@ defmodule Suikou.ChangesWatcher do
         # Cache hits only. Error results (not-found, invalid lens) are cheap to
         # recompute, and caching them would let varied bad paths grow the map
         # unbounded between invalidations.
-        case compute_content(state.review_id, path, lens) do
+        case compute_content(review, path, lens) do
           {:ok, _source} = result ->
             {:reply, result, %{state | content: Map.put(state.content, key, result)}}
 
@@ -214,19 +219,17 @@ defmodule Suikou.ChangesWatcher do
   # sole PubSub subscriber, so this is the stores' only change signal.
   defp notify(state, msg), do: Enum.each(state.subs, &send(&1, msg))
 
-  defp compute_files(review_id, lens) do
-    case Reviews.get_review(review_id) do
-      %Review{} = review -> Reviews.list_files(review, lens)
-      nil -> []
-    end
-  end
+  defp compute_files(%Review{} = review, lens), do: Reviews.list_files(review, lens)
+  defp compute_files(nil, _lens), do: []
 
-  defp compute_content(review_id, path, lens) do
-    case Reviews.get_review(review_id) do
-      %Review{} = review -> Reviews.fetch_content_by_path(review, path, lens)
-      nil -> {:error, :review_not_found}
-    end
-  end
+  defp compute_content(%Review{} = review, path, lens),
+    do: Reviews.fetch_content_by_path(review, path, lens)
+
+  defp compute_content(nil, _path, _lens), do: {:error, :review_not_found}
+
+  # The tip SHAs the lens reads, so a moved branch keys a fresh entry.
+  defp tips(%Review{} = review, lens), do: Reviews.lens_tips(review, lens)
+  defp tips(nil, _lens), do: []
 
   defp arm_grace, do: Process.send_after(self(), :grace_timeout, @grace_ms)
 

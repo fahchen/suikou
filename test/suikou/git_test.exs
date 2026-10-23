@@ -327,6 +327,28 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "resolve_commit/2" do
+    @tag :tmp_dir
+    test "resolves a branch to its tip SHA", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      sha = rev_parse!(dir, "main")
+
+      assert {:ok, ^sha} = Git.resolve_commit(dir, "main")
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.resolve_commit(dir, "nope")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.resolve_commit(dir, "--evil")
+    end
+  end
+
   describe "merge_base/3" do
     @tag :tmp_dir
     test "returns the fork point of two branches", %{tmp_dir: dir} do

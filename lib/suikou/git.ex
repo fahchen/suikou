@@ -30,6 +30,7 @@ defmodule Suikou.Git do
   @type commit_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type commit_file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type range_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type resolve_commit_error() :: :invalid_ref | :ref_not_found
   @type merge_base_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type differing_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type worktree_files_error() :: :not_a_repo | :git_error
@@ -243,13 +244,28 @@ defmodule Suikou.Git do
 
   """
   @spec ref_exists?(repo_dir(), ref()) :: boolean()
-  def ref_exists?(dir, ref) do
-    case safe_ref(ref) do
-      {:ok, ref} ->
-        match?({:ok, _out}, run(dir, ["rev-parse", "--verify", "--quiet", ref <> "^{commit}"]))
+  def ref_exists?(dir, ref), do: match?({:ok, _sha}, resolve_commit(dir, ref))
 
-      :error ->
-        false
+  @doc """
+  Resolves `ref` to the full SHA of the commit it names. A moved branch
+  resolves to a new SHA, which is how a cache keyed by it notices the move.
+
+  ## Examples
+
+      Suikou.Git.resolve_commit("/projects/app", "main")
+      #=> {:ok, "9f8e7d6c..."}
+
+      Suikou.Git.resolve_commit("/projects/app", "missing")
+      #=> {:error, :ref_not_found}
+
+  """
+  @spec resolve_commit(repo_dir(), ref()) :: {:ok, String.t()} | {:error, resolve_commit_error()}
+  def resolve_commit(dir, ref) do
+    with {:ok, ref} <- tag_invalid_ref(safe_ref(ref)) do
+      case run(dir, ["rev-parse", "--verify", "--quiet", ref <> "^{commit}"]) do
+        {:ok, out} -> {:ok, String.trim(out)}
+        {:error, _reason} -> {:error, :ref_not_found}
+      end
     end
   end
 

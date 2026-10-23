@@ -886,6 +886,36 @@ defmodule Suikou.Reviews do
   defp split_stats(nil), do: {nil, nil}
   defp split_stats(%{added: added, deleted: deleted}), do: {added, deleted}
 
+  @doc """
+  Resolves the tip commits a lens reads from: base and head for the source view,
+  base and stack for the stack view. A ref that does not resolve stands as
+  `nil`. `Suikou.ChangesWatcher` keys its caches by these, so a moved branch —
+  a commit on the head, or a fix cherry-picked onto the stack — is a cache miss
+  rather than a stale read. A file-selection review reads no refs.
+
+  ## Examples
+
+      Suikou.Reviews.lens_tips(stacked_review, %{view: :stack})
+      #=> ["9f8e7d6c...", "0a1b2c3d..."]
+
+      Suikou.Reviews.lens_tips(file_review, %{})
+      #=> []
+
+  """
+  @spec lens_tips(Review.t(), lens()) :: [String.t() | nil]
+  def lens_tips(%Review{source: %FileSelection{}}, _lens), do: []
+
+  def lens_tips(%Review{source: %GitDiff{} = git_diff} = review, lens) do
+    %GitDiff{base_ref: base, head_ref: tip} = viewed_source(git_diff, lens)
+
+    for ref <- [base, tip] do
+      case Git.resolve_commit(review.project_path, ref) do
+        {:ok, sha} -> sha
+        {:error, _reason} -> nil
+      end
+    end
+  end
+
   @type content_source() ::
           {:file, String.t()} | {:inline, binary(), String.t()}
   @typedoc """

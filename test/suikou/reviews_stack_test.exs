@@ -3,6 +3,7 @@ defmodule Suikou.ReviewsStackTest do
 
   import Suikou.Factory
 
+  alias Suikou.ChangesWatcher
   alias Suikou.Repo
   alias Suikou.Reviews
   alias Suikou.Schemas.ReviewSource.GitDiff
@@ -206,6 +207,44 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "ChangesWatcher in the stack view" do
+    setup [:stacked_review, :steps, :watch]
+
+    test "serves fresh files and content once a fix is cherry-picked onto the stack",
+         %{dir: dir, review: review} do
+      lens = %{view: :stack}
+      assert ["a.txt", "b.txt"] = paths(ChangesWatcher.list_files(review.id, lens))
+
+      assert {:ok, {:inline, before, _type}} =
+               ChangesWatcher.fetch_content(review.id, "a.txt", lens)
+
+      refute before =~ "+fixed"
+
+      commit_on!(dir, "feat", [{"a.txt", "fixed\n"}])
+      git!(dir, ["checkout", "-q", "feat-review"])
+      git!(dir, ["cherry-pick", "feat"])
+
+      assert ["a.txt", "b.txt"] = paths(ChangesWatcher.list_files(review.id, lens))
+      assert {:ok, {:inline, now, _type}} = ChangesWatcher.fetch_content(review.id, "a.txt", lens)
+      assert now =~ "+fixed"
+
+      {:ok, [%{sha: fix} | _steps]} = Reviews.list_diff_commits(review, :stack)
+
+      assert ["a.txt"] =
+               paths(
+                 ChangesWatcher.list_files(review.id, %{view: :stack, scope: {:commits, [fix]}})
+               )
+    end
+
+    test "serves fresh source files once the head moves", %{dir: dir, review: review} do
+      assert ["a.txt", "b.txt"] = paths(ChangesWatcher.list_files(review.id))
+
+      commit_on!(dir, "feat", [{"c.txt", "c\n"}])
+
+      assert ["a.txt", "b.txt", "c.txt"] = paths(ChangesWatcher.list_files(review.id))
+    end
+  end
+
   defp create(project, dir, stack) do
     Reviews.create_diff_review(project, %{
       project_path: dir,
@@ -219,6 +258,13 @@ defmodule Suikou.ReviewsStackTest do
   defp stacked_review(%{dir: dir, project: project}) do
     {:ok, review} = create(project, dir, "feat-review")
     %{review: review}
+  end
+
+  # Subscribing keeps the watcher (and its cache) alive past its short test
+  # grace window, so a second read can only be fresh by missing the cache.
+  defp watch(%{review: review}) do
+    :ok = ChangesWatcher.subscribe(review.id)
+    :ok
   end
 
   defp steps(%{review: review}) do
