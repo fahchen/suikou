@@ -874,7 +874,7 @@ const Shell = observer(function Shell({
           )}
         </aside>
         <div
-          className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)] ${
+          className={`grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)] ${
             inStack ? "lg:ml-2.5 xl:ml-0" : ""
           }`}
         >
@@ -924,7 +924,7 @@ const Shell = observer(function Shell({
               meta={refs?.stack_ref ?? undefined}
             />
           ) : steps && stackStep !== null ? (
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+            <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]">
               <div>
                 {refs?.stack_in_sync === false && (
                   <StackOutOfSyncBanner
