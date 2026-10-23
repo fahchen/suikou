@@ -331,7 +331,8 @@ const Shell = observer(function Shell({
   const view: ReviewView = hasStack ? (uiStore.diffView ?? (stackReady ? "stack" : "source")) : "source"
   const inStack = view === "stack"
   // The `/commits` reply is newest first; steps are numbered oldest first.
-  const stackCommits = useReviewCommits(reviewId, stackReady, "stack", structureVersion)
+  const stackRead = useReviewCommits(reviewId, stackReady, "stack", structureVersion)
+  const stackCommits = stackRead.commits
   const steps = useMemo(() => (stackCommits ? [...stackCommits].reverse() : null), [stackCommits])
   const progress = useMemo(() => new StackProgress(reviewId), [reviewId])
   const stackStep =
@@ -375,7 +376,7 @@ const Shell = observer(function Shell({
     null,
   )
 
-  const scopeCommits = useReviewCommits(reviewId, isDiff) ?? []
+  const scopeCommits = useReviewCommits(reviewId, isDiff).commits ?? []
   // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
   // shareable and survives reload / back-forward. The route is the source of
   // truth; hydrate the store from it whenever the review or its lens params
@@ -441,9 +442,9 @@ const Shell = observer(function Shell({
     )
   }, [navigate, reviewId])
   // Pin the resolved step into the store (and so the URL) once the stack's
-  // steps are known, so a reload lands back on it. An empty list — no steps,
-  // or a failed read — pins nothing, so a transient error never overwrites the
-  // step the URL asked for.
+  // steps are known, so a reload lands back on it. No steps, or a failed read
+  // (no list at all), pins nothing, so it never overwrites the step the URL
+  // asked for.
   const stepCount = steps?.length ?? 0
   useEffect(() => {
     if (inStack && stepCount > 0 && stackStep !== null && uiStore.stackStep !== stackStep) {
@@ -854,6 +855,19 @@ const Shell = observer(function Shell({
               action={
                 <Button variant="outline" onClick={() => uiStore.setDiffView("source")}>
                   View source
+                </Button>
+              }
+            />
+          ) : stackRead.failed ? (
+            <FileNotice
+              icon={AlertTriangle}
+              title="Couldn't read the stack"
+              body="Suikou could not list the stack's steps from the project's git repository."
+              meta={refs?.stack_ref ?? undefined}
+              tone="request"
+              action={
+                <Button variant="outline" onClick={stackRead.retry}>
+                  Try again
                 </Button>
               }
             />

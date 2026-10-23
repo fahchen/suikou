@@ -34,39 +34,50 @@ const WORKTREE_OPTIONS: Array<{
 
 /** Reads a diff review's commits via GET /api/review/:id/commits, newest
  * first: the source branch's range, or the review stack's steps under
- * `view = "stack"` (BDR-0028). `null` while idle or loading; `[]` on error —
- * the popover renders with worktree only in that case. Refetches when
- * `version` moves. */
+ * `view = "stack"` (BDR-0028). `commits` is `null` while idle, loading, or
+ * failed; `failed` tells a failed read (non-OK reply or network error) apart
+ * from an empty list, and `retry` reads again. Refetches when `version`
+ * moves; a failed refetch keeps the last good list on screen. */
 export function useReviewCommits(
   reviewId: string,
   enabled: boolean,
   view: "source" | "stack" = "source",
   version = 0,
-): ScopeCommit[] | null {
+): { commits: ScopeCommit[] | null; failed: boolean; retry: () => void } {
   // Tag the list with what it was read for, so a review or view switch reads
   // as loading instead of briefly serving the previous review's commits; a
   // `version` refetch keeps the current list on screen until the reply lands.
   const key = `${reviewId}:${view}`
-  const [loaded, setLoaded] = useState<{ key: string; commits: ScopeCommit[] } | null>(null)
+  const [loaded, setLoaded] = useState<{ key: string; commits: ScopeCommit[] | null } | null>(null)
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     if (!enabled) {
       setLoaded(null)
       return
     }
     let cancelled = false
+    const fail = () => {
+      if (cancelled) return
+      setLoaded((prev) => (prev?.key === key && prev.commits ? prev : { key, commits: null }))
+    }
     fetch(`/api/review/${reviewId}/commits${view === "stack" ? "?view=stack" : ""}`)
-      .then((response) => (response.ok ? response.json() : { commits: [] }))
-      .then((body: { commits?: ScopeCommit[] }) => {
-        if (!cancelled) setLoaded({ key, commits: body.commits ?? [] })
+      .then((response) => {
+        if (!response.ok) return fail()
+        return response.json().then((body: { commits?: ScopeCommit[] }) => {
+          if (!cancelled) setLoaded({ key, commits: body.commits ?? [] })
+        })
       })
-      .catch(() => {
-        if (!cancelled) setLoaded({ key, commits: [] })
-      })
+      .catch(fail)
     return () => {
       cancelled = true
     }
-  }, [reviewId, enabled, view, version, key])
-  return enabled && loaded?.key === key ? loaded.commits : null
+  }, [reviewId, enabled, view, version, key, attempt])
+  const current = enabled && loaded?.key === key ? loaded : null
+  return {
+    commits: current?.commits ?? null,
+    failed: current !== null && current.commits === null,
+    retry: () => setAttempt((n) => n + 1),
+  }
 }
 
 /** Shared popover body: worktree radio + commits multi-select. Reused by
