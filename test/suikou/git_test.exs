@@ -349,6 +349,49 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "range_stats/3" do
+    @tag :tmp_dir
+    test "counts one commit against its first parent", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "seed.txt"), "one\ntwo\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "rewrite seed")
+      sha = rev_parse!(dir, "HEAD")
+
+      assert {:ok, %{"seed.txt" => %{added: 2, deleted: 1}} = stats} =
+               Git.range_stats(dir, sha, sha)
+
+      assert map_size(stats) == 1
+    end
+
+    @tag :tmp_dir
+    test "counts a span from the oldest commit's parent", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add a")
+      oldest = rev_parse!(dir, "HEAD")
+      File.write!(Path.join(dir, "b.txt"), "b\nb\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "add b")
+      newest = rev_parse!(dir, "HEAD")
+
+      assert {:ok,
+              %{"a.txt" => %{added: 1, deleted: 0}, "b.txt" => %{added: 2, deleted: 0}} = stats} =
+               Git.range_stats(dir, oldest, newest)
+
+      refute Map.has_key?(stats, "seed.txt")
+    end
+
+    @tag :tmp_dir
+    test "counts a root commit against the empty tree", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      root = rev_parse!(dir, "HEAD")
+
+      assert {:ok, %{"seed.txt" => %{added: 1, deleted: 0}}} = Git.range_stats(dir, root, root)
+    end
+  end
+
   describe "merge_base/3" do
     @tag :tmp_dir
     test "returns the fork point of two branches", %{tmp_dir: dir} do

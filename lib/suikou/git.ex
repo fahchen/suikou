@@ -31,6 +31,7 @@ defmodule Suikou.Git do
   @type commit_file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type range_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type resolve_commit_error() :: :invalid_ref | :ref_not_found
+  @type range_stats_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type merge_base_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type differing_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type worktree_files_error() :: :not_a_repo | :git_error
@@ -696,6 +697,33 @@ defmodule Suikou.Git do
         base = range_base(dir, oldest)
         run(dir, ["diff", "--unified=1000000", base <> ".." <> newest, "--", path])
       end
+    end
+  end
+
+  @doc """
+  Per-file added/deleted line counts across the commit range from `oldest`
+  (inclusive) through `newest` (inclusive) — the same `<oldest>^..<newest>` span
+  `range_diff/4` renders, keyed and shaped like `diff_stats/3`. When `oldest ==
+  newest` that is one commit against its first parent; a root commit counts
+  against the empty tree. Powers the `+N / −M` chips under a commit-scoped lens.
+
+  ## Examples
+
+      Suikou.Git.range_stats("/projects/app", "0a1b2c3", "0a1b2c3")
+      #=> {:ok, %{"a.txt" => %{added: 2, deleted: 1}}}
+
+  """
+  @spec range_stats(repo_dir(), ref(), ref()) ::
+          {:ok, %{rel_path() => diff_stat()}} | {:error, range_stats_error()}
+  def range_stats(dir, oldest, newest) do
+    with {:ok, oldest} <- tag_invalid_ref(safe_ref(oldest)),
+         {:ok, newest} <- tag_invalid_ref(safe_ref(newest)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, oldest),
+         :ok <- ensure_ref(dir, newest),
+         base = range_base(dir, oldest),
+         {:ok, out} <- run(dir, ["diff", "--numstat", "-z", base <> ".." <> newest, "--"]) do
+      {:ok, parse_numstat(out)}
     end
   end
 

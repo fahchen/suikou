@@ -166,6 +166,24 @@ defmodule Suikou.ReviewsStackTest do
                paths(Reviews.list_files(review, %{view: :stack, scope: {:commits, [second]}}))
     end
 
+    test "counts one step's lines against its first parent", %{review: review, second: second} do
+      assert [%{path: "b.txt", added: 1, deleted: 0}] =
+               Reviews.list_files(review, %{view: :stack, scope: {:commits, [second]}})
+    end
+
+    test "counts a span of steps over the whole span",
+         %{review: review, first: first, second: second} do
+      assert [%{path: "a.txt", added: 1, deleted: 0}, %{path: "b.txt", added: 1, deleted: 0}] =
+               Reviews.list_files(review, %{view: :stack, scope: {:commits, [first, second]}})
+    end
+
+    test "counts a source commit's lines in the source view", %{review: review} do
+      {:ok, [%{sha: sha}]} = Reviews.list_diff_commits(review)
+
+      assert [%{path: "a.txt", added: 1, deleted: 0}, %{path: "b.txt", added: 1, deleted: 0}] =
+               Reviews.list_files(review, %{scope: {:commits, [sha]}})
+    end
+
     test "keeps an out-of-sync stack readable", %{dir: dir, review: review, second: second} do
       commit_on!(dir, "feat", [{"fix.txt", "fix\n"}])
 

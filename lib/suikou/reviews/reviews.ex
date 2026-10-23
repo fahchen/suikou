@@ -1468,11 +1468,28 @@ defmodule Suikou.Reviews do
     {head_blob_ids(path, git_diff, paths), diff_stats(path, git_diff)}
   end
 
-  # Non-default lenses skip cached blob ids + line stats. Content hash is nil
-  # (no stable cache key against the live worktree/commit view — the frontend
-  # always refetches under a lens); +N/−M chips are omitted for the same
-  # reason. These are follow-ups if the reviewer wants them.
+  # A commit scope (either view) counts lines over the same span its diff
+  # renders: one commit against its first parent, or `<oldest>^..<newest>`.
+  # Content hash stays nil — the frontend always refetches under a lens.
+  defp lens_blobs_and_stats(
+         path,
+         _git_diff,
+         %{scope: {:commits, [newest | _rest] = shas}, worktree: :diff},
+         _paths
+       ) do
+    {%{}, range_stats(path, List.last(shas), newest)}
+  end
+
+  # Worktree lenses skip cached blob ids + line stats: there is no stable cache
+  # key against the live worktree, so the +N/−M chips are omitted.
   defp lens_blobs_and_stats(_path, _git_diff, _lens, _paths), do: {%{}, %{}}
+
+  defp range_stats(path, oldest, newest) do
+    case Git.range_stats(path, oldest, newest) do
+      {:ok, stats} -> stats
+      {:error, _reason} -> %{}
+    end
+  end
 
   # Full-file context so the reviewer can expand every gap client-side; the
   # renderer folds long unchanged runs back down to a GitHub-style default view.
