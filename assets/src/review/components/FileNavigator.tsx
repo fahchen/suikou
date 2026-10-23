@@ -67,6 +67,8 @@ const EMPTY_SET: Set<string> = new Set()
  * room for its name. */
 const INDENT_STEP = 7
 const indent = (depth: number): number => 9 + depth * INDENT_STEP
+/** Folder and file rows share one height, taller under a coarse pointer. */
+const TREE_ROW_HEIGHT = "h-[28px] coarse:h-[36px]"
 
 export type ExplorerTab = "files" | "scope"
 
@@ -314,7 +316,7 @@ function TreeNodes({
                     through its children. */}
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute inset-y-0 w-px bg-hair"
+                  className="pointer-events-none absolute inset-y-0 w-px bg-hair-strong"
                   style={{ left: indent(depth) + 6 }}
                 />
                 <TreeNodes
@@ -368,7 +370,7 @@ function DirRow({
   const chevron = (
     <ChevronRight size={13} className={`shrink-0 text-faint transition-transform ${closed ? "" : "rotate-90"}`} aria-hidden />
   )
-  const rowClass = "flex h-[27px] w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-xs text-text"
+  const rowClass = `flex ${TREE_ROW_HEIGHT} w-full items-center gap-1.5 rounded-ctrl pr-2 text-left text-xs text-text`
   if (node.segments.length === 1) {
     return (
       <button
@@ -453,7 +455,7 @@ export function FileRow({
       aria-current={selected ? "true" : undefined}
       title={entry.path}
       style={{ paddingLeft: indent(depth) }}
-      className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-xs ${
+      className={`flex ${TREE_ROW_HEIGHT} w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-xs ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
           : "text-text hover:bg-soft"

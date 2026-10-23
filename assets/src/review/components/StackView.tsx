@@ -97,7 +97,7 @@ export const StepRail = observer(function StepRail({
         <FileRow
           key={entry.path}
           entry={entry}
-          depth={2}
+          depth={3}
           isDiff
           selected={entry.path === selectedPath}
           onSelect={onSelectFile}
