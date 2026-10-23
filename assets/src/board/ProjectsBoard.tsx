@@ -6,6 +6,7 @@ import { ChevronDown, FileText, Folder, GitCompare, Plus, SlidersHorizontal, Wif
 import { FileNotice } from "../review/components/EditorSurface"
 import { BrandMark } from "../brand/BrandMark"
 
+import { useResumeCount } from "../lib/use-resume-count"
 import { storeCache, useMusubiCommand, useMusubiRoot, useSocketConnected } from "../musubi"
 import { uiStore } from "../stores/ui-store"
 import { SettingsModal } from "../settings/SettingsModal"
@@ -99,6 +100,9 @@ export function ProjectsBoard() {
 function Board({ store }: { store: BoardStore }) {
   const loadBoard = useMusubiCommand(store, "load_board")
   const connected = useSocketConnected()
+  // A moved branch changes a card's stack sync without any server event, so
+  // the board re-reads when the tab comes back.
+  const resumeCount = useResumeCount()
   const navigate = useNavigate()
   const [board, setBoard] = useState<LoadBoardReply | null>(() => readBoardCache())
   const [selectedId, setSelectedId] = useState<string | null>(() => readSelectedProjectId())
@@ -147,7 +151,7 @@ function Board({ store }: { store: BoardStore }) {
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected])
+  }, [connected, resumeCount])
 
   const [creatingProject, setCreatingProject] = useState(false)
   const [newReviewKind, setNewReviewKind] = useState<"files" | "diff" | null>(null)
