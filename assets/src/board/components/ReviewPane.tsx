@@ -263,7 +263,7 @@ function ReviewRow({
 
 /** The card's kind tag. A restacked review (BDR-0028) reads as `Stack ·
  * N commits`, turning amber while its stack has drifted from the source
- * branch or its stack branch is gone. */
+ * branch; a gone stack branch reads `Stack · missing`, amber too. */
 function KindBadge({ review }: { review: BoardReview }) {
   if (review.kind !== "git_diff") {
     return (
@@ -286,16 +286,9 @@ function KindBadge({ review }: { review: BoardReview }) {
       </Badge>
     )
   }
-  if (review.stack_in_sync === false) {
-    return (
-      <Badge variant="warning" shape="label">
-        Stack · out of sync
-      </Badge>
-    )
-  }
   const count = review.stack_commit_count
   return (
-    <Badge variant="open" shape="label">
+    <Badge variant={review.stack_in_sync === false ? "warning" : "open"} shape="label">
       {count === null ? "Stack" : `Stack · ${count} ${count === 1 ? "commit" : "commits"}`}
     </Badge>
   )
