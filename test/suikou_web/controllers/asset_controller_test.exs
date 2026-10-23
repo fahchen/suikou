@@ -660,6 +660,44 @@ defmodule SuikouWeb.AssetControllerTest do
     end
   end
 
+  describe "view=stack" do
+    @describetag :tmp_dir
+    setup :stacked_review
+
+    test "commits lists the stack's steps with their bodies", %{conn: conn, review: review} do
+      conn = get(conn, "/api/review/#{review.id}/commits?view=stack")
+
+      assert %{
+               "commits" => [
+                 %{"subject" => "add b", "body" => "Second step."},
+                 %{"subject" => "add a", "body" => ""}
+               ]
+             } = json_response(conn, 200)
+    end
+
+    test "commits answers 400 for an unknown view", %{conn: conn, review: review} do
+      assert response(get(conn, "/api/review/#{review.id}/commits?view=nope"), 400)
+    end
+
+    test "files lists one step's files", %{conn: conn, review: review} do
+      {:ok, [%{sha: second}, _first]} = Suikou.Reviews.list_diff_commits(review, :stack)
+      conn = get(conn, "/api/review/#{review.id}/files?view=stack&scope=commits:#{second}")
+
+      assert %{"files" => [%{"path" => "b.txt"}]} = json_response(conn, 200)
+    end
+
+    test "files answers 400 for the stack view with a working-tree worktree",
+         %{conn: conn, review: review} do
+      assert response(get(conn, "/api/review/#{review.id}/files?view=stack&worktree=staged"), 400)
+    end
+
+    test "content renders the stack diff", %{conn: conn, review: review} do
+      conn = get(conn, "/api/review/#{review.id}/files/content?path=a.txt&view=stack")
+
+      assert response(conn, 200) =~ "+a"
+    end
+  end
+
   defp init_repo!(dir) do
     File.mkdir_p!(dir)
     git!(dir, ["init", "-q", "-b", "main", "."])
@@ -674,6 +712,32 @@ defmodule SuikouWeb.AssetControllerTest do
     git!(dir, ["add", "."])
     git!(dir, ["commit", "-q", "-m", "topic"])
   end
+
+  # `feat` adds a.txt and b.txt in one commit; `feat-review` re-cuts it as two.
+  defp stacked_review(%{tmp_dir: dir}) do
+    init_repo!(dir)
+    branch!(dir, "feat", fn -> Enum.each(["a", "b"], &write_letter!(dir, &1)) end)
+    git!(dir, ["checkout", "-q", "-b", "feat-review", "main"])
+    write_letter!(dir, "a")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "add a"])
+    write_letter!(dir, "b")
+    git!(dir, ["add", "."])
+    git!(dir, ["commit", "-q", "-m", "add b\n\nSecond step."])
+
+    {:ok, review} =
+      Suikou.Reviews.create_diff_review(insert(:project), %{
+        project_path: dir,
+        name: "Feat",
+        base_ref: "main",
+        head_ref: "feat",
+        stack_ref: "feat-review"
+      })
+
+    %{review: review}
+  end
+
+  defp write_letter!(dir, letter), do: File.write!(Path.join(dir, "#{letter}.txt"), "#{letter}\n")
 
   defp git!(dir, args) do
     env = [

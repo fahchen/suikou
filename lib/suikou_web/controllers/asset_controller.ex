@@ -132,27 +132,34 @@ defmodule SuikouWeb.AssetController do
 
   @doc """
   Lists a diff review's commit range (three-dot `base_ref...head_ref`), newest
-  first, as JSON `{"commits": [{"sha", "subject", "body"}]}`. Answers 404 for a
-  file-selection review, an unknown review, or a git error (deleted ref,
-  invalid ref, non-repo project) — the review chrome already surfaces the
-  branch-deleted state via `refs_snapshot/1` (`refs_valid: false`), so this
-  endpoint stays a plain read.
+  first, as JSON `{"commits": [{"sha", "subject", "body"}]}`. `?view=stack`
+  lists the review stack's steps instead, in the same order (BDR-0028). Answers
+  404 for a file-selection review, an unknown review, a review without a stack
+  under `view=stack`, or a git error (deleted ref, invalid ref, non-repo
+  project) — the review chrome already surfaces the branch-deleted state via
+  `refs_snapshot/1` (`refs_valid: false`), so this endpoint stays a plain read.
+  400 for an unknown `view`.
 
   ## Examples
 
       get(conn, "/api/review/0192.../commits")
       #=> 200, {"commits": [{"sha": "0a1b...", "subject": "second", "body": ""}]}
 
+      get(conn, "/api/review/0192.../commits?view=stack")
+      #=> 200, {"commits": [{"sha": "7c6d...", "subject": "Add the API", "body": "..."}]}
+
       get(conn, "/api/review/<file-selection-review>/commits")
       #=> 404
 
   """
   @spec commits(Plug.Conn.t(), map()) :: Plug.Conn.t()
-  def commits(conn, %{"review_id" => review_id}) do
-    with %Review{} = review <- Reviews.get_review(review_id),
-         {:ok, entries} <- Reviews.list_diff_commits(review) do
+  def commits(conn, %{"review_id" => review_id} = params) do
+    with {:ok, view} <- parse_view(Map.get(params, "view")),
+         %Review{} = review <- Reviews.get_review(review_id),
+         {:ok, entries} <- Reviews.list_diff_commits(review, view) do
       json(conn, %{commits: entries})
     else
+      {:error, :invalid_view} -> send_resp(conn, 400, "")
       _error -> send_resp(conn, 404, "")
     end
   end
@@ -163,8 +170,9 @@ defmodule SuikouWeb.AssetController do
   content_hash}]}`. Powers the file navigator's
   scope-aware refresh (BDR-0025): when the reviewer switches scope or worktree,
   the navigator refetches from here instead of the static
-  `load_review_structure` payload. 404 for an unknown review or invalid lens
-  keyword; 400 for an invalid scope × worktree combination.
+  `load_review_structure` payload. `?view=stack` lists the review stack's files
+  instead (BDR-0028). 404 for an unknown review; 400 for an invalid lens keyword
+  or scope × worktree (or stack view × worktree) combination.
   """
   @spec files(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def files(conn, %{"review_id" => review_id} = params) do
@@ -197,19 +205,24 @@ defmodule SuikouWeb.AssetController do
   end
 
   # `?scope=all` (default) | `?scope=commits:<sha>[,<sha>...]` | `?worktree=diff`
-  # (default) | `?worktree=staged` | `?worktree=unstaged`. Missing keys keep the
-  # pinned `base_ref...head_ref` diff (BDR-0024 default lens). `commits` carries
-  # a newest-first hex SHA list (each 4-64 hex chars), matching
-  # `Suikou.Reviews.list_diff_commits/1`'s order.
+  # (default) | `?worktree=staged` | `?worktree=unstaged` | `?view=source`
+  # (default) | `?view=stack`. Missing keys keep the pinned `base_ref...head_ref`
+  # diff (BDR-0024 default lens). `commits` carries a newest-first hex SHA list
+  # (each 4-64 hex chars), matching `Suikou.Reviews.list_diff_commits/2`'s order
+  # for the chosen view.
   defp parse_lens(params) do
     with {:ok, scope} <- parse_scope(Map.get(params, "scope")),
-         {:ok, worktree} <- parse_worktree(Map.get(params, "worktree")) do
+         {:ok, worktree} <- parse_worktree(Map.get(params, "worktree")),
+         {:ok, view} <- parse_view(Map.get(params, "view")) do
       lens =
         %{}
         |> maybe_put(:scope, scope, :all)
         |> maybe_put(:worktree, worktree, :diff)
+        |> maybe_put(:view, view, :source)
 
-      if match?({:commits, [_first | _rest]}, scope) and worktree in [:staged, :unstaged] do
+      pinned? = match?({:commits, [_first | _rest]}, scope) or view == :stack
+
+      if pinned? and worktree in [:staged, :unstaged] do
         {:error, :invalid_scope_worktree_combination}
       else
         {:ok, lens}
@@ -235,6 +248,11 @@ defmodule SuikouWeb.AssetController do
   defp parse_worktree("staged"), do: {:ok, :staged}
   defp parse_worktree("unstaged"), do: {:ok, :unstaged}
   defp parse_worktree(_other), do: {:error, :invalid_worktree}
+
+  defp parse_view(nil), do: {:ok, :source}
+  defp parse_view("source"), do: {:ok, :source}
+  defp parse_view("stack"), do: {:ok, :stack}
+  defp parse_view(_other), do: {:error, :invalid_view}
 
   defp maybe_put(map, _key, default, default), do: map
   defp maybe_put(map, key, value, _default), do: Map.put(map, key, value)
