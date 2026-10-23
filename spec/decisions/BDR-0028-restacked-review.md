@@ -62,7 +62,7 @@ The agent attaches a stack at creation (`suikou review create --diff main..feat 
 
 ### 3. Sync is live
 
-Each render reports whether the stack tip tree still equals the head tip tree. Out of sync is a warning, never an error: the stack view shows a banner asking the agent to cherry-pick the source's new commits onto the stack. A `stack_ref` that no longer resolves follows the vanished-ref rule of [[BDR-0025-diff-review-branch-refs-and-commit-multiselect]] §5.
+Each render reports whether the stack tip tree still equals the head tip tree. Out of sync is a warning, never an error: the stack view shows a banner asking the agent to cherry-pick the source's new commits onto the stack. A vanished `stack_ref` disables only the stack view, which shows an error asking the agent to re-attach a stack with `set-stack`; the source view is unaffected.
 
 ### 4. Two views over one review
 
