@@ -1,4 +1,5 @@
 import { observer } from "mobx-react-lite"
+import type { ReactNode } from "react"
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Layers } from "lucide-react"
 
 import { Badge } from "../../components/ui/badge"
@@ -196,7 +197,9 @@ function ReadToggle({
 /** The current step's identity and full commit message above its diff: the
  * first `previewLines` of the body show, the rest fold behind `more`. With
  * `bar`, a step bar (Prev, the step, Next) leads instead of the plain step
- * line — the medium layout, whose rail hides in a drawer the bar opens. */
+ * line — the medium layout, whose rail hides in a drawer the bar opens.
+ * `compact` (phones) folds the whole body under the subject, which expands it
+ * on tap; the bottom bar carries the read toggle there. */
 export const StepHeader = observer(function StepHeader({
   steps,
   step,
@@ -204,6 +207,7 @@ export const StepHeader = observer(function StepHeader({
   progress,
   previewLines = 4,
   bar,
+  compact = false,
 }: {
   steps: StackCommit[]
   step: StackStep
@@ -211,6 +215,7 @@ export const StepHeader = observer(function StepHeader({
   progress: StackProgress
   previewLines?: number
   bar?: { onStep: (step: StackStep) => void; onOpenSteps: () => void }
+  compact?: boolean
 }) {
   const commit = step === "all" ? null : (steps[step - 1] ?? null)
   const read = commit ? progress.isRead(commit.sha) : false
@@ -231,6 +236,31 @@ export const StepHeader = observer(function StepHeader({
       The whole stack, <span className="font-mono">{stackRef}</span>
     </>
   )
+
+  if (compact) {
+    return (
+      <header className="shrink-0 border-b border-hair px-4 py-2">
+        <div className="font-mono text-2xs text-faint tabular-nums">{stepLine}</div>
+        {commit?.body ? (
+          <Collapsible key={commit.sha}>
+            <CollapsibleTrigger className="group flex w-full items-start gap-1.5 text-left">
+              <h2 className="min-w-0 flex-1 text-sm font-semibold text-ink">{title}</h2>
+              <ChevronDown
+                size={15}
+                className="mt-0.5 shrink-0 text-muted transition-transform group-data-[panel-open]:rotate-180"
+                aria-hidden
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className={`mt-1 max-h-[40vh] overflow-auto ${MESSAGE_BODY_CLASS}`}>
+              {commit.body}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        )}
+      </header>
+    )
+  }
 
   return (
     <header className="shrink-0 border-b border-hair px-4 py-2.5">
@@ -256,61 +286,73 @@ export const StepHeader = observer(function StepHeader({
   )
 })
 
-/** `◂ N/M <subject> ▸`: steps back and forth; the subject opens the steps. */
+/** `◂ N/M <subject> ▸`: steps back and forth; the subject opens the steps. A
+ * `trailing` slot sits before Next (the phone bar's read toggle); `touch`
+ * sizes every control for a thumb. */
 export function StepBar({
   steps,
   step,
   onStep,
   onOpenSteps,
+  trailing,
+  touch = false,
 }: {
   steps: StackCommit[]
   step: StackStep
   onStep: (step: StackStep) => void
   onOpenSteps: () => void
+  trailing?: ReactNode
+  touch?: boolean
 }) {
   const previous = adjacentStep(step, steps.length, -1)
   const next = adjacentStep(step, steps.length, 1)
   const position = step === "all" ? "All" : `${step}/${steps.length}`
+  const navSize = touch ? "icon-touch" : "icon-sm"
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className={`flex min-w-0 items-center ${touch ? "flex-1 gap-1" : "gap-0.5"}`}>
       <Button
-        size="icon-sm"
+        size={navSize}
         disabled={previous === null}
         onClick={() => previous !== null && onStep(previous)}
         aria-label="Previous step"
         title="Previous step ( [ )"
       >
-        <ChevronLeft size={15} aria-hidden />
+        <ChevronLeft size={touch ? 20 : 15} aria-hidden />
       </Button>
       <button
         type="button"
         onClick={onOpenSteps}
         aria-label={`Open steps, current ${step === "all" ? "all changes" : `step ${position}`}`}
-        className="flex h-[30px] min-w-0 items-center gap-2 rounded-ctrl px-1.5 text-left hover:bg-soft"
+        className={`flex min-w-0 items-center gap-2 rounded-ctrl px-1.5 text-left hover:bg-soft ${
+          touch ? "h-[44px] flex-1" : "h-[30px]"
+        }`}
       >
         <span className="shrink-0 font-mono text-2xs font-bold text-faint tabular-nums">{position}</span>
         <span className="min-w-0 truncate text-sm font-semibold text-ink">{stepSubject(steps, step)}</span>
         <ChevronDown size={12} className="shrink-0 text-muted" aria-hidden />
       </button>
+      {trailing}
       <Button
-        size="icon-sm"
+        size={navSize}
         disabled={next === null}
         onClick={() => next !== null && onStep(next)}
         aria-label="Next step"
         title="Next step ( ] )"
       >
-        <ChevronRight size={15} aria-hidden />
+        <ChevronRight size={touch ? 20 : 15} aria-hidden />
       </Button>
     </div>
   )
 }
+
+const MESSAGE_BODY_CLASS = "font-sans text-xs leading-[1.5] whitespace-pre-wrap text-muted"
 
 function StepMessage({ body, previewLines }: { body: string; previewLines: number }) {
   if (!body) return null
   const lines = body.split("\n")
   const preview = lines.slice(0, previewLines).join("\n")
   const rest = lines.slice(previewLines).join("\n")
-  const bodyClass = "font-sans text-xs leading-[1.5] whitespace-pre-wrap text-muted"
+  const bodyClass = MESSAGE_BODY_CLASS
   if (!rest) return <p className={`mt-1 ${bodyClass}`}>{preview}</p>
   return (
     <Collapsible className="mt-1">
@@ -323,6 +365,46 @@ function StepMessage({ body, previewLines }: { body: string; previewLines: numbe
     </Collapsible>
   )
 }
+
+/** The phone's fixed bottom bar, in thumb reach: `◂ N/M <subject> ✓ ▸`. The
+ * subject opens the steps sheet; ✓ toggles the step read. */
+export const StepBottomBar = observer(function StepBottomBar({
+  steps,
+  step,
+  progress,
+  onStep,
+  onOpenSteps,
+}: {
+  steps: StackCommit[]
+  step: StackStep
+  progress: StackProgress
+  onStep: (step: StackStep) => void
+  onOpenSteps: () => void
+}) {
+  const commit = step === "all" ? null : (steps[step - 1] ?? null)
+  return (
+    <div className="flex shrink-0 items-center border-t border-hair bg-surface px-1">
+      <StepBar
+        touch
+        steps={steps}
+        step={step}
+        onStep={onStep}
+        onOpenSteps={onOpenSteps}
+        trailing={
+          commit &&
+          step !== "all" && (
+            <ReadToggle
+              size="touch"
+              read={progress.isRead(commit.sha)}
+              number={step}
+              onToggle={() => progress.toggle(commit.sha)}
+            />
+          )
+        }
+      />
+    </div>
+  )
+})
 
 /** Prev / Next at the foot of the step's content. */
 export function StepFooter({

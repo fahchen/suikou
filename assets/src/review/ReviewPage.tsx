@@ -26,7 +26,7 @@ import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
-import { adjacentStep, StackSyncBadge, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
+import { adjacentStep, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
 import { StackProgress } from "../stores/stack-progress"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
@@ -840,10 +840,25 @@ const Shell = observer(function Shell({
                 step={stackStep}
                 stackRef={refs?.stack_ref ?? ""}
                 progress={progress}
-                bar={wideLayout ? undefined : { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }}
+                bar={
+                  desktopLayout && !wideLayout
+                    ? { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }
+                    : undefined
+                }
+                compact={!desktopLayout}
               />
               {editorSurface}
-              <StepFooter steps={steps} step={stackStep} onStep={goToStep} />
+              {desktopLayout ? (
+                <StepFooter steps={steps} step={stackStep} onStep={goToStep} />
+              ) : (
+                <StepBottomBar
+                  steps={steps}
+                  step={stackStep}
+                  progress={progress}
+                  onStep={goToStep}
+                  onOpenSteps={() => setFilesSheetOpen(true)}
+                />
+              )}
             </div>
           ) : (
             <FileNotice icon={Loader2} title="Loading stack" body="Reading the review stack's steps." spin />
@@ -901,6 +916,7 @@ const Shell = observer(function Shell({
           <span className="flex-1" />
           <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
         </div>
+        {hasStack && <div className="pt-3">{viewSwitch}</div>}
         {isDiff && !inStack && (
           <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-4">
             <button
@@ -927,7 +943,9 @@ const Shell = observer(function Shell({
             </button>
           </div>
         )}
-        {filesSheetTab === "scope" && isDiff && !inStack ? (
+        {inStack ? (
+          <div className="flex min-h-0 flex-col overflow-hidden">{stepRail}</div>
+        ) : filesSheetTab === "scope" && isDiff ? (
           <div className="flex min-h-0 flex-col overflow-auto pt-1">
             <ScopePickerBody commits={scopeCommits} />
           </div>
