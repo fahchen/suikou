@@ -27,7 +27,7 @@ import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
-import { adjacentStep, OutsideNetChangeNotice, StackOutOfSyncBanner, StackSyncBadge, StepBottomBar, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
+import { adjacentStep, OutsideNetChangeNotice, StackOutOfSyncBanner, StackSyncBadge, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
 import { StackProgress } from "../stores/stack-progress"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
@@ -924,7 +924,7 @@ const Shell = observer(function Shell({
               meta={refs?.stack_ref ?? undefined}
             />
           ) : steps && stackStep !== null ? (
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
               <div>
                 {refs?.stack_in_sync === false && (
                   <StackOutOfSyncBanner
@@ -939,26 +939,19 @@ const Shell = observer(function Shell({
                   step={stackStep}
                   stackRef={refs?.stack_ref ?? ""}
                   progress={progress}
-                  bar={
-                    desktopLayout && !wideLayout
-                      ? { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }
-                      : undefined
+                  onStep={goToStep}
+                  onOpenSteps={
+                    !desktopLayout
+                      ? () => setFilesSheetOpen(true)
+                      : !wideLayout
+                        ? () => setStepsDrawerOpen(true)
+                        : undefined
                   }
-                  compact={!desktopLayout}
+                  touch={!desktopLayout}
+                  previewLines={desktopLayout ? 4 : 0}
                 />
               </div>
               {editorSurface}
-              {desktopLayout ? (
-                <StepFooter steps={steps} step={stackStep} onStep={goToStep} />
-              ) : (
-                <StepBottomBar
-                  steps={steps}
-                  step={stackStep}
-                  progress={progress}
-                  onStep={goToStep}
-                  onOpenSteps={() => setFilesSheetOpen(true)}
-                />
-              )}
             </div>
           ) : (
             <FileNotice icon={Loader2} title="Loading stack" body="Reading the review stack's steps." spin />
