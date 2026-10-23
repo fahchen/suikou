@@ -486,6 +486,12 @@ const Shell = observer(function Shell({
       uiStore.setStackStep(stackStep)
     }
   }, [inStack, stepCount, stackStep])
+  // Once the stack view is on screen, hold it: a stack branch that vanishes
+  // while the reviewer reads it brings up the stack-missing page rather than a
+  // silent swap to the source view. Only the opening default falls back.
+  useEffect(() => {
+    if (inStack && uiStore.diffView === null) uiStore.setDiffView("stack")
+  }, [inStack])
   // `[` / `]` step through the stack, unless the reader is typing.
   useEffect(() => {
     if (!inStack || stackStep === null || !steps) return
