@@ -62,6 +62,12 @@ export type TreeNode =
 
 const EMPTY_SET: Set<string> = new Set()
 
+/** A tree row's left padding at `depth`. Levels step by a narrow 7px, with an
+ * indent guide (see `TreeNodes`) carrying the depth, so a deep file keeps
+ * room for its name. */
+const INDENT_STEP = 7
+const indent = (depth: number): number => 9 + depth * INDENT_STEP
+
 export type ExplorerTab = "files" | "scope"
 
 /** A diff review's explorer: the Files tab (carrying the file count, so no
@@ -303,17 +309,26 @@ function TreeNodes({
           <div key={node.path}>
             <DirRow node={node} depth={depth} closedDirs={closedDirs} onToggleDir={onToggleDir} onOpenDirs={onOpenDirs} />
             {!node.segments.some((segment) => closedDirs.has(segment.path)) && (
-              <TreeNodes
-                nodes={node.children}
-                depth={depth + 1}
-                isDiff={isDiff}
-                selectedPath={selectedPath}
-                onSelect={onSelect}
-                status={status}
-                closedDirs={closedDirs}
-                onToggleDir={onToggleDir}
-                onOpenDirs={onOpenDirs}
-              />
+              <div className="relative">
+                {/* The indent guide: a hairline down from the folder's chevron
+                    through its children. */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 w-px bg-hair"
+                  style={{ left: indent(depth) + 6 }}
+                />
+                <TreeNodes
+                  nodes={node.children}
+                  depth={depth + 1}
+                  isDiff={isDiff}
+                  selectedPath={selectedPath}
+                  onSelect={onSelect}
+                  status={status}
+                  closedDirs={closedDirs}
+                  onToggleDir={onToggleDir}
+                  onOpenDirs={onOpenDirs}
+                />
+              </div>
             )}
           </div>
         ) : (
@@ -360,7 +375,7 @@ function DirRow({
         type="button"
         onClick={toggleChain}
         aria-expanded={!closed}
-        style={{ paddingLeft: 9 + depth * 12 }}
+        style={{ paddingLeft: indent(depth) }}
         className={`${rowClass} hover:bg-soft`}
       >
         {chevron}
@@ -370,7 +385,7 @@ function DirRow({
     )
   }
   return (
-    <div style={{ paddingLeft: 9 + depth * 12 }} className={`${rowClass} hover:bg-soft`}>
+    <div style={{ paddingLeft: indent(depth) }} className={`${rowClass} hover:bg-soft`}>
       <button
         type="button"
         onClick={toggleChain}
@@ -437,7 +452,7 @@ export function FileRow({
       onClick={() => onSelect(entry.path)}
       aria-current={selected ? "true" : undefined}
       title={entry.path}
-      style={{ paddingLeft: 9 + depth * 12 }}
+      style={{ paddingLeft: indent(depth) }}
       className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-xs ${
         selected
           ? "bg-accent-soft font-semibold text-accent-bright shadow-[inset_0_0_0_1px_var(--accent-edge)]"
