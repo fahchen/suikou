@@ -52,6 +52,30 @@ Every authoring command takes `--as <name>`, and the same name for the whole
 review so the human can tell agents apart. `--icon <emoji>` is optional. `human`
 is reserved.
 
+## Restacked review
+
+Only when the human asks for a restack. A branch keeps the history it was
+written with; a review stack re-cuts the same change so the human reads it one
+coherent step at a time. The review stays about the source branch.
+
+1. Cut a new branch from the merge-base: `git switch -c <feat>-review
+   $(git merge-base <base> <feat>)`. Its tip tree must equal `<feat>`'s exactly.
+2. Order commits by dependency: schema, then context, then API, then UI.
+3. One behaviour per commit. Put pure renames, moves, and refactors in their
+   own commits, apart from behaviour changes.
+4. Keep commits small, around 300 changed lines. Give generated files their own
+   commit.
+5. Each commit should compile. `git rebase --exec "<build>" <merge-base>`
+   checks that; it is optional.
+6. Attach it: `suikou review create --diff <base>..<feat> --stack <feat>-review`,
+   or `suikou review set-stack <review-id> <feat>-review` on an existing review.
+   Suikou rejects a stack on another merge-base, or one whose tree differs from
+   the source; that error lists the differing paths.
+
+Never rewrite the source branch. A fix goes on the source branch first; then
+`git cherry-pick` it onto the stack so the stack is in sync again. The picked
+commit becomes the stack's last step, so the next round reads only the fix.
+
 ## What only the human may do
 
 You may add and reply to comments, resolve and reopen them, react, and change a
