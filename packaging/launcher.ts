@@ -126,6 +126,10 @@ type CommandSpec = {
   poll?: boolean
   // After a successful round-trip, spawn `open <url>` on the result's `url` field.
   open?: boolean
+  // When it answers true for the payload, a result carrying `error` also goes to
+  // stderr and exits 1, as the skill documents for failures. Opt-in per verb:
+  // other verbs still report domain errors only in the stdout JSON, exit 0.
+  failOnError?: (payload: Record<string, unknown>) => boolean
 }
 
 // File/path args arrive as positionals (space-separated, the natural shell form)
@@ -322,6 +326,8 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       // Source is chosen by what's given: positional files → file-selection;
       // `--diff base..head` → git-diff. Exactly one; createSource enforces it.
       payload: ({ values, files }) => createSource(values, files),
+      // A rejected --stack is a failure the agent must act on.
+      failOnError: (payload) => payload.stack_ref !== undefined,
       summary: "create a review (--name; file1 file2 … | --diff base..head [--stack branch])"
     },
     show: {
@@ -379,6 +385,7 @@ const registry: Record<string, Record<string, CommandSpec>> = {
       // Attaching verifies the stack carries exactly the source change; a
       // rejection lists the paths that differ.
       payload: ({ id, files }) => ({ review_id: id, stack_ref: stackBranch(files) }),
+      failOnError: () => true,
       summary: "attach a review stack to a git-diff review (<review-id> <branch>)"
     },
     "add-files": {
@@ -714,7 +721,21 @@ async function runCommand(spec: CommandSpec, payload: Record<string, unknown>): 
   const line = resultLine(stdout)
   if (spec.open) openUrl(line)
   process.stdout.write(line + "\n")
-  return 0
+
+  const error = spec.failOnError?.(payload) ? resultError(line) : null
+  if (error === null) return 0
+  console.error(error)
+  return 1
+}
+
+// The `error` string of a JSON result line, or null when it has none.
+function resultError(line: string): string | null {
+  try {
+    const error = (JSON.parse(line) as { error?: unknown }).error
+    return typeof error === "string" ? error : null
+  } catch {
+    return null
+  }
 }
 
 // Spawn `open <url>` for the `url` field of a JSON result line. A non-JSON or
