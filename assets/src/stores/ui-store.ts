@@ -161,6 +161,10 @@ class UiStore {
     this.diffWorktree = worktree
   }
 
+  setDiffView(view: ReviewView) {
+    this.diffView = view
+  }
+
   setStackStep(step: StackStep) {
     this.stackStep = step
   }

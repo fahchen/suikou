@@ -271,7 +271,10 @@ function TreeNodes({
   )
 }
 
-function FileRow({
+/** One file in a navigator list, indented by `depth`: change status, name,
+ * comment and line-count chips. Shared by the file tree and the stack rail's
+ * per-step file list. */
+export function FileRow({
   entry,
   depth,
   isDiff,
@@ -296,6 +299,7 @@ function FileRow({
       type="button"
       onClick={() => onSelect(entry.path)}
       aria-current={selected ? "true" : undefined}
+      title={entry.path}
       style={{ paddingLeft: 9 + depth * 12 }}
       className={`flex h-[31px] w-full shrink-0 items-center gap-2 rounded-ctrl pr-2 text-left text-xs ${
         selected

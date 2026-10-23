@@ -25,6 +25,8 @@ import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
 import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
+import { adjacentStep, StackSyncBadge, StepFooter, StepHeader, StepRail, ViewSwitch } from "./components/StackView"
+import { StackProgress } from "../stores/stack-progress"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
@@ -240,12 +242,12 @@ function useLensedFileEntries(
 
 const lensedEntriesKey = (reviewId: string, query: string): string => `${reviewId}?${query}`
 
-/** The stack step to show: the requested one while it exists, else step 1 —
- * or the whole stack when it has no steps at all. */
-function resolveStackStep(requested: StackStep | null, count: number): StackStep {
+/** The stack step to show: the requested one while it exists, else the first
+ * unread step — or the whole stack when it has no steps at all. */
+function resolveStackStep(requested: StackStep | null, shas: string[], progress: StackProgress): StackStep {
   if (requested === "all") return "all"
-  if (requested !== null && requested <= count) return requested
-  return count === 0 ? "all" : 1
+  if (requested !== null && requested <= shas.length) return requested
+  return shas.length === 0 ? "all" : progress.firstUnreadStep(shas)
 }
 
 const Shell = observer(function Shell({
@@ -329,7 +331,9 @@ const Shell = observer(function Shell({
   // The `/commits` reply is newest first; steps are numbered oldest first.
   const stackCommits = useReviewCommits(reviewId, stackReady, "stack", structureVersion)
   const steps = useMemo(() => (stackCommits ? [...stackCommits].reverse() : null), [stackCommits])
-  const stackStep = steps === null ? null : resolveStackStep(uiStore.stackStep, steps.length)
+  const progress = useMemo(() => new StackProgress(reviewId), [reviewId])
+  const stackStep =
+    steps === null ? null : resolveStackStep(uiStore.stackStep, steps.map((c) => c.sha), progress)
   const stackSha = typeof stackStep === "number" ? (steps?.[stackStep - 1]?.sha ?? null) : null
   const diffLens: DiffLens | undefined = !isDiff
     ? undefined
@@ -438,6 +442,22 @@ const Shell = observer(function Shell({
   useEffect(() => {
     if (inStack && stackStep !== null && uiStore.stackStep !== stackStep) uiStore.setStackStep(stackStep)
   }, [inStack, stackStep])
+  // `[` / `]` step through the stack, unless the reader is typing.
+  useEffect(() => {
+    if (!inStack || stackStep === null || !steps) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "[" && event.key !== "]") return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest("input, textarea, select, [contenteditable]")) return
+      const next = adjacentStep(stackStep, steps.length, event.key === "]" ? 1 : -1)
+      if (next === null) return
+      event.preventDefault()
+      uiStore.setStackStep(next)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [inStack, stackStep, steps])
   // Warm the whole review's file content in the background once the ordered file
   // list is known, so switching files is instant. Re-runs (and cancels the prior
   // pass) when the review, its file set, or the diff lens changes.
@@ -665,6 +685,71 @@ const Shell = observer(function Shell({
 
   const navSelect = stacked ? scrollToStacked : select
   const stackedSide = stacked && commentDisplay === "side"
+  const sideColumn = stackedSide || (!stacked && commentDisplay === "side")
+  const goToStep = (next: StackStep) => {
+    setFilesSheetOpen(false)
+    uiStore.setStackStep(next)
+  }
+  const viewSwitch = hasStack && (
+    <div className="flex shrink-0 items-center gap-2 px-3 pb-2.5">
+      <ViewSwitch view={view} onChange={(next) => uiStore.setDiffView(next)} />
+      <span className="flex-1" />
+      {inStack && <StackSyncBadge valid={refs?.stack_valid ?? null} inSync={refs?.stack_in_sync ?? null} />}
+    </div>
+  )
+  const stepRail =
+    inStack && steps && stackStep !== null ? (
+      <StepRail
+        steps={steps}
+        step={stackStep}
+        progress={progress}
+        entries={entries}
+        selectedPath={navSelected}
+        status={statusByPath}
+        onStep={goToStep}
+        onSelectFile={navSelect}
+      />
+    ) : null
+
+  const editorSurface = stacked ? (
+    <StackedFiles
+      reviewId={reviewId}
+      files={stackedFiles}
+      readOnly={readOnly}
+      selectedRound={selectedRound}
+      commentDisplay={commentDisplay}
+      focusedCommentId={focusedCommentId}
+      onFocusComment={setFocusedCommentId}
+      onClearFocus={() => setFocusedCommentId(null)}
+      onScrolledTo={setStackedCurrentPath}
+      scrollTarget={stackedScrollTarget}
+      onScrollHandled={() => setStackedScrollTarget(null)}
+      diffLens={diffLens}
+    />
+  ) : (
+    <Editor
+      reviewId={reviewId}
+      entry={selected}
+      filesLoaded={structure !== null && rawEntries !== null}
+      isDiff={isDiff}
+      comments={comments}
+      fileProxy={fileProxy}
+      diskToken={diskToken}
+      commentsProxy={commentsProxy}
+      readOnly={readOnly}
+      selectedRound={selectedRound}
+      compare={selectedRound < latestRound ? compare : null}
+      commentDisplay={commentDisplay}
+      focusedCommentId={focusedCommentId}
+      highlightedRange={highlightedRange}
+      onFocusComment={setFocusedCommentId}
+      onClearFocus={() => setFocusedCommentId(null)}
+      onOpenFiles={() => setFilesSheetOpen(true)}
+      onSelectFile={select}
+      filePosition={filePosition}
+      diffLens={diffLens}
+    />
+  )
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-canvas pt-[env(safe-area-inset-top)] text-ink">
@@ -681,11 +766,18 @@ const Shell = observer(function Shell({
 
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
-          (stackedSide || (!stacked && commentDisplay === "side")) ? "lg:grid-cols-[236px_1fr_340px]" : "lg:grid-cols-[236px_1fr]"
+          inStack
+            ? sideColumn
+              ? "lg:grid-cols-[280px_1fr_340px]"
+              : "lg:grid-cols-[280px_1fr]"
+            : sideColumn
+              ? "lg:grid-cols-[236px_1fr_340px]"
+              : "lg:grid-cols-[236px_1fr]"
         }`}
       >
         <aside className="hidden min-h-0 flex-col pt-3 lg:flex">
-          <NavHeader entries={entries} />
+          {viewSwitch}
+          {inStack ? stepRail : <NavHeader entries={entries} />}
           {isDiff && !inStack && (
             <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-3">
               <button
@@ -712,7 +804,7 @@ const Shell = observer(function Shell({
               </button>
             </div>
           )}
-          {filesSheetTab === "scope" && isDiff && !inStack ? (
+          {inStack ? null : filesSheetTab === "scope" && isDiff ? (
             <div className="flex min-h-0 flex-col overflow-auto pt-1">
               <ScopePickerBody commits={scopeCommits} />
             </div>
@@ -727,44 +819,18 @@ const Shell = observer(function Shell({
             headRef={structure?.refs?.head_ref ?? null}
             store={store}
           />
-        ) : stacked ? (
-          <StackedFiles
-            reviewId={reviewId}
-            files={stackedFiles}
-            readOnly={readOnly}
-            selectedRound={selectedRound}
-            commentDisplay={commentDisplay}
-            focusedCommentId={focusedCommentId}
-            onFocusComment={setFocusedCommentId}
-            onClearFocus={() => setFocusedCommentId(null)}
-            onScrolledTo={setStackedCurrentPath}
-            scrollTarget={stackedScrollTarget}
-            onScrollHandled={() => setStackedScrollTarget(null)}
-            diffLens={diffLens}
-          />
+        ) : inStack ? (
+          steps && stackStep !== null ? (
+            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto]">
+              <StepHeader steps={steps} step={stackStep} stackRef={refs?.stack_ref ?? ""} progress={progress} />
+              {editorSurface}
+              <StepFooter steps={steps} step={stackStep} onStep={goToStep} />
+            </div>
+          ) : (
+            <FileNotice icon={Loader2} title="Loading stack" body="Reading the review stack's steps." spin />
+          )
         ) : (
-          <Editor
-            reviewId={reviewId}
-            entry={selected}
-            filesLoaded={structure !== null && rawEntries !== null}
-            isDiff={isDiff}
-            comments={comments}
-            fileProxy={fileProxy}
-            diskToken={diskToken}
-            commentsProxy={commentsProxy}
-            readOnly={readOnly}
-            selectedRound={selectedRound}
-            compare={selectedRound < latestRound ? compare : null}
-            commentDisplay={commentDisplay}
-            focusedCommentId={focusedCommentId}
-            highlightedRange={highlightedRange}
-            onFocusComment={setFocusedCommentId}
-            onClearFocus={() => setFocusedCommentId(null)}
-            onOpenFiles={() => setFilesSheetOpen(true)}
-            onSelectFile={select}
-            filePosition={filePosition}
-            diffLens={diffLens}
-          />
+          editorSurface
         )}
         </div>
         {stackedSide && (
