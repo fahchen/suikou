@@ -1,4 +1,5 @@
 import { observer } from "mobx-react-lite"
+import { useState } from "react"
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, MessageSquareOff } from "lucide-react"
 
 import { Badge } from "../../components/ui/badge"
@@ -324,20 +325,22 @@ const StepBar = observer(function StepBar({
 
 const MESSAGE_BODY_CLASS = "max-w-[72ch] font-sans text-xs leading-[1.5] whitespace-pre-wrap text-muted"
 
+/** The commit body: the first `previewLines`, the whole of it once opened.
+ * Shown as one block either way, so a paragraph break at the fold survives. */
 function StepMessage({ body, previewLines }: { body: string; previewLines: number }) {
+  const [open, setOpen] = useState(false)
   if (!body) return null
   const lines = body.split("\n")
-  const preview = lines.slice(0, previewLines).join("\n")
-  const rest = lines.slice(previewLines).join("\n")
+  const preview = lines.slice(0, previewLines).join("\n").trimEnd()
+  const folds = lines.length > previewLines
   const bodyClass = MESSAGE_BODY_CLASS
-  if (!rest) return <p className={`mt-1 ${bodyClass}`}>{preview}</p>
+  if (!folds) return <p className={`mt-1 ${bodyClass}`}>{body}</p>
+  const shown = open ? body : preview
   return (
-    <Collapsible className="mt-1">
-      {preview && <p className={bodyClass}>{preview}</p>}
-      <CollapsibleContent className={`max-h-[40vh] overflow-auto ${bodyClass}`}>{rest}</CollapsibleContent>
-      <CollapsibleTrigger className="group mt-0.5 text-2xs font-semibold text-muted hover:text-ink">
-        <span className="group-data-[panel-open]:hidden">{preview ? "more" : "Show message"}</span>
-        <span className="hidden group-data-[panel-open]:inline">{preview ? "less" : "Hide message"}</span>
+    <Collapsible open={open} onOpenChange={setOpen} className="mt-1">
+      {shown && <p className={`max-h-[40vh] overflow-auto ${bodyClass}`}>{shown}</p>}
+      <CollapsibleTrigger className="mt-0.5 text-2xs font-semibold text-muted hover:text-ink">
+        {preview ? (open ? "less" : "more") : open ? "Hide message" : "Show message"}
       </CollapsibleTrigger>
     </Collapsible>
   )
