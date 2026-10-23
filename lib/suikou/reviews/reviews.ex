@@ -291,6 +291,9 @@ defmodule Suikou.Reviews do
   review (see BDR-0020). When `base_ref` is omitted it defaults to the
   repository's default branch.
 
+  An optional `stack_ref` attaches a review stack, rejected unless it carries
+  exactly the source change (see BDR-0028).
+
   ## Examples
 
       Suikou.Reviews.create_diff_review(project, %{name: "Topic", base_ref: "main", head_ref: "topic"})
@@ -298,6 +301,9 @@ defmodule Suikou.Reviews do
 
       Suikou.Reviews.create_diff_review(project, %{name: "Topic", head_ref: "missing"})
       #=> {:error, :head_ref_not_found}
+
+      Suikou.Reviews.create_diff_review(project, %{name: "Topic", base_ref: "main", head_ref: "topic", stack_ref: "topic-review"})
+      #=> {:ok, %Suikou.Schemas.Review{}}
 
   """
   @spec create_diff_review(Project.t(), map()) ::
@@ -309,6 +315,7 @@ defmodule Suikou.Reviews do
              | :head_ref_not_found
              | :no_changes
              | :git_error
+             | stack_error()
              | scratch_error()
              | Ecto.Changeset.t()}
   def create_diff_review(%Project{} = project, params) do
@@ -319,7 +326,9 @@ defmodule Suikou.Reviews do
          {:ok, head} <- fetch_head_ref(params),
          :ok <- ensure_ref(path, base, :base_ref_not_found),
          :ok <- ensure_ref(path, head, :head_ref_not_found),
-         :ok <- ensure_changes(path, base, head) do
+         :ok <- ensure_changes(path, base, head),
+         stack = Map.get(params, :stack_ref),
+         :ok <- maybe_verify_stack(path, base, head, stack) do
       changeset =
         Review.create_changeset(project, path, %{
           name: Map.get(params, :name),
@@ -327,13 +336,27 @@ defmodule Suikou.Reviews do
           source: %{
             __type__: "git_diff",
             base_ref: base,
-            head_ref: head
+            head_ref: head,
+            stack_ref: stack
           }
         })
 
       if changeset.valid?, do: insert_with_roots(project, changeset), else: {:error, changeset}
     end
   end
+
+  defp maybe_verify_stack(_path, _base, _head, nil), do: :ok
+  defp maybe_verify_stack(path, base, head, stack), do: verify_stack(path, base, head, stack)
+
+  @typedoc """
+  Why a review stack was rejected (BDR-0028 §2): its ref does not resolve, it
+  forks from a different merge-base than the source, or its tip tree differs
+  from the source's at the listed paths.
+  """
+  @type stack_error() ::
+          :stack_ref_not_found
+          | :stack_base_mismatch
+          | {:stack_not_equivalent, [String.t()]}
 
   @doc """
   Replaces a review's stored selection. Only existing artifacts are reconciled
@@ -1094,6 +1117,35 @@ defmodule Suikou.Reviews do
     case Git.changed_files(path, base, head) do
       {:ok, []} -> {:error, :no_changes}
       {:ok, [_head | _rest]} -> :ok
+      {:error, :not_a_repo} -> {:error, :not_a_git_repo}
+      {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  # A stack carries exactly the source change (BDR-0028 §2): it resolves, forks
+  # from the source's merge-base, and its tip tree equals the source tip tree.
+  defp verify_stack(path, base, head, stack) do
+    with :ok <- ensure_ref(path, stack, :stack_ref_not_found),
+         :ok <- ensure_same_merge_base(path, base, head, stack) do
+      ensure_same_tree(path, head, stack)
+    end
+  end
+
+  # The source pair is already known to resolve, so a failed `base`/`stack`
+  # merge-base means unrelated histories — a base mismatch, not a git fault.
+  defp ensure_same_merge_base(path, base, head, stack) do
+    case {Git.merge_base(path, base, head), Git.merge_base(path, base, stack)} do
+      {{:ok, fork}, {:ok, fork}} -> :ok
+      {{:ok, _fork}, _stack} -> {:error, :stack_base_mismatch}
+      {{:error, :not_a_repo}, _stack} -> {:error, :not_a_git_repo}
+      {{:error, _reason}, _stack} -> {:error, :git_error}
+    end
+  end
+
+  defp ensure_same_tree(path, head, stack) do
+    case Git.differing_files(path, head, stack) do
+      {:ok, []} -> :ok
+      {:ok, paths} -> {:error, {:stack_not_equivalent, paths}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
     end

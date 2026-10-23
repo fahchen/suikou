@@ -30,6 +30,8 @@ defmodule Suikou.Git do
   @type commit_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type commit_file_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type range_diff_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type merge_base_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
+  @type differing_files_error() :: :not_a_repo | :invalid_ref | :ref_not_found | :git_error
   @type worktree_files_error() :: :not_a_repo | :git_error
   @type worktree_file_diff_error() :: :not_a_repo | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
@@ -484,6 +486,54 @@ defmodule Suikou.Git do
   defp status_atom("R" <> _rest), do: :renamed
   defp status_atom("C" <> _rest), do: :copied
   defp status_atom(_other), do: :modified
+
+  @doc """
+  Returns the best common ancestor of `a` and `b` (`git merge-base a b`) as a
+  full SHA. A review stack must fork from the same merge-base as its source
+  (BDR-0028). Unrelated histories have none and answer `:git_error`.
+
+  ## Examples
+
+      Suikou.Git.merge_base("/projects/app", "main", "topic")
+      #=> {:ok, "9f8e7d6c..."}
+
+  """
+  @spec merge_base(repo_dir(), ref(), ref()) :: {:ok, String.t()} | {:error, merge_base_error()}
+  def merge_base(dir, a, b) do
+    with {:ok, a} <- tag_invalid_ref(safe_ref(a)),
+         {:ok, b} <- tag_invalid_ref(safe_ref(b)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, a),
+         :ok <- ensure_ref(dir, b),
+         {:ok, out} <- run(dir, ["merge-base", a, b]) do
+      {:ok, String.trim(out)}
+    end
+  end
+
+  @doc """
+  Lists the paths whose content differs between the trees of `a` and `b`
+  (two-dot `git diff a b`, no merge-base). An empty list means both commits
+  carry the same tree — how a review stack proves it carries exactly its
+  source's change (BDR-0028).
+
+  ## Examples
+
+      Suikou.Git.differing_files("/projects/app", "topic", "topic-review")
+      #=> {:ok, []}
+
+  """
+  @spec differing_files(repo_dir(), ref(), ref()) ::
+          {:ok, [rel_path()]} | {:error, differing_files_error()}
+  def differing_files(dir, a, b) do
+    with {:ok, a} <- tag_invalid_ref(safe_ref(a)),
+         {:ok, b} <- tag_invalid_ref(safe_ref(b)),
+         :ok <- ensure_repo(dir),
+         :ok <- ensure_ref(dir, a),
+         :ok <- ensure_ref(dir, b),
+         {:ok, out} <- run(dir, ["diff", "--name-only", "-z", a, b, "--"]) do
+      {:ok, String.split(out, <<0>>, trim: true)}
+    end
+  end
 
   @doc """
   Lists commits reachable from `head` but not from `base` (three-dot semantics,

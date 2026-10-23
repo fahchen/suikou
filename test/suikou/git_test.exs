@@ -327,6 +327,76 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "merge_base/3" do
+    @tag :tmp_dir
+    test "returns the fork point of two branches", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      fork = rev_parse!(dir, "main")
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "topic commit")
+      git!(["checkout", "-q", "main"], cd: dir)
+      File.write!(Path.join(dir, "b.txt"), "b\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "main commit")
+
+      assert {:ok, ^fork} = Git.merge_base(dir, "main", "topic")
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.merge_base(dir, "main", "nope")
+    end
+
+    @tag :tmp_dir
+    test "rejects refs that look like options", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :invalid_ref} = Git.merge_base(dir, "--evil", "main")
+    end
+  end
+
+  describe "differing_files/3" do
+    @tag :tmp_dir
+    test "is empty when both commits carry the same tree", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      File.write!(Path.join(dir, "b.txt"), "b\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "both at once")
+      git!(["checkout", "-q", "-b", "split", "main"], cd: dir)
+      File.write!(Path.join(dir, "a.txt"), "a\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "a first")
+      File.write!(Path.join(dir, "b.txt"), "b\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "then b")
+
+      assert {:ok, []} = Git.differing_files(dir, "topic", "split")
+    end
+
+    @tag :tmp_dir
+    test "lists every path whose content differs", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      File.write!(Path.join(dir, "a b.txt"), "a\n")
+      File.write!(Path.join(dir, "seed.txt"), "changed\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "topic")
+
+      assert {:ok, paths} = Git.differing_files(dir, "main", "topic")
+      assert ["a b.txt", "seed.txt"] = Enum.sort(paths)
+    end
+
+    @tag :tmp_dir
+    test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      assert {:error, :ref_not_found} = Git.differing_files(dir, "main", "nope")
+    end
+  end
+
   describe "list_commits/3" do
     @tag :tmp_dir
     test "returns commits reachable from head but not base, newest first",
@@ -894,6 +964,13 @@ defmodule Suikou.GitTest do
     File.write!(Path.join(dir, "seed.txt"), "seed\n")
     git!(["add", "."], cd: dir)
     commit!(dir, "seed", Keyword.take(opts, [:date]))
+  end
+
+  defp rev_parse!(dir, ref) do
+    {out, 0} =
+      System.cmd("git", ["rev-parse", ref], cd: dir, env: [{"GIT_CONFIG_GLOBAL", "/dev/null"}])
+
+    String.trim(out)
   end
 
   defp commit!(dir, message, opts \\ []) do
