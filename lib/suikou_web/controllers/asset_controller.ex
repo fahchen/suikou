@@ -18,6 +18,7 @@ defmodule SuikouWeb.AssetController do
   alias Suikou.ChangesWatcher
   alias Suikou.Reviews
   alias Suikou.Schemas.Review
+  alias SuikouWeb.LensParams
 
   @doc """
   Sends the file an artifact's markdown references at `path`, or 404 when it
@@ -84,7 +85,7 @@ defmodule SuikouWeb.AssetController do
   @spec file_content(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def file_content(conn, %{"review_id" => review_id, "path" => path} = params)
       when is_binary(path) and path != "" do
-    case parse_lens(params) do
+    case LensParams.parse(params) do
       {:ok, lens} ->
         case Reviews.get_review(review_id) do
           %Review{} -> serve_review_path(conn, review_id, path, lens)
@@ -154,13 +155,22 @@ defmodule SuikouWeb.AssetController do
   """
   @spec commits(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def commits(conn, %{"review_id" => review_id} = params) do
-    with {:ok, view} <- parse_view(Map.get(params, "view")),
+    with {:ok, lens} <- LensParams.parse(params),
          %Review{} = review <- Reviews.get_review(review_id),
-         {:ok, entries} <- Reviews.list_diff_commits(review, view) do
+         {:ok, entries} <- Reviews.list_diff_commits(review, Map.get(lens, :view, :source)) do
       json(conn, %{commits: entries})
     else
-      {:error, :invalid_view} -> send_resp(conn, 400, "")
-      _error -> send_resp(conn, 404, "")
+      {:error, reason}
+      when reason in [
+             :invalid_view,
+             :invalid_scope,
+             :invalid_worktree,
+             :invalid_scope_worktree_combination
+           ] ->
+        send_resp(conn, 400, "")
+
+      _error ->
+        send_resp(conn, 404, "")
     end
   end
 
@@ -176,7 +186,7 @@ defmodule SuikouWeb.AssetController do
   """
   @spec files(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def files(conn, %{"review_id" => review_id} = params) do
-    case parse_lens(params) do
+    case LensParams.parse(params) do
       {:ok, lens} ->
         case Reviews.get_review(review_id) do
           %Review{} -> json(conn, %{files: ChangesWatcher.list_files(review_id, lens)})
@@ -203,59 +213,6 @@ defmodule SuikouWeb.AssetController do
         send_resp(conn, 404, "")
     end
   end
-
-  # `?scope=all` (default) | `?scope=commits:<sha>[,<sha>...]` | `?worktree=diff`
-  # (default) | `?worktree=staged` | `?worktree=unstaged` | `?view=source`
-  # (default) | `?view=stack`. Missing keys keep the pinned `base_ref...head_ref`
-  # diff (BDR-0024 default lens). `commits` carries a newest-first hex SHA list
-  # (each 4-64 hex chars), matching `Suikou.Reviews.list_diff_commits/2`'s order
-  # for the chosen view.
-  defp parse_lens(params) do
-    with {:ok, scope} <- parse_scope(Map.get(params, "scope")),
-         {:ok, worktree} <- parse_worktree(Map.get(params, "worktree")),
-         {:ok, view} <- parse_view(Map.get(params, "view")) do
-      lens =
-        %{}
-        |> maybe_put(:scope, scope, :all)
-        |> maybe_put(:worktree, worktree, :diff)
-        |> maybe_put(:view, view, :source)
-
-      pinned? = match?({:commits, [_first | _rest]}, scope) or view == :stack
-
-      if pinned? and worktree in [:staged, :unstaged] do
-        {:error, :invalid_scope_worktree_combination}
-      else
-        {:ok, lens}
-      end
-    end
-  end
-
-  defp parse_scope(nil), do: {:ok, :all}
-  defp parse_scope("all"), do: {:ok, :all}
-
-  defp parse_scope("commits:" <> rest) when byte_size(rest) > 0 do
-    shas = String.split(rest, ",", trim: true)
-
-    if shas != [] and Enum.all?(shas, &(&1 =~ ~r/^[a-f0-9]{4,64}$/i)),
-      do: {:ok, {:commits, Enum.map(shas, &String.downcase/1)}},
-      else: {:error, :invalid_scope}
-  end
-
-  defp parse_scope(_other), do: {:error, :invalid_scope}
-
-  defp parse_worktree(nil), do: {:ok, :diff}
-  defp parse_worktree("diff"), do: {:ok, :diff}
-  defp parse_worktree("staged"), do: {:ok, :staged}
-  defp parse_worktree("unstaged"), do: {:ok, :unstaged}
-  defp parse_worktree(_other), do: {:error, :invalid_worktree}
-
-  defp parse_view(nil), do: {:ok, :source}
-  defp parse_view("source"), do: {:ok, :source}
-  defp parse_view("stack"), do: {:ok, :stack}
-  defp parse_view(_other), do: {:error, :invalid_view}
-
-  defp maybe_put(map, _key, default, default), do: map
-  defp maybe_put(map, key, value, _default), do: Map.put(map, key, value)
 
   defp serve_review_raw(conn, %Review{} = review, path) do
     case Reviews.fetch_raw_by_path(review, path) do
