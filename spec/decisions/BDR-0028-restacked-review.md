@@ -76,9 +76,10 @@ A stack-view file is commentable only when its path is in the source diff; a pat
 ### 5. UI
 
 - **Board card**: the `Diff` pill becomes `Stack · N commits`; the refs line adds `· stack <stack_ref>`; out of sync turns the pill amber.
-- **Desktop, wide (≥ 1280px)**: a step rail replaces the file list — every step in order, the current step expanded to its files, a `Source | Stack` switch on top, `All changes` at the bottom, Prev/Next at the foot of the content.
-- **Desktop, medium**: the rail collapses into a drawer over the diff; a step bar (`◂ 2/5 <subject> ▸`) opens it.
-- **Mobile**: the rail lives in the Files sheet; a fixed bottom bar carries Prev, the step, a read toggle, and Next.
+- **Step bar, every width**: one bar sticks to the top of the step's content, `◂ 2/5 <subject> ✓ ▸`: Prev, the step, a read toggle, Next. The commit message follows below it.
+- **Desktop, wide (≥ 1280px)**: a step rail replaces the file list — every step in order, the current step expanded to its files, a `Source | Stack` switch on top, `All changes` at the bottom. The step bar also carries the step's short SHA.
+- **Desktop, medium**: the rail collapses into a drawer over the diff; the step bar's subject opens it.
+- **Mobile**: the rail lives in the Files sheet, which the step bar's subject opens; the bar's controls are sized for touch.
 - **Keyboard**: `[` / `]` step; existing file keys work within a step.
 - **Progress**: a manual read toggle per step, stored in `localStorage` under the review id and commit SHA.
 
