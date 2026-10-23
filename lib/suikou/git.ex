@@ -529,9 +529,14 @@ defmodule Suikou.Git do
 
   @doc """
   Lists the paths whose content differs between the trees of `a` and `b`
-  (two-dot `git diff a b`, no merge-base). An empty list means both commits
-  carry the same tree — how a review stack proves it carries exactly its
-  source's change (BDR-0028).
+  (two-dot, no merge-base). An empty list means both commits carry the same
+  tree — how a review stack proves it carries exactly its source's change
+  (BDR-0028).
+
+  Equality is decided by the tree object ids (`a^{tree}` vs `b^{tree}`), so no
+  repo-local diff config (e.g. `diff.ignoreSubmodules`) can hide a difference.
+  Only on a mismatch are the paths listed, with submodules and renames spelled
+  out so a moved file names both its old and new path.
 
   ## Examples
 
@@ -547,7 +552,18 @@ defmodule Suikou.Git do
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, a),
          :ok <- ensure_ref(dir, b),
-         {:ok, out} <- run(dir, ["diff", "--name-only", "-z", a, b, "--"]) do
+         {:ok, trees} <- run(dir, ["rev-parse", a <> "^{tree}", b <> "^{tree}"]) do
+      case String.split(trees, "\n", trim: true) do
+        [tree, tree] -> {:ok, []}
+        [_tree_a, _tree_b] -> list_differing_paths(dir, a, b)
+      end
+    end
+  end
+
+  defp list_differing_paths(dir, a, b) do
+    args = ["diff", "--name-only", "-z", "--ignore-submodules=none", "--no-renames", a, b, "--"]
+
+    with {:ok, out} <- run(dir, args) do
       {:ok, String.split(out, <<0>>, trim: true)}
     end
   end

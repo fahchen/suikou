@@ -456,6 +456,32 @@ defmodule Suikou.GitTest do
     end
 
     @tag :tmp_dir
+    test "sees a submodule difference that repo-local diff config would hide",
+         %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      seed = rev_parse!(dir, "main")
+      File.write!(Path.join(dir, "other.txt"), "other\n")
+      git!(["add", "."], cd: dir)
+      commit!(dir, "other")
+      gitlink!(dir, "topic", seed)
+      gitlink!(dir, "moved", rev_parse!(dir, "main"))
+      git!(["config", "diff.ignoreSubmodules", "all"], cd: dir)
+
+      assert {:ok, ["sub"]} = Git.differing_files(dir, "topic", "moved")
+    end
+
+    @tag :tmp_dir
+    test "names both sides of a rename", %{tmp_dir: dir} do
+      init_repo!(dir, branch: "main")
+      git!(["checkout", "-q", "-b", "topic"], cd: dir)
+      git!(["mv", "seed.txt", "moved.txt"], cd: dir)
+      commit!(dir, "move")
+
+      assert {:ok, paths} = Git.differing_files(dir, "main", "topic")
+      assert ["moved.txt", "seed.txt"] = Enum.sort(paths)
+    end
+
+    @tag :tmp_dir
     test "returns :ref_not_found for an unknown ref", %{tmp_dir: dir} do
       init_repo!(dir, branch: "main")
       assert {:error, :ref_not_found} = Git.differing_files(dir, "main", "nope")
@@ -1033,6 +1059,14 @@ defmodule Suikou.GitTest do
     File.write!(Path.join(dir, "seed.txt"), "seed\n")
     git!(["add", "."], cd: dir)
     commit!(dir, "seed", Keyword.take(opts, [:date]))
+  end
+
+  # A branch off the current HEAD whose tree pins a gitlink `sub` to `sha` — a
+  # submodule entry without a checked-out submodule.
+  defp gitlink!(dir, branch, sha) do
+    git!(["checkout", "-q", "-b", branch], cd: dir)
+    git!(["update-index", "--add", "--cacheinfo", "160000,#{sha},sub"], cd: dir)
+    commit!(dir, "pin sub")
   end
 
   defp rev_parse!(dir, ref) do
