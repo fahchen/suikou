@@ -37,6 +37,21 @@ defmodule Suikou.Git do
   @type worktree_files_error() :: :not_a_repo | :git_error
   @type worktree_file_diff_error() :: :not_a_repo | :git_error
   @type change_status() :: :added | :modified | :deleted | :renamed | :copied | :type_changed
+  @typedoc """
+  One changed file from a name-status listing. A rename or copy also carries
+  the `old_path` it came from, so a per-file diff can pair both sides.
+  """
+  @type change_entry() :: %{
+          required(:path) => rel_path(),
+          required(:status) => change_status(),
+          optional(:old_path) => rel_path()
+        }
+  @typedoc """
+  The file a per-file diff renders: its path, or `{old_path, path}` for a
+  rename or copy, so git pairs both sides instead of showing the new path as
+  wholly added.
+  """
+  @type diff_file() :: rel_path() | {rel_path(), rel_path()}
   @type diff_stat() :: %{added: non_neg_integer() | nil, deleted: non_neg_integer() | nil}
   @type commit_entry() :: %{sha: String.t(), subject: String.t(), body: String.t()}
 
@@ -297,7 +312,9 @@ defmodule Suikou.Git do
   @doc """
   Returns the unified diff text for one `path` between `base` and `head`,
   three-dot. Returns an empty string when `path` is unchanged. Paths are
-  treated as filenames, not options, by the trailing `--` separator.
+  treated as filenames, not options, by the trailing `--` separator. Pass
+  `{old_path, path}` for a renamed file to render it as a rename (see
+  `diff_file()`).
 
   `unified` is the number of context lines around each change (git's `-U`).
   Pass a large value (e.g. `1_000_000`) to emit the whole file as context so
@@ -310,15 +327,15 @@ defmodule Suikou.Git do
       #=> {:ok, "diff --git a/lib/app.ex b/lib/app.ex\\n..."}
 
   """
-  @spec file_diff(repo_dir(), ref(), ref(), rel_path(), non_neg_integer()) ::
+  @spec file_diff(repo_dir(), ref(), ref(), diff_file(), non_neg_integer()) ::
           {:ok, String.t()} | {:error, file_diff_error()}
-  def file_diff(dir, base, head, path, unified \\ 3) when is_integer(unified) and unified >= 0 do
+  def file_diff(dir, base, head, file, unified \\ 3) when is_integer(unified) and unified >= 0 do
     with {:ok, base} <- tag_invalid_ref(safe_ref(base)),
          {:ok, head} <- tag_invalid_ref(safe_ref(head)),
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, base),
          :ok <- ensure_ref(dir, head) do
-      run(dir, ["diff", "--unified=#{unified}", base <> "..." <> head, "--", path])
+      run(dir, ["diff", "--unified=#{unified}", base <> "..." <> head, "--" | pathspec(file)])
     end
   end
 
@@ -395,7 +412,7 @@ defmodule Suikou.Git do
 
   """
   @spec changed_files_with_status(repo_dir(), ref(), ref()) ::
-          {:ok, [%{path: rel_path(), status: change_status()}]}
+          {:ok, [change_entry()]}
           | {:error, changed_files_with_status_error()}
   def changed_files_with_status(dir, base, head) do
     with {:ok, base} <- tag_invalid_ref(safe_ref(base)),
@@ -417,9 +434,9 @@ defmodule Suikou.Git do
 
   defp walk_name_status([], acc), do: Enum.reverse(acc)
 
-  defp walk_name_status([status, _old, new | rest], acc)
+  defp walk_name_status([status, old, new | rest], acc)
        when binary_part(status, 0, 1) in ["R", "C"] do
-    walk_name_status(rest, [%{path: new, status: status_atom(status)} | acc])
+    walk_name_status(rest, [%{path: new, status: status_atom(status), old_path: old} | acc])
   end
 
   defp walk_name_status([status, path | rest], acc) do
@@ -638,7 +655,7 @@ defmodule Suikou.Git do
 
   """
   @spec commit_files(repo_dir(), ref()) ::
-          {:ok, [%{path: rel_path(), status: change_status()}]}
+          {:ok, [change_entry()]}
           | {:error, commit_files_error()}
   def commit_files(dir, sha) do
     with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
@@ -662,7 +679,7 @@ defmodule Suikou.Git do
   vs. its first parent). Powers the per-commit lens's file-content route so
   the reviewer sees exactly what that commit changed in that file, instead
   of the aggregate `base...head` diff. Empty string when `path` is unchanged
-  by the commit.
+  by the commit. Pass `{old_path, path}` for a renamed file (see `diff_file()`).
 
   ## Examples
 
@@ -670,13 +687,13 @@ defmodule Suikou.Git do
       #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
 
   """
-  @spec commit_file_diff(repo_dir(), ref(), rel_path()) ::
+  @spec commit_file_diff(repo_dir(), ref(), diff_file()) ::
           {:ok, String.t()} | {:error, commit_file_diff_error()}
-  def commit_file_diff(dir, sha, path) when is_binary(path) do
+  def commit_file_diff(dir, sha, file) do
     with {:ok, sha} <- tag_invalid_ref(safe_ref(sha)),
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, sha) do
-      run(dir, ["show", "--format=", "--patch", "--unified=1000000", sha, "--", path])
+      run(dir, ["show", "--format=", "--patch", "--unified=1000000", sha, "--" | pathspec(file)])
     end
   end
 
@@ -691,7 +708,8 @@ defmodule Suikou.Git do
   well-known empty-tree object so the root commit's own additions are
   included. When `oldest == newest` the diff collapses to that single commit's
   patch (delegates to `commit_file_diff/3`). Returns an empty string when
-  `path` is unchanged across the range.
+  `path` is unchanged across the range. Pass `{old_path, path}` for a renamed
+  file (see `diff_file()`).
 
   ## Examples
 
@@ -699,19 +717,19 @@ defmodule Suikou.Git do
       #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
 
   """
-  @spec range_diff(repo_dir(), ref(), ref(), rel_path()) ::
+  @spec range_diff(repo_dir(), ref(), ref(), diff_file()) ::
           {:ok, String.t()} | {:error, range_diff_error()}
-  def range_diff(dir, oldest, newest, path) when is_binary(path) do
+  def range_diff(dir, oldest, newest, file) do
     with {:ok, oldest} <- tag_invalid_ref(safe_ref(oldest)),
          {:ok, newest} <- tag_invalid_ref(safe_ref(newest)),
          :ok <- ensure_repo(dir),
          :ok <- ensure_ref(dir, oldest),
          :ok <- ensure_ref(dir, newest) do
       if oldest == newest do
-        commit_file_diff(dir, newest, path)
+        commit_file_diff(dir, newest, file)
       else
         base = range_base(dir, oldest)
-        run(dir, ["diff", "--unified=1000000", base <> ".." <> newest, "--", path])
+        run(dir, ["diff", "--unified=1000000", base <> ".." <> newest, "--" | pathspec(file)])
       end
     end
   end
@@ -771,7 +789,7 @@ defmodule Suikou.Git do
 
   """
   @spec staged_files(repo_dir()) ::
-          {:ok, [%{path: rel_path(), status: change_status()}]}
+          {:ok, [change_entry()]}
           | {:error, worktree_files_error()}
   def staged_files(dir) do
     with :ok <- ensure_repo(dir),
@@ -794,7 +812,7 @@ defmodule Suikou.Git do
 
   """
   @spec unstaged_files(repo_dir()) ::
-          {:ok, [%{path: rel_path(), status: change_status()}]}
+          {:ok, [change_entry()]}
           | {:error, worktree_files_error()}
   def unstaged_files(dir) do
     with :ok <- ensure_repo(dir),
@@ -814,11 +832,11 @@ defmodule Suikou.Git do
       #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
 
   """
-  @spec staged_file_diff(repo_dir(), rel_path()) ::
+  @spec staged_file_diff(repo_dir(), diff_file()) ::
           {:ok, String.t()} | {:error, worktree_file_diff_error()}
-  def staged_file_diff(dir, path) when is_binary(path) do
+  def staged_file_diff(dir, file) do
     with :ok <- ensure_repo(dir) do
-      run(dir, ["diff", "--unified=1000000", "--cached", "HEAD", "--", path])
+      run(dir, ["diff", "--unified=1000000", "--cached", "HEAD", "--" | pathspec(file)])
     end
   end
 
@@ -833,11 +851,11 @@ defmodule Suikou.Git do
       #=> {:ok, "diff --git a/a.txt b/a.txt\\n..."}
 
   """
-  @spec unstaged_file_diff(repo_dir(), rel_path()) ::
+  @spec unstaged_file_diff(repo_dir(), diff_file()) ::
           {:ok, String.t()} | {:error, worktree_file_diff_error()}
-  def unstaged_file_diff(dir, path) when is_binary(path) do
+  def unstaged_file_diff(dir, file) do
     with :ok <- ensure_repo(dir) do
-      run(dir, ["diff", "--unified=1000000", "--", path])
+      run(dir, ["diff", "--unified=1000000", "--" | pathspec(file)])
     end
   end
 
@@ -917,6 +935,11 @@ defmodule Suikou.Git do
 
   defp tag_invalid_ref({:ok, ref}), do: {:ok, ref}
   defp tag_invalid_ref(:error), do: {:error, :invalid_ref}
+
+  # Both sides of a rename go in the pathspec: limited to the new path alone, git
+  # never sees the old one and renders the file as wholly added.
+  defp pathspec({old_path, path}), do: [old_path, path]
+  defp pathspec(path) when is_binary(path), do: [path]
 
   defp parse_names(out) do
     String.split(out, "\n", trim: true)

@@ -295,6 +295,38 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "a renamed file" do
+    setup :renamed_stack
+
+    test "renders as a rename in a single step", %{review: review, rename: rename} do
+      lens = %{view: :stack, scope: {:commits, [rename]}}
+
+      assert [%{path: "moved.txt", change_status: :renamed}] = Reviews.list_files(review, lens)
+
+      assert {:ok, {:inline, diff, _type}} =
+               Reviews.fetch_content_by_path(review, "moved.txt", lens)
+
+      assert_rename(diff)
+    end
+
+    test "renders as a rename across a span of steps", %{review: review} do
+      {:ok, steps} = Reviews.list_diff_commits(review, :stack)
+      lens = %{view: :stack, scope: {:commits, Enum.map(steps, & &1.sha)}}
+
+      assert {:ok, {:inline, diff, _type}} =
+               Reviews.fetch_content_by_path(review, "moved.txt", lens)
+
+      assert_rename(diff)
+    end
+
+    test "renders as a rename in the source view", %{review: review} do
+      assert {:ok, {:inline, diff, _type}} =
+               Reviews.fetch_content_by_path(review, "moved.txt", %{})
+
+      assert_rename(diff)
+    end
+  end
+
   describe "open_file/2 on a stacked review" do
     setup :stacked_review
 
@@ -349,6 +381,26 @@ defmodule Suikou.ReviewsStackTest do
   end
 
   defp paths(entries), do: Enum.map(entries, & &1.path)
+
+  # `feat` and `feat-review` both gain a commit renaming seed.txt to moved.txt,
+  # and the review tracks them as source and stack.
+  defp renamed_stack(%{dir: dir, project: project}) do
+    for branch <- ["feat", "feat-review"] do
+      git!(dir, ["checkout", "-q", branch])
+      git!(dir, ["mv", "seed.txt", "moved.txt"])
+      git!(dir, ["commit", "-q", "-m", "rename seed"])
+    end
+
+    {:ok, review} = create(project, dir, "feat-review")
+    {:ok, [%{sha: rename} | _steps]} = Reviews.list_diff_commits(review, :stack)
+    %{review: review, rename: rename}
+  end
+
+  defp assert_rename(diff) do
+    assert diff =~ "rename from seed.txt"
+    assert diff =~ "rename to moved.txt"
+    refute diff =~ "@@ -0,0"
+  end
 
   defp diff_review(%{dir: dir, project: project}) do
     {:ok, review} = create(project, dir, nil)

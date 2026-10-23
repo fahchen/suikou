@@ -1046,11 +1046,29 @@ defmodule Suikou.Reviews do
          path,
          lens
        ) do
-    case lens_file_diff(review.project_path, viewed_source(git_diff, lens), lens, path) do
+    git_diff = viewed_source(git_diff, lens)
+    file = diff_file(review.project_path, git_diff, lens, path)
+
+    case lens_file_diff(review.project_path, git_diff, lens, file) do
       {:ok, ""} -> {:error, :not_changed}
       {:ok, diff} -> {:ok, {:inline, diff, "text/x-diff"}}
       {:error, :not_a_repo} -> {:error, :not_a_git_repo}
       {:error, _reason} -> {:error, :git_error}
+    end
+  end
+
+  # A renamed or copied file diffs against its source path, matching the status
+  # and line counts the file list shows for it.
+  defp diff_file(project_path, git_diff, lens, path) do
+    case lens_changed_with_status(project_path, git_diff, lens) do
+      {:ok, entries} ->
+        case Enum.find(entries, &(&1.path == path)) do
+          %{old_path: old_path} -> {old_path, path}
+          _entry -> path
+        end
+
+      {:error, _reason} ->
+        path
     end
   end
 
@@ -1501,55 +1519,55 @@ defmodule Suikou.Reviews do
   # renderer folds long unchanged runs back down to a GitHub-style default view.
   # ponytail: only the default lens ships full context — commit/staged/unstaged
   # views stay at git's -U3; widen them if reviewers ask.
-  defp lens_file_diff(path, git_diff, %{scope: :all, worktree: :diff}, rel_path) do
-    Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, rel_path, 1_000_000)
+  defp lens_file_diff(path, git_diff, %{scope: :all, worktree: :diff}, file) do
+    Git.file_diff(path, git_diff.base_ref, git_diff.head_ref, file, 1_000_000)
   end
 
   defp lens_file_diff(
          path,
          _git_diff,
          %{scope: {:commits, [sha]}, worktree: :diff},
-         rel_path
+         file
        ) do
-    Git.commit_file_diff(path, sha, rel_path)
+    Git.commit_file_diff(path, sha, file)
   end
 
   defp lens_file_diff(
          path,
          _git_diff,
          %{scope: {:commits, [newest | _rest] = shas}, worktree: :diff},
-         rel_path
+         file
        ) do
-    Git.range_diff(path, List.last(shas), newest, rel_path)
+    Git.range_diff(path, List.last(shas), newest, file)
   end
 
   defp lens_file_diff(
          path,
          _git_diff,
          %{scope: :all, worktree: :staged},
-         rel_path
+         file
        ) do
-    Git.staged_file_diff(path, rel_path)
+    Git.staged_file_diff(path, file)
   end
 
   defp lens_file_diff(
          path,
          _git_diff,
          %{scope: :all, worktree: :unstaged},
-         rel_path
+         file
        ) do
-    Git.unstaged_file_diff(path, rel_path)
+    Git.unstaged_file_diff(path, file)
   end
 
   # Walk `shas` (oldest → newest) and merge each commit's `commit_files/2`
-  # entries into a `path => status` map so a later commit's status wins.
+  # entries into a `path => entry` map so a later commit's status wins.
   # Bails on the first git error. The caller keeps ordering (the sorted list
   # in `list_files/2` sorts by path anyway).
   defp multi_commit_files(path, shas) do
     result = Enum.reduce_while(shas, {:ok, %{}}, &merge_commit_files(path, &1, &2))
 
     case result do
-      {:ok, map} -> {:ok, for({p, s} <- map, do: %{path: p, status: s})}
+      {:ok, map} -> {:ok, Map.values(map)}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -1557,10 +1575,21 @@ defmodule Suikou.Reviews do
   defp merge_commit_files(path, sha, {:ok, acc}) do
     case Git.commit_files(path, sha) do
       {:ok, entries} ->
-        {:cont, {:ok, Enum.into(entries, acc, fn %{path: p, status: s} -> {p, s} end)}}
+        merged = Enum.into(entries, acc, &{&1.path, merge_change(Map.get(acc, &1.path), &1)})
+        {:cont, {:ok, merged}}
 
       {:error, reason} ->
         {:halt, {:error, reason}}
     end
   end
+
+  # A file renamed by an earlier selected commit and only edited by a later one
+  # is still a rename across the span the range diff renders, so it keeps the
+  # rename and its source path.
+  defp merge_change(%{status: status, old_path: old_path}, %{status: :modified} = newer)
+       when status in [:renamed, :copied] do
+    Map.merge(newer, %{status: status, old_path: old_path})
+  end
+
+  defp merge_change(_prior, newer), do: newer
 end

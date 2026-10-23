@@ -191,6 +191,34 @@ defmodule Suikou.GitTest do
     end
   end
 
+  describe "renamed files" do
+    @describetag :tmp_dir
+    setup :renamed_repo
+
+    test "commit_files/2 carries the rename's source path", %{dir: dir, rename: rename} do
+      assert {:ok, [%{path: "moved.txt", status: :renamed, old_path: "seed.txt"}]} =
+               Git.commit_files(dir, rename)
+    end
+
+    test "commit_file_diff/3 renders a rename against the source path",
+         %{dir: dir, rename: rename} do
+      assert {:ok, diff} = Git.commit_file_diff(dir, rename, {"seed.txt", "moved.txt"})
+      assert_rename(diff)
+    end
+
+    test "range_diff/4 renders a rename across the span", %{dir: dir, rename: rename} do
+      newest = rev_parse!(dir, "topic")
+
+      assert {:ok, diff} = Git.range_diff(dir, rename, newest, {"seed.txt", "moved.txt"})
+      assert_rename(diff)
+    end
+
+    test "file_diff/5 renders a three-dot rename", %{dir: dir} do
+      assert {:ok, diff} = Git.file_diff(dir, "main", "topic", {"seed.txt", "moved.txt"})
+      assert_rename(diff)
+    end
+  end
+
   describe "file_diff/4" do
     @tag :tmp_dir
     test "returns the unified diff for a single file", %{tmp_dir: dir} do
@@ -1059,6 +1087,25 @@ defmodule Suikou.GitTest do
     File.write!(Path.join(dir, "seed.txt"), "seed\n")
     git!(["add", "."], cd: dir)
     commit!(dir, "seed", Keyword.take(opts, [:date]))
+  end
+
+  # `topic` renames seed.txt to moved.txt in one commit, then adds b.txt.
+  defp renamed_repo(%{tmp_dir: dir}) do
+    init_repo!(dir, branch: "main")
+    git!(["checkout", "-q", "-b", "topic"], cd: dir)
+    git!(["mv", "seed.txt", "moved.txt"], cd: dir)
+    commit!(dir, "rename")
+    rename = rev_parse!(dir, "HEAD")
+    File.write!(Path.join(dir, "b.txt"), "b\n")
+    git!(["add", "."], cd: dir)
+    commit!(dir, "add b")
+    %{dir: dir, rename: rename}
+  end
+
+  defp assert_rename(diff) do
+    assert diff =~ "rename from seed.txt"
+    assert diff =~ "rename to moved.txt"
+    refute diff =~ "@@ -0,0"
   end
 
   # A branch off the current HEAD whose tree pins a gitlink `sub` to `sha` — a
