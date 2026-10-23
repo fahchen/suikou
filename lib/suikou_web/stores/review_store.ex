@@ -73,8 +73,10 @@ defmodule SuikouWeb.Stores.ReviewStore do
         })
       )
 
-      # Ref identity for a git_diff review — the labels picked at creation, and
-      # whether both refs still resolve. `nil` for a file_selection review.
+      # Ref identity for a git_diff review — the labels picked at creation, the
+      # review stack's branch (`nil` without one), whether every ref still
+      # resolves, and whether the stack still carries exactly the source change
+      # (`nil` without a stack, BDR-0028). `nil` for a file_selection review.
       # Powers the workspace breadcrumb's refs line and the branch-deleted
       # error page without the client having to hit the board store. Shape
       # mirrors `Reviews.refs_snapshot/1` — kept inline so `musubi_ts` can emit
@@ -84,7 +86,9 @@ defmodule SuikouWeb.Stores.ReviewStore do
         %{
           base_ref: String.t(),
           head_ref: String.t(),
-          refs_valid: boolean()
+          stack_ref: String.t() | nil,
+          refs_valid: boolean(),
+          stack_in_sync: boolean() | nil
         }
         | nil
       )

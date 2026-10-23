@@ -80,6 +80,44 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "refs_snapshot/1 with a stack" do
+    setup :stacked_review
+
+    test "reports an in-sync stack", %{review: review} do
+      assert %{stack_ref: "feat-review", refs_valid: true, stack_in_sync: true} =
+               Reviews.refs_snapshot(review)
+    end
+
+    test "reports the stack out of sync once the source moves", %{dir: dir, review: review} do
+      commit_on!(dir, "feat", [{"fix.txt", "fix\n"}])
+
+      assert %{refs_valid: true, stack_in_sync: false} = Reviews.refs_snapshot(review)
+    end
+
+    test "reports sync restored once the fix is cherry-picked onto the stack",
+         %{dir: dir, review: review} do
+      commit_on!(dir, "feat", [{"fix.txt", "fix\n"}])
+      git!(dir, ["checkout", "-q", "feat-review"])
+      git!(dir, ["cherry-pick", "feat"])
+
+      assert %{refs_valid: true, stack_in_sync: true} = Reviews.refs_snapshot(review)
+    end
+
+    test "treats a vanished stack ref as a vanished ref", %{dir: dir, review: review} do
+      git!(dir, ["branch", "-D", "feat-review"])
+
+      assert %{stack_ref: "feat-review", refs_valid: false, stack_in_sync: false} =
+               Reviews.refs_snapshot(review)
+    end
+
+    test "carries no stack fields for a review without a stack", %{dir: dir, project: project} do
+      {:ok, review} = create(project, dir, nil)
+
+      assert %{stack_ref: nil, refs_valid: true, stack_in_sync: nil} =
+               Reviews.refs_snapshot(review)
+    end
+  end
+
   defp create(project, dir, stack) do
     Reviews.create_diff_review(project, %{
       project_path: dir,
@@ -88,6 +126,11 @@ defmodule Suikou.ReviewsStackTest do
       head_ref: "feat",
       stack_ref: stack
     })
+  end
+
+  defp stacked_review(%{dir: dir, project: project}) do
+    {:ok, review} = create(project, dir, "feat-review")
+    %{review: review}
   end
 
   defp diff_review(%{dir: dir, project: project}) do

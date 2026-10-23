@@ -574,27 +574,38 @@ defmodule Suikou.Reviews do
   @type scratch_error() :: {:scratch_unwritable, File.posix()}
 
   @typedoc """
-  Diff review's ref identity: the branch names the reviewer picked at creation.
-  Refs are resolved live on every render — a vanished ref surfaces as an error
-  page in the workspace (see BDR-0025). `refs_valid` is `false` when either
-  side no longer resolves in the project's git tree.
+  Diff review's ref identity: the branch names the reviewer picked at creation,
+  plus the review stack's branch when one is attached (`nil` otherwise). Refs
+  are resolved live on every render — a vanished ref surfaces as an error page
+  in the workspace (see BDR-0025). `refs_valid` is `false` when any stored ref
+  (base, head, or stack) no longer resolves in the project's git tree.
+  `stack_in_sync` is `nil` without a stack, otherwise whether the stack tip tree
+  still equals the head tip tree (BDR-0028 §3).
   """
   @type refs_snapshot() :: %{
           base_ref: String.t(),
           head_ref: String.t(),
-          refs_valid: boolean()
+          stack_ref: String.t() | nil,
+          refs_valid: boolean(),
+          stack_in_sync: boolean() | nil
         }
 
   @doc """
   Live ref snapshot for a review. `nil` for a `FileSelection` review; for a
   `GitDiff` review, returns the stored branch names plus a `refs_valid` flag
-  that is `false` iff either ref no longer resolves in the project's git tree.
-  Powers the workspace's error-page fallback (BDR-0025).
+  that is `false` iff any stored ref no longer resolves in the project's git
+  tree. Powers the workspace's error-page fallback (BDR-0025); a vanished stack
+  ref follows the same rule (BDR-0028 §3). `stack_in_sync` reports whether the
+  stack still carries exactly the source change — always `false` while a ref
+  is missing, `nil` when the review has no stack.
 
   ## Examples
 
       Suikou.Reviews.refs_snapshot(diff_review)
-      #=> %{base_ref: "main", head_ref: "feature/x", refs_valid: true}
+      #=> %{base_ref: "main", head_ref: "feature/x", stack_ref: nil, refs_valid: true, stack_in_sync: nil}
+
+      Suikou.Reviews.refs_snapshot(stacked_review)
+      #=> %{base_ref: "main", head_ref: "feature/x", stack_ref: "feature/x-review", refs_valid: true, stack_in_sync: true}
 
       Suikou.Reviews.refs_snapshot(file_review)
       #=> nil
@@ -603,13 +614,28 @@ defmodule Suikou.Reviews do
   def refs_snapshot(%Review{source: %FileSelection{}}), do: nil
 
   def refs_snapshot(%Review{source: %GitDiff{} = git_diff} = review) do
+    path = review.project_path
+
+    refs_valid =
+      Enum.all?(
+        [git_diff.base_ref, git_diff.head_ref | List.wrap(git_diff.stack_ref)],
+        &Git.ref_exists?(path, &1)
+      )
+
     %{
       base_ref: git_diff.base_ref,
       head_ref: git_diff.head_ref,
-      refs_valid:
-        Git.ref_exists?(review.project_path, git_diff.base_ref) and
-          Git.ref_exists?(review.project_path, git_diff.head_ref)
+      stack_ref: git_diff.stack_ref,
+      refs_valid: refs_valid,
+      stack_in_sync: stack_in_sync(path, git_diff, refs_valid)
     }
+  end
+
+  defp stack_in_sync(_path, %GitDiff{stack_ref: nil}, _refs_valid), do: nil
+  defp stack_in_sync(_path, %GitDiff{}, false), do: false
+
+  defp stack_in_sync(path, %GitDiff{head_ref: head, stack_ref: stack}, true) do
+    match?({:ok, []}, Git.differing_files(path, head, stack))
   end
 
   @doc """

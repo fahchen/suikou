@@ -429,7 +429,7 @@ declare namespace Musubi {
             project_id: string | null
             file_entries: Array<{ path: string; artifact_id: string | null; content_hash: string | null; change_status: "added" | "modified" | "deleted" | "renamed" | "copied" | "type_changed" | null; added: number | null; deleted: number | null; soft_removed: boolean }>
             files: Array<{ path: string; artifact_id: string | null; content_hash: string | null; artifact: { id: string; title: string } | null; current_round: { content_hash: string } | null }>
-            refs: { base_ref: string; head_ref: string; refs_valid: boolean } | null
+            refs: { base_ref: string; head_ref: string; stack_ref: string | null; refs_valid: boolean; stack_in_sync: boolean | null } | null
           }
         }
         submit_review: {
