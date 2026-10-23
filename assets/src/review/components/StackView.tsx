@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { Check, ChevronLeft, ChevronRight, Layers } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Layers } from "lucide-react"
 
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
@@ -194,52 +194,116 @@ function ReadToggle({
 }
 
 /** The current step's identity and full commit message above its diff: the
- * first `previewLines` of the body show, the rest fold behind `more`. */
+ * first `previewLines` of the body show, the rest fold behind `more`. With
+ * `bar`, a step bar (Prev, the step, Next) leads instead of the plain step
+ * line — the medium layout, whose rail hides in a drawer the bar opens. */
 export const StepHeader = observer(function StepHeader({
   steps,
   step,
   stackRef,
   progress,
   previewLines = 4,
+  bar,
 }: {
   steps: StackCommit[]
   step: StackStep
   stackRef: string
   progress: StackProgress
   previewLines?: number
+  bar?: { onStep: (step: StackStep) => void; onOpenSteps: () => void }
 }) {
-  if (step === "all") {
-    return (
-      <header className="shrink-0 border-b border-hair px-4 py-2.5">
-        <div className="font-mono text-2xs text-faint">
-          All changes · {steps.length} {steps.length === 1 ? "step" : "steps"}
-        </div>
-        <h2 className="mt-0.5 text-sm font-semibold text-ink">
-          The whole stack, <span className="font-mono">{stackRef}</span>
-        </h2>
-      </header>
-    )
-  }
-  const commit = steps[step - 1]
-  if (!commit) return null
-  const read = progress.isRead(commit.sha)
+  const commit = step === "all" ? null : (steps[step - 1] ?? null)
+  const read = commit ? progress.isRead(commit.sha) : false
+  const markRead = commit && (
+    <Toggle size="sm" pressed={read} onPressedChange={() => progress.toggle(commit.sha)}>
+      <Check size={13} aria-hidden />
+      {read ? "Read" : "Mark read"}
+    </Toggle>
+  )
+  const stepLine =
+    step === "all"
+      ? `All changes · ${steps.length} ${steps.length === 1 ? "step" : "steps"}`
+      : commit && `Step ${step}/${steps.length} · ${shortSha(commit.sha)}`
+  const title = commit ? (
+    commit.subject
+  ) : (
+    <>
+      The whole stack, <span className="font-mono">{stackRef}</span>
+    </>
+  )
+
   return (
     <header className="shrink-0 border-b border-hair px-4 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-2xs text-faint tabular-nums">
-          Step {step}/{steps.length} · {shortSha(commit.sha)}
-        </span>
-        <span className="flex-1" />
-        <Toggle size="sm" pressed={read} onPressedChange={() => progress.toggle(commit.sha)}>
-          <Check size={13} aria-hidden />
-          {read ? "Read" : "Mark read"}
-        </Toggle>
-      </div>
-      <h2 className="text-sm font-semibold text-ink">{commit.subject}</h2>
-      <StepMessage key={commit.sha} body={commit.body} previewLines={previewLines} />
+      {bar ? (
+        <div className="-ml-2 flex items-center gap-2">
+          <StepBar steps={steps} step={step} onStep={bar.onStep} onOpenSteps={bar.onOpenSteps} />
+          <span className="flex-1" />
+          {commit && <span className="font-mono text-2xs text-faint">{shortSha(commit.sha)}</span>}
+          {markRead}
+        </div>
+      ) : (
+        <>
+          <div className="flex min-h-[26px] items-center gap-2">
+            <span className="font-mono text-2xs text-faint tabular-nums">{stepLine}</span>
+            <span className="flex-1" />
+            {markRead}
+          </div>
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        </>
+      )}
+      {commit && <StepMessage key={commit.sha} body={commit.body} previewLines={previewLines} />}
     </header>
   )
 })
+
+/** `◂ N/M <subject> ▸`: steps back and forth; the subject opens the steps. */
+export function StepBar({
+  steps,
+  step,
+  onStep,
+  onOpenSteps,
+}: {
+  steps: StackCommit[]
+  step: StackStep
+  onStep: (step: StackStep) => void
+  onOpenSteps: () => void
+}) {
+  const previous = adjacentStep(step, steps.length, -1)
+  const next = adjacentStep(step, steps.length, 1)
+  const position = step === "all" ? "All" : `${step}/${steps.length}`
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <Button
+        size="icon-sm"
+        disabled={previous === null}
+        onClick={() => previous !== null && onStep(previous)}
+        aria-label="Previous step"
+        title="Previous step ( [ )"
+      >
+        <ChevronLeft size={15} aria-hidden />
+      </Button>
+      <button
+        type="button"
+        onClick={onOpenSteps}
+        aria-label={`Open steps, current ${step === "all" ? "all changes" : `step ${position}`}`}
+        className="flex h-[30px] min-w-0 items-center gap-2 rounded-ctrl px-1.5 text-left hover:bg-soft"
+      >
+        <span className="shrink-0 font-mono text-2xs font-bold text-faint tabular-nums">{position}</span>
+        <span className="min-w-0 truncate text-sm font-semibold text-ink">{stepSubject(steps, step)}</span>
+        <ChevronDown size={12} className="shrink-0 text-muted" aria-hidden />
+      </button>
+      <Button
+        size="icon-sm"
+        disabled={next === null}
+        onClick={() => next !== null && onStep(next)}
+        aria-label="Next step"
+        title="Next step ( ] )"
+      >
+        <ChevronRight size={15} aria-hidden />
+      </Button>
+    </div>
+  )
+}
 
 function StepMessage({ body, previewLines }: { body: string; previewLines: number }) {
   if (!body) return null

@@ -16,6 +16,7 @@ import {
 } from "../components/ui/dropdown-menu"
 import { Dialog, DialogTitle } from "../components/ui/dialog"
 import { Segmented } from "../components/ui/segmented"
+import { Sheet, SheetContent, SheetTitle } from "../components/ui/sheet"
 import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
@@ -73,18 +74,18 @@ type ReviewSummary = {
   waiting: number
 }
 
-function useDesktopLayout(): boolean {
-  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches)
+function useMediaQuery(media: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(media).matches)
 
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)")
-    const update = () => setDesktop(query.matches)
+    const query = window.matchMedia(media)
+    const update = () => setMatches(query.matches)
     update()
     query.addEventListener("change", update)
     return () => query.removeEventListener("change", update)
-  }, [])
+  }, [media])
 
-  return desktop
+  return matches
 }
 
 const artifactDraftKey = (scope: string): string => `suikou-artifact:${scope}`
@@ -361,6 +362,7 @@ const Shell = observer(function Shell({
   )
 
   const [filesSheetOpen, setFilesSheetOpen] = useState(false)
+  const [stepsDrawerOpen, setStepsDrawerOpen] = useState(false)
   const [filesSheetTab, setFilesSheetTab] = useState<"files" | "scope">("files")
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
   const [hoveredRange, setHoveredRange] = useState<HighlightRange>(null)
@@ -467,7 +469,10 @@ const Shell = observer(function Shell({
     return prefetchReviewFiles(reviewId, entries.map((e) => e.path), diffLens)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId, entryPaths, lensQuery])
-  const desktopLayout = useDesktopLayout()
+  const desktopLayout = useMediaQuery("(min-width: 1024px)")
+  // The stack rail stays docked from 1280px; below that, on desktop, it lives
+  // in a drawer over the diff and a step bar leads the content (BDR-0028).
+  const wideLayout = useMediaQuery("(min-width: 1280px)")
   // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
   const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
   // D11: the stacked all-files view is a desktop-only display mode; phones keep
@@ -688,6 +693,7 @@ const Shell = observer(function Shell({
   const sideColumn = stackedSide || (!stacked && commentDisplay === "side")
   const goToStep = (next: StackStep) => {
     setFilesSheetOpen(false)
+    setStepsDrawerOpen(false)
     uiStore.setStackStep(next)
   }
   const viewSwitch = hasStack && (
@@ -707,7 +713,10 @@ const Shell = observer(function Shell({
         selectedPath={navSelected}
         status={statusByPath}
         onStep={goToStep}
-        onSelectFile={navSelect}
+        onSelectFile={(path) => {
+          setStepsDrawerOpen(false)
+          navSelect(path)
+        }}
       />
     ) : null
 
@@ -768,14 +777,14 @@ const Shell = observer(function Shell({
         className={`grid min-h-0 flex-1 grid-cols-1 ${
           inStack
             ? sideColumn
-              ? "lg:grid-cols-[280px_1fr_340px]"
-              : "lg:grid-cols-[280px_1fr]"
+              ? "lg:grid-cols-[1fr_340px] xl:grid-cols-[280px_1fr_340px]"
+              : "lg:grid-cols-[1fr] xl:grid-cols-[280px_1fr]"
             : sideColumn
               ? "lg:grid-cols-[236px_1fr_340px]"
               : "lg:grid-cols-[236px_1fr]"
         }`}
       >
-        <aside className="hidden min-h-0 flex-col pt-3 lg:flex">
+        <aside className={`hidden min-h-0 flex-col pt-3 ${inStack ? "xl:flex" : "lg:flex"}`}>
           {viewSwitch}
           {inStack ? stepRail : <NavHeader entries={entries} />}
           {isDiff && !inStack && (
@@ -812,7 +821,11 @@ const Shell = observer(function Shell({
             <FileList entries={entries} isDiff={isDiff} selectedPath={navSelected} onSelect={navSelect} status={statusByPath} />
           )}
         </aside>
-        <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)]">
+        <div
+          className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] bg-editor lg:mr-2.5 lg:mb-2.5 lg:overflow-hidden lg:rounded-panel lg:border lg:border-hair lg:shadow-[0_1px_3px_oklch(30%_0.01_250/0.06)] ${
+            inStack ? "lg:ml-2.5 xl:ml-0" : ""
+          }`}
+        >
         {isDiff && !refsValid ? (
           <RefsErrorPage
             baseRef={structure?.refs?.base_ref ?? null}
@@ -822,7 +835,13 @@ const Shell = observer(function Shell({
         ) : inStack ? (
           steps && stackStep !== null ? (
             <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto]">
-              <StepHeader steps={steps} step={stackStep} stackRef={refs?.stack_ref ?? ""} progress={progress} />
+              <StepHeader
+                steps={steps}
+                step={stackStep}
+                stackRef={refs?.stack_ref ?? ""}
+                progress={progress}
+                bar={wideLayout ? undefined : { onStep: goToStep, onOpenSteps: () => setStepsDrawerOpen(true) }}
+              />
               {editorSurface}
               <StepFooter steps={steps} step={stackStep} onStep={goToStep} />
             </div>
@@ -866,6 +885,15 @@ const Shell = observer(function Shell({
         desktop={desktopLayout}
         onOpenComment={openComment}
       />
+      {inStack && desktopLayout && !wideLayout && (
+        <Sheet open={stepsDrawerOpen} onOpenChange={setStepsDrawerOpen}>
+          <SheetContent className="pt-3">
+            <SheetTitle className="sr-only">Stack steps</SheetTitle>
+            {viewSwitch}
+            {stepRail}
+          </SheetContent>
+        </Sheet>
+      )}
       <Dialog open={filesSheetOpen} onClose={() => setFilesSheetOpen(false)} className="max-h-[82vh] sm:max-w-[420px]">
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <FileText size={16} className="text-muted" aria-hidden />
