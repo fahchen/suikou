@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { observer } from "mobx-react-lite"
 import type { StoreProxy } from "@musubi/react"
-import { Crosshair, Lock, MessageSquarePlus, X } from "lucide-react"
+import { Lock, MessageSquarePlus, X } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Popover } from "../../components/ui/popover"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
+import { StrandedComments } from "./comments/StrandedComments"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
 type ElRect = { top: number; left: number; right: number; bottom: number; width: number; height: number }
@@ -185,18 +186,12 @@ export const HtmlView = observer(function HtmlView({
 
   return (
     <div ref={rootRef} className="flex shrink-0 flex-col bg-editor p-[14px]">
-      {strandedComments.length > 0 && (
-        <div className="mb-[14px] shrink-0 rounded-panel border border-hair-strong bg-soft/40 p-2">
-          <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <Crosshair size={12} className="text-accent" aria-hidden />
-            Stranded {strandedComments.length === 1 ? "comment" : "comments"}
-            <span className="font-normal normal-case tracking-normal text-faint">· element no longer in the page</span>
-          </div>
-          {strandedComments.map((comment) => (
-            <CommentThread key={comment.id} comment={comment} commentsProxy={commentsProxy} className="my-1" />
-          ))}
-        </div>
-      )}
+      <StrandedComments
+        comments={strandedComments}
+        commentsProxy={commentsProxy}
+        reason="element no longer in the page"
+        className="mb-[14px] shrink-0"
+      />
       <div
         className="flex min-h-[60svh] shrink-0 flex-col overflow-hidden rounded-[11px] border border-hair-strong bg-canvas shadow-sm"
         style={{ minHeight: screenHeight ? screenHeight - 28 : undefined }}

@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite"
 import { motion } from "motion/react"
 import type { StoreProxy } from "@musubi/react"
 import type { ThemedToken } from "shiki"
-import { ChevronRight, Crosshair, Plus } from "lucide-react"
+import { ChevronRight, Plus } from "lucide-react"
 
 import { useMusubiCommand } from "../../musubi"
 import { uiStore, MONO_SIZE, MONO_PX } from "../../stores/ui-store"
@@ -13,6 +13,7 @@ import { renderMarkdownBlocks, useCodeHighlight, useCodeSync, useMermaid, useTab
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 import { Composer } from "./comments/Composer"
 import { CommentThread } from "./comments/CommentThread"
+import { StrandedComments } from "./comments/StrandedComments"
 import { MermaidZoom } from "./MermaidZoom"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
@@ -626,24 +627,15 @@ export const Source = observer(function Source({
 
   return (
     <div className={`shrink-0 py-1 font-mono leading-[1.55] ${MONO_SIZE[uiStore.monoSize]}`}>
-      {showThreads && strandedComments.length > 0 && (
-        <div className="mx-3 mb-2 rounded-panel border border-hair-strong bg-soft/40 p-2 font-sans">
-          <div className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <Crosshair size={12} className="text-accent" />
-            Stranded {strandedComments.length === 1 ? "comment" : "comments"}
-            <span className="font-normal normal-case tracking-normal text-faint">· anchor line no longer exists</span>
-          </div>
-          {strandedComments.map((comment) => (
-            <CommentThread
-              key={comment.id}
-              comment={comment}
-              commentsProxy={commentsProxy}
-              className="my-1"
-              focused={focusedCommentId === comment.id}
-              onFocus={onFocusComment ? () => onFocusComment(focusedCommentId === comment.id ? null : comment.id) : undefined}
-            />
-          ))}
-        </div>
+      {showThreads && (
+        <StrandedComments
+          comments={strandedComments}
+          commentsProxy={commentsProxy}
+          reason="anchor line no longer exists"
+          focusedCommentId={focusedCommentId}
+          onFocusComment={onFocusComment}
+          className="mx-3 mb-2"
+        />
       )}
       {rows.map((lineTokens, index) => {
         const lineNo = index + 1
