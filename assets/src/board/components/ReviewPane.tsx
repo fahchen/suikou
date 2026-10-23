@@ -10,6 +10,7 @@ import { hashEmoji } from "../emoji"
 
 import { useMusubiCommand } from "../../musubi"
 import { parseIso } from "../../lib/utils"
+import { Badge } from "../../components/ui/badge"
 import { ConfirmDialog } from "../../components/ui/confirm-dialog"
 import { Dialog, DialogTitle } from "../../components/ui/dialog"
 import { ProjectSettingsDialog } from "../ProjectSettingsDialog"
@@ -222,21 +223,19 @@ function ReviewRow({
             {review.name}
           </span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-[9px] gap-y-1 text-xs text-muted">
-            <span
-              className={`inline-flex h-[17px] items-center rounded-full px-[7px] text-2xs font-bold uppercase tracking-[0.04em] ${
-                isDiff
-                  ? "bg-accent-soft text-accent-bright shadow-[inset_0_0_0_0.5px_var(--accent-edge)]"
-                  : "bg-soft text-muted shadow-[inset_0_0_0_0.5px_var(--hair-strong)]"
-              }`}
-            >
-              {isDiff ? "Diff" : "Files"}
-            </span>
+            <KindBadge review={review} />
             {isDiff && review.base_ref && (
               <>
                 <span className="font-mono">
                   {review.base_ref}
                   <span className="text-faint">..</span>
                   {review.head_ref}
+                  {review.stack_ref && (
+                    <>
+                      <span className="text-faint"> · stack </span>
+                      {review.stack_ref}
+                    </>
+                  )}
                 </span>
                 <Dot />
               </>
@@ -259,6 +258,46 @@ function ReviewRow({
         />
       )}
     </div>
+  )
+}
+
+/** The card's kind tag. A restacked review (BDR-0028) reads as `Stack ·
+ * N commits`, turning amber while its stack has drifted from the source
+ * branch or its stack branch is gone. */
+function KindBadge({ review }: { review: BoardReview }) {
+  if (review.kind !== "git_diff") {
+    return (
+      <Badge variant="muted" shape="label">
+        Files
+      </Badge>
+    )
+  }
+  if (!review.stack_ref) {
+    return (
+      <Badge variant="open" shape="label">
+        Diff
+      </Badge>
+    )
+  }
+  if (review.stack_valid === false) {
+    return (
+      <Badge variant="warning" shape="label">
+        Stack · missing
+      </Badge>
+    )
+  }
+  if (review.stack_in_sync === false) {
+    return (
+      <Badge variant="warning" shape="label">
+        Stack · out of sync
+      </Badge>
+    )
+  }
+  const count = review.stack_commit_count
+  return (
+    <Badge variant="open" shape="label">
+      {count === null ? "Stack" : `Stack · ${count} ${count === 1 ? "commit" : "commits"}`}
+    </Badge>
   )
 }
 
