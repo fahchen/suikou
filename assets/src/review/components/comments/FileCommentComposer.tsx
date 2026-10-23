@@ -23,7 +23,7 @@ export function FileCommentComposer({
   const addComment = useMusubiCommand(fileProxy, "add_comment")
 
   const submit = (body: string, type: CritiqueType) => {
-    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).then(onClose).catch(() => undefined)
+    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null, lens: null }).then(onClose).catch(() => undefined)
   }
 
   return (

@@ -19,6 +19,7 @@ defmodule SuikouWeb.Stores.FileStore do
   alias Suikou.Schemas.Artifact
   alias Suikou.Schemas.Review
   alias Suikou.Schemas.Round
+  alias SuikouWeb.LensParams
   alias SuikouWeb.Stores.CommentContract
   alias SuikouWeb.Stores.CommentsStore
   require CommentContract
@@ -54,6 +55,12 @@ defmodule SuikouWeb.Stores.FileStore do
       field(:body, String.t())
 
       CommentContract.optional_anchor_field()
+
+      # The lens the reviewer was reading when they picked a diff hunk, as the
+      # review read endpoints' query string (`view=stack&scope=commits:<sha>`,
+      # BDR-0024/0028). The server captures the hunk's quote from that lens's
+      # diff, since its line numbers refer to it. `nil` is the default lens.
+      field(:lens, String.t() | nil)
     end
   end
 
@@ -107,30 +114,47 @@ defmodule SuikouWeb.Stores.FileStore do
 
   def handle_command(:add_comment, payload, socket) do
     socket =
-      case ensure_artifact(socket) do
-        {:ok, artifact_id, socket} ->
-          case Rounds.latest(artifact_id) do
-            %Round{id: round_id} ->
-              _result =
-                Critique.add_comment(%{
-                  round_id: round_id,
-                  scope: payload["scope"],
-                  critique_type: payload["critique_type"],
-                  body: payload["body"],
-                  anchor: payload["anchor"]
-                })
-
-              socket
-
-            nil ->
-              socket
-          end
-
-        {:error, socket} ->
-          socket
+      with {:ok, lens} <- comment_lens(payload["lens"]),
+           {:ok, artifact_id, socket} <- ensure_artifact(socket) do
+        add_comment(artifact_id, payload, lens)
+        socket
+      else
+        {:error, :invalid_lens} -> socket
+        {:error, socket} -> socket
       end
 
     {:noreply, socket}
+  end
+
+  # An invalid lens rejects the comment: its line numbers could not be trusted
+  # to refer to any diff the server can read.
+  defp comment_lens(nil), do: {:ok, %{}}
+
+  defp comment_lens(query) when is_binary(query) do
+    case query |> URI.decode_query() |> LensParams.parse() do
+      {:ok, lens} -> {:ok, lens}
+      {:error, _reason} -> {:error, :invalid_lens}
+    end
+  end
+
+  defp add_comment(artifact_id, payload, lens) do
+    case Rounds.latest(artifact_id) do
+      %Round{id: round_id} ->
+        _result =
+          Critique.add_comment(%{
+            round_id: round_id,
+            scope: payload["scope"],
+            critique_type: payload["critique_type"],
+            body: payload["body"],
+            anchor: payload["anchor"],
+            lens: lens
+          })
+
+        :ok
+
+      nil ->
+        :ok
+    end
   end
 
   @impl Musubi.Store

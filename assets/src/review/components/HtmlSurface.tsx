@@ -172,7 +172,7 @@ export const HtmlView = observer(function HtmlView({
     if (!fileProxy || !overlay) return
     const quote = overlay.kind === "compose" ? overlay.quote : threadQuote
     addComment
-      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote } })
+      .dispatch({ scope: "located", critique_type: type, body, anchor: { type: "element", selector: overlay.selector, quote }, lens: null })
       .then(() => {
         setAddingComment(false)
         if (overlay.kind === "compose") applyOverlay(null)

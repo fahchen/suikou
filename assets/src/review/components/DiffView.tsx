@@ -9,6 +9,7 @@ import { diffSideRows, locateDiffQuote } from "../diff/reanchor"
 import { Composer } from "./comments/Composer"
 import { StrandedComments } from "./comments/StrandedComments"
 import { CommentThread } from "./comments/CommentThread"
+import { lensQueryString, type DiffLens } from "./EditorSurface"
 import type { Comment, CommentsStoreProxy, CritiqueType } from "./comments/shared"
 
 type FileStoreProxy = StoreProxy<"SuikouWeb.Stores.FileStore", Musubi.Stores>
@@ -33,6 +34,7 @@ export const DiffView = observer(function DiffView({
   readOnly = false,
   focusedCommentId,
   onFocusComment,
+  lens,
 }: {
   patch: string
   path?: string
@@ -43,6 +45,9 @@ export const DiffView = observer(function DiffView({
   readOnly?: boolean
   focusedCommentId: string | null
   onFocusComment: (commentId: string | null) => void
+  /** The lens `patch` was read through; the server captures a new comment's
+   * quote from that lens's diff, since the clicked line numbers refer to it. */
+  lens?: DiffLens
 }) {
   const addComment = useMusubiCommand(fileProxy as FileStoreProxy, "add_comment")
 
@@ -54,6 +59,7 @@ export const DiffView = observer(function DiffView({
         critique_type: type,
         body,
         anchor: { type: "diff_hunk", side: draft.side, start_line: draft.start, end_line: draft.end },
+        lens: lensQueryString(lens) || null,
       })
       .then(close)
       .catch(() => undefined)

@@ -515,6 +515,7 @@ const StackedFileContent = observer(function StackedFileContent({
         highlightedRange={highlightedRange}
         onFocusComment={onFocusComment}
         isDiff={!!diffLens}
+        lens={diffLens}
       />
     </div>
   )
@@ -534,6 +535,7 @@ function StackedBody({
   highlightedRange,
   onFocusComment,
   isDiff,
+  lens,
 }: {
   content: Content
   name: string
@@ -548,6 +550,7 @@ function StackedBody({
   highlightedRange: { start: number; end: number } | null
   onFocusComment: (commentId: string | null) => void
   isDiff: boolean
+  lens?: DiffLens
 }) {
   if (content.kind === "loading") {
     return <LoadingNotice name={name} />
@@ -576,6 +579,7 @@ function StackedBody({
         readOnly={readOnly}
         focusedCommentId={focusedCommentId}
         onFocusComment={onFocusComment}
+        lens={lens}
       />
     )
   }

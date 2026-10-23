@@ -1068,7 +1068,7 @@ function ArtifactComments({
   }, [composing])
 
   const submit = (body: string, type: CritiqueType) => {
-    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null }).then(onClose).catch(() => undefined)
+    addComment.dispatch({ scope: "artifact", critique_type: type, body, anchor: null, lens: null }).then(onClose).catch(() => undefined)
   }
 
   if (items.length === 0 && !composing) return null
@@ -1639,6 +1639,7 @@ function Editor({
               readOnly={readOnly}
               focusedCommentId={focusedCommentId}
               onFocusComment={onFocusComment}
+              lens={diffLens}
             />
           ) : content.lines.length === 1 && content.lines[0] === "" ? (
             <EmptyFileNotice name={name} />

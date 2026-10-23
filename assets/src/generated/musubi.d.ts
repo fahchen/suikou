@@ -222,6 +222,7 @@ declare namespace Musubi {
             critique_type: "fix_required" | "needs_answer" | "note"
             body: string
             anchor: { type: "line_range"; start_line: number; end_line: number } | { type: "diff_hunk"; side: "old" | "new"; start_line: number; end_line: number } | { type: "element"; selector: string; quote: string } | null
+            lens: string | null
           }
           reply: never
         }

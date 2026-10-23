@@ -133,6 +133,7 @@ export const MarkdownPreview = observer(function MarkdownPreview({
         critique_type: type,
         body,
         anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
+        lens: null,
       })
       .then(close)
       .catch(() => undefined)
@@ -620,6 +621,7 @@ export const Source = observer(function Source({
         critique_type: type,
         body,
         anchor: { type: "line_range", start_line: draft.start, end_line: draft.end },
+        lens: null,
       })
       .then(close)
       .catch(() => undefined)
