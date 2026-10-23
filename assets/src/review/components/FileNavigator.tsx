@@ -273,7 +273,8 @@ function TreeNodes({
 
 /** One file in a navigator list, indented by `depth`: change status, name,
  * comment and line-count chips. Shared by the file tree and the stack rail's
- * per-step file list. */
+ * per-step file list; a flat list (`showDir`) adds the folder after the name,
+ * since no tree above says where the file lives. */
 export function FileRow({
   entry,
   depth,
@@ -281,6 +282,7 @@ export function FileRow({
   selected,
   onSelect,
   live,
+  showDir = false,
 }: {
   entry: ReviewFileEntry
   depth: number
@@ -288,8 +290,10 @@ export function FileRow({
   selected: boolean
   onSelect: (path: string) => void
   live: ReviewFileStatus | undefined
+  showDir?: boolean
 }) {
   const name = entry.path.slice(entry.path.lastIndexOf("/") + 1)
+  const dir = entry.path.slice(0, entry.path.lastIndexOf("/") + 1)
   const status = entry.change_status ? STATUS_META[entry.change_status] : null
   const blockers = live?.openBlockers ?? 0
   const unresolved = live?.unresolved ?? 0
@@ -314,7 +318,16 @@ export function FileRow({
         {status?.letter ?? ""}
       </span>
       <FileIcon name={name} size={13} />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {showDir && dir ? (
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="max-w-full shrink-0 truncate">{name}</span>
+          <span className={`min-w-0 truncate font-mono text-2xs ${selected ? "text-accent-bright/70" : "text-faint"}`}>
+            {dir.slice(0, -1)}
+          </span>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      )}
       {unresolved > 0 ? (
         <span
           title={`${unresolved} unresolved comment${unresolved > 1 ? "s" : ""}`}

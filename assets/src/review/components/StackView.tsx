@@ -91,6 +91,7 @@ export const StepRail = observer(function StepRail({
           selected={entry.path === selectedPath}
           onSelect={onSelectFile}
           live={status.get(entry.path)}
+          showDir
         />
       ))}
     </div>
