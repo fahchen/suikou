@@ -267,6 +267,25 @@ defmodule Suikou.ReviewsStackTest do
                )
     end
 
+    test "drops entries cached at tips that have moved", %{dir: dir, review: review} do
+      lens = %{view: :stack}
+      _files = ChangesWatcher.list_files(review.id, lens)
+      {:ok, _diff} = ChangesWatcher.fetch_content(review.id, "a.txt", lens)
+      _source = ChangesWatcher.list_files(review.id)
+
+      git!(dir, ["checkout", "-q", "feat-review"])
+      write_commit!(dir, [{"a.txt", "moved\n"}], "move the stack")
+      _files = ChangesWatcher.list_files(review.id, lens)
+
+      assert %{files: files, content: content} = :sys.get_state(watcher_pid(review.id))
+      {:ok, base} = Suikou.Git.resolve_commit(dir, "main")
+      {:ok, tip} = Suikou.Git.resolve_commit(dir, "feat-review")
+
+      assert [[^base, ^tip]] = for({^lens, tips} <- Map.keys(files), do: tips)
+      assert 2 = map_size(files)
+      assert 0 = map_size(content)
+    end
+
     test "serves fresh source files once the head moves", %{dir: dir, review: review} do
       assert ["a.txt", "b.txt"] = paths(ChangesWatcher.list_files(review.id))
 
@@ -296,6 +315,11 @@ defmodule Suikou.ReviewsStackTest do
   defp watch(%{review: review}) do
     :ok = ChangesWatcher.subscribe(review.id)
     :ok
+  end
+
+  defp watcher_pid(review_id) do
+    [{pid, _value}] = Registry.lookup(Suikou.ChangesWatcher.Registry, review_id)
+    pid
   end
 
   defp steps(%{review: review}) do

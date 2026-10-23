@@ -144,13 +144,15 @@ defmodule Suikou.ChangesWatcher do
 
   def handle_call({:list_files, lens}, _from, state) do
     review = Reviews.get_review(state.review_id)
-    key = {lens, tips(review, lens)}
+    tips = tips(review, lens)
+    key = {lens, tips}
 
     case Map.fetch(state.files, key) do
       {:ok, entries} ->
         {:reply, entries, state}
 
       :error ->
+        state = drop_moved(state, lens, tips)
         entries = compute_files(review, lens)
         {:reply, entries, %{state | files: Map.put(state.files, key, entries)}}
     end
@@ -158,13 +160,16 @@ defmodule Suikou.ChangesWatcher do
 
   def handle_call({:fetch_content, path, lens}, _from, state) do
     review = Reviews.get_review(state.review_id)
-    key = {path, lens, tips(review, lens)}
+    tips = tips(review, lens)
+    key = {path, lens, tips}
 
     case Map.fetch(state.content, key) do
       {:ok, result} ->
         {:reply, result, state}
 
       :error ->
+        state = drop_moved(state, lens, tips)
+
         # Cache hits only. Error results (not-found, invalid lens) are cheap to
         # recompute, and caching them would let varied bad paths grow the map
         # unbounded between invalidations.
@@ -228,8 +233,24 @@ defmodule Suikou.ChangesWatcher do
   defp compute_content(nil, _path, _lens), do: {:error, :review_not_found}
 
   # The tip SHAs the lens reads, so a moved branch keys a fresh entry.
+  # ponytail: every read, hit or miss, pays for `get_review/1` plus two
+  # `git rev-parse` calls to resolve these. Memoize the tips per review for a
+  # short TTL if that read latency ever shows up.
   defp tips(%Review{} = review, lens), do: Reviews.lens_tips(review, lens)
   defp tips(nil, _lens), do: []
+
+  # A miss for `lens` at `tips` means any entry for that lens at other tips was
+  # read from a branch that has since moved: it can never hit again, so drop it
+  # instead of letting a busy head grow the caches until the next event.
+  defp drop_moved(state, lens, tips) do
+    moved? = fn entry_lens, entry_tips -> entry_lens == lens and entry_tips != tips end
+
+    %{
+      state
+      | files: Map.reject(state.files, fn {{l, t}, _entries} -> moved?.(l, t) end),
+        content: Map.reject(state.content, fn {{_path, l, t}, _result} -> moved?.(l, t) end)
+    }
+  end
 
   defp arm_grace, do: Process.send_after(self(), :grace_timeout, @grace_ms)
 
