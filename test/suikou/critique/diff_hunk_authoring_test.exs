@@ -66,6 +66,64 @@ defmodule Suikou.Critique.DiffHunkAuthoringTest do
     end
   end
 
+  describe "add_comment with a diff_hunk anchor under a lens" do
+    @describetag :tmp_dir
+    setup :prepended_repo
+
+    test "captures the clicked line from a commit scope's diff, not the head's",
+         %{round: round, first: first} do
+      assert {:ok, %{anchor: %DiffHunk{start_line: 1, quote: "one"}}} =
+               add_hunk(round, %{scope: {:commits, [first]}})
+    end
+
+    test "captures the clicked line from a stack step's diff", %{dir: dir, review: review} do
+      git!(dir, ["branch", "topic-review", "topic"])
+      {:ok, review} = Reviews.set_stack(review, "topic-review")
+      {:ok, [_second, %{sha: first}]} = Reviews.list_diff_commits(review, :stack)
+      {:ok, artifact} = Reviews.open_file(review, "a.txt")
+      round = Rounds.latest(artifact.id)
+
+      assert {:ok, %{anchor: %DiffHunk{start_line: 1, quote: "one"}}} =
+               add_hunk(round, %{view: :stack, scope: {:commits, [first]}})
+    end
+
+    test "keeps capturing from the artifact's own diff without a lens", %{round: round} do
+      assert {:ok, %{anchor: %DiffHunk{start_line: 1, quote: "zero"}}} = add_hunk(round, %{})
+      assert {:ok, %{anchor: %DiffHunk{quote: "zero"}}} = add_hunk(round, nil)
+    end
+
+    test "rejects a lens the review cannot read", %{round: round} do
+      assert {:error, :no_stack} = add_hunk(round, %{view: :stack})
+      assert {:error, :commit_not_in_range} = add_hunk(round, %{scope: {:commits, ["abcd1234"]}})
+    end
+  end
+
+  defp add_hunk(round, lens) do
+    Critique.add_comment(%{
+      round_id: round.id,
+      scope: :located,
+      anchor: %{type: "diff_hunk", side: "new", start_line: 1, end_line: 1},
+      lens: lens,
+      critique_type: :note,
+      body: "this line"
+    })
+  end
+
+  # `topic` adds a.txt in its first commit and prepends a line in its second, so
+  # new-side line 1 is "one" in the first commit but "zero" at the head.
+  defp prepended_repo(%{tmp_dir: dir}) do
+    init_repo!(dir)
+    branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "one\ntwo\n") end)
+    File.write!(Path.join(dir, "a.txt"), "zero\none\ntwo\n")
+    git!(dir, ["commit", "-q", "-am", "prepend"])
+
+    review = diff_review_with(dir, "main", "topic")
+    {:ok, [_second, %{sha: first}]} = Reviews.list_diff_commits(review)
+    {:ok, artifact} = Reviews.open_file(review, "a.txt")
+
+    %{dir: dir, review: review, round: Rounds.latest(artifact.id), first: first}
+  end
+
   defp diff_review_with(dir, base, head) do
     project = insert(:project)
     project_path = dir

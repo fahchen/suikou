@@ -36,6 +36,13 @@ defmodule Suikou.Critique.Comments do
   artifact content; `"element"` packages the client-supplied selector + quote
   verbatim — see BDR-0021). Rejects an unknown or non-latest round.
 
+  A `diff_hunk` anchor's line numbers refer to the diff the reviewer was
+  reading. An optional `:lens` (a `Suikou.Reviews.lens()`) names it — a stack
+  step, a commit scope, a worktree — and the quote is captured from that lens's
+  diff via `Suikou.Reviews.fetch_content_by_path/3`, never from a client-sent
+  quote. No lens (or `%{}`) captures from the artifact's own content as before;
+  a lens the review rejects rejects the comment.
+
   ## Examples
 
       Suikou.Critique.Comments.add(%{round_id: round.id, scope: :review, critique_type: :note, body: "looks good"})
@@ -53,7 +60,8 @@ defmodule Suikou.Critique.Comments do
              | :not_latest_round
              | :unknown_anchor_type
              | Artifacts.read_content_error()
-             | Artifacts.content_source_error()}
+             | Artifacts.content_source_error()
+             | Reviews.content_by_path_error()}
   def add(params) do
     round = Rounds.get(params[:round_id])
 
@@ -285,7 +293,7 @@ defmodule Suikou.Critique.Comments do
       %Comment{scope: :located} = comment ->
         round = Rounds.get(comment.round_id)
 
-        with {:ok, anchor} <- build_anchor(anchor_params, round) do
+        with {:ok, anchor} <- build_anchor(anchor_params, round, %{}) do
           comment
           |> Comment.relocate_changeset(%{anchor: anchor})
           |> Repo.update()
@@ -404,7 +412,7 @@ defmodule Suikou.Critique.Comments do
 
   defp put_anchor(params, round) do
     if located_scope?(params[:scope]) do
-      with {:ok, anchor} <- build_anchor(params[:anchor], round) do
+      with {:ok, anchor} <- build_anchor(params[:anchor], round, params[:lens] || %{}) do
         {:ok, Map.put(params, :anchor, anchor)}
       end
     else
@@ -412,16 +420,16 @@ defmodule Suikou.Critique.Comments do
     end
   end
 
-  defp build_anchor(anchor_params, round) do
+  defp build_anchor(anchor_params, round, lens) do
     case anchor_type(anchor_params) do
       "line_range" -> build_line_range(anchor_params, round)
-      "diff_hunk" -> build_diff_hunk(anchor_params, round)
+      "diff_hunk" -> build_diff_hunk(anchor_params, round, lens)
       "element" -> build_element(anchor_params)
       _other -> {:error, :unknown_anchor_type}
     end
   end
 
-  # Mirrors `build_diff_hunk/2`'s rejection of a file source: a line range on a
+  # Mirrors `build_diff_hunk/3`'s rejection of a file source: a line range on a
   # git-diff artifact would capture its quote from the working-tree file while
   # the artifact renders as a diff, so the anchor could never resolve and the
   # comment would read as permanently outdated. Reject it instead of storing a
@@ -454,12 +462,12 @@ defmodule Suikou.Critique.Comments do
     {:ok, Anchor.capture_element(selector, quote)}
   end
 
-  defp build_diff_hunk(anchor_params, round) do
+  defp build_diff_hunk(anchor_params, round, lens) do
     side = side_field(anchor_params)
     start_line = anchor_field(anchor_params, :start_line)
     end_line = anchor_field(anchor_params, :end_line)
 
-    case Artifacts.content_source(round.artifact_id) do
+    case diff_content(round, lens) do
       {:ok, {:inline, diff, "text/x-diff"}} ->
         {:ok, Anchor.capture_diff_hunk(diff, side, start_line, end_line)}
 
@@ -469,6 +477,16 @@ defmodule Suikou.Critique.Comments do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  # The diff the reviewer clicked in: the artifact's own content for the default
+  # lens, otherwise that lens's live diff of the artifact's file.
+  defp diff_content(round, lens) when map_size(lens) == 0,
+    do: Artifacts.content_source(round.artifact_id)
+
+  defp diff_content(round, lens) do
+    artifact = Artifact |> Repo.get!(round.artifact_id) |> Repo.preload(:review)
+    Reviews.fetch_content_by_path(artifact.review, artifact.file_path, lens)
   end
 
   defp anchor_type(%{type: nil}), do: nil

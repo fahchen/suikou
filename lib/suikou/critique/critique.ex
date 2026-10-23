@@ -53,7 +53,8 @@ defmodule Suikou.Critique do
              | :not_latest_round
              | :unknown_anchor_type
              | Artifacts.read_content_error()
-             | Artifacts.content_source_error()}
+             | Artifacts.content_source_error()
+             | Suikou.Reviews.content_by_path_error()}
   def add_comment(params), do: params |> Comments.add() |> broadcast_comment_change()
 
   @doc """
