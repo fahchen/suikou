@@ -150,6 +150,8 @@ defmodule SuikouWeb.Stores.ProjectBoardStoreTest do
         })
 
       page = Testing.mount(ProjectBoardStore)
+      # Let the async file walk finish so it never outlives this test.
+      await_review_files(page)
 
       assert %{
                projects: [
