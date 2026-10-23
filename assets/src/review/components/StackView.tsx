@@ -76,12 +76,15 @@ export const StepRail = observer(function StepRail({
   status,
   onStep,
   onSelectFile,
+  isReadOnly,
 }: {
   steps: StackCommit[]
   step: StackStep
   progress: StackProgress
   /** The current step's files. */
   entries: ReviewFileEntry[]
+  /** Whether a file is outside the branch's net change, and so takes no comments. */
+  isReadOnly: (path: string) => boolean
   selectedPath: string | null
   status: Map<string, ReviewFileStatus>
   onStep: (step: StackStep) => void
@@ -100,6 +103,7 @@ export const StepRail = observer(function StepRail({
           onSelect={onSelectFile}
           live={status.get(entry.path)}
           showDir
+          readOnly={isReadOnly(entry.path)}
         />
       ))}
     </div>

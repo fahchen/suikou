@@ -748,6 +748,7 @@ const Shell = observer(function Shell({
           setStepsDrawerOpen(false)
           navSelect(path)
         }}
+        isReadOnly={outsideNetChange}
       />
     ) : null
 

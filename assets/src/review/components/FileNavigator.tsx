@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ChevronRight, FileText, Folder, MessageSquare, Search } from "lucide-react"
+import { ChevronRight, FileText, Folder, MessageSquare, MessageSquareOff, Search } from "lucide-react"
 
 import { FileIcon } from "../../board/FileIcon"
 
@@ -274,7 +274,8 @@ function TreeNodes({
 /** One file in a navigator list, indented by `depth`: change status, name,
  * comment and line-count chips. Shared by the file tree and the stack rail's
  * per-step file list; a flat list (`showDir`) adds the folder after the name,
- * since no tree above says where the file lives. */
+ * since no tree above says where the file lives. `readOnly` marks a file that
+ * takes no comments. */
 export function FileRow({
   entry,
   depth,
@@ -283,6 +284,7 @@ export function FileRow({
   onSelect,
   live,
   showDir = false,
+  readOnly = false,
 }: {
   entry: ReviewFileEntry
   depth: number
@@ -291,6 +293,7 @@ export function FileRow({
   onSelect: (path: string) => void
   live: ReviewFileStatus | undefined
   showDir?: boolean
+  readOnly?: boolean
 }) {
   const name = entry.path.slice(entry.path.lastIndexOf("/") + 1)
   const dir = entry.path.slice(0, entry.path.lastIndexOf("/") + 1)
@@ -327,6 +330,12 @@ export function FileRow({
         </span>
       ) : (
         <span className="min-w-0 flex-1 truncate">{name}</span>
+      )}
+      {readOnly && (
+        <span title="Not in the branch's net change: read-only" className="shrink-0 text-faint">
+          <MessageSquareOff size={11} aria-hidden />
+          <span className="sr-only">Read-only, not in the branch's net change</span>
+        </span>
       )}
       {unresolved > 0 ? (
         <span
