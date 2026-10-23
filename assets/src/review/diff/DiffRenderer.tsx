@@ -393,8 +393,9 @@ type HunkSegment =
  * `gap` segments, keeping `margin` lines adjacent to each change (and to the
  * hunk's edges — the file top/bottom keep only their inner margin). Runs that
  * would hide nothing stay fully visible, so a plain `-U3` patch produces no
- * gaps. */
-function segmentHunk(lines: DiffLine[], margin: number): HunkSegment[] {
+ * gaps. A `pinned` context line (one a comment sits on) is kept like a change,
+ * so a fold never hides a comment. */
+function segmentHunk(lines: DiffLine[], margin: number, pinned: (line: DiffLine) => boolean): HunkSegment[] {
   const segments: HunkSegment[] = []
   let buffer: DiffLine[] = []
   const flush = () => {
@@ -405,13 +406,14 @@ function segmentHunk(lines: DiffLine[], margin: number): HunkSegment[] {
   }
   let i = 0
   while (i < lines.length) {
-    if (lines[i]!.kind !== "ctx") {
+    const foldable = (line: DiffLine) => line.kind === "ctx" && !pinned(line)
+    if (!foldable(lines[i]!)) {
       buffer.push(lines[i]!)
       i += 1
       continue
     }
     let j = i
-    while (j < lines.length && lines[j]!.kind === "ctx") j += 1
+    while (j < lines.length && foldable(lines[j]!)) j += 1
     const run = lines.slice(i, j)
     const lead = i === 0 ? 0 : margin
     const trail = j === lines.length ? 0 : margin
@@ -454,14 +456,25 @@ function HunkView<A>({
   selectedRange: { side: "old" | "new"; start: number; end: number } | null | undefined
   renderAnnotation: ((annotation: DiffAnnotation<A>) => React.ReactNode) | undefined
 }) {
-  const annotations = lineAnnotations ?? []
+  // A stable empty list, so the fold memo below doesn't recompute every render.
+  const annotations = useMemo(() => lineAnnotations ?? [], [lineAnnotations])
   // Per gap: how many hidden lines have been revealed from each end. A click
   // grows one end by EXPAND_STEP so a large gap opens progressively, GitHub
   // style, rather than dumping the whole file at once.
   const [revealed, setRevealed] = useState<Map<string, { top: number; bottom: number }>>(() => new Map())
   // Reset folds when the patch changes (e.g. a lens switch reparses the file).
   useEffect(() => setRevealed(new Map()), [hunk])
-  const segments = useMemo(() => segmentHunk(hunk.lines, CONTEXT_MARGIN), [hunk])
+  const segments = useMemo(
+    () =>
+      segmentHunk(hunk.lines, CONTEXT_MARGIN, (line) =>
+        line.kind === "ctx" &&
+        annotations.some((a) => {
+          const at = a.side === "old" ? line.oldLine : line.newLine
+          return at >= a.startLine && at <= a.endLine
+        }),
+      ),
+    [hunk, annotations],
+  )
 
   const grow = (key: string, end: "top" | "bottom", total: number) =>
     setRevealed((prev) => {
