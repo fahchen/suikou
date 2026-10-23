@@ -27,8 +27,16 @@ export function adjacentStep(step: StackStep, count: number, delta: 1 | -1): Sta
 
 const shortSha = (sha: string): string => sha.slice(0, 7)
 
+/** A commit subject with its Conventional Commits prefix (`type(scope):`)
+ * muted, so the words that say what the step does carry the weight. */
 function CommitSubject({ subject }: { subject: string }) {
-  return <>{subject}</>
+  const match = /^([a-z]+(?:\([^)]*\))?!?:)\s+(.+)$/i.exec(subject)
+  if (!match) return <>{subject}</>
+  return (
+    <>
+      <span className="font-normal text-muted">{match[1]}</span> {match[2]}
+    </>
+  )
 }
 
 /** `Source | Stack`: which way to read a stacked review. */
@@ -123,22 +131,22 @@ export const StepRail = observer(function StepRail({
                   type="button"
                   onClick={() => onStep(number)}
                   aria-current={current ? "step" : undefined}
-                  className="flex min-w-0 flex-1 items-center gap-2 self-stretch pl-2 text-left"
+                  className="flex min-w-0 flex-1 items-start gap-2 self-stretch py-[7px] pl-2 text-left"
                 >
                   <span
-                    className={`w-[18px] shrink-0 text-right font-mono text-2xs font-bold tabular-nums ${
+                    className={`w-[18px] shrink-0 pt-px text-right font-mono text-2xs font-bold tabular-nums ${
                       current ? "text-accent-bright" : "text-faint"
                     }`}
                   >
                     {number}
                   </span>
                   <span
-                    className={`min-w-0 flex-1 truncate text-xs ${
+                    className={`line-clamp-2 min-w-0 flex-1 text-xs leading-[1.4] break-words ${
                       current ? "font-semibold text-ink" : read ? "text-muted" : "text-text"
                     }`}
                     title={commit.subject}
                   >
-                    {commit.subject}
+                    <CommitSubject subject={commit.subject} />
                   </span>
                 </button>
                 <ReadToggle read={read} number={number} onToggle={() => progress.toggle(commit.sha)} />
