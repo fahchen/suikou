@@ -139,6 +139,32 @@ defmodule Suikou.Schemas.Review do
   end
 
   @doc """
+  Builds a changeset attaching a review stack to a git-diff review, keeping its
+  base and head refs. The stack is verified by the reviews context before this
+  runs (see BDR-0028).
+
+  ## Examples
+
+      review = %Suikou.Schemas.Review{source: %Suikou.Schemas.ReviewSource.GitDiff{base_ref: "main", head_ref: "topic"}}
+      Suikou.Schemas.Review.stack_changeset(review, "topic-review").valid?
+      #=> true
+
+  """
+  @spec stack_changeset(t(), String.t()) :: Ecto.Changeset.t()
+  def stack_changeset(%__MODULE__{source: %GitDiff{} = git_diff} = review, stack_ref) do
+    source = %{
+      __type__: "git_diff",
+      base_ref: git_diff.base_ref,
+      head_ref: git_diff.head_ref,
+      stack_ref: stack_ref
+    }
+
+    review
+    |> cast(%{source: source}, [])
+    |> cast_polymorphic_embed(:source, required: true)
+  end
+
+  @doc """
   Builds a changeset that renames an existing review.
 
   ## Examples

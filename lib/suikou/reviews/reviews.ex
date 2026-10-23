@@ -359,6 +359,47 @@ defmodule Suikou.Reviews do
           | {:stack_not_equivalent, [String.t()]}
 
   @doc """
+  Attaches a review stack to an existing git-diff review, replacing any stack it
+  already had. Rejected unless `stack_ref` resolves, forks from the same
+  merge-base as the source (`merge-base(base, stack) == merge-base(base,
+  head)`), and its tip tree equals the source tip tree (BDR-0028 §2); a tree
+  mismatch lists the differing paths. Rounds and comments are untouched.
+
+  ## Examples
+
+      Suikou.Reviews.set_stack(diff_review, "topic-review")
+      #=> {:ok, %Suikou.Schemas.Review{}}
+
+      Suikou.Reviews.set_stack(diff_review, "topic-partial")
+      #=> {:error, {:stack_not_equivalent, ["lib/app.ex"]}}
+
+      Suikou.Reviews.set_stack(file_review, "topic-review")
+      #=> {:error, :not_a_diff_review}
+
+  """
+  @spec set_stack(Review.t(), String.t()) ::
+          {:ok, Review.t()}
+          | {:error,
+             :not_a_diff_review
+             | :not_a_git_repo
+             | :base_ref_not_found
+             | :head_ref_not_found
+             | :git_error
+             | stack_error()
+             | Ecto.Changeset.t()}
+  def set_stack(%Review{source: %FileSelection{}}, _stack_ref), do: {:error, :not_a_diff_review}
+
+  def set_stack(%Review{source: %GitDiff{base_ref: base, head_ref: head}} = review, stack_ref) do
+    path = review.project_path
+
+    with :ok <- ensure_ref(path, base, :base_ref_not_found),
+         :ok <- ensure_ref(path, head, :head_ref_not_found),
+         :ok <- verify_stack(path, base, head, stack_ref) do
+      review |> Review.stack_changeset(stack_ref) |> Repo.update() |> broadcast_review_change()
+    end
+  end
+
+  @doc """
   Replaces a review's stored selection. Only existing artifacts are reconciled
   against the new selection's expansion: a soft-removed artifact whose file is
   covered again is restored, and an active artifact no longer covered is

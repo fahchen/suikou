@@ -3,8 +3,10 @@ defmodule Suikou.ReviewsStackTest do
 
   import Suikou.Factory
 
+  alias Suikou.Repo
   alias Suikou.Reviews
   alias Suikou.Schemas.ReviewSource.GitDiff
+  alias Suikou.Schemas.Round
 
   @moduletag :tmp_dir
 
@@ -42,6 +44,42 @@ defmodule Suikou.ReviewsStackTest do
     end
   end
 
+  describe "set_stack/2" do
+    setup :diff_review
+
+    test "attaches an equivalent stack, keeping rounds", %{review: review} do
+      round = round_in_review(review)
+
+      assert {:ok, updated} = Reviews.set_stack(review, "feat-review")
+
+      assert %GitDiff{base_ref: "main", head_ref: "feat", stack_ref: "feat-review"} =
+               updated.source
+
+      assert %Round{} = Repo.get(Round, round.id)
+    end
+
+    test "persists the stack", %{review: review} do
+      {:ok, _review} = Reviews.set_stack(review, "feat-review")
+
+      assert %{source: %GitDiff{stack_ref: "feat-review"}} = Reviews.get_review(review.id)
+    end
+
+    test "rejects a stack that adds changes, listing the differing paths",
+         %{dir: dir, review: review} do
+      branch_from!(dir, "extra", "feat", [{"d.txt", "d\n"}])
+
+      assert {:error, {:stack_not_equivalent, ["d.txt"]}} = Reviews.set_stack(review, "extra")
+    end
+
+    test "rejects a stack ref that does not resolve", %{review: review} do
+      assert {:error, :stack_ref_not_found} = Reviews.set_stack(review, "missing")
+    end
+
+    test "rejects a file-selection review" do
+      assert {:error, :not_a_diff_review} = Reviews.set_stack(insert(:review), "feat-review")
+    end
+  end
+
   defp create(project, dir, stack) do
     Reviews.create_diff_review(project, %{
       project_path: dir,
@@ -50,6 +88,11 @@ defmodule Suikou.ReviewsStackTest do
       head_ref: "feat",
       stack_ref: stack
     })
+  end
+
+  defp diff_review(%{dir: dir, project: project}) do
+    {:ok, review} = create(project, dir, nil)
+    %{review: review}
   end
 
   # `main` holds a seed; `feat` adds a.txt and b.txt in one commit; `feat-review`
