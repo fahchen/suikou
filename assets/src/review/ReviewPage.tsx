@@ -1614,7 +1614,7 @@ function Editor({
               <FileNotice icon={Loader2} title="Loading…" body="Fetching the review's structure." spin />
             )
           ) : content.kind === "loading" ? (
-            <FileNotice icon={Loader2} title="Loading file" body="Reading the file's current bytes from the project." meta={entry.path} spin />
+            <FileNotice icon={Loader2} title="Loading file" body={loadingBody(diffLens)} meta={entry.path} spin />
           ) : content.kind === "error" ? (
             <FileErrorNotice isDiff={isDiff} content={content} meta={entry.path} />
           ) : content.kind === "image" ? (
@@ -1670,6 +1670,15 @@ function Editor({
       )}
     </div>
   )
+}
+
+/** What the loading notice says is being read: a stack step reads a commit,
+ * the whole stack its branch range, anything else the project's file. */
+function loadingBody(lens: DiffLens | undefined): string {
+  if (lens?.view !== "stack") return "Reading the file's current bytes from the project."
+  return lens.scope && lens.scope !== "all"
+    ? "Reading this file's change from the step's commit."
+    : "Reading this file's change across the whole stack."
 }
 
 /** A7: what changed between the prior round and the selected one — resolved,
