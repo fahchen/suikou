@@ -807,13 +807,19 @@ const Shell = observer(function Shell({
 
       <div
         className={`grid min-h-0 flex-1 grid-cols-1 ${
+          // A stacked review keeps the rail's 280px column in both views, so
+          // switching Source | Stack never shifts the content.
           inStack
             ? sideColumn
               ? "lg:grid-cols-[1fr_340px] xl:grid-cols-[280px_1fr_340px]"
               : "lg:grid-cols-[1fr] xl:grid-cols-[280px_1fr]"
-            : sideColumn
-              ? "lg:grid-cols-[236px_1fr_340px]"
-              : "lg:grid-cols-[236px_1fr]"
+            : hasStack
+              ? sideColumn
+                ? "lg:grid-cols-[280px_1fr_340px]"
+                : "lg:grid-cols-[280px_1fr]"
+              : sideColumn
+                ? "lg:grid-cols-[236px_1fr_340px]"
+                : "lg:grid-cols-[236px_1fr]"
         }`}
       >
         <aside className={`hidden min-h-0 flex-col pt-3 ${inStack ? "xl:flex" : "lg:flex"}`}>
