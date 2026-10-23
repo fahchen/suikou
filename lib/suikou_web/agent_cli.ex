@@ -91,12 +91,20 @@ defmodule SuikouWeb.AgentCLI do
       SuikouWeb.AgentCLI.error({:stack_not_equivalent, ["lib/app.ex", "test/app_test.exs"]})
       #=> "stack_not_equivalent: lib/app.ex, test/app_test.exs"
 
+      SuikouWeb.AgentCLI.error({:stack_base_mismatch, "9f8e7d6c5b4a…", "0a1b2c3d4e5f…"})
+      #=> "stack_base_mismatch: the source forks at 9f8e7d6, the stack at 0a1b2c3"
+
       SuikouWeb.AgentCLI.error(changeset_with_a_bad_anchor)
       #=> "anchor.start_line must be greater than 0"
 
   """
-  @spec error(atom() | {atom(), atom()} | {atom(), [String.t()]} | Ecto.Changeset.t()) ::
-          String.t()
+  @spec error(
+          atom()
+          | {atom(), atom()}
+          | {atom(), [String.t()]}
+          | {:stack_base_mismatch, String.t(), String.t() | nil}
+          | Ecto.Changeset.t()
+        ) :: String.t()
   def error(reason) when is_atom(reason), do: Atom.to_string(reason)
 
   # A reason that carries detail, e.g. `{:scratch_unwritable, :eacces}`. Both
@@ -109,9 +117,20 @@ defmodule SuikouWeb.AgentCLI do
   def error({reason, paths}) when is_atom(reason) and is_list(paths),
     do: "#{reason}: #{Enum.join(paths, ", ")}"
 
+  # Names both merge-bases so the agent can see where to re-cut the stack from.
+  def error({:stack_base_mismatch, source_fork, nil}),
+    do:
+      "stack_base_mismatch: the source forks at #{short(source_fork)}, the stack shares no history"
+
+  def error({:stack_base_mismatch, source_fork, stack_fork}),
+    do:
+      "stack_base_mismatch: the source forks at #{short(source_fork)}, the stack at #{short(stack_fork)}"
+
   def error(%Ecto.Changeset{} = changeset) do
     changeset |> messages("") |> Enum.join(", ")
   end
+
+  defp short(sha), do: String.slice(sha, 0, 7)
 
   # Walks `changes` for child changesets rather than using
   # `Ecto.Changeset.traverse_errors/2`: that only descends fields Ecto knows are

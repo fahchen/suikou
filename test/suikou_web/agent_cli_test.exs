@@ -43,6 +43,17 @@ defmodule SuikouWeb.AgentCLITest do
                AgentCLI.error({:stack_not_equivalent, ["a.txt", "lib/b.ex"]})
     end
 
+    test "renders a base mismatch with both short merge-bases" do
+      source = String.duplicate("a", 40)
+      stack = String.duplicate("b", 40)
+
+      assert "stack_base_mismatch: the source forks at aaaaaaa, the stack at bbbbbbb" =
+               AgentCLI.error({:stack_base_mismatch, source, stack})
+
+      assert "stack_base_mismatch: the source forks at aaaaaaa, the stack shares no history" =
+               AgentCLI.error({:stack_base_mismatch, source, nil})
+    end
+
     test "renders a changeset as comma-joined field messages" do
       changeset =
         %Suikou.Schemas.Project{}

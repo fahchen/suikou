@@ -41,7 +41,13 @@ defmodule Suikou.ReviewsStackTest do
       commit_on!(dir, "main", [{"c.txt", "c\n"}])
       branch_from!(dir, "rebased", "main", [{"a.txt", "a\n"}, {"b.txt", "b\n"}])
 
-      assert {:error, :stack_base_mismatch} = create(project, dir, "rebased")
+      {:ok, fork} = Suikou.Git.merge_base(dir, "main", "feat")
+      {:ok, stack_fork} = Suikou.Git.merge_base(dir, "main", "rebased")
+
+      assert {:error, {:stack_base_mismatch, ^fork, ^stack_fork}} =
+               create(project, dir, "rebased")
+
+      assert fork != stack_fork
     end
   end
 

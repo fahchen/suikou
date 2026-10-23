@@ -204,6 +204,26 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                run(%{"review_id" => review.id, "stack_ref" => "topic-partial"}, &CLI.set_stack/0)
     end
 
+    test "names both merge-bases of a stack cut from another base",
+         %{tmp_dir: dir, review: review} do
+      git!(dir, ["checkout", "-q", "main"])
+      branch!(dir, "main-moved", fn -> File.write!(Path.join(dir, "c.txt"), "c\n") end)
+
+      branch!(dir, "rebased", fn ->
+        File.write!(Path.join(dir, "a.txt"), "a\n")
+        File.write!(Path.join(dir, "b.txt"), "b\n")
+      end)
+
+      git!(dir, ["checkout", "-q", "main"])
+      git!(dir, ["merge", "-q", "--ff-only", "main-moved"])
+
+      assert %{"error" => error} =
+               run(%{"review_id" => review.id, "stack_ref" => "rebased"}, &CLI.set_stack/0)
+
+      assert error =~
+               ~r/^stack_base_mismatch: the source forks at [0-9a-f]{7}, the stack at [0-9a-f]{7}$/
+    end
+
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
                run(%{"review_id" => Ecto.UUID.generate(), "stack_ref" => "x"}, &CLI.set_stack/0)

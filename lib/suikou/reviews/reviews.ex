@@ -350,12 +350,13 @@ defmodule Suikou.Reviews do
 
   @typedoc """
   Why a review stack was rejected (BDR-0028 §2): its ref does not resolve, it
-  forks from a different merge-base than the source, or its tip tree differs
-  from the source's at the listed paths.
+  forks from a different merge-base than the source (the source's fork, then
+  the stack's — `nil` when the stack shares no history with the base), or its
+  tip tree differs from the source's at the listed paths.
   """
   @type stack_error() ::
           :stack_ref_not_found
-          | :stack_base_mismatch
+          | {:stack_base_mismatch, String.t(), String.t() | nil}
           | {:stack_not_equivalent, [String.t()]}
 
   @doc """
@@ -1303,7 +1304,8 @@ defmodule Suikou.Reviews do
   defp ensure_same_merge_base(path, base, head, stack) do
     case {Git.merge_base(path, base, head), Git.merge_base(path, base, stack)} do
       {{:ok, fork}, {:ok, fork}} -> :ok
-      {{:ok, _fork}, _stack} -> {:error, :stack_base_mismatch}
+      {{:ok, fork}, {:ok, stack_fork}} -> {:error, {:stack_base_mismatch, fork, stack_fork}}
+      {{:ok, fork}, {:error, _reason}} -> {:error, {:stack_base_mismatch, fork, nil}}
       {{:error, :not_a_repo}, _stack} -> {:error, :not_a_git_repo}
       {{:error, _reason}, _stack} -> {:error, :git_error}
     end
