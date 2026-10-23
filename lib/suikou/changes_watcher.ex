@@ -45,7 +45,7 @@ defmodule Suikou.ChangesWatcher do
   # gaps ever exceed it. Overridden short in test via config.
   @grace_ms Application.compile_env(:suikou, :changes_watcher_grace_ms, 30_000)
 
-  @typep lens() :: %{optional(:scope) => term(), optional(:worktree) => atom()}
+  @typep lens() :: Reviews.lens()
   @typep content_source() :: {:file, String.t()} | {:inline, binary(), String.t()}
 
   @doc """
