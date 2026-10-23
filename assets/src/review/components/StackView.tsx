@@ -113,7 +113,7 @@ export const StepRail = observer(function StepRail({
           return (
             <li key={commit.sha}>
               <div
-                className={`flex min-h-[34px] items-center gap-1 rounded-ctrl pr-1 ${
+                className={`flex min-h-[34px] items-center gap-1 rounded-ctrl pr-1 coarse:min-h-[44px] ${
                   current ? "bg-soft" : "hover:bg-soft/60"
                 }`}
               >
@@ -151,7 +151,7 @@ export const StepRail = observer(function StepRail({
           type="button"
           onClick={() => onStep("all")}
           aria-current={step === "all" ? "step" : undefined}
-          className={`flex min-h-[34px] w-full items-center gap-2 rounded-ctrl px-2 text-left text-xs ${
+          className={`flex min-h-[34px] w-full items-center gap-2 rounded-ctrl px-2 text-left text-xs coarse:min-h-[44px] ${
             step === "all" ? "bg-soft font-semibold text-ink" : "text-text hover:bg-soft/60"
           }`}
         >
@@ -176,11 +176,12 @@ function ReadToggle({
 }) {
   return (
     <Toggle
+      variant="mark"
       size={size}
       pressed={read}
       onPressedChange={onToggle}
       aria-label={read ? `Mark step ${number} unread` : `Mark step ${number} read`}
-      title={read ? "Read — click to mark unread" : "Mark read"}
+      title={read ? "Read. Click to mark unread" : "Mark read"}
     >
       <span
         className={`grid size-[16px] place-items-center rounded-full border ${
@@ -345,7 +346,7 @@ export function StepBar({
   )
 }
 
-const MESSAGE_BODY_CLASS = "font-sans text-xs leading-[1.5] whitespace-pre-wrap text-muted"
+const MESSAGE_BODY_CLASS = "max-w-[72ch] font-sans text-xs leading-[1.5] whitespace-pre-wrap text-muted"
 
 function StepMessage({ body, previewLines }: { body: string; previewLines: number }) {
   if (!body) return null
