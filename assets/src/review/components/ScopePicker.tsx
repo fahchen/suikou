@@ -8,7 +8,7 @@ import { uiStore, type DiffWorktree } from "../../stores/ui-store"
  * The reviewer picks a **worktree** (branch-range diff, staged, or unstaged)
  * and, when in `diff` mode, an optional **commit subset** (multi-select). A
  * non-empty commit subset is mutually exclusive with staged/unstaged. */
-export type ScopeCommit = { sha: string; subject: string }
+export type ScopeCommit = { sha: string; subject: string; body: string }
 
 const WORKTREE_OPTIONS: Array<{
   value: DiffWorktree
@@ -32,30 +32,41 @@ const WORKTREE_OPTIONS: Array<{
   },
 ]
 
-/** Reads the diff review's commit range via GET /api/review/:id/commits.
- * `[]` while idle/loading or on error — the popover renders with worktree
- * only in that case. */
-export function useScopeCommits(reviewId: string, enabled: boolean): ScopeCommit[] {
-  const [commits, setCommits] = useState<ScopeCommit[]>([])
+/** Reads a diff review's commits via GET /api/review/:id/commits, newest
+ * first: the source branch's range, or the review stack's steps under
+ * `view = "stack"` (BDR-0028). `null` while idle or loading; `[]` on error —
+ * the popover renders with worktree only in that case. Refetches when
+ * `version` moves. */
+export function useReviewCommits(
+  reviewId: string,
+  enabled: boolean,
+  view: "source" | "stack" = "source",
+  version = 0,
+): ScopeCommit[] | null {
+  // Tag the list with what it was read for, so a review or view switch reads
+  // as loading instead of briefly serving the previous review's commits; a
+  // `version` refetch keeps the current list on screen until the reply lands.
+  const key = `${reviewId}:${view}`
+  const [loaded, setLoaded] = useState<{ key: string; commits: ScopeCommit[] } | null>(null)
   useEffect(() => {
     if (!enabled) {
-      setCommits([])
+      setLoaded(null)
       return
     }
     let cancelled = false
-    fetch(`/api/review/${reviewId}/commits`)
+    fetch(`/api/review/${reviewId}/commits${view === "stack" ? "?view=stack" : ""}`)
       .then((response) => (response.ok ? response.json() : { commits: [] }))
       .then((body: { commits?: ScopeCommit[] }) => {
-        if (!cancelled) setCommits(body.commits ?? [])
+        if (!cancelled) setLoaded({ key, commits: body.commits ?? [] })
       })
       .catch(() => {
-        if (!cancelled) setCommits([])
+        if (!cancelled) setLoaded({ key, commits: [] })
       })
     return () => {
       cancelled = true
     }
-  }, [reviewId, enabled])
-  return commits
+  }, [reviewId, enabled, view, version, key])
+  return enabled && loaded?.key === key ? loaded.commits : null
 }
 
 /** Shared popover body: worktree radio + commits multi-select. Reused by

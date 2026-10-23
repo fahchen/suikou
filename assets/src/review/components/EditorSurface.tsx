@@ -23,10 +23,13 @@ export type Content =
 /** Live-lens overlay for a diff review's file-content fetch (BDR-0025).
  * `scope` and `worktree` are per-request query params; the backend
  * re-interprets them against live git. Missing keys keep the branch-range
- * diff. `commits` is stored newest-first, matching `/commits` order. */
+ * diff. `commits` is stored newest-first, matching `/commits` order.
+ * `view: "stack"` reads the review stack instead (BDR-0028): `scope` then picks
+ * a step's commit, and `worktree` never applies. */
 export type DiffLens = {
   scope?: "all" | { commits: string[] }
   worktree?: "diff" | "staged" | "unstaged"
+  view?: "source" | "stack"
 }
 
 /** Fetch a review file's bytes and classify them into a render `Content`: text
@@ -210,13 +213,17 @@ function fileContentUrl(reviewId: string, path: string, lensQuery: string): stri
   return lensQuery ? `${base}&${lensQuery}` : base
 }
 
-function lensQueryString(lens: DiffLens | undefined): string {
+/** The lens as review-read query params; `""` for the default lens. Shared by
+ * file-content and file-list requests so both always read the same view. */
+export function lensQueryString(lens: DiffLens | undefined): string {
   if (!lens) return ""
-  const parts: string[] = []
+  const stack = lens.view === "stack"
+  const parts: string[] = stack ? ["view=stack"] : []
   if (lens.scope && lens.scope !== "all" && lens.scope.commits.length > 0) {
     parts.push(`scope=commits:${lens.scope.commits.map(encodeURIComponent).join(",")}`)
   }
-  if (lens.worktree && lens.worktree !== "diff") {
+  // The stack view has no working tree: the backend rejects the pair.
+  if (!stack && lens.worktree && lens.worktree !== "diff") {
     parts.push(`worktree=${lens.worktree}`)
   }
   return parts.join("&")

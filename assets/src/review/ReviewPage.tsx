@@ -7,7 +7,7 @@ import { AlertTriangle, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Code
 
 import { scrollBehavior } from "../lib/utils"
 import { storeCache, useMusubiCommand, useMusubiRoot, useMusubiSnapshot, useSocketConnected } from "../musubi"
-import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree } from "../stores/ui-store"
+import { uiStore, type CommentDisplayMode, type DiffScope, type DiffWorktree, type ReviewView, type StackStep } from "../stores/ui-store"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,11 +20,11 @@ import { Tooltip } from "../components/ui/tooltip"
 import { SettingsModal } from "../settings/SettingsModal"
 import { FileIcon } from "../board/FileIcon"
 import { MarkdownPreview, Source } from "./components/EditorBodies"
-import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
+import { BinaryNotice, clampZoom, EmptyFileNotice, FileErrorNotice, FileNotice, HtmlView, ImageView, lensQueryString, prefetchReviewFiles, readDocView, TocMenu, useFileContent, writeDocView, type DiffLens } from "./components/EditorSurface"
 import { DiffView } from "./components/DiffView"
 import { commentStartLine, StackedFiles, StackedSideRail, type StackedFileDatum, type StackedScrollTarget } from "./components/StackedEditor"
 import { ChangeStatusLetter, FileList, NavHeader, orderByTree } from "./components/FileNavigator"
-import { ScopePickerBody, useScopeCommits } from "./components/ScopePicker"
+import { ScopePickerBody, useReviewCommits } from "./components/ScopePicker"
 import { StatusBar, Toolbar } from "./components/ReviewChrome"
 import { CommentThread } from "./components/comments/CommentThread"
 import { Composer } from "./components/comments/Composer"
@@ -140,7 +140,7 @@ function hasArtifactDraftBody(scope: string): boolean {
 /** Review workbench: a full-viewport shell (toolbar · navigator · editor ·
  * inspector · status bar). Mounts the review's ReviewStore and reads its static
  * structure; file content and the live comment overlay arrive in later passes. */
-export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
+export function ReviewPage({ reviewId, file, lens, commits, view, step }: ReviewPageProps) {
   const root = useMusubiRoot({
     module: "SuikouWeb.Stores.ReviewStore",
     id: reviewId,
@@ -175,7 +175,7 @@ export function ReviewPage({ reviewId, file, lens, commits }: ReviewPageProps) {
       </div>
     )
   }
-  return <Shell store={root.store} reviewId={reviewId} file={file} lens={lens} commits={commits} />
+  return <Shell store={root.store} reviewId={reviewId} file={file} lens={lens} commits={commits} view={view} step={step} />
 }
 
 function LoadingShell() {
@@ -199,49 +199,72 @@ type ReviewPageProps = {
   file?: string
   lens?: "staged" | "unstaged"
   commits?: string[]
+  view?: ReviewView
+  step?: StackStep
 }
 
-/** Fetches the diff review's file list under the current scope × worktree
- * lens (BDR-0025). Returns `null` while the default lens is active or when
- * `enabled === false`; the caller falls back to the static
- * `structure.file_entries` in that case, avoiding a round-trip when the lens
- * matches the initial `load_review_structure` payload. */
+/** Fetches a diff review's file list under a non-default lens: scope ×
+ * worktree (BDR-0025) or a stack step (BDR-0028). `null` for the default lens —
+ * the caller falls back to the static `structure.file_entries`, avoiding a
+ * round-trip when the lens matches the initial `load_review_structure`
+ * payload. The reply carries the `key` (review and lens) it was read for, so a
+ * caller that must not show the previous lens's files can tell. */
 function useLensedFileEntries(
   reviewId: string,
-  enabled: boolean,
-  commits: string[] | null,
-  worktree: "staged" | "unstaged" | null,
+  lens: DiffLens | undefined,
   version: number,
-): FileEntry[] | null {
-  const [entries, setEntries] = useState<FileEntry[] | null>(null)
-  const query =
-    commits && commits.length > 0
-      ? `scope=commits:${commits.map(encodeURIComponent).join(",")}`
-      : worktree
-        ? `worktree=${worktree}`
-        : null
+): { key: string; files: FileEntry[] } | null {
+  const [loaded, setLoaded] = useState<{ key: string; files: FileEntry[] } | null>(null)
+  const query = lensQueryString(lens)
   useEffect(() => {
-    if (!enabled || !query) {
-      setEntries(null)
+    if (!query) {
+      setLoaded(null)
       return
     }
     let cancelled = false
+    const key = lensedEntriesKey(reviewId, query)
     fetch(`/api/review/${reviewId}/files?${query}`)
       .then((r) => (r.ok ? r.json() : { files: [] }))
       .then((body: { files?: FileEntry[] }) => {
-        if (!cancelled) setEntries(body.files ?? [])
+        if (!cancelled) setLoaded({ key, files: body.files ?? [] })
       })
       .catch(() => {
-        if (!cancelled) setEntries([])
+        if (!cancelled) setLoaded({ key, files: [] })
       })
     return () => {
       cancelled = true
     }
-  }, [reviewId, enabled, query, version])
-  return entries
+  }, [reviewId, query, version])
+  return query ? loaded : null
 }
 
-const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: { store: ReviewStore; reviewId: string; file?: string; lens?: "staged" | "unstaged"; commits?: string[] }) {
+const lensedEntriesKey = (reviewId: string, query: string): string => `${reviewId}?${query}`
+
+/** The stack step to show: the requested one while it exists, else step 1 —
+ * or the whole stack when it has no steps at all. */
+function resolveStackStep(requested: StackStep | null, count: number): StackStep {
+  if (requested === "all") return "all"
+  if (requested !== null && requested <= count) return requested
+  return count === 0 ? "all" : 1
+}
+
+const Shell = observer(function Shell({
+  store,
+  reviewId,
+  file,
+  lens,
+  commits,
+  view: urlView,
+  step: urlStep,
+}: {
+  store: ReviewStore
+  reviewId: string
+  file?: string
+  lens?: "staged" | "unstaged"
+  commits?: string[]
+  view?: ReviewView
+  step?: StackStep
+}) {
   const load = useMusubiCommand(store, "load_review_structure")
   const connected = useSocketConnected()
   const snap = useMusubiSnapshot(store)
@@ -295,17 +318,41 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   }, [connected, reviewId, structureVersion])
 
   const isDiff = structure?.kind === "diff"
-  const scopeQuery = uiStore.diffScope === "all" ? null : uiStore.diffScope.commits
-  const worktreeQuery = uiStore.diffWorktree === "diff" ? null : uiStore.diffWorktree
-  // When the reviewer picks a specific commit subset or a working-tree lens, the
-  // navigator's file list must follow — otherwise the sidebar lies about what's
-  // in the current view. Refetch from the lens-aware endpoint; fall back to the
-  // static structure payload for the default lens (no fetch, no round-trip).
-  const lensedEntries = useLensedFileEntries(reviewId, isDiff, scopeQuery, worktreeQuery, structureVersion)
-  const rawEntries =
-    lensedEntries !== null ? lensedEntries : structure?.file_entries ?? []
+  // Restacked review (BDR-0028): a review with a stack opens in the stack view
+  // unless the URL asks for the source; a vanished stack branch defaults back
+  // to the source view, which it leaves untouched.
+  const refs = isDiff ? (structure?.refs ?? null) : null
+  const hasStack = !!refs?.stack_ref
+  const stackReady = hasStack && refs?.stack_valid === true
+  const view: ReviewView = hasStack ? (uiStore.diffView ?? (stackReady ? "stack" : "source")) : "source"
+  const inStack = view === "stack"
+  // The `/commits` reply is newest first; steps are numbered oldest first.
+  const stackCommits = useReviewCommits(reviewId, stackReady, "stack", structureVersion)
+  const steps = useMemo(() => (stackCommits ? [...stackCommits].reverse() : null), [stackCommits])
+  const stackStep = steps === null ? null : resolveStackStep(uiStore.stackStep, steps.length)
+  const stackSha = typeof stackStep === "number" ? (steps?.[stackStep - 1]?.sha ?? null) : null
+  const diffLens: DiffLens | undefined = !isDiff
+    ? undefined
+    : inStack
+      ? stackStep === null
+        ? undefined
+        : { view: "stack", scope: stackSha ? { commits: [stackSha] } : "all" }
+      : { scope: uiStore.diffScope, worktree: uiStore.diffWorktree }
+  const lensQuery = lensQueryString(diffLens)
+  // When the reviewer picks a specific commit subset, a working-tree lens, or a
+  // stack step, the navigator's file list must follow — otherwise the sidebar
+  // lies about what's in the current view. Refetch from the lens-aware
+  // endpoint; fall back to the static structure payload for the default lens
+  // (no fetch, no round-trip). A stack step shows nothing until its own list
+  // lands: the previous step's files would pick the wrong file to open.
+  const lensed = useLensedFileEntries(reviewId, diffLens, structureVersion)
+  const rawEntries: FileEntry[] | null = inStack
+    ? lensQuery && lensed?.key === lensedEntriesKey(reviewId, lensQuery)
+      ? lensed.files
+      : null
+    : (lensed?.files ?? structure?.file_entries ?? [])
   const entries = useMemo(
-    () => orderByTree(rawEntries.filter((e) => !e.soft_removed)),
+    () => orderByTree((rawEntries ?? []).filter((e) => !e.soft_removed)),
     [rawEntries],
   )
 
@@ -321,7 +368,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     null,
   )
 
-  const scopeCommits = useScopeCommits(reviewId, isDiff)
+  const scopeCommits = useReviewCommits(reviewId, isDiff) ?? []
   // Live diff lens (BDR-0024/0025): scope × worktree lives in the URL so it is
   // shareable and survives reload / back-forward. The route is the source of
   // truth; hydrate the store from it whenever the review or its lens params
@@ -358,12 +405,39 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       },
     )
   }, [navigate, reviewId])
-  const diffLens = isDiff
-    ? {
-        scope: uiStore.diffScope,
-        worktree: uiStore.diffWorktree,
-      }
-    : undefined
+  // The stack view and step live in the URL too (BDR-0028): hydrate them the
+  // same way, and mirror changes back. A step change drops `?file=` so the new
+  // step opens on its own first file.
+  useEffect(() => {
+    if (uiStore.diffView !== (urlView ?? null) || uiStore.stackStep !== (urlStep ?? null)) {
+      uiStore.hydrateStackLens(urlView ?? null, urlStep ?? null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, urlView, urlStep])
+  useEffect(() => {
+    return reaction(
+      () => ({ view: uiStore.diffView, step: uiStore.stackStep }),
+      (next, prev) => {
+        const stepped = prev.step !== null && next.step !== null && prev.step !== next.step
+        navigate({
+          to: "/reviews/$reviewId",
+          params: { reviewId },
+          search: (prevSearch) => ({
+            ...prevSearch,
+            view: next.view ?? undefined,
+            step: next.step ?? undefined,
+            file: stepped ? undefined : prevSearch.file,
+          }),
+          replace: true,
+        })
+      },
+    )
+  }, [navigate, reviewId])
+  // Pin the resolved step into the store (and so the URL) once the stack's
+  // steps are known, so a reload lands back on it.
+  useEffect(() => {
+    if (inStack && stackStep !== null && uiStore.stackStep !== stackStep) uiStore.setStackStep(stackStep)
+  }, [inStack, stackStep])
   // Warm the whole review's file content in the background once the ordered file
   // list is known, so switching files is instant. Re-runs (and cancels the prior
   // pass) when the review, its file set, or the diff lens changes.
@@ -372,7 +446,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
     if (entries.length === 0) return
     return prefetchReviewFiles(reviewId, entries.map((e) => e.path), diffLens)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewId, entryPaths, isDiff, uiStore.diffScope, uiStore.diffWorktree])
+  }, [reviewId, entryPaths, lensQuery])
   const desktopLayout = useDesktopLayout()
   // Mobile has no side rail, so `side` collapses to inline — but `hidden` still hides.
   const commentDisplay = desktopLayout || uiStore.commentDisplay === "hidden" ? uiStore.commentDisplay : "inline"
@@ -384,9 +458,10 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
   // last viewed in this review, then to the first file.
   const fileKey = `suikou-file:${reviewId}`
   const remembered = localStorage.getItem(fileKey)
+  // A stack step always opens on its own first file, not the remembered one.
   const selectedPath = entries.some((e) => e.path === file)
     ? file!
-    : entries.some((e) => e.path === remembered)
+    : !inStack && entries.some((e) => e.path === remembered)
       ? remembered
       : (entries[0]?.path ?? null)
   const selected = entries.find((e) => e.path === selectedPath) ?? null
@@ -611,7 +686,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
       >
         <aside className="hidden min-h-0 flex-col pt-3 lg:flex">
           <NavHeader entries={entries} />
-          {isDiff && (
+          {isDiff && !inStack && (
             <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-3">
               <button
                 type="button"
@@ -637,7 +712,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
               </button>
             </div>
           )}
-          {filesSheetTab === "scope" && isDiff ? (
+          {filesSheetTab === "scope" && isDiff && !inStack ? (
             <div className="flex min-h-0 flex-col overflow-auto pt-1">
               <ScopePickerBody commits={scopeCommits} />
             </div>
@@ -671,7 +746,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           <Editor
             reviewId={reviewId}
             entry={selected}
-            filesLoaded={structure !== null}
+            filesLoaded={structure !== null && rawEntries !== null}
             isDiff={isDiff}
             comments={comments}
             fileProxy={fileProxy}
@@ -732,7 +807,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
           <span className="flex-1" />
           <span className="text-xs font-semibold text-muted tabular-nums">{entries.length}</span>
         </div>
-        {isDiff && (
+        {isDiff && !inStack && (
           <div role="tablist" className="flex shrink-0 gap-4 border-b border-hair-strong px-4">
             <button
               type="button"
@@ -758,7 +833,7 @@ const Shell = observer(function Shell({ store, reviewId, file, lens, commits }: 
             </button>
           </div>
         )}
-        {filesSheetTab === "scope" && isDiff ? (
+        {filesSheetTab === "scope" && isDiff && !inStack ? (
           <div className="flex min-h-0 flex-col overflow-auto pt-1">
             <ScopePickerBody commits={scopeCommits} />
           </div>

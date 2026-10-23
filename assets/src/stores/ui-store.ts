@@ -20,6 +20,12 @@ export type DiffStyle = "unified" | "split"
  * matching the order the `/commits` endpoint returns. */
 export type DiffScope = "all" | { commits: string[] }
 export type DiffWorktree = "diff" | "staged" | "unstaged"
+/** Restacked review (BDR-0028): read the source branch's diff, or step through
+ * the agent-cut review stack. A stack step is 1-based, oldest first; `all` is
+ * the whole `base...stack` diff. `null` leaves the choice to the review — the
+ * stack view for a stacked review, landing on its first unread step. */
+export type ReviewView = "source" | "stack"
+export type StackStep = number | "all"
 
 const THEME_KEY = "suikou-theme"
 const DENSITY_KEY = "suikou-density"
@@ -48,6 +54,8 @@ class UiStore {
   errorLog = false
   diffScope: DiffScope = "all"
   diffWorktree: DiffWorktree = "diff"
+  diffView: ReviewView | null = null
+  stackStep: StackStep | null = null
   settingsOpen = false
 
   constructor() {
@@ -151,6 +159,16 @@ class UiStore {
   hydrateDiffLens(scope: DiffScope, worktree: DiffWorktree) {
     this.diffScope = scope
     this.diffWorktree = worktree
+  }
+
+  setStackStep(step: StackStep) {
+    this.stackStep = step
+  }
+
+  // Set the view and step at once from the URL, the source of truth.
+  hydrateStackLens(view: ReviewView | null, step: StackStep | null) {
+    this.diffView = view
+    this.stackStep = step
   }
 
   setSettingsOpen(open: boolean) {
