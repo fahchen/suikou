@@ -80,6 +80,7 @@ defmodule Suikou.MixProject do
       {:polymorphic_embed, "~> 5.0"},
       {:toml, "~> 0.7.0"},
       {:fs_notify, "~> 0.1.0"},
+      {:rustler, "~> 0.38.0", runtime: false},
       {:web_push_elixir, "~> 0.8.0"}
     ]
   end
