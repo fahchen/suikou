@@ -54,6 +54,9 @@ config :musubi, :ts_codegen_output_path, "assets/src/generated/musubi.d.ts"
 config :exqlite, force_build: true
 config :rustler_precompiled, force_build_all: true
 
+# PBeam loads only NIF 2.18; fs_notify's default Rustler feature declares 2.15.
+config :fs_notify, FsNotify.Native, features: ["rustler/nif_version_2_18"]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
