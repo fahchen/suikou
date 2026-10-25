@@ -38,15 +38,14 @@ defmodule Suikou.MixProject do
     ]
   end
 
-  # Self-contained release bundling ERTS, embedded into the single-file
-  # executable by `mise run package`.
+  # Self-contained release: `mix pbeam.build` appends it, with the PBeam
+  # runtime, to the one-file executable (`mise run package`).
   defp releases do
     [
       suikou: [
         include_executables_for: [:unix],
         include_erts: true,
-        strip_beams: true,
-        steps: [:assemble, :tar]
+        strip_beams: true
       ]
     ]
   end
@@ -81,7 +80,11 @@ defmodule Suikou.MixProject do
       {:toml, "~> 0.7.0"},
       {:fs_notify, "~> 0.1.0"},
       {:rustler, "~> 0.38.0", runtime: false},
-      {:web_push_elixir, "~> 0.8.0"}
+      {:web_push_elixir, "~> 0.8.0"},
+      # The PBeam build tooling: `mix pbeam.build` builds the one-file
+      # executable of the release (M22). Build-time only; the release runs
+      # on the PBeam runtime that the executable embeds.
+      {:pbeam, path: "../pbeam", runtime: false, only: :prod}
     ]
   end
 

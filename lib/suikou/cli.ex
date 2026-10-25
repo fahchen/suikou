@@ -989,13 +989,15 @@ defmodule Suikou.CLI do
     1
   end
 
-  # How this install launches a daemon: a normal release through its own
-  # `bin/suikou daemon` (run_erl detaches itself), or the one-file executable
-  # through its own path with `run`, detached by nohup. #1286 wires the
-  # executable's path into SUIKOU_EXECUTABLE.
+  # How this install launches a daemon: the one-file executable through its
+  # own path with `run`, detached by nohup — the PBeam launcher of the boot
+  # sets `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its
+  # own `bin/suikou daemon` (run_erl detaches itself).
   defp daemon_command do
+    executable = System.get_env("PBEAM_EXECUTABLE") || System.get_env("SUIKOU_EXECUTABLE")
+
     cond do
-      executable = System.get_env("SUIKOU_EXECUTABLE") ->
+      executable ->
         {"sh", ["-c", "nohup \"#{executable}\" run >/dev/null 2>&1 &"]}
 
       root = System.get_env("RELEASE_ROOT") ->

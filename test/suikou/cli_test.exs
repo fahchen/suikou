@@ -451,6 +451,7 @@ defmodule Suikou.CLITest do
     end
 
     test "start without a packaged release fails clearly" do
+      System.delete_env("PBEAM_EXECUTABLE")
       System.delete_env("SUIKOU_EXECUTABLE")
       System.delete_env("RELEASE_ROOT")
 
