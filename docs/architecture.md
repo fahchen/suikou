@@ -206,13 +206,14 @@ annotated template.
 | `url_scheme` | string | `"http"` | Scheme for generated URLs (`Endpoint.url/0`, agent CLI `url`/`open`). Set to `"https"` only behind a TLS front (e.g. `tailscale serve`). |
 | `url_port` | integer | the `port` value | Port for generated URLs. Defaults to the HTTP listener; set to `443` behind a TLS front. |
 | `check_origin` | bool or list of strings | `false` | Musubi WebSocket origin check. `false` accepts any origin; a list like `["//mybox.ts.net"]` restricts it. Default suits a single-user app on a private tailnet. |
-| `bind` | `"all"` or `"loopback"` | `"all"` | Interfaces to listen on. `"all"` is reachable over the tailnet; `"loopback"` restricts to 127.0.0.1 (this machine only). Both keep the launcher's 127.0.0.1 liveness probe working. |
+| `bind` | `"all"` or `"loopback"` | `"all"` | Interfaces to listen on. `"all"` is reachable over the tailnet; `"loopback"` restricts to 127.0.0.1 (this machine only). Both keep the CLI's 127.0.0.1 liveness probe working. |
 | `database_path` | string | `<app support dir>/suikou.db` | SQLite database file location. Existing data is not migrated when changed. |
 | `pool_size` | integer | `5` | Database connection pool size. |
-| `port` | integer | `47100` | TCP port the server listens on. Read by the **launcher** (not `runtime.exs`), which binds, records, and probes the daemon on it; the `PORT` env var overrides it for one invocation. |
+| `port` | integer | `47100` | TCP port the server listens on. `runtime.exs` binds it and the CLI's `start`/`status` probe the daemon on it; the `PORT` env var overrides it for one invocation. |
 
 `SECRET_KEY_BASE` is intentionally **not** TOML-configurable: the secret is
-auto-generated and persisted by the launcher rather than stored in plaintext.
+auto-generated and persisted by the server itself (see `Suikou.Secrets`) rather
+than stored in plaintext.
 
 ### Development
 

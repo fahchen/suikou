@@ -52,7 +52,7 @@ config :suikou, dev_routes: true
 # Web Push VAPID keys for the PWA review notifications. Dev-only, localhost-scoped
 # keypair — Push API only runs in a secure context (HTTPS or localhost), so these
 # are exercised only via the desktop app on http://localhost. Production generates
-# and persists its own keypair in the launcher (passed as VAPID_* env). Regenerate
+# and persists its own keypair in the data directory (see Suikou.Secrets). Regenerate
 # with `mix generate.vapid.keys`.
 config :web_push_elixir,
   vapid_public_key:

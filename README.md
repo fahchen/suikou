@@ -64,9 +64,10 @@ choice actually changes.
 
 Requires [mise](https://mise.jdx.dev) (provisions Elixir/Erlang/Bun).
 
-`mise run package` builds the whole app — React frontend, a self-contained
-`mix release` (ERTS bundled), and the bun launcher — into one file at
-`dist/suikou`. It's xattr-stripped and ad-hoc signed in place, and the signature
+`mix pbeam.build` (M22, in progress on the `pbeam` branch) builds the whole app
+— React frontend and a self-contained release — with the PBeam runtime into one
+file. Until it lands, a plain `MIX_ENV=prod mix release` still works through
+`bin/suikou`. It's xattr-stripped and ad-hoc signed in place, and the signature
 is embedded in the Mach-O, so **copying it anywhere keeps it valid** — no
 re-sign step. It does **not** install; copy it onto your `PATH` and restart the
 daemon so the new binary and any `config.toml` changes take effect:
@@ -153,7 +154,7 @@ Web Push runs only in a **secure context** — HTTPS, or `localhost`. Two cases:
 
 - **Desktop, this machine.** The app opens on `http://localhost:<port>`, which
   already counts as secure — enable the toggle and you're done. No VAPID setup
-  needed; the launcher generates and persists the keypair on first run.
+  needed; the server generates and persists the keypair on first run.
 - **Phone (or any other device) over the tailnet.** Plain HTTP over a MagicDNS
   name is *not* a secure context, so the toggle stays disabled there. Front the
   app with HTTPS so the browser trusts it:

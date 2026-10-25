@@ -5,7 +5,7 @@ bun = "1.3.14"
 rust = "1.99.0"
 
 # Install Elixir deps and the frontend's bun deps. Prerequisite of the tasks
-# that need a resolved dep tree (dev, cli, package).
+# that need a resolved dep tree (dev, cli).
 [tasks.setup]
 description = "Install Elixir deps and assets (bun)"
 run = """
@@ -14,15 +14,17 @@ mix deps.get
 bun --cwd="$PWD/assets" install
 """
 
-# Dev = Phoenix (port 4710) + Vite (port 5173) together. Phoenix runs as a
-# distributed node so the agent CLI can rpc into the *live* BEAM (its PubSub is
-# what `review poll` blocks on); plain `mix phx.server` is non-distributed and
-# unreachable. Vite proxies /socket + /api to 4710. Ctrl-C stops both.
+# Dev = Phoenix (port 4710) + Vite (port 5173) together, no distribution: the
+# agent CLI reaches the server over its loopback HTTP API, same as packaged.
+# SUIKOU_DATA_DIR keeps the dev server's CLI credential (cli.json/cli_token) in
+# the project's tmp/ instead of the packaged install's data directory. Vite
+# proxies /socket + /api to 4710. Ctrl-C stops both.
 [tasks.dev]
-description = "Dev: Phoenix (distributed node suikou_dev@127.0.0.1) + Vite"
+description = "Dev: Phoenix + Vite"
 depends = ["setup"]
+env = { SUIKOU_DATA_DIR = "{{config_root}}/tmp/dev-cli" }
 run = """
-elixir --name suikou_dev@127.0.0.1 --cookie suikou_dev -S mix phx.server &
+mix phx.server &
 phx=$!
 bun --cwd="$PWD/assets" run dev &
 vite=$!
@@ -30,66 +32,11 @@ trap 'kill $phx $vite 2>/dev/null' INT TERM EXIT
 wait
 """
 
-# Agent CLI against the dev node: routes packaging/launcher.ts through
-# `elixir --rpc-eval` (SUIKOU_RPC_NODE branch) instead of the bundled release.
-# Args pass through, e.g. `mise run cli -- review poll <id>`.
+# Agent CLI (Elixir, lib/suikou/cli.ex) against the dev server's loopback API:
+# it reads the port and token the dev server wrote under SUIKOU_DATA_DIR. Args
+# pass through after `--`, e.g. `mise run cli -- review list`.
 [tasks.cli]
-description = "Agent CLI (bun source) targeting the dev node"
+description = "Agent CLI (Elixir) targeting the dev server"
 depends = ["setup"]
-env = { SUIKOU_RPC_NODE = "suikou_dev@127.0.0.1", SUIKOU_RPC_COOKIE = "suikou_dev" }
-run = "bun packaging/launcher.ts"
-
-# Package the whole app into one runnable file: a self-contained `mix release`
-# (ERTS bundled) packed and embedded into a `bun --compile` launcher that
-# unpacks and boots Phoenix at runtime. Host platform only (macOS arm64). The
-# binary is xattr-stripped + ad-hoc signed in place; the ad-hoc signature is
-# embedded in the Mach-O, so copying it anywhere keeps it valid (no re-sign).
-# Defaults to dist/suikou; pass OUT=<path-on-PATH> to build straight onto PATH,
-# then restart the daemon (`suikou start --force`).
-[tasks.package]
-description = "Build the single-file executable (OUT=<path> overrides dist/suikou)"
-depends = ["setup"]
-run = """
-set -eu
-
-# OUT picks the output path. Unset -> dist/suikou; cp it onto PATH to install
-# (the embedded signature survives the copy). Set -> build straight to PATH.
-if [ -n "${OUT:-}" ]; then out="$OUT"; else out="$PWD/dist/suikou"; fi
-mkdir -p "$(dirname "$out")"
-
-echo "==> building frontend"
-rm -rf priv/static/assets priv/static/index.html
-bun --cwd="$PWD/assets" install --frozen-lockfile
-bun --cwd="$PWD/assets" run build
-
-echo "==> building release"
-MIX_ENV=prod mix release suikou --overwrite
-
-echo "==> packing release"
-mkdir -p packaging/embed
-# The :tar release step emits a versioned tarball; glob rather than hardcode.
-count=$(ls -1 _build/prod/suikou-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
-[ "$count" = "1" ] || { echo "expected exactly one release tarball, got $count" >&2; exit 1; }
-cp _build/prod/suikou-*.tar.gz packaging/embed/server.tar.gz
-
-echo "==> compiling single-file binary"
-# --cwd packaging so the launcher's relative ./embed/server.tar.gz import resolves.
-# --no-compile-autoload-* stops the runtime from picking up a stray bunfig.toml
-# or .env in whatever directory the installed binary happens to be run from.
-bun --cwd="$PWD/packaging" build --compile \
-  --no-compile-autoload-bunfig --no-compile-autoload-dotenv \
-  launcher.ts --outfile "$out"
-chmod 755 "$out"
-# arm64 refuses to exec an unsigned binary (SIGKILL), so ad-hoc sign it after
-# clearing quarantine attrs. The JIT entitlements are inert under ad-hoc signing
-# but keep it correct if ever hardened-runtime signed + notarized for sharing.
-xattr -c "$out"
-codesign --force --deep --entitlements packaging/entitlements.plist --sign - "$out"
-codesign --verify --verbose "$out"
-
-echo "packaged -> $out"
-# The signature is embedded, so a plain build just needs a cp to install.
-if [ -z "${OUT:-}" ]; then
-  echo "note: cp dist/suikou onto PATH to install (signature survives the copy)"
-fi
-"""
+env = { SUIKOU_DATA_DIR = "{{config_root}}/tmp/dev-cli" }
+run = 'mix run -e "System.halt(Suikou.CLI.run(System.argv))" --'
