@@ -1,7 +1,6 @@
 defmodule SuikouWeb.AgentCLI.ReviewsTest do
   use Suikou.DataCase
 
-  import ExUnit.CaptureIO
   import Suikou.Factory
 
   alias Suikou.Critique
@@ -19,19 +18,19 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
   # The reviewing agent these cases write as; the name is required.
   @agent %{name: "Codex", icon: "\u{1F916}"}
 
-  describe "list/0" do
+  describe "list/1" do
     test "emits a project's reviews" do
       review = insert(:review, name: "Spec")
 
       assert %{"reviews" => [%{"id" => id, "name" => "Spec", "kind" => "file_selection"}]} =
-               run(%{"project_id" => review.project_id}, &CLI.list/0)
+               run(%{"project_id" => review.project_id}, &CLI.list/1)
 
       assert id == review.id
     end
 
     test "emits project_not_found for an unknown project" do
       assert %{"reviews" => [], "error" => "project_not_found"} =
-               run(%{"project_id" => Ecto.UUID.generate()}, &CLI.list/0)
+               run(%{"project_id" => Ecto.UUID.generate()}, &CLI.list/1)
     end
 
     @tag :tmp_dir
@@ -46,14 +45,14 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       insert(:review, name: "Sibling worktree", project: project, project_path: other)
       insert(:review, name: "Unrelated")
 
-      assert %{"reviews" => reviews, "error" => nil} = run(%{"path" => main}, &CLI.list/0)
+      assert %{"reviews" => reviews, "error" => nil} = run(%{"path" => main}, &CLI.list/1)
 
       assert ["Here", "Sibling worktree"] =
                reviews |> Enum.map(& &1["name"]) |> Enum.sort()
     end
   end
 
-  describe "create/0" do
+  describe "create/1" do
     @tag :tmp_dir
     test "creates a review, broadcasts the board, and emits its id", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
@@ -68,7 +67,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       }
 
       assert %{"review_id" => id, "scratch_path" => scratch, "error" => nil} =
-               run(payload, &CLI.create/0)
+               run(payload, &CLI.create/1)
 
       assert is_binary(id)
       assert String.ends_with?(scratch, id)
@@ -85,7 +84,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
 
-      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/1)
       assert %Suikou.Schemas.Review{project_id: project_id} = Reviews.get_review(id)
       assert project_id == project.id
     end
@@ -98,7 +97,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
 
-      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/1)
       assert %Suikou.Schemas.Review{project_id: project_id} = Reviews.get_review(id)
       assert %{name: "launcher"} = Suikou.Projects.get_project(project_id)
     end
@@ -113,7 +112,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       payload = %{"project_path" => dir, "name" => "Launch", "selections" => ["plan.md"]}
 
-      assert %{"review_id" => nil, "error" => "not_a_repository"} = run(payload, &CLI.create/0)
+      assert %{"review_id" => nil, "error" => "not_a_repository"} = run(payload, &CLI.create/1)
     end
 
     @tag :tmp_dir
@@ -130,7 +129,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
         "head_ref" => "topic"
       }
 
-      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/1)
       assert %{source: %GitDiff{base_ref: "main", head_ref: "topic"}} = Reviews.get_review(id)
     end
 
@@ -148,23 +147,23 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
         "stack_ref" => "topic-review"
       }
 
-      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/0)
+      assert %{"review_id" => id, "error" => nil} = run(payload, &CLI.create/1)
       assert %{source: %GitDiff{stack_ref: "topic-review"}} = Reviews.get_review(id)
     end
 
     test "emits project_not_found for an unknown project" do
       payload = %{"project_id" => Ecto.UUID.generate(), "name" => "X", "selections" => []}
 
-      assert %{"review_id" => nil, "error" => "project_not_found"} = run(payload, &CLI.create/0)
+      assert %{"review_id" => nil, "error" => "project_not_found"} = run(payload, &CLI.create/1)
     end
   end
 
-  describe "show/0" do
+  describe "show/1" do
     test "emits the review metadata and its files" do
       review = insert(:review, name: "Spec")
 
       assert %{"id" => id, "name" => "Spec", "kind" => "file_selection", "files" => []} =
-               run(%{"review_id" => review.id}, &CLI.show/0)
+               run(%{"review_id" => review.id}, &CLI.show/1)
 
       assert id == review.id
     end
@@ -175,16 +174,16 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       review = insert(:review, project: project)
 
       assert %{"instructions" => ["Reply in English.", "Report any Repo call inside queries/."]} =
-               run(%{"review_id" => review.id}, &CLI.show/0)
+               run(%{"review_id" => review.id}, &CLI.show/1)
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.show/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.show/1)
     end
   end
 
-  describe "set_stack/0" do
+  describe "set_stack/1" do
     @describetag :tmp_dir
     setup :diff_review
 
@@ -192,16 +191,16 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       :ok = BoardBroadcast.subscribe()
 
       assert %{"error" => nil} =
-               run(%{"review_id" => review.id, "stack_ref" => "topic-review"}, &CLI.set_stack/0)
+               run(%{"review_id" => review.id, "stack_ref" => "topic-review"}, &CLI.set_stack/1)
 
       assert_receive :board_changed
 
-      assert %{"stack_ref" => "topic-review"} = run(%{"review_id" => review.id}, &CLI.show/0)
+      assert %{"stack_ref" => "topic-review"} = run(%{"review_id" => review.id}, &CLI.show/1)
     end
 
     test "lists the differing paths of a non-equivalent stack", %{review: review} do
       assert %{"error" => "stack_not_equivalent: b.txt"} =
-               run(%{"review_id" => review.id, "stack_ref" => "topic-partial"}, &CLI.set_stack/0)
+               run(%{"review_id" => review.id, "stack_ref" => "topic-partial"}, &CLI.set_stack/1)
     end
 
     test "names both merge-bases of a stack cut from another base",
@@ -218,7 +217,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       git!(dir, ["merge", "-q", "--ff-only", "main-moved"])
 
       assert %{"error" => error} =
-               run(%{"review_id" => review.id, "stack_ref" => "rebased"}, &CLI.set_stack/0)
+               run(%{"review_id" => review.id, "stack_ref" => "rebased"}, &CLI.set_stack/1)
 
       assert error =~
                ~r/^stack_base_mismatch: the source forks at [0-9a-f]{7}, the stack at [0-9a-f]{7}$/
@@ -226,40 +225,40 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate(), "stack_ref" => "x"}, &CLI.set_stack/0)
+               run(%{"review_id" => Ecto.UUID.generate(), "stack_ref" => "x"}, &CLI.set_stack/1)
     end
   end
 
-  describe "files/0" do
+  describe "files/1" do
     test "emits the review's current files" do
       review = insert(:review)
 
       assert %{"files" => [], "error" => nil} =
-               run(%{"review_id" => review.id}, &CLI.files/0)
+               run(%{"review_id" => review.id}, &CLI.files/1)
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"files" => [], "error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.files/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.files/1)
     end
   end
 
-  describe "url/0" do
+  describe "url/1" do
     test "emits the endpoint URL joined with /reviews/<id>" do
       review = insert(:review)
 
-      assert %{"url" => url, "error" => nil} = run(%{"review_id" => review.id}, &CLI.url/0)
+      assert %{"url" => url, "error" => nil} = run(%{"review_id" => review.id}, &CLI.url/1)
       assert url == Endpoint.url() <> "/reviews/#{review.id}"
     end
   end
 
-  describe "rename/0" do
+  describe "rename/1" do
     test "renames the review and broadcasts the board" do
       review = insert(:review)
       :ok = BoardBroadcast.subscribe()
 
       assert %{"error" => nil} =
-               run(%{"review_id" => review.id, "name" => "Renamed"}, &CLI.rename/0)
+               run(%{"review_id" => review.id, "name" => "Renamed"}, &CLI.rename/1)
 
       assert %{name: "Renamed"} = Reviews.get_review(review.id)
       assert_receive :board_changed
@@ -267,11 +266,11 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate(), "name" => "X"}, &CLI.rename/0)
+               run(%{"review_id" => Ecto.UUID.generate(), "name" => "X"}, &CLI.rename/1)
     end
   end
 
-  describe "set_files/0" do
+  describe "set_files/1" do
     @tag :tmp_dir
     test "replaces the selection and broadcasts the board", %{tmp_dir: dir} do
       File.write!(Path.join(dir, "plan.md"), "# Plan\n")
@@ -281,63 +280,63 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       :ok = BoardBroadcast.subscribe()
 
       assert %{"error" => nil} =
-               run(%{"review_id" => review.id, "files" => ["plan.md"]}, &CLI.set_files/0)
+               run(%{"review_id" => review.id, "files" => ["plan.md"]}, &CLI.set_files/1)
 
       assert_receive :board_changed
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate(), "files" => []}, &CLI.set_files/0)
+               run(%{"review_id" => Ecto.UUID.generate(), "files" => []}, &CLI.set_files/1)
     end
   end
 
-  describe "delete/0" do
+  describe "delete/1" do
     test "deletes the review and broadcasts the board" do
       review = insert(:review)
       :ok = BoardBroadcast.subscribe()
 
-      assert %{"error" => nil} = run(%{"review_id" => review.id}, &CLI.delete/0)
+      assert %{"error" => nil} = run(%{"review_id" => review.id}, &CLI.delete/1)
       assert Reviews.get_review(review.id) == nil
       assert_receive :board_changed
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.delete/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.delete/1)
     end
   end
 
-  describe "export/0" do
+  describe "export/1" do
     test "emits the latest-round critique snapshot by default" do
       round = source_round("line 1\nline 2\n")
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 0, "artifacts" => [artifact]} =
-               run(%{"review_id" => review_id}, &CLI.export/0)
+               run(%{"review_id" => review_id}, &CLI.export/1)
 
       refute Map.has_key?(artifact, "approved")
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.export/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.export/1)
     end
   end
 
-  describe "wait/0" do
+  describe "wait/1" do
     # config/test.exs caps the poll window at 200ms, so the timeout branch
     # returns promptly when no submission lands.
     test "emits a timeout snapshot when no submission lands in the window" do
       review = insert(:review)
 
       assert %{"status" => "timeout", "submission_version" => 0} =
-               run(%{"review_id" => review.id}, &CLI.wait/0)
+               run(%{"review_id" => review.id}, &CLI.wait/1)
     end
 
     test "emits review_not_found for an unknown review" do
       assert %{"error" => "review_not_found"} =
-               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.wait/0)
+               run(%{"review_id" => Ecto.UUID.generate()}, &CLI.wait/1)
     end
 
     test "emits the export snapshot when a submission raises the count" do
@@ -347,7 +346,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
 
       task =
         Task.async(fn ->
-          capture_io([input: payload], &CLI.wait/0)
+          payload |> Jason.decode!() |> CLI.wait() |> json()
         end)
 
       # Wait until the poll task is blocked in its `receive` (version captured at
@@ -357,7 +356,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
-               task |> Task.await() |> Jason.decode!()
+               Task.await(task)
     end
 
     test "returns at once when the target round is already submitted" do
@@ -366,7 +365,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"review_id" => ^review_id, "submission_version" => 1} =
-               run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/0)
+               run(%{"review_id" => review_id, "until_round" => 1}, &CLI.wait/1)
     end
 
     test "blocks for a future target round, then emits it on submission" do
@@ -374,12 +373,12 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
       payload = Jason.encode!(%{"review_id" => review_id, "until_round" => 1})
 
-      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
+      task = Task.async(fn -> payload |> Jason.decode!() |> CLI.wait() |> json() end)
 
       wait_until_waiting(task.pid)
       {:ok, _result} = Submissions.submit(round.id)
 
-      assert %{"submission_version" => 1} = task |> Task.await() |> Jason.decode!()
+      assert %{"submission_version" => 1} = Task.await(task)
     end
 
     test "the default snapshot drops resolved and already-answered comments" do
@@ -396,13 +395,13 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       %{round: round1} = advance(round.artifact_id, "v1\n")
       payload = Jason.encode!(%{"review_id" => review_id})
 
-      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
+      task = Task.async(fn -> payload |> Jason.decode!() |> CLI.wait() |> json() end)
 
       wait_until_waiting(task.pid)
       {:ok, _result} = Submissions.submit(round1.id)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
-               task |> Task.await() |> Jason.decode!()
+               Task.await(task)
 
       assert Enum.map(comments, & &1["body"]) == ["open"]
       assert Enum.all?(comments, &(not Map.has_key?(&1, "resolved_round")))
@@ -414,7 +413,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       comment = published_comment(round.id, %{body: "open"})
       payload = Jason.encode!(%{"review_id" => review_id})
 
-      task = Task.async(fn -> capture_io([input: payload], &CLI.wait/0) end)
+      task = Task.async(fn -> payload |> Jason.decode!() |> CLI.wait() |> json() end)
 
       wait_until_waiting(task.pid)
       {:ok, _comment_id} = Critique.react_as_human(comment.id, "agree")
@@ -423,7 +422,7 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
                "submission_version" => 0,
                "artifacts" => [%{"comments" => [%{"reactions" => reactions}]}]
              } =
-               task |> Task.await() |> Jason.decode!()
+               Task.await(task)
 
       assert [%{"actor" => %{"kind" => "human", "name" => "human"}, "emoji" => "agree"}] =
                reactions
@@ -450,15 +449,22 @@ defmodule SuikouWeb.AgentCLI.ReviewsTest do
       {:ok, _result} = Submissions.submit(round.id)
 
       assert %{"artifacts" => [%{"comments" => comments}]} =
-               run(%{"review_id" => review.id, "until_round" => 1}, &CLI.wait/0)
+               run(%{"review_id" => review.id, "until_round" => 1}, &CLI.wait/1)
 
       assert Enum.map(comments, & &1["body"]) == ["raised by Claude"]
     end
   end
 
+  defp json(map) do
+    map |> Jason.encode!() |> Jason.decode!()
+  end
+
   defp run(payload, fun) do
-    [input: Jason.encode!(payload)]
-    |> capture_io(fun)
+    payload
+    |> Jason.encode!()
+    |> Jason.decode!()
+    |> then(fun)
+    |> Jason.encode!()
     |> Jason.decode!()
   end
 

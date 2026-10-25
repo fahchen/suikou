@@ -1,35 +1,12 @@
 defmodule SuikouWeb.AgentCLITest do
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureIO
-
   alias SuikouWeb.AgentCLI
 
-  describe "read_payload/0" do
-    test "decodes the stdin JSON into a string-keyed map" do
-      payload =
-        capture_io([input: Jason.encode!(%{"review_id" => "0192"})], fn ->
-          send(self(), AgentCLI.read_payload())
-        end)
-
-      assert payload == ""
-      assert_received %{"review_id" => "0192"}
-    end
-  end
-
-  describe "emit/1" do
-    test "writes the map as one JSON line to stdout" do
-      out = capture_io(fn -> AgentCLI.emit(%{review_id: "0192"}) end)
-
-      assert %{"review_id" => "0192"} = Jason.decode!(out)
-    end
-
-    test "escapes non-ASCII as \\uXXXX so the latin1 rpc transport can't corrupt it" do
-      out = capture_io(fn -> AgentCLI.emit(%{note: "em—dash"}) end)
-
-      assert out =~ "\\u2014"
-      assert String.printable?(out)
-      assert Enum.all?(:binary.bin_to_list(out), &(&1 < 128))
+  describe "identity/1" do
+    test "reads the calling agent's name and optional icon off the payload" do
+      assert AgentCLI.identity(%{"as" => "Codex", "icon" => "🤖"}) ==
+               {:ok, %{name: "Codex", icon: "🤖"}}
     end
   end
 

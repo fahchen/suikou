@@ -4,8 +4,8 @@ defmodule SuikouWeb.AgentCLI.Comments do
   to a thread, resolve or reopen one, and set/clear the agent's work-status
   reaction. An agent reviews alongside the human and alongside other agents, so
   every command carries the caller's `"as"` / `"icon"` identity (see BDR-0026);
-  submitting a round stays the human's (BDR-0018). Each command reads its JSON
-  payload from stdin and emits a JSON result to stdout (see `SuikouWeb.AgentCLI`).
+  submitting a round stays the human's (BDR-0018). Each command takes its JSON
+  payload and returns the JSON result map (see `SuikouWeb.AgentCLI`).
   `Suikou.Critique` emits the review change event on success, so an open human
   thread reflects it live.
   """
@@ -19,7 +19,7 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   @doc """
   Authors a top-level comment from `%{"review_id", "path", "scope",
-  "critique_type", "body", "anchor"}` and emits `%{comment_id}` or `%{error}`.
+  "critique_type", "body", "anchor"}` and returns `%{comment_id}` or `%{error}`.
   It attaches to the file's latest round and is published immediately — an agent
   has no draft to submit. `anchor` carries the tagged payload a `:located`
   comment needs (`%{"type" => "line_range", …}`).
@@ -32,22 +32,16 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "path": "lib/a.ex", "scope": "located", "critique_type": "fix_required", "body": "unclosed file", "anchor": {"type": "line_range", "start_line": 12, "end_line": 14}, "as": "Codex"}
-      SuikouWeb.AgentCLI.Comments.add()
-      #=> :ok  # emits {"comment_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.add(%{"review_id" => "0192…", "path" => "lib/a.ex", "scope" => "located", "critique_type" => "fix_required", "body" => "unclosed file", "anchor" => %{"type" => "line_range", "start_line" => 12, "end_line" => 14}, "as" => "Codex"})
+      #=> %{comment_id: "0192…", error: nil}
 
   """
-  @spec add() :: :ok
-  def add do
-    payload = AgentCLI.read_payload()
-
-    result =
-      case author(payload) do
-        {:ok, %Comment{} = comment} -> %{comment_id: comment.id, error: nil}
-        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec add(AgentCLI.payload()) :: AgentCLI.result()
+  def add(payload) do
+    case author(payload) do
+      {:ok, %Comment{} = comment} -> %{comment_id: comment.id, error: nil}
+      {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   defp author(payload) do
@@ -75,83 +69,69 @@ defmodule SuikouWeb.AgentCLI.Comments do
   end
 
   @doc """
-  Posts an agent reply from `%{"comment_id", "body"}` and emits `%{reply_id}` or
+  Posts an agent reply from `%{"comment_id", "body"}` and returns `%{reply_id}` or
   `%{error}`. The target may be the human's comment or another agent's.
   `Suikou.Critique.reply_as_agent/3` emits the review change event on success so
   an open thread refreshes.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…", "body": "fixed in round 2", "as": "Codex"}
-      SuikouWeb.AgentCLI.Comments.reply()
-      #=> :ok  # emits {"reply_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.reply(%{"comment_id" => "0192…", "body" => "fixed in round 2", "as" => "Codex"})
+      #=> %{reply_id: "0192…", error: nil}
 
   """
-  @spec reply() :: :ok
-  def reply do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, %Reply{} = reply} <-
-             Critique.reply_as_agent(payload["comment_id"], payload["body"], identity) do
-        %{reply_id: reply.id, error: nil}
-      else
-        {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec reply(AgentCLI.payload()) :: AgentCLI.result()
+  def reply(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, %Reply{} = reply} <-
+           Critique.reply_as_agent(payload["comment_id"], payload["body"], identity) do
+      %{reply_id: reply.id, error: nil}
+    else
+      {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   @doc """
-  Marks an Open comment resolved from `%{"comment_id"}` and emits
+  Marks an Open comment resolved from `%{"comment_id"}` and returns
   `%{comment_id}` or `%{error}`. An agent may resolve any comment, its own or
   another reviewer's; the resolution records which agent claimed it addressed,
   and the human still reopens anything they disagree with.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…", "as": "Codex"}
-      SuikouWeb.AgentCLI.Comments.resolve()
-      #=> :ok  # emits {"comment_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.resolve(%{"comment_id" => "0192…", "as" => "Codex"})
+      #=> %{comment_id: "0192…", error: nil}
 
   """
-  @spec resolve() :: :ok
-  def resolve do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, %Comment{id: id}} <-
-             Critique.resolve_comment_as_agent(payload["comment_id"], identity) do
-        %{comment_id: id, error: nil}
-      else
-        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec resolve(AgentCLI.payload()) :: AgentCLI.result()
+  def resolve(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, %Comment{id: id}} <-
+           Critique.resolve_comment_as_agent(payload["comment_id"], identity) do
+      %{comment_id: id, error: nil}
+    else
+      {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   @doc """
-  Reopens a Resolved comment from `%{"comment_id"}` and emits `%{comment_id}` or
+  Reopens a Resolved comment from `%{"comment_id"}` and returns `%{comment_id}` or
   `%{error}`.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…"}
-      SuikouWeb.AgentCLI.Comments.reopen()
-      #=> :ok  # emits {"comment_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.reopen(%{"comment_id" => "0192…"})
+      #=> %{comment_id: "0192…", error: nil}
 
   """
-  @spec reopen() :: :ok
-  def reopen do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(lifecycle(payload, &Critique.reopen_comment/1))
+  @spec reopen(AgentCLI.payload()) :: AgentCLI.result()
+  def reopen(payload) do
+    lifecycle(payload, &Critique.reopen_comment/1)
   end
 
   @doc """
   Sets the calling agent's work-status reaction on a comment from
-  `%{"comment_id", "emoji"}` and emits `%{comment_id}` or `%{error}`. That agent
+  `%{"comment_id", "emoji"}` and returns `%{comment_id}` or `%{error}`. That agent
   holds at most one reaction per comment, so a new emoji replaces its previous
   one while another agent's stays put. `emoji` may be any emoji glyph (a
   free-form work-status signal — e.g. 👀 / 🤔 / ✅);
@@ -159,53 +139,41 @@ defmodule SuikouWeb.AgentCLI.Comments do
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…", "emoji": "👀", "as": "Codex"}
-      SuikouWeb.AgentCLI.Comments.react()
-      #=> :ok  # emits {"comment_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.react(%{"comment_id" => "0192…", "emoji" => "👀", "as" => "Codex"})
+      #=> %{comment_id: "0192…", error: nil}
 
   """
-  @spec react() :: :ok
-  def react do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, comment_id} <-
-             Critique.react_as_agent(payload["comment_id"], payload["emoji"], identity) do
-        %{comment_id: comment_id, error: nil}
-      else
-        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec react(AgentCLI.payload()) :: AgentCLI.result()
+  def react(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, comment_id} <-
+           Critique.react_as_agent(payload["comment_id"], payload["emoji"], identity) do
+      %{comment_id: comment_id, error: nil}
+    else
+      {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   @doc """
   Clears the calling agent's reaction on a comment from `%{"comment_id"}` and
-  emits `%{comment_id}` or `%{error}`. Removing is a no-op when that agent has no
+  returns `%{comment_id}` or `%{error}`. Removing is a no-op when that agent has no
   reaction there, and leaves any other agent's alone.
 
   ## Examples
 
-      # stdin: {"comment_id": "0192…", "as": "Codex"}
-      SuikouWeb.AgentCLI.Comments.unreact()
-      #=> :ok  # emits {"comment_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Comments.unreact(%{"comment_id" => "0192…", "as" => "Codex"})
+      #=> %{comment_id: "0192…", error: nil}
 
   """
-  @spec unreact() :: :ok
-  def unreact do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, comment_id} <-
-             Critique.unreact_as_agent(payload["comment_id"], payload["emoji"], identity) do
-        %{comment_id: comment_id, error: nil}
-      else
-        {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec unreact(AgentCLI.payload()) :: AgentCLI.result()
+  def unreact(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, comment_id} <-
+           Critique.unreact_as_agent(payload["comment_id"], payload["emoji"], identity) do
+      %{comment_id: comment_id, error: nil}
+    else
+      {:error, reason} -> %{comment_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   defp lifecycle(payload, transition) do

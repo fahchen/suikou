@@ -1,19 +1,18 @@
 defmodule SuikouWeb.AgentCLI.ProjectsTest do
   use Suikou.DataCase
 
-  import ExUnit.CaptureIO
   import Suikou.Factory
 
   alias Suikou.Settings
   alias SuikouWeb.AgentCLI.Projects
   alias SuikouWeb.Stores.BoardBroadcast
 
-  describe "list/0" do
+  describe "list/1" do
     test "emits every registered project" do
       project = insert(:project, name: "Docs")
 
       assert %{"projects" => [%{"id" => id, "name" => "Docs", "identity" => nil}]} =
-               run(%{}, &Projects.list/0)
+               run(%{}, &Projects.list/1)
 
       assert id == project.id
     end
@@ -22,7 +21,7 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
       {:ok, _settings} = Settings.update_settings(%{review_instructions: "Reply in English."})
       insert(:project, review_instructions: "Report any Repo call inside queries/.")
 
-      assert %{"projects" => [%{"instructions" => instructions}]} = run(%{}, &Projects.list/0)
+      assert %{"projects" => [%{"instructions" => instructions}]} = run(%{}, &Projects.list/1)
 
       assert ["Reply in English.", "Report any Repo call inside queries/."] = instructions
     end
@@ -30,17 +29,17 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
     test "carries no instructions when the human wrote none" do
       insert(:project)
 
-      assert %{"projects" => [%{"instructions" => []}]} = run(%{}, &Projects.list/0)
+      assert %{"projects" => [%{"instructions" => []}]} = run(%{}, &Projects.list/1)
     end
   end
 
-  describe "create/0" do
+  describe "create/1" do
     @tag :tmp_dir
     test "registers a project, broadcasts the board, and emits its id", %{tmp_dir: dir} do
       :ok = BoardBroadcast.subscribe()
 
       assert %{"project_id" => id, "error" => nil} =
-               run(%{"name" => "Docs", "path" => dir}, &Projects.create/0)
+               run(%{"name" => "Docs", "path" => dir}, &Projects.create/1)
 
       assert is_binary(id)
       assert_receive :board_changed
@@ -48,13 +47,16 @@ defmodule SuikouWeb.AgentCLI.ProjectsTest do
 
     test "emits an error for a non-directory path" do
       assert %{"project_id" => nil, "error" => "not_a_directory"} =
-               run(%{"name" => "Docs", "path" => "/nope/missing"}, &Projects.create/0)
+               run(%{"name" => "Docs", "path" => "/nope/missing"}, &Projects.create/1)
     end
   end
 
   defp run(payload, fun) do
-    [input: Jason.encode!(payload)]
-    |> capture_io(fun)
+    payload
+    |> Jason.encode!()
+    |> Jason.decode!()
+    |> then(fun)
+    |> Jason.encode!()
     |> Jason.decode!()
   end
 end

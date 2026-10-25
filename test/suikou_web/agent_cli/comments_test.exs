@@ -1,7 +1,6 @@
 defmodule SuikouWeb.AgentCLI.CommentsTest do
   use Suikou.DataCase
 
-  import ExUnit.CaptureIO
   import Suikou.Factory
 
   alias Suikou.Critique
@@ -12,7 +11,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
   alias Suikou.Schemas.Comment
   alias SuikouWeb.AgentCLI.Comments
 
-  describe "add/0" do
+  describe "add/1" do
     test "mints the file's artifact and publishes under the calling agent's name" do
       %{review: review, path: path} =
         covered_file(Enum.map_join(1..12, "\n", &"line #{&1}") <> "\n")
@@ -32,7 +31,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "as" => "Codex",
                    "icon" => "\u{1F916}"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
 
       assert %Comment{
@@ -62,7 +61,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                      "body" => body,
                      "as" => "Codex"
                    },
-                   &Comments.add/0
+                   &Comments.add/1
                  )
       end
 
@@ -82,7 +81,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "critique_type" => "note",
                    "body" => "x"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
 
       assert Repo.aggregate(Comment, :count) == 0
@@ -101,7 +100,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "body" => "x",
                    "as" => "human"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
 
       assert Repo.aggregate(Comment, :count) == 0
@@ -118,7 +117,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "body" => "x",
                    "as" => "Codex"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
     end
 
@@ -136,7 +135,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "anchor" => %{"type" => "line_range", "start_line" => 0, "end_line" => 0},
                    "as" => "Codex"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
 
       assert error =~ "anchor.start_line"
@@ -155,7 +154,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
                    "body" => "x",
                    "as" => "Codex"
                  },
-                 &Comments.add/0
+                 &Comments.add/1
                )
     end
   end
@@ -166,13 +165,13 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       comment = published_comment(round.id, %{scope: :review, critique_type: :note, body: "x"})
 
       assert %{"comment_id" => id, "error" => nil} =
-               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/0)
+               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/1)
 
       assert id == comment.id
       assert %Comment{resolved_round: 0} = Repo.get!(Comment, comment.id)
 
       assert %{"comment_id" => _id, "error" => nil} =
-               run(%{"comment_id" => comment.id}, &Comments.reopen/0)
+               run(%{"comment_id" => comment.id}, &Comments.reopen/1)
 
       assert %Comment{resolved_round: nil} = Repo.get!(Comment, comment.id)
     end
@@ -183,11 +182,11 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       {:ok, _resolved} = Critique.resolve_comment(comment.id)
 
       assert %{"comment_id" => nil, "error" => "not_open"} =
-               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/0)
+               run(%{"comment_id" => comment.id, "as" => "Codex"}, &Comments.resolve/1)
     end
   end
 
-  describe "reply/0" do
+  describe "reply/1" do
     test "posts an agent reply, broadcasts the review topic, and emits its id" do
       round = source_round("line 1\nline 2\n")
       %Artifact{review_id: review_id} = Reads.get_artifact(round.artifact_id)
@@ -197,7 +196,7 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       assert %{"reply_id" => id, "error" => nil} =
                run(
                  %{"comment_id" => comment.id, "body" => "fixed", "as" => "Codex"},
-                 &Comments.reply/0
+                 &Comments.reply/1
                )
 
       assert is_binary(id)
@@ -208,14 +207,17 @@ defmodule SuikouWeb.AgentCLI.CommentsTest do
       assert %{"reply_id" => nil, "error" => "comment_not_found"} =
                run(
                  %{"comment_id" => Ecto.UUID.generate(), "body" => "x", "as" => "Codex"},
-                 &Comments.reply/0
+                 &Comments.reply/1
                )
     end
   end
 
   defp run(payload, fun) do
-    [input: Jason.encode!(payload)]
-    |> capture_io(fun)
+    payload
+    |> Jason.encode!()
+    |> Jason.decode!()
+    |> then(fun)
+    |> Jason.encode!()
     |> Jason.decode!()
   end
 end

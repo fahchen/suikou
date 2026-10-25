@@ -5,6 +5,8 @@ defmodule Suikou.Application do
 
   use Application
 
+  require Logger
+
   @impl Application
   def start(_type, _args) do
     children = [
@@ -33,8 +35,31 @@ defmodule Suikou.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Suikou.Supervisor]
-    Supervisor.start_link(children, opts)
+    write_cli_access(Supervisor.start_link(children, opts))
   end
+
+  # The CLI reaches the server over loopback HTTP, so a booted endpoint
+  # publishes the port it bound and the token that authenticates the CLI (see
+  # `Suikou.CLI.Access`). A boot without a server (the test endpoint, a CLI-only
+  # eval) skips it; a failed write logs rather than crashes — the CLI then
+  # reports that Suikou is not running, which is the truth of it.
+  defp write_cli_access({:ok, _pid} = ok) do
+    if SuikouWeb.Endpoint.config(:server) do
+      port = SuikouWeb.Endpoint.config(:http)[:port]
+
+      case Suikou.CLI.Access.write_access(port) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("could not write the CLI access file: #{inspect(reason)}")
+      end
+    end
+
+    ok
+  end
+
+  defp write_cli_access(other), do: other
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.

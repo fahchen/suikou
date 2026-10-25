@@ -2,11 +2,11 @@ defmodule SuikouWeb.AgentCLI do
   @moduledoc """
   Shared runtime for the agent CLI delivery boundary.
 
-  Each `AgentCLI.*` command function executes inside the running node (via the
-  release `rpc`), reads a JSON payload from the forwarded stdin, calls a backend
-  context, and prints a JSON result to stdout. This module holds only the
-  transport plumbing those commands share: decoding the stdin payload, encoding
-  results, and formatting backend errors. It carries no command logic.
+  Each `AgentCLI.*` command takes a string-keyed payload map — the decoded body
+  of its loopback HTTP route (see `SuikouWeb.CLI`) — and returns the JSON
+  result map. This module holds only what those commands share: reading the
+  calling agent's identity and formatting backend errors. It carries no command
+  logic and no transport.
 
   Uses Jason rather than the stdlib `JSON` module: the project targets Elixir
   `~> 1.15` where `JSON` is not guaranteed, so Jason is the project-wide
@@ -15,25 +15,11 @@ defmodule SuikouWeb.AgentCLI do
 
   alias Suikou.Critique
 
-  @typedoc "A string-keyed payload decoded from the command's stdin."
+  @typedoc "A string-keyed payload decoded from a request body."
   @type payload() :: %{optional(String.t()) => term()}
 
-  @doc """
-  Reads the whole stdin and decodes it as a string-keyed JSON map.
-
-  Zero-arg commands still pipe `{}` so this always has something to decode.
-
-  ## Examples
-
-      # stdin carries: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.read_payload()
-      #=> %{"review_id" => "0192…"}
-
-  """
-  @spec read_payload() :: payload()
-  def read_payload do
-    :stdio |> IO.read(:eof) |> Jason.decode!()
-  end
+  @typedoc "The JSON result map a command returns; the caller encodes it."
+  @type result() :: map()
 
   @doc """
   Reads the calling agent's identity off a payload's `"as"` / `"icon"` keys.
@@ -54,22 +40,6 @@ defmodule SuikouWeb.AgentCLI do
   @spec identity(payload()) :: {:ok, Critique.identity()} | {:error, Critique.identity_error()}
   def identity(payload) do
     Critique.agent_identity(payload["as"], payload["icon"])
-  end
-
-  @doc """
-  Encodes `map` as JSON and writes it to stdout as one line.
-
-  ## Examples
-
-      SuikouWeb.AgentCLI.emit(%{review_id: "0192…"})
-      #=> :ok
-
-  """
-  @spec emit(map()) :: :ok
-  def emit(map) do
-    # `IO.write` with an explicit newline rather than `IO.puts` (lint rule), so
-    # the launcher still reads exactly one JSON line.
-    IO.write([Jason.encode!(map, escape: :unicode_safe), ?\n])
   end
 
   @doc """
