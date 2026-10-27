@@ -149,6 +149,13 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  # The built-in poller of telemetry_poller measures `erlang:memory/0` and the
+  # VM counts of `erlang:system_info/1`. PBeam does not have the ERTS memory
+  # allocators, so those calls stop the runtime (docs/erts-differences.md, row
+  # "System information"). No reporter subscribes to the `vm.*` events, and
+  # SuikouWeb.Telemetry passes its own empty measurements, so the poller is off.
+  config :telemetry_poller, default: false
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key
