@@ -3,10 +3,10 @@ defmodule SuikouWeb.CLI.HTTP do
   The CLI's one-purpose HTTP client: POST one JSON document to the loopback
   server and read one JSON response.
 
-  Stays on `:gen_tcp` with plain HTTP/1.1 and no dependency: Bandit itself
-  serves through gen_tcp (Thousand Island's TCP transport), so this is the
-  layer PBeam runs as well. One connection per request (`Connection: close`),
-  which is all a CLI verb needs.
+  Uses `Req`, which drives the `Plug` stack the release already runs: the CLI
+  needs no socket code of its own, and the transport works on a runtime that
+  has no `gen_tcp`. `Req.Test` also lets a test call the endpoint's `Plug` with
+  no listener at all.
 
   ## Examples
 
@@ -15,7 +15,13 @@ defmodule SuikouWeb.CLI.HTTP do
 
   """
 
+  # A refused connection must not hold up a CLI call: the server is either up
+  # on loopback or not there at all.
   @connect_timeout_ms 5_000
+
+  # A liveness probe answers or it does not; a booting server may take a
+  # moment to answer its first request, so one second is plenty.
+  @probe_timeout_ms 1_000
 
   @doc """
   Posts `body` to `path` with the Bearer `token` and returns
@@ -31,49 +37,39 @@ defmodule SuikouWeb.CLI.HTTP do
   def post(port, path, token, body, timeout_ms \\ 60_000)
       when is_integer(port) and is_binary(path) and is_binary(token) and is_binary(body) do
     request =
-      [
-        "POST #{path} HTTP/1.1\r\n",
-        "host: 127.0.0.1:#{port}\r\n",
-        "authorization: Bearer #{token}\r\n",
-        "content-type: application/json\r\n",
-        "accept: application/json\r\n",
-        "content-length: #{byte_size(body)}\r\n",
-        "connection: close\r\n",
-        "\r\n",
-        body
-      ]
+      Req.new(
+        base_url: "http://127.0.0.1:#{port}",
+        headers: [{"authorization", "Bearer #{token}"}],
+        retry: false,
+        decode_body: false,
+        receive_timeout: timeout_ms,
+        connect_options: [timeout: @connect_timeout_ms]
+      )
 
-    with {:ok, socket} <-
-           :gen_tcp.connect(
-             ~c"127.0.0.1",
-             port,
-             [:binary, packet: :raw, active: false],
-             @connect_timeout_ms
-           ),
-         :ok <- :gen_tcp.send(socket, request),
-         {:ok, response} <- recv(socket, timeout_ms) do
-      :gen_tcp.close(socket)
-      parse(response)
-    else
+    case Req.post(request, url: path, body: body) do
+      {:ok, %Req.Response{status: status, body: response}} -> {:ok, status, response}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  # Reads until the peer closes (`Connection: close` makes Bandit close after
-  # the response) or the timeout elapses.
-  defp recv(socket, timeout_ms, acc \\ []) do
-    case :gen_tcp.recv(socket, 0, timeout_ms) do
-      {:ok, chunk} -> recv(socket, timeout_ms, [chunk | acc])
-      {:error, :closed} -> {:ok, acc |> Enum.reverse() |> IO.iodata_to_binary()}
-      {:error, reason} -> {:error, reason}
-    end
-  end
+  @doc """
+  Whether the server answers on `port` at `127.0.0.1` — a liveness probe.
 
-  defp parse(response) do
-    [head, body] = :binary.split(response, "\r\n\r\n")
-    ["HTTP/1.1 " <> status_line | _headers] = :binary.split(head, "\r\n")
-    {status, _rest} = Integer.parse(status_line)
+  One request to the board root: any answer means the server serves, and a
+  refused or timed-out connection means it does not. The CLI waits on this
+  after a `start`, and the bare boot waits on it before it opens the browser.
+  """
+  @spec up?(:inet.port_number()) :: boolean()
+  def up?(port) when is_integer(port) do
+    request =
+      Req.new(
+        base_url: "http://127.0.0.1:#{port}",
+        retry: false,
+        decode_body: false,
+        receive_timeout: @probe_timeout_ms,
+        connect_options: [timeout: @connect_timeout_ms]
+      )
 
-    {:ok, status, body}
+    match?({:ok, %Req.Response{}}, Req.get(request, url: "/"))
   end
 end

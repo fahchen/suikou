@@ -78,6 +78,9 @@ defmodule Suikou.MixProject do
       {:typed_structor, "~> 0.6.1"},
       {:polymorphic_embed, "~> 5.0"},
       {:toml, "~> 0.7.0"},
+      # The loopback HTTP client of the CLI: one JSON document per verb
+      # against the server's own Plug endpoint.
+      {:req, "~> 0.5"},
       {:fs_notify, "~> 0.1.0"},
       {:rustler, "~> 0.38.0", runtime: false},
       {:web_push_elixir, "~> 0.8.0"},

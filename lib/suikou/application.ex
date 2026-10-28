@@ -111,7 +111,7 @@ defmodule Suikou.Application do
   defp wait_for_port(port, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
-    if SuikouWeb.CLI.tcp_up?(port) do
+    if SuikouWeb.CLI.up?(port) do
       true
     else
       if System.monotonic_time(:millisecond) >= deadline do

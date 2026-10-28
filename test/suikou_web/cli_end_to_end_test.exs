@@ -1,6 +1,6 @@
 defmodule SuikouWeb.CLIEndToEndTest do
   @moduledoc """
-  Drives `SuikouWeb.CLI.run/1` with the real gen_tcp transport against a real
+  Drives `SuikouWeb.CLI.run/1` with the real HTTP transport against a real
   Bandit listener on the endpoint: the token gate, the HTTP exchange, and the
   printed JSON line, all end to end.
   """

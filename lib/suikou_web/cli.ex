@@ -29,6 +29,7 @@ defmodule SuikouWeb.CLI do
 
   alias SuikouWeb.CLI
   alias SuikouWeb.CLI.Access
+  alias SuikouWeb.CLI.HTTP
 
   @transport_default {CLI.HTTP, :post}
 
@@ -811,7 +812,7 @@ defmodule SuikouWeb.CLI do
   end
 
   # The transport is one MFA over {port, path, token, body, timeout}: the real
-  # gen_tcp client, or a stub in tests. The default timeout clears a full poll
+  # HTTP client, or a stub in tests. The default timeout clears a full poll
   # window with slack; a deadline-aware call bounds itself to the remaining
   # budget plus slack so the final round reports its timeout rather than
   # dying mid-request.
@@ -957,7 +958,7 @@ defmodule SuikouWeb.CLI do
   defp attach_port(port, open_browser?) do
     url = url_for_port(port)
 
-    if tcp_up?(port) do
+    if up?(port) do
       if open_browser?, do: spawn_open(url)
       print("already running at #{url}")
       0
@@ -1046,7 +1047,7 @@ defmodule SuikouWeb.CLI do
       nil ->
         port = configured_port()
 
-        if tcp_up?(port) do
+        if up?(port) do
           raise UsageError,
             message: "port #{port} is in use; stop whatever is using it or set PORT to override"
         end
@@ -1082,7 +1083,7 @@ defmodule SuikouWeb.CLI do
   defp wait_for_port(port, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
-    if tcp_up?(port) do
+    if up?(port) do
       true
     else
       if System.monotonic_time(:millisecond) >= deadline do
@@ -1143,7 +1144,7 @@ defmodule SuikouWeb.CLI do
   defp report_port(pid, port) do
     url = url_for_port(port)
 
-    if tcp_up?(port) do
+    if up?(port) do
       print("running (pid #{pid}) at #{url}")
     else
       print("starting (pid #{pid}), port #{port} not yet reachable")
@@ -1173,7 +1174,7 @@ defmodule SuikouWeb.CLI do
   end
 
   defp wait_until_gone(port, deadline) do
-    if tcp_up?(port) do
+    if up?(port) do
       if System.monotonic_time(:millisecond) >= deadline do
         false
       else
@@ -1186,19 +1187,13 @@ defmodule SuikouWeb.CLI do
   end
 
   @doc """
-  Whether something listens on `port` at `127.0.0.1` — a liveness probe.
-  """
-  @spec tcp_up?(:inet.port_number()) :: boolean()
-  def tcp_up?(port) do
-    case :gen_tcp.connect(~c"127.0.0.1", port, [:binary, packet: :raw, active: false], 500) do
-      {:ok, socket} ->
-        :gen_tcp.close(socket)
-        true
+  Whether the server answers on `port` at `127.0.0.1` — a liveness probe.
 
-      {:error, _reason} ->
-        false
-    end
-  end
+  One HTTP request to the board, so the probe uses the same transport as a CLI
+  call instead of opening a socket of its own (see `SuikouWeb.CLI.HTTP`).
+  """
+  @spec up?(:inet.port_number()) :: boolean()
+  def up?(port), do: HTTP.up?(port)
 
   # `suikou skill [--output <path>] [-o <path>] [--force]`: emit the agent
   # skill markdown baked into the release. Server-independent.
