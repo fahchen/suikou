@@ -1,7 +1,7 @@
-defmodule Suikou.CLI.AccessTest do
+defmodule SuikouWeb.CLI.AccessTest do
   use ExUnit.Case, async: false
 
-  alias Suikou.CLI.Access
+  alias SuikouWeb.CLI.Access
 
   # Each test points the data directory at its own scratch dir, so the real
   # install's credential (and the other tests' tokens) stay untouched.

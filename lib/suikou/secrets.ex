@@ -10,7 +10,7 @@ defmodule Suikou.Secrets do
   — delete `vapid.json` deliberately and accept the loss.
   """
 
-  alias Suikou.CLI.Access
+  alias Suikou.DataDir
 
   @doc """
   The `SECRET_KEY_BASE` of the install: 64 random bytes, hex-encoded (128
@@ -29,7 +29,7 @@ defmodule Suikou.Secrets do
   """
   @spec vapid() :: %{public_key: String.t(), private_key: String.t()}
   def vapid do
-    path = Path.join(Access.data_dir(), "vapid.json")
+    path = Path.join(DataDir.path(), "vapid.json")
 
     with {:ok, raw} <- File.read(path),
          {:ok, %{"public" => public, "private" => private}} when public != "" and private != "" <-
@@ -52,7 +52,7 @@ defmodule Suikou.Secrets do
   end
 
   defp ensure_hex(name, bytes) do
-    path = Path.join(Access.data_dir(), name)
+    path = Path.join(DataDir.path(), name)
 
     with {:ok, existing} <- File.read(path),
          secret when byte_size(secret) > 0 <- String.trim(existing) do

@@ -42,10 +42,10 @@ if config_env() == :prod do
     end
 
   # The install configures itself: every generated credential and the database
-  # live in the data directory (see Suikou.Secrets and Suikou.CLI.Access), so a
+  # live in the data directory (see Suikou.Secrets and SuikouWeb.CLI.Access), so a
   # bare boot with no environment works. An explicit variable or config.toml key
   # still wins.
-  data_dir = Suikou.CLI.Access.data_dir()
+  data_dir = Suikou.DataDir.path()
 
   database_path =
     user_config["database_path"] || System.get_env("DATABASE_PATH") ||

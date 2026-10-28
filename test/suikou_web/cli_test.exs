@@ -1,6 +1,6 @@
-defmodule Suikou.CLI.HTTPStub do
+defmodule SuikouWeb.CLI.HTTPStub do
   @moduledoc """
-  A deterministic stand-in for `Suikou.CLI.HTTP` in tests: every call lands in
+  A deterministic stand-in for `SuikouWeb.CLI.HTTP` in tests: every call lands in
   the test process's mailbox (the CLI runs synchronously in the same process),
   and each route answers from the reply queue the test set in the process
   dictionary, one reply per call, falling back to a bare `200 {}`.
@@ -20,9 +20,9 @@ defmodule Suikou.CLI.HTTPStub do
   end
 end
 
-defmodule Suikou.CLITest do
+defmodule SuikouWeb.CLITest do
   @moduledoc """
-  Drives `Suikou.CLI.run/1` with a stub transport: payload building, printing,
+  Drives `SuikouWeb.CLI.run/1` with a stub transport: payload building, printing,
   exit codes, the poll loop, and the usage errors — the E2E test in
   `SuikouWeb.CLIEndToEndTest` drives the real socket.
   """
@@ -31,8 +31,8 @@ defmodule Suikou.CLITest do
 
   import ExUnit.CaptureIO
 
-  alias Suikou.CLI
-  alias Suikou.CLI.Access
+  alias SuikouWeb.CLI
+  alias SuikouWeb.CLI.Access
 
   setup do
     dir = Path.join(System.tmp_dir!(), "suikou-cli-test-#{System.unique_integer([:positive])}")
@@ -40,7 +40,7 @@ defmodule Suikou.CLITest do
     original_dir = Application.get_env(:suikou, :cli_data_dir)
     original_transport = Application.get_env(:suikou, :cli_transport)
     Application.put_env(:suikou, :cli_data_dir, dir)
-    Application.put_env(:suikou, :cli_transport, {Suikou.CLI.HTTPStub, :post})
+    Application.put_env(:suikou, :cli_transport, {SuikouWeb.CLI.HTTPStub, :post})
     port = free_port()
     :ok = Access.write_access(port)
 

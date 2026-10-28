@@ -1,4 +1,4 @@
-defmodule Suikou.CLI.HTTP do
+defmodule SuikouWeb.CLI.HTTP do
   @moduledoc """
   The CLI's one-purpose HTTP client: POST one JSON document to the loopback
   server and read one JSON response.
@@ -10,7 +10,7 @@ defmodule Suikou.CLI.HTTP do
 
   ## Examples
 
-      Suikou.CLI.HTTP.post(47100, "/api/cli/project/list", "secret", "{}")
+      SuikouWeb.CLI.HTTP.post(47100, "/api/cli/project/list", "secret", "{}")
       #=> {:ok, 200, "{\\"projects\\":[]}"}
 
   """

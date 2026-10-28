@@ -10,7 +10,7 @@ defmodule Suikou.Application do
   @impl Application
   def start(_type, _args) do
     if release_boot?() do
-      case Suikou.CLI.entry(System.argv()) do
+      case SuikouWeb.CLI.entry(System.argv()) do
         {:cli, argv} -> run_cli(argv)
         {:server, open_browser?} -> boot_server(open_browser?)
       end
@@ -22,7 +22,7 @@ defmodule Suikou.Application do
   end
 
   # A release boot dispatches on the executable's arguments: a CLI word runs
-  # the CLI instead of the server (see `Suikou.CLI.entry/1`).
+  # the CLI instead of the server (see `SuikouWeb.CLI.entry/1`).
   defp release_boot?, do: System.get_env("RELEASE_NAME") != nil
 
   # The CLI is a short-lived client: run it, then stop the node with its exit
@@ -31,7 +31,7 @@ defmodule Suikou.Application do
   defp run_cli(argv) do
     {:ok,
      Task.start(fn ->
-       System.stop(Suikou.CLI.run(argv))
+       System.stop(SuikouWeb.CLI.run(argv))
        Process.sleep(:infinity)
      end)}
   end
@@ -77,14 +77,14 @@ defmodule Suikou.Application do
 
   # The CLI reaches the server over loopback HTTP, so a booted endpoint
   # publishes the port it bound and the token that authenticates the CLI (see
-  # `Suikou.CLI.Access`). A boot without a server (the test endpoint, a CLI-only
+  # `SuikouWeb.CLI.Access`). A boot without a server (the test endpoint, a CLI-only
   # eval) skips it; a failed write logs rather than crashes — the CLI then
   # reports that Suikou is not running, which is the truth of it.
   defp write_cli_access do
     if SuikouWeb.Endpoint.config(:server) do
       port = SuikouWeb.Endpoint.config(:http)[:port]
 
-      case Suikou.CLI.Access.write_access(port) do
+      case SuikouWeb.CLI.Access.write_access(port) do
         :ok ->
           :ok
 
@@ -101,7 +101,7 @@ defmodule Suikou.Application do
 
     Task.start(fn ->
       if wait_for_port(port, 20_000) do
-        System.cmd("open", [Suikou.CLI.url_for_port(port)])
+        System.cmd("open", [SuikouWeb.CLI.url_for_port(port)])
       else
         Logger.warning("the server did not become ready at port #{port}; not opening the browser")
       end
@@ -111,7 +111,7 @@ defmodule Suikou.Application do
   defp wait_for_port(port, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
-    if Suikou.CLI.tcp_up?(port) do
+    if SuikouWeb.CLI.tcp_up?(port) do
       true
     else
       if System.monotonic_time(:millisecond) >= deadline do

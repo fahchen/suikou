@@ -9,7 +9,7 @@ defmodule SuikouWeb.CLIRoutesTest do
 
   import Suikou.Factory
 
-  alias Suikou.CLI.Access
+  alias SuikouWeb.CLI.Access
 
   describe "the :cli pipeline" do
     test "rejects a request without a token" do

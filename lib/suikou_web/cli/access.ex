@@ -1,4 +1,4 @@
-defmodule Suikou.CLI.Access do
+defmodule SuikouWeb.CLI.Access do
   @moduledoc """
   The loopback access credential shared by the server and the CLI.
 
@@ -16,7 +16,7 @@ defmodule Suikou.CLI.Access do
 
   ## Examples
 
-      Suikou.CLI.Access.fetch()
+      SuikouWeb.CLI.Access.fetch()
       #=> {:ok, %{port: 47100, token: "9f2c…"}}
   """
 
@@ -34,10 +34,7 @@ defmodule Suikou.CLI.Access do
   the packaged install's credential.
   """
   @spec data_dir() :: Path.t()
-  def data_dir do
-    Application.get_env(:suikou, :cli_data_dir) || System.get_env("SUIKOU_DATA_DIR") ||
-      Path.join([System.user_home!(), "Library", "Application Support", "Suikou"])
-  end
+  def data_dir, do: Suikou.DataDir.path()
 
   @doc """
   Reads the port and token the server wrote at boot, or `:error` when the file

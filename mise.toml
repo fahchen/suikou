@@ -39,7 +39,7 @@ wait
 description = "Agent CLI (Elixir) targeting the dev server"
 depends = ["setup"]
 env = { SUIKOU_DATA_DIR = "{{config_root}}/tmp/dev-cli" }
-run = 'mix run -e "System.halt(Suikou.CLI.run(System.argv))" --'
+run = 'mix run -e "System.halt(SuikouWeb.CLI.run(System.argv))" --'
 
 # Package the whole app into one runnable file: the React frontend (bun runs
 # the Vite build), a self-contained `mix release`, and the PBeam runtime,

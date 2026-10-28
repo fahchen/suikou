@@ -1,6 +1,6 @@
 defmodule SuikouWeb.CLIEndToEndTest do
   @moduledoc """
-  Drives `Suikou.CLI.run/1` with the real gen_tcp transport against a real
+  Drives `SuikouWeb.CLI.run/1` with the real gen_tcp transport against a real
   Bandit listener on the endpoint: the token gate, the HTTP exchange, and the
   printed JSON line, all end to end.
   """
@@ -10,9 +10,9 @@ defmodule SuikouWeb.CLIEndToEndTest do
   import ExUnit.CaptureIO
   import Suikou.Factory
 
-  alias Suikou.CLI
-  alias Suikou.CLI.Access
   alias Suikou.Repo
+  alias SuikouWeb.CLI
+  alias SuikouWeb.CLI.Access
 
   setup do
     dir = Path.join(System.tmp_dir!(), "suikou-cli-e2e-#{System.unique_integer([:positive])}")

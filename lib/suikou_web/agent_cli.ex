@@ -3,7 +3,7 @@ defmodule SuikouWeb.AgentCLI do
   Shared runtime for the agent CLI delivery boundary.
 
   Each `AgentCLI.*` command takes a string-keyed payload map — the decoded body
-  of its loopback HTTP route (see `SuikouWeb.CLI`) — and returns the JSON
+  of its loopback HTTP route (see `SuikouWeb.CLI` and `SuikouWeb.CLI.Payload`) — and returns the JSON
   result map. This module holds only what those commands share: reading the
   calling agent's identity and formatting backend errors. It carries no command
   logic and no transport.
