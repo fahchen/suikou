@@ -39,7 +39,10 @@ defmodule SuikouWeb.CLI.HTTP do
     request =
       Req.new(
         base_url: "http://127.0.0.1:#{port}",
-        headers: [{"authorization", "Bearer #{token}"}],
+        headers: [
+          {"authorization", "Bearer #{token}"},
+          {"content-type", "application/json"}
+        ],
         retry: false,
         decode_body: false,
         receive_timeout: timeout_ms,

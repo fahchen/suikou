@@ -73,6 +73,17 @@ defmodule SuikouWeb.CLIEndToEndTest do
     assert %{"projects" => [%{"name" => "Docs"}]} = Jason.decode!(out)
   end
 
+  # A payload must reach the endpoint parsed: `Plug.Parsers` reads the body
+  # only for the `content-type` that the transport sends, and without it each
+  # key of the params is blank, so the server reports a validation error for
+  # a call that carried its arguments.
+  test "a verb with a payload drives the real socket end to end" do
+    {out, 0} = cli(["project", "create", "--name", "Round Trip"])
+
+    assert %{"project_id" => id, "error" => nil} = Jason.decode!(out)
+    assert %Suikou.Schemas.Project{name: "Round Trip"} = Repo.get(Suikou.Schemas.Project, id)
+  end
+
   test "a wrong token over the real socket is rejected" do
     File.write!(
       Path.join(Access.data_dir(), "cli.json"),
