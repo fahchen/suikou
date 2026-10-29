@@ -87,6 +87,8 @@ defmodule SuikouWeb.CLI do
         options: [],
         id: "review-id",
         payload: :review_id,
+        # No route of its own: it reads the URL of `review url` and opens it.
+        route: "url",
         open: true,
         summary: "open a review in the browser (<review-id>)"
       },
@@ -863,7 +865,7 @@ defmodule SuikouWeb.CLI do
     apply(module, function, [port, path, token, body, timeout])
   end
 
-  defp route(%{group: group, verb: verb}), do: "/api/cli/#{group}/#{verb}"
+  defp route(%{group: group, verb: verb} = spec), do: "/api/cli/#{group}/#{spec[:route] || verb}"
 
   # The dispatch spec of one lifecycle request: a `server` verb that takes no
   # input. One builder keeps every caller off a hand-written spec map.

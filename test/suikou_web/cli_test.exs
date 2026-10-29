@@ -103,6 +103,18 @@ defmodule SuikouWeb.CLITest do
       assert %{"projects" => [%{"name" => "Docs"}]} = Jason.decode!(out)
     end
 
+    # A reply without `url` keeps the test from starting a browser.
+    test "review open posts to the route of review url" do
+      replies("/api/cli/review/url", [{:ok, 200, "{}"}])
+
+      {_out, code} = cli(["review", "open", "r1"])
+
+      assert code == 0
+      post = last_post()
+      assert post.path == "/api/cli/review/url"
+      assert Jason.decode!(post.body) == %{"review_id" => "r1"}
+    end
+
     test "re-encodes non-ASCII as \\uXXXX, byte-identical to the rpc line" do
       replies("/api/cli/project/list", [{:ok, 200, ~s({"note":"em—dash"})}])
 
