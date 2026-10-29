@@ -66,6 +66,7 @@ defmodule Suikou.Application do
     case Supervisor.start_link(children, opts) do
       {:ok, _pid} = ok ->
         write_cli_access()
+        write_pid_file()
         if open_browser?, do: open_when_ready()
         ok
 
@@ -89,6 +90,17 @@ defmodule Suikou.Application do
 
         {:error, reason} ->
           Logger.warning("could not write the CLI access file: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # A serving boot writes its pid file in the data directory, next to the CLI
+  # access file; like that file, a failed write logs rather than crashes.
+  defp write_pid_file do
+    if SuikouWeb.Endpoint.config(:server) do
+      case SuikouWeb.CLI.PidFile.write() do
+        :ok -> :ok
+        {:error, reason} -> Logger.warning("could not write the pid file: #{inspect(reason)}")
       end
     end
   end
@@ -121,6 +133,11 @@ defmodule Suikou.Application do
       end
     end
   end
+
+  # A clean stop (the `stop` route, SIGTERM) removes the pid file that the
+  # serving boot wrote; `PidFile.remove/0` leaves a file of another node alone.
+  @impl Application
+  def stop(_state), do: SuikouWeb.CLI.PidFile.remove()
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.
