@@ -64,13 +64,14 @@ choice actually changes.
 
 Requires [mise](https://mise.jdx.dev) (provisions Elixir/Erlang/Bun).
 
-`mix pbeam.build` (M22, in progress on the `pbeam` branch) builds the whole app
-— React frontend and a self-contained release — with the PBeam runtime into one
-file. Until it lands, a plain `MIX_ENV=prod mix release` still works through
-`bin/suikou`. It's xattr-stripped and ad-hoc signed in place, and the signature
-is embedded in the Mach-O, so **copying it anywhere keeps it valid** — no
-re-sign step. It does **not** install; copy it onto your `PATH` and restart the
-daemon so the new binary and any `config.toml` changes take effect:
+`mise run package` builds the React frontend with bun and Vite, then
+`mix pbeam.build` joins a self-contained release and the PBeam runtime into
+one file, `dist/suikou`. A plain `MIX_ENV=prod mix release` still works
+through `bin/suikou`. The file is xattr-stripped and keeps the ad-hoc
+signature that the linker embeds in the Mach-O, so **copying it anywhere keeps
+it valid** — no re-sign step. It does **not** install; copy it onto your
+`PATH` and restart the daemon so the new binary and any `config.toml` changes
+take effect:
 
 ```sh
 mise run package
