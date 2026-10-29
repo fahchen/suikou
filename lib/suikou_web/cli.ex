@@ -15,8 +15,6 @@ defmodule SuikouWeb.CLI do
   dev, `mise run cli` calls `run/1` directly against the dev server.
   """
 
-  require Logger
-
   defmodule UsageError do
     @moduledoc """
     A bad invocation: an unknown verb, a missing flag or id, a malformed
@@ -910,13 +908,14 @@ defmodule SuikouWeb.CLI do
   # `suikou start [--force] [--no-open]`: start the server as a background
   # daemon, then open the browser once it serves. `--force` stops an
   # already-running daemon first and relaunches it, instead of reattaching to
-  # the existing one. Returns promptly — the daemon backgrounds itself.
+  # the existing one. Returns once the server answers — the daemon detaches
+  # itself.
   defp start_server(argv) do
     force = "--force" in argv or "-f" in argv
     open_browser? = "--no-open" not in argv
 
     case daemon_command() do
-      {command, args} -> start_with({command, args}, force, open_browser?)
+      {:ok, command} -> start_with(command, force, open_browser?)
       :error -> packaged_release_required()
     end
   end
@@ -983,11 +982,11 @@ defmodule SuikouWeb.CLI do
     end
   end
 
-  defp launch_daemon({command, args}, open_browser?) do
+  defp launch_daemon(command, open_browser?) do
     port = pick_port()
     url = url_for_port(port)
 
-    case run_daemon(command, args, port) do
+    case run_daemon(command, port) do
       0 -> daemon_started(port, url, open_browser?)
       exit_code -> daemon_failed(exit_code)
     end
@@ -1010,47 +1009,53 @@ defmodule SuikouWeb.CLI do
   end
 
   # How this install launches a daemon: the one-file executable through its
-  # own path with `run`, detached by nohup — the PBeam launcher of the boot
-  # sets `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its
-  # own `bin/suikou daemon` (run_erl detaches itself).
+  # own path with `run` — the PBeam launcher of the boot sets
+  # `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its own
+  # `bin/suikou start`, the foreground node. `run_daemon/2` detaches either
+  # one; neither uses run_erl or distributed Erlang.
   defp daemon_command do
     executable = System.get_env("PBEAM_EXECUTABLE") || System.get_env("SUIKOU_EXECUTABLE")
 
     cond do
       executable ->
-        {"sh", ["-c", "nohup \"#{executable}\" run >/dev/null 2>&1 &"]}
+        {:ok, [executable, "run"]}
 
       root = System.get_env("RELEASE_ROOT") ->
         bin = Path.join(root, "bin/suikou")
 
-        if File.exists?(bin), do: {bin, ["daemon"]}, else: :error
+        if File.exists?(bin), do: {:ok, [bin, "start"]}, else: :error
 
       true ->
         :error
     end
   end
 
-  defp run_daemon(command, args, port) do
-    env =
-      System.get_env()
-      |> Map.merge(%{
-        "PORT" => Integer.to_string(port),
-        "PHX_SERVER" => "true",
-        "PHX_HOST" => System.get_env("PHX_HOST") || "localhost",
-        "RELEASE_TMP" => Path.join(Access.data_dir(), "tmp")
-      })
-      |> Enum.map(fn {key, value} -> {String.to_charlist(key), String.to_charlist(value)} end)
+  # `sh` starts the server under nohup in the background, with its output
+  # appended to the log, and exits at once; the server's path and words reach
+  # `sh` as arguments, so no path needs quoting. The environment turns off
+  # distributed Erlang and drops the runtime config file of this CLI boot, so
+  # the release script writes its own. The exit code is that of `sh`:
+  # non-zero only when it cannot background the server.
+  defp run_daemon(command, port) do
+    File.mkdir_p!(log_dir())
 
-    try do
-      {_output, exit_code} = System.cmd(command, args, env: env, stderr_to_stdout: true, into: "")
-      exit_code
-    rescue
-      # A command the host cannot run, or arguments the port program rejects,
-      # raise these two; any other error is a bug and must not be hidden.
-      error in [ArgumentError, ErlangError] ->
-        Logger.debug("could not run the daemon command: #{Exception.message(error)}")
-        1
-    end
+    env = [
+      {"PORT", Integer.to_string(port)},
+      {"PHX_SERVER", "true"},
+      {"PHX_HOST", System.get_env("PHX_HOST") || "localhost"},
+      {"SUIKOU_DATA_DIR", Access.data_dir()},
+      {"RELEASE_DISTRIBUTION", "none"},
+      {"RELEASE_SYS_CONFIG", nil},
+      {"RELEASE_TMP", Path.join(Access.data_dir(), "tmp")}
+    ]
+
+    script = ~s(log="$1"; shift; nohup "$@" </dev/null >>"$log" 2>&1 &)
+    log = Path.join(log_dir(), "suikou.log")
+
+    {_output, exit_code} =
+      System.cmd("sh", ["-c", script, "sh", log | command], env: env, stderr_to_stdout: true)
+
+    exit_code
   end
 
   # Honor an explicit PORT; otherwise the configured port (config.toml `port`,
