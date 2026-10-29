@@ -32,7 +32,7 @@ trap 'kill $phx $vite 2>/dev/null' INT TERM EXIT
 wait
 """
 
-# Agent CLI (Elixir, lib/suikou/cli.ex) against the dev server's loopback API:
+# Agent CLI (Elixir, lib/suikou_web/cli.ex) against the dev server's loopback API:
 # it reads the port and token the dev server wrote under SUIKOU_DATA_DIR. Args
 # pass through after `--`, e.g. `mise run cli -- review list`.
 [tasks.cli]
