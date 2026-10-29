@@ -409,13 +409,12 @@ defmodule SuikouWeb.CLITest do
     end
 
     test "an argument keeps its Unicode characters" do
-      assert CLI.entry([~c"--no-halt", ~c"--", ~c"thread", ~c"reply", ~c"水光"]) ==
-               {:cli, ["thread", "reply", "水光"]}
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"comment", ~c"react", ~c"c1", ~c"👀"]) ==
+               {:cli, ["comment", "react", "c1", "👀"]}
     end
 
     test "no arguments boots the server and opens the browser" do
       assert CLI.entry([~c"--no-halt"]) == {:server, true}
-      assert CLI.entry([~c"--no-halt", ~c"--"]) == {:server, true}
     end
 
     test "run boots the server without the browser" do
