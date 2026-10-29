@@ -44,8 +44,7 @@ defmodule SuikouWeb.CLIDaemonTest do
       {"PORT", Integer.to_string(free_port())},
       {"SUIKOU_DATA_DIR", data_dir},
       {"SUIKOU_TEST_OWNER", System.pid()},
-      {"SUIKOU_EXECUTABLE", executable},
-      {"PBEAM_EXECUTABLE", nil},
+      {"PBEAM_EXECUTABLE", executable},
       {"RELEASE_ROOT", nil},
       {"RELEASE_NAME", nil},
       {"SUIKOU_DAEMON", nil}
@@ -101,7 +100,7 @@ defmodule SuikouWeb.CLIDaemonTest do
   # ready, as it does when the detached server fails to boot.
   @tag timeout: 60_000
   test "start gives up when the detached server never serves", context do
-    executable = context.env |> List.keyfind("SUIKOU_EXECUTABLE", 0) |> elem(1)
+    executable = context.env |> List.keyfind("PBEAM_EXECUTABLE", 0) |> elem(1)
     write_script!(executable, "exit 0")
 
     started = System.monotonic_time(:millisecond)
