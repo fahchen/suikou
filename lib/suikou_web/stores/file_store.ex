@@ -88,7 +88,11 @@ defmodule SuikouWeb.Stores.FileStore do
     # actually moved, and a comment that merely went outdated must still refresh.
     # credo:disable-for-next-line Credo.Check.Refactor.AppendSingleItem
     Musubi.send_update(Socket.store_id(socket) ++ ["comments"], %{})
-    {:ok, start_reanchor(socket)}
+
+    # Musubi re-renders a child only when its socket changed. A file with no
+    # artifact starts no re-anchor task, so without this assign the new token
+    # never reaches the client. An unchanged stat leaves the socket as it is.
+    {:ok, socket |> Socket.assign(:disk_token, disk_token(socket)) |> start_reanchor()}
   end
 
   def update(assigns, socket) do
