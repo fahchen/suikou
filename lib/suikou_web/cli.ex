@@ -240,10 +240,10 @@ defmodule SuikouWeb.CLI do
   No arguments boots the foreground server and opens the browser once it
   serves; `["run"]` boots it without the browser; any other first word is a
   CLI command, run instead of the server. The detached server that `start`
-  launches never opens the browser — `start` itself opens it — so a boot
-  whose `env` has `#{@daemon_env}` set serves without the browser, whatever
-  its arguments (a normal release boots it through `bin/suikou start`, which
-  passes no arguments). Only a release boot dispatches this way —
+  launches never opens the browser — `start` itself opens it — so a boot with
+  no arguments whose `env` has `#{@daemon_env}` set serves without the
+  browser (a normal release boots that server through `bin/suikou start`,
+  which passes no arguments). Only a release boot dispatches this way —
   `mix phx.server` and the test boot always serve.
   """
   @spec entry([charlist()], %{optional(String.t()) => String.t()}) ::
