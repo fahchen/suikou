@@ -498,7 +498,6 @@ defmodule SuikouWeb.CLITest do
 
     test "start without a packaged release fails clearly" do
       System.delete_env("PBEAM_EXECUTABLE")
-      System.delete_env("SUIKOU_EXECUTABLE")
       System.delete_env("RELEASE_ROOT")
 
       {out, 1} = cli(["start"])

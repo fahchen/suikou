@@ -931,7 +931,11 @@ defmodule SuikouWeb.CLI do
   end
 
   defp packaged_release_required do
-    print_error("suikou start needs the packaged release (bin/suikou or the one-file executable)")
+    print_error(
+      "suikou start needs the packaged release: bin/suikou, or the one-file executable, " <>
+        "whose PBeam launcher sets PBEAM_EXECUTABLE"
+    )
+
     1
   end
 
@@ -1020,11 +1024,11 @@ defmodule SuikouWeb.CLI do
 
   # How this install launches a daemon: the one-file executable through its
   # own path with `run` — the PBeam launcher of the boot sets
-  # `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its own
-  # `bin/suikou start`, the foreground node. `run_daemon/2` detaches either
-  # one; neither uses run_erl or distributed Erlang.
+  # `PBEAM_EXECUTABLE` to it (fahchen/pbeam#1341) — or a normal release
+  # through its own `bin/suikou start`, the foreground node. `run_daemon/2`
+  # detaches either one; neither uses run_erl or distributed Erlang.
   defp daemon_command do
-    executable = System.get_env("PBEAM_EXECUTABLE") || System.get_env("SUIKOU_EXECUTABLE")
+    executable = System.get_env("PBEAM_EXECUTABLE")
 
     cond do
       executable ->

@@ -89,7 +89,7 @@ defmodule Suikou.MixProject do
       # on the PBeam runtime that the executable embeds.
       {:pbeam,
        github: "fahchen/pbeam",
-       ref: "02743c92bbba887a071e53780d05ad3b96979ef1",
+       ref: "567dd9f51fd0ba4ddf3bd7a5d8e100506280754f",
        runtime: false,
        only: :prod}
     ]
