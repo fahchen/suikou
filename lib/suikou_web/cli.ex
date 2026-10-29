@@ -87,6 +87,8 @@ defmodule SuikouWeb.CLI do
         options: [],
         id: "review-id",
         payload: :review_id,
+        # No route of its own: it reads the URL of `review url` and opens it.
+        route: "url",
         open: true,
         summary: "open a review in the browser (<review-id>)"
       },
@@ -863,7 +865,7 @@ defmodule SuikouWeb.CLI do
     apply(module, function, [port, path, token, body, timeout])
   end
 
-  defp route(%{group: group, verb: verb}), do: "/api/cli/#{group}/#{verb}"
+  defp route(%{group: group, verb: verb} = spec), do: "/api/cli/#{group}/#{spec[:route] || verb}"
 
   # The dispatch spec of one lifecycle request: a `server` verb that takes no
   # input. One builder keeps every caller off a hand-written spec map.
@@ -1109,9 +1111,12 @@ defmodule SuikouWeb.CLI do
 
   defp log_dir, do: Path.join([Access.data_dir(), "tmp", "log"])
 
-  defp wait_for_port(port, timeout_ms) do
-    deadline = System.monotonic_time(:millisecond) + timeout_ms
+  # The deadline is fixed once, before the first probe: a server that never
+  # answers ends the wait after `timeout_ms`.
+  defp wait_for_port(port, timeout_ms),
+    do: await_port(port, System.monotonic_time(:millisecond) + timeout_ms)
 
+  defp await_port(port, deadline) do
     if up?(port) do
       true
     else
@@ -1119,7 +1124,7 @@ defmodule SuikouWeb.CLI do
         false
       else
         Process.sleep(150)
-        wait_for_port(port, timeout_ms)
+        await_port(port, deadline)
       end
     end
   end

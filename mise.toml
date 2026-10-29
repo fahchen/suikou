@@ -44,8 +44,8 @@ run = 'mix run -e "System.halt(SuikouWeb.CLI.run(System.argv))" --'
 # Package the whole app into one runnable file: the React frontend (bun runs
 # the Vite build), a self-contained `mix release`, and the PBeam runtime,
 # joined by `mix pbeam.build`. Host platform only (macOS arm64). The binary
-# is xattr-stripped + ad-hoc signed in place; the ad-hoc signature is
-# embedded in the Mach-O, so copying it anywhere keeps it valid (no re-sign).
+# is xattr-stripped and keeps the ad-hoc signature that the linker embeds in
+# the PBeam runtime, so copying it anywhere keeps it valid (no re-sign).
 # Defaults to dist/suikou; pass OUT=<path-on-PATH> to build straight onto PATH,
 # then restart the daemon (`suikou start --force`).
 [tasks.package]
@@ -63,15 +63,21 @@ bun --cwd="$PWD/assets" install --frozen-lockfile
 bun --cwd="$PWD/assets" run build
 
 echo "==> building the one-file executable"
+# `mix release --overwrite` keeps the lib/ and erts-* directories of earlier
+# releases, and the bundle takes every file of the release directory, so an
+# old OTP or Elixir application would go into the executable. Build the
+# release into an empty directory.
+rm -rf _build/prod/rel/suikou
 MIX_ENV=prod mix pbeam.build --output "$out"
 
 chmod 755 "$out"
-# arm64 refuses to exec an unsigned binary (SIGKILL), so ad-hoc sign it after
-# clearing quarantine attrs. The JIT entitlements are inert under ad-hoc signing
-# but keep it correct if ever hardened-runtime signed + notarized for sharing.
+# arm64 refuses to exec an unsigned binary (SIGKILL). The executable is the
+# PBeam runtime, ad-hoc signed by the linker, with the bundle appended after
+# its Mach-O image. `codesign --sign` refuses the appended data ("main
+# executable failed strict validation"), so keep the linker signature, which
+# covers the image, and check it without the strict check of trailing data.
 xattr -c "$out"
-codesign --force --deep --entitlements packaging/entitlements.plist --sign - "$out"
-codesign --verify --verbose "$out"
+codesign --verify --no-strict --verbose "$out"
 
 echo "packaged -> $out"
 if [ -z "${OUT:-}" ]; then

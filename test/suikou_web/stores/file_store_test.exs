@@ -32,9 +32,29 @@ defmodule SuikouWeb.Stores.FileStoreTest do
       assert changed != token
     end
 
-    test "a disk_changed update keeps the socket for a plain re-render" do
+    test "a disk_changed update keeps the socket when the file has no path" do
       socket = %Socket{assigns: %{path: "x", abs_path: nil}}
-      assert {:ok, ^socket} = FileStore.update(%{disk_changed: true}, socket)
+      assert {:ok, updated} = FileStore.update(%{disk_changed: true}, socket)
+      refute Socket.any_changed?(updated)
+    end
+
+    # Musubi re-renders a child only when its socket changed, so a file with no
+    # artifact (no re-anchor task) must still mark the change for its new token
+    # to reach the client.
+    test "a disk_changed update marks the new token of a file with no artifact" do
+      dir = tmp_dir()
+      path = Path.join(dir, "a.ex")
+      File.write!(path, "one")
+      socket = %Socket{assigns: %{path: "a.ex", abs_path: path}}
+
+      assert {:ok, changed} = FileStore.update(%{disk_changed: true}, socket)
+      assert Socket.changed?(changed, :disk_token)
+      assert changed.assigns.disk_token == FileStore.render(socket).disk_token
+
+      # The same stat again changes nothing, so no empty patch goes out.
+      unchanged = Socket.reset_changed(changed)
+      assert {:ok, again} = FileStore.update(%{disk_changed: true}, unchanged)
+      refute Socket.changed?(again, :disk_token)
     end
   end
 
