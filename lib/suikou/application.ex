@@ -10,7 +10,7 @@ defmodule Suikou.Application do
   @impl Application
   def start(_type, _args) do
     if release_boot?() do
-      case SuikouWeb.CLI.entry(:init.get_plain_arguments()) do
+      case SuikouWeb.CLI.entry(:init.get_plain_arguments(), System.get_env()) do
         {:cli, argv} -> run_cli(argv)
         {:server, open_browser?} -> boot_server(open_browser?)
       end
