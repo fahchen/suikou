@@ -402,23 +402,33 @@ defmodule SuikouWeb.CLITest do
     # The plain arguments of `:init` as the one-file executable boots the
     # release: `-extra --no-halt -- <args>`.
     test "a CLI word after the bare `--` runs the CLI" do
-      assert CLI.entry([~c"--no-halt", ~c"--", ~c"help"]) == {:cli, ["help"]}
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"help"], %{}) == {:cli, ["help"]}
 
-      assert CLI.entry([~c"--no-halt", ~c"--", ~c"review", ~c"show", ~c"--", ~c"r1"]) ==
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"review", ~c"show", ~c"--", ~c"r1"], %{}) ==
                {:cli, ["review", "show", "--", "r1"]}
     end
 
     test "an argument keeps its Unicode characters" do
-      assert CLI.entry([~c"--no-halt", ~c"--", ~c"comment", ~c"react", ~c"c1", ~c"👀"]) ==
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"comment", ~c"react", ~c"c1", ~c"👀"], %{}) ==
                {:cli, ["comment", "react", "c1", "👀"]}
     end
 
     test "no arguments boots the server and opens the browser" do
-      assert CLI.entry([~c"--no-halt"]) == {:server, true}
+      assert CLI.entry([~c"--no-halt"], %{}) == {:server, true}
     end
 
     test "run boots the server without the browser" do
-      assert CLI.entry([~c"--no-halt", ~c"--", ~c"run"]) == {:server, false}
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"run"], %{}) == {:server, false}
+    end
+
+    # A normal release boots the detached server through `bin/suikou start`,
+    # which passes no arguments; the environment `start` sets keeps it from
+    # opening the browser that `start` opens itself.
+    test "the detached server of start boots without the browser" do
+      daemon = %{"SUIKOU_DAEMON" => "1"}
+
+      assert CLI.entry([~c"--no-halt"], daemon) == {:server, false}
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"run"], daemon) == {:server, false}
     end
   end
 

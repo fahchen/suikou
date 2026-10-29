@@ -7,7 +7,6 @@ defmodule Suikou.ExportTest do
   alias Suikou.Export
   alias Suikou.Reviews
   alias Suikou.Settings
-  alias Suikou.Submissions
 
   # The reviewing agent these cases write as; the name is required.
   @agent %{name: "Codex", icon: "\u{1F916}"}

@@ -15,8 +15,6 @@ defmodule SuikouWeb.CLI do
   dev, `mise run cli` calls `run/1` directly against the dev server.
   """
 
-  require Logger
-
   defmodule UsageError do
     @moduledoc """
     A bad invocation: an unknown verb, a missing flag or id, a malformed
@@ -37,6 +35,10 @@ defmodule SuikouWeb.CLI do
   @identity_options [as: :string, icon: :string]
 
   @critique_types ["fix_required", "needs_answer", "note"]
+
+  # The variable `start` sets on the detached server it launches (see
+  # `entry/2` and `run_daemon/2`).
+  @daemon_env "SUIKOU_DAEMON"
 
   # One entry per verb, mirroring the routes one to one. `payload` names the
   # shape builder; the rest drive argument parsing (see `run_group_verb/3`).
@@ -236,23 +238,27 @@ defmodule SuikouWeb.CLI do
   start`) has none.
 
   No arguments boots the foreground server and opens the browser once it
-  serves; `["run"]` boots it without the browser (the daemon's own
-  invocation); any other first word is a CLI command, run instead of the
-  server. Only a release boot dispatches this way — `mix phx.server` and the
-  test boot always serve.
+  serves; `["run"]` boots it without the browser; any other first word is a
+  CLI command, run instead of the server. The detached server that `start`
+  launches never opens the browser — `start` itself opens it — so a boot with
+  no arguments whose `env` has `#{@daemon_env}` set serves without the
+  browser (a normal release boots that server through `bin/suikou start`,
+  which passes no arguments). Only a release boot dispatches this way —
+  `mix phx.server` and the test boot always serve.
   """
-  @spec entry([charlist()]) :: {:server, boolean()} | {:cli, [String.t()]}
-  def entry(plain_arguments) do
+  @spec entry([charlist()], %{optional(String.t()) => String.t()}) ::
+          {:server, boolean()} | {:cli, [String.t()]}
+  def entry(plain_arguments, env) do
     plain_arguments
     |> Enum.drop_while(&(&1 != ~c"--"))
     |> Enum.drop(1)
     |> Enum.map(&List.to_string/1)
-    |> classify()
+    |> classify(Map.has_key?(env, @daemon_env))
   end
 
-  defp classify([]), do: {:server, true}
-  defp classify(["run"]), do: {:server, false}
-  defp classify(argv), do: {:cli, argv}
+  defp classify([], daemon?), do: {:server, not daemon?}
+  defp classify(["run"], _daemon?), do: {:server, false}
+  defp classify(argv, _daemon?), do: {:cli, argv}
 
   @doc """
   Runs one CLI invocation and returns its exit code.
@@ -895,7 +901,7 @@ defmodule SuikouWeb.CLI do
 
   defp open_url(line) do
     case Jason.decode(line) do
-      {:ok, %{"url" => url}} when is_binary(url) -> spawn(fn -> System.cmd("open", [url]) end)
+      {:ok, %{"url" => url}} when is_binary(url) -> open_browser(url)
       _not_json -> :ok
     end
   end
@@ -908,15 +914,16 @@ defmodule SuikouWeb.CLI do
   end
 
   # `suikou start [--force] [--no-open]`: start the server as a background
-  # daemon, then open the browser once it serves. `--force` stops an
-  # already-running daemon first and relaunches it, instead of reattaching to
-  # the existing one. Returns promptly — the daemon backgrounds itself.
+  # daemon, then open the browser once it serves (the daemon itself never
+  # opens it). `--force` stops an already-running daemon first and relaunches
+  # it, instead of reattaching to the existing one. Returns once the server
+  # answers — the daemon detaches itself.
   defp start_server(argv) do
     force = "--force" in argv or "-f" in argv
     open_browser? = "--no-open" not in argv
 
     case daemon_command() do
-      {command, args} -> start_with({command, args}, force, open_browser?)
+      {:ok, command} -> start_with(command, force, open_browser?)
       :error -> packaged_release_required()
     end
   end
@@ -973,21 +980,21 @@ defmodule SuikouWeb.CLI do
     url = url_for_port(port)
 
     if up?(port) do
-      if open_browser?, do: spawn_open(url)
+      if open_browser?, do: open_browser(url)
       print("already running at #{url}")
       0
     else
       print("already running — starting at #{url}")
-      if wait_for_port(port, 20_000) and open_browser?, do: spawn_open(url)
+      if wait_for_port(port, 20_000) and open_browser?, do: open_browser(url)
       0
     end
   end
 
-  defp launch_daemon({command, args}, open_browser?) do
+  defp launch_daemon(command, open_browser?) do
     port = pick_port()
     url = url_for_port(port)
 
-    case run_daemon(command, args, port) do
+    case run_daemon(command, port) do
       0 -> daemon_started(port, url, open_browser?)
       exit_code -> daemon_failed(exit_code)
     end
@@ -995,7 +1002,7 @@ defmodule SuikouWeb.CLI do
 
   defp daemon_started(port, url, open_browser?) do
     if wait_for_port(port, 20_000) do
-      if open_browser?, do: spawn_open(url)
+      if open_browser?, do: open_browser(url)
       print("started at #{url}")
       0
     else
@@ -1010,47 +1017,55 @@ defmodule SuikouWeb.CLI do
   end
 
   # How this install launches a daemon: the one-file executable through its
-  # own path with `run`, detached by nohup — the PBeam launcher of the boot
-  # sets `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its
-  # own `bin/suikou daemon` (run_erl detaches itself).
+  # own path with `run` — the PBeam launcher of the boot sets
+  # `PBEAM_EXECUTABLE` to it (#1286) — or a normal release through its own
+  # `bin/suikou start`, the foreground node. `run_daemon/2` detaches either
+  # one; neither uses run_erl or distributed Erlang.
   defp daemon_command do
     executable = System.get_env("PBEAM_EXECUTABLE") || System.get_env("SUIKOU_EXECUTABLE")
 
     cond do
       executable ->
-        {"sh", ["-c", "nohup \"#{executable}\" run >/dev/null 2>&1 &"]}
+        {:ok, [executable, "run"]}
 
       root = System.get_env("RELEASE_ROOT") ->
         bin = Path.join(root, "bin/suikou")
 
-        if File.exists?(bin), do: {bin, ["daemon"]}, else: :error
+        if File.exists?(bin), do: {:ok, [bin, "start"]}, else: :error
 
       true ->
         :error
     end
   end
 
-  defp run_daemon(command, args, port) do
-    env =
-      System.get_env()
-      |> Map.merge(%{
-        "PORT" => Integer.to_string(port),
-        "PHX_SERVER" => "true",
-        "PHX_HOST" => System.get_env("PHX_HOST") || "localhost",
-        "RELEASE_TMP" => Path.join(Access.data_dir(), "tmp")
-      })
-      |> Enum.map(fn {key, value} -> {String.to_charlist(key), String.to_charlist(value)} end)
+  # `sh` starts the server under nohup in the background, with its output
+  # appended to the log, and exits at once; the server's path and words reach
+  # `sh` as arguments, so no path needs quoting. The environment marks the
+  # boot as the daemon (no browser, see `entry/2`), turns off distributed
+  # Erlang, and drops the runtime config file of this CLI boot, so the release
+  # script writes its own. The exit code is that of `sh`: non-zero only when
+  # it cannot background the server.
+  defp run_daemon(command, port) do
+    File.mkdir_p!(log_dir())
 
-    try do
-      {_output, exit_code} = System.cmd(command, args, env: env, stderr_to_stdout: true, into: "")
-      exit_code
-    rescue
-      # A command the host cannot run, or arguments the port program rejects,
-      # raise these two; any other error is a bug and must not be hidden.
-      error in [ArgumentError, ErlangError] ->
-        Logger.debug("could not run the daemon command: #{Exception.message(error)}")
-        1
-    end
+    env = [
+      {"PORT", Integer.to_string(port)},
+      {"PHX_SERVER", "true"},
+      {"PHX_HOST", System.get_env("PHX_HOST") || "localhost"},
+      {"SUIKOU_DATA_DIR", Access.data_dir()},
+      {@daemon_env, "1"},
+      {"RELEASE_DISTRIBUTION", "none"},
+      {"RELEASE_SYS_CONFIG", nil},
+      {"RELEASE_TMP", Path.join(Access.data_dir(), "tmp")}
+    ]
+
+    script = ~s(log="$1"; shift; nohup "$@" </dev/null >>"$log" 2>&1 &)
+    log = Path.join(log_dir(), "suikou.log")
+
+    {_output, exit_code} =
+      System.cmd("sh", ["-c", script, "sh", log | command], env: env, stderr_to_stdout: true)
+
+    exit_code
   end
 
   # Honor an explicit PORT; otherwise the configured port (config.toml `port`,
@@ -1109,8 +1124,16 @@ defmodule SuikouWeb.CLI do
     end
   end
 
-  defp spawn_open(url) do
-    spawn(fn -> System.cmd("open", [url]) end)
+  # The CLI opens the browser before it returns: the node stops right after
+  # the verb, so an `open` left to a spawned process could die unrun. A host
+  # without `open` gets a warning, not a crash of the verb.
+  defp open_browser(url) do
+    case System.find_executable("open") do
+      nil -> print_error("cannot open #{url}: no `open` command on this host")
+      open -> System.cmd(open, [url])
+    end
+
+    :ok
   end
 
   # `suikou stop`: ask the server to stop, then wait for it to actually vanish
