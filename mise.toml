@@ -63,6 +63,11 @@ bun --cwd="$PWD/assets" install --frozen-lockfile
 bun --cwd="$PWD/assets" run build
 
 echo "==> building the one-file executable"
+# `mix release --overwrite` keeps the lib/ and erts-* directories of earlier
+# releases, and the bundle takes every file of the release directory, so an
+# old OTP or Elixir application would go into the executable. Build the
+# release into an empty directory.
+rm -rf _build/prod/rel/suikou
 MIX_ENV=prod mix pbeam.build --output "$out"
 
 chmod 755 "$out"
