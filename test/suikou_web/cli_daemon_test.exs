@@ -97,6 +97,19 @@ defmodule SuikouWeb.CLIDaemonTest do
     assert {"stopped\n", 0} = cli(context, ["stop"])
   end
 
+  # `start` waits 20 seconds for the port, then reports the server as not
+  # ready, as it does when the detached server fails to boot.
+  @tag timeout: 60_000
+  test "start gives up when the detached server never serves", context do
+    executable = context.env |> List.keyfind("SUIKOU_EXECUTABLE", 0) |> elem(1)
+    write_script!(executable, "exit 0")
+
+    started = System.monotonic_time(:millisecond)
+    assert {out, 1} = cli(context, ["start", "--no-open"])
+    assert out =~ "started but not ready yet"
+    assert System.monotonic_time(:millisecond) - started < 40_000
+  end
+
   defp eventually(check, attempts \\ 20) do
     cond do
       check.() -> true

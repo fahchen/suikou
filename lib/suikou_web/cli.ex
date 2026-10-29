@@ -1111,9 +1111,12 @@ defmodule SuikouWeb.CLI do
 
   defp log_dir, do: Path.join([Access.data_dir(), "tmp", "log"])
 
-  defp wait_for_port(port, timeout_ms) do
-    deadline = System.monotonic_time(:millisecond) + timeout_ms
+  # The deadline is fixed once, before the first probe: a server that never
+  # answers ends the wait after `timeout_ms`.
+  defp wait_for_port(port, timeout_ms),
+    do: await_port(port, System.monotonic_time(:millisecond) + timeout_ms)
 
+  defp await_port(port, deadline) do
     if up?(port) do
       true
     else
@@ -1121,7 +1124,7 @@ defmodule SuikouWeb.CLI do
         false
       else
         Process.sleep(150)
-        wait_for_port(port, timeout_ms)
+        await_port(port, deadline)
       end
     end
   end
