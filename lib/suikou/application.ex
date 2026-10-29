@@ -95,7 +95,8 @@ defmodule Suikou.Application do
   end
 
   # A serving boot writes its pid file in the data directory, next to the CLI
-  # access file; like that file, a failed write logs rather than crashes.
+  # access file, right after the endpoint starts; like that file, a failed
+  # write logs rather than crashes.
   defp write_pid_file do
     if SuikouWeb.Endpoint.config(:server) do
       case SuikouWeb.CLI.PidFile.write() do
@@ -135,9 +136,14 @@ defmodule Suikou.Application do
   end
 
   # A clean stop (the `stop` route, SIGTERM) removes the pid file that the
-  # serving boot wrote; `PidFile.remove/0` leaves a file of another node alone.
+  # serving boot wrote, before the endpoint closes, so a CLI that sees the port
+  # refuse also sees no pid file. `PidFile.remove/0` leaves a file of another
+  # node alone.
   @impl Application
-  def stop(_state), do: SuikouWeb.CLI.PidFile.remove()
+  def prep_stop(state) do
+    SuikouWeb.CLI.PidFile.remove()
+    state
+  end
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.

@@ -2,9 +2,10 @@ defmodule SuikouWeb.CLI.PidFile do
   @moduledoc """
   The pid file of the serving node: `suikou.pid` in the data directory.
 
-  A release boot that serves writes its OS pid there once the endpoint is up,
-  next to the CLI access file (see `SuikouWeb.CLI.Access`), and removes it on
-  a clean stop. The file is for the operator and for process tools; the CLI
+  A boot that serves writes its OS pid there right after the endpoint starts,
+  next to the CLI access file (see `SuikouWeb.CLI.Access`), so the server can
+  answer a moment before the file exists; a clean stop removes it before the
+  endpoint closes. The file is for the operator and for process tools; the CLI
   itself asks the server for its pid over the loopback API.
 
   ## Examples
