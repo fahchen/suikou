@@ -26,5 +26,19 @@ config =
 Application.put_all_env(config, persistent: true)
 {:ok, _started} = Application.ensure_all_started(:suikou)
 
+# The server is detached, so an interrupted test run leaves it behind: stop
+# it once the OS process of the test node is gone.
+owner = System.fetch_env!("SUIKOU_TEST_OWNER")
+
+owner_alive? = fn ->
+  Process.sleep(1_000)
+  match?({_output, 0}, System.cmd("kill", ["-0", owner], stderr_to_stdout: true))
+end
+
+spawn(fn ->
+  owner_alive? |> Stream.repeatedly() |> Enum.find(&(not &1))
+  System.stop()
+end)
+
 # The `stop` route ends this node with `System.stop/0`.
 Process.sleep(:infinity)

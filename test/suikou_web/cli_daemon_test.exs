@@ -43,6 +43,7 @@ defmodule SuikouWeb.CLIDaemonTest do
       {"PATH", bin_dir <> ":" <> System.get_env("PATH")},
       {"PORT", Integer.to_string(free_port())},
       {"SUIKOU_DATA_DIR", data_dir},
+      {"SUIKOU_TEST_OWNER", System.pid()},
       {"SUIKOU_EXECUTABLE", executable},
       {"PBEAM_EXECUTABLE", nil},
       {"RELEASE_ROOT", nil},
@@ -74,8 +75,9 @@ defmodule SuikouWeb.CLIDaemonTest do
     assert {out, 0} = cli(context, ["start"])
     assert out =~ "started at #{url}"
 
-    assert {:ok, pid} = File.read(pid_file)
-    pid = String.trim(pid)
+    # The server writes its pid file right after its endpoint starts.
+    assert eventually(fn -> File.exists?(pid_file) end)
+    pid = pid_file |> File.read!() |> String.trim()
     assert {status, 0} = cli(context, ["status"])
     assert status == "running (pid #{pid}) at #{url}\n"
 
@@ -93,6 +95,19 @@ defmodule SuikouWeb.CLIDaemonTest do
     assert {_out, 0} = cli(context, ["start", "--no-open"])
     assert File.read!(context.opened) == url <> "\n"
     assert {"stopped\n", 0} = cli(context, ["stop"])
+  end
+
+  defp eventually(check, attempts \\ 20) do
+    cond do
+      check.() -> true
+      attempts == 0 -> false
+      true -> retry(check, attempts)
+    end
+  end
+
+  defp retry(check, attempts) do
+    Process.sleep(100)
+    eventually(check, attempts - 1)
   end
 
   # Runs one CLI invocation in its own OS process; returns {output, exit_code}.
