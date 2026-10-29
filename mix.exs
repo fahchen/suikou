@@ -87,7 +87,11 @@ defmodule Suikou.MixProject do
       # The PBeam build tooling: `mix pbeam.build` builds the one-file
       # executable of the release (M22). Build-time only; the release runs
       # on the PBeam runtime that the executable embeds.
-      {:pbeam, path: "../pbeam", runtime: false, only: :prod}
+      {:pbeam,
+       github: "fahchen/pbeam",
+       ref: "02743c92bbba887a071e53780d05ad3b96979ef1",
+       runtime: false,
+       only: :prod}
     ]
   end
 
