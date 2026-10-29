@@ -1,12 +1,41 @@
 defmodule Suikou.Application do
   # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
+  # for more information about OTP Applications
   @moduledoc false
 
   use Application
 
+  require Logger
+
   @impl Application
   def start(_type, _args) do
+    if release_boot?() do
+      case SuikouWeb.CLI.entry(:init.get_plain_arguments(), System.get_env()) do
+        {:cli, argv} -> run_cli(argv)
+        {:server, open_browser?} -> boot_server(open_browser?)
+      end
+    else
+      # `mix phx.server` and the test boot always serve; the CLI runs through
+      # `mix run` in dev (see the `cli` mise task).
+      boot_server(false)
+    end
+  end
+
+  # A release boot dispatches on the executable's arguments: a CLI word runs
+  # the CLI instead of the server (see `SuikouWeb.CLI.entry/1`).
+  defp release_boot?, do: System.get_env("RELEASE_NAME") != nil
+
+  # The CLI is a short-lived client: run it, then stop the node with its exit
+  # code. The task parks afterwards so the application master never sees it
+  # die before the shutdown it started has run.
+  defp run_cli(argv) do
+    Task.start(fn ->
+      System.stop(SuikouWeb.CLI.run(argv))
+      Process.sleep(:infinity)
+    end)
+  end
+
+  defp boot_server(open_browser?) do
     children = [
       SuikouWeb.Telemetry,
       Suikou.Repo,
@@ -33,7 +62,87 @@ defmodule Suikou.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Suikou.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    case Supervisor.start_link(children, opts) do
+      {:ok, _pid} = ok ->
+        write_cli_access()
+        write_pid_file()
+        if open_browser?, do: open_when_ready()
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  # The CLI reaches the server over loopback HTTP, so a booted endpoint
+  # publishes the port it bound and the token that authenticates the CLI (see
+  # `SuikouWeb.CLI.Access`). A boot without a server (the test endpoint, a CLI-only
+  # eval) skips it; a failed write logs rather than crashes — the CLI then
+  # reports that Suikou is not running, which is the truth of it.
+  defp write_cli_access do
+    if SuikouWeb.Endpoint.config(:server) do
+      port = SuikouWeb.Endpoint.config(:http)[:port]
+
+      case SuikouWeb.CLI.Access.write_access(port) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("could not write the CLI access file: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # A serving boot writes its pid file in the data directory, next to the CLI
+  # access file, right after the endpoint starts; like that file, a failed
+  # write logs rather than crashes.
+  defp write_pid_file do
+    if SuikouWeb.Endpoint.config(:server) do
+      case SuikouWeb.CLI.PidFile.write() do
+        :ok -> :ok
+        {:error, reason} -> Logger.warning("could not write the pid file: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # The bare executable opens the board once the server actually serves, so
+  # migrations that run first never open a dead page.
+  defp open_when_ready do
+    port = SuikouWeb.Endpoint.config(:http)[:port]
+
+    Task.start(fn ->
+      if wait_for_port(port, 20_000) do
+        System.cmd("open", [SuikouWeb.CLI.url_for_port(port)])
+      else
+        Logger.warning("the server did not become ready at port #{port}; not opening the browser")
+      end
+    end)
+  end
+
+  defp wait_for_port(port, timeout_ms) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+
+    if SuikouWeb.CLI.up?(port) do
+      true
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        false
+      else
+        Process.sleep(150)
+        wait_for_port(port, timeout_ms)
+      end
+    end
+  end
+
+  # A clean stop (the `stop` route, SIGTERM) removes the pid file that the
+  # serving boot wrote, before the endpoint closes, so a CLI that sees the port
+  # refuse also sees no pid file. `PidFile.remove/0` leaves a file of another
+  # node alone.
+  @impl Application
+  def prep_stop(state) do
+    SuikouWeb.CLI.PidFile.remove()
+    state
   end
 
   # Tell Phoenix to update the endpoint configuration

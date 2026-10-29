@@ -135,7 +135,7 @@ because it carries the merged array, not one column.
 
 ## 3. Skill
 
-Add one section to `packaging/embed/skill.md`, after "Review selection and
+Add one section to `priv/agent_skill.md`, after "Review selection and
 comments":
 
 > ## Review instructions

@@ -41,30 +41,26 @@ if config_env() == :prod do
       %{}
     end
 
+  # The install configures itself: every generated credential and the database
+  # live in the data directory (see Suikou.Secrets and SuikouWeb.CLI.Access), so a
+  # bare boot with no environment works. An explicit variable or config.toml key
+  # still wins.
+  data_dir = Suikou.DataDir.path()
+
   database_path =
     user_config["database_path"] || System.get_env("DATABASE_PATH") ||
-      raise """
-      environment variable DATABASE_PATH is missing.
-      For example: /etc/suikou/suikou.db
-      """
+      Path.join(data_dir, "suikou.db")
 
   config :suikou, Suikou.Repo,
     database: database_path,
     pool_size: user_config["pool_size"] || String.to_integer(System.get_env("POOL_SIZE") || "5")
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
-  secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
+  # A default value is used in config/dev.exs and config/test.exs; the
+  # packaged install generates and persists its own on first boot.
+  secret_key_base = System.get_env("SECRET_KEY_BASE") || Suikou.Secrets.secret_key_base()
 
-  host = user_config["host"] || System.get_env("PHX_HOST") || "example.com"
+  host = user_config["host"] || System.get_env("PHX_HOST") || "localhost"
 
   # Frontend debug overlay (React ErrorBoundary + router ErrorOverlay). When true,
   # SpaController injects a `<meta name="suikou:debug">` into the served shell so
@@ -98,7 +94,15 @@ if config_env() == :prod do
         raise "invalid `bind` at #{config_path}: #{inspect(other)} (expected \"all\" or \"loopback\")"
     end
 
-  http_port = String.to_integer(System.get_env("PORT") || "4000")
+  # A fixed high base port (registered range, away from common dev ports and
+  # the OS ephemeral range) so the install has one predictable address; an
+  # occupied port fails the bind loudly rather than drifting elsewhere. The
+  # PORT variable and the config.toml `port` key both override it.
+  http_port =
+    case System.get_env("PORT") || user_config["port"] || 47_100 do
+      port when is_integer(port) -> port
+      port -> String.to_integer(port)
+    end
 
   # Canonical URL used to build links (`Endpoint.url/0`, and the agent CLI's
   # `url`/`open`). Defaults to the plain HTTP listener so generated links are
@@ -120,13 +124,15 @@ if config_env() == :prod do
   #   * subject     — the VAPID `sub` contact the service can reach us at. Must be a
   #     real mailto:/https: URL; Apple rejects a localhost one with 403 BadJwtToken.
   #
-  # The launcher generates and persists the keypair (like SECRET_KEY_BASE), passing
-  # it here as env so it stays stable across restarts — it is baked into every
+  # The install generates and persists the keypair (like SECRET_KEY_BASE, see
+  # Suikou.Secrets) so it stays stable across restarts — it is baked into every
   # stored subscription, so regenerating silently orphans all of them. The subject
   # is the one piece a user picks, hence config.toml, defaulting to the project's.
+  vapid = Suikou.Secrets.vapid()
+
   config :web_push_elixir,
-    vapid_public_key: System.fetch_env!("VAPID_PUBLIC_KEY"),
-    vapid_private_key: System.fetch_env!("VAPID_PRIVATE_KEY"),
+    vapid_public_key: System.get_env("VAPID_PUBLIC_KEY") || vapid.public_key,
+    vapid_private_key: System.get_env("VAPID_PRIVATE_KEY") || vapid.private_key,
     vapid_subject: user_config["notification_subject"] || "mailto:pwa@suikou.ai"
 
   config :suikou, SuikouWeb.Endpoint,
@@ -142,6 +148,13 @@ if config_env() == :prod do
       port: http_port
     ],
     secret_key_base: secret_key_base
+
+  # The built-in poller of telemetry_poller measures `erlang:memory/0` and the
+  # VM counts of `erlang:system_info/1`. PBeam does not have the ERTS memory
+  # allocators, so those calls stop the runtime (docs/erts-differences.md, row
+  # "System information"). No reporter subscribes to the `vm.*` events, and
+  # SuikouWeb.Telemetry passes its own empty measurements, so the poller is off.
+  config :telemetry_poller, default: false
 
   # ## SSL Support
   #

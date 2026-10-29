@@ -146,28 +146,20 @@ defmodule Suikou.Export do
 
   defp build(artifact, scope) do
     round = Rounds.latest(artifact.id)
-    # Content is read only to resolve comment anchors against the live file; it
-    # is not emitted — the agent already has the repo checked out.
-    content = text_content(Artifacts.read_content_or_nil(artifact.id))
-    lines = content && String.split(content, "\n")
+    # Content is read only to resolve comment anchors against the live source;
+    # it is not emitted — the agent already has the repo checked out. A
+    # git-diff artifact answers its diff text, which is the only content that a
+    # `DiffHunk` anchor resolves against.
+    content = Artifacts.live_content(artifact.id)
 
     %{
       artifact_id: artifact.id,
       title: artifact.title,
-      comments: published_comments(artifact.id, round, scope, lines)
+      comments: published_comments(artifact.id, round, scope, content)
     }
   end
 
-  # Binary files (e.g. images) carry no scoped comments and can't be embedded in
-  # the JSON snapshot — non-UTF-8 bytes would crash the encoder. Treat them as
-  # having no reviewable text; the human surface previews them via the asset route.
-  defp text_content(content) when is_binary(content) do
-    if String.valid?(content), do: content, else: nil
-  end
-
-  defp text_content(nil), do: nil
-
-  defp published_comments(artifact_id, latest_round, scope, lines) do
+  defp published_comments(artifact_id, latest_round, scope, content) do
     artifact_id
     |> Queries.Comments.for_artifact()
     |> where([comment: c], c.status == :published)
@@ -175,7 +167,7 @@ defmodule Suikou.Export do
     |> order_by([comment: c], asc: c.id)
     |> preload(^comment_preload())
     |> Repo.all()
-    |> Enum.map(&comment_view(&1, lines))
+    |> Enum.map(&comment_view(&1, content))
   end
 
   # Published replies in insertion order, each with their reactions, plus the
@@ -217,8 +209,8 @@ defmodule Suikou.Export do
     |> order_by([reply: r], asc: r.id)
   end
 
-  defp comment_view(comment, lines) do
-    {anchor, status} = Critique.resolve_anchor(comment.anchor, lines)
+  defp comment_view(comment, content) do
+    {anchor, status} = Critique.resolve_anchor(comment.anchor, content)
 
     %{
       id: comment.id,

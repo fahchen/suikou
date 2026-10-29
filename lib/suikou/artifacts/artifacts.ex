@@ -178,4 +178,37 @@ defmodule Suikou.Artifacts do
   """
   @spec read_content_or_nil(Ecto.UUID.t()) :: binary() | nil
   defdelegate read_content_or_nil(artifact_id), to: Asset
+
+  @doc """
+  Loads the live content of an artifact in the shape that its anchors resolve
+  against: a file-selection artifact answers the file split on newlines, and a
+  git-diff artifact answers the live unified diff text. A `DiffHunk` anchor
+  needs the diff text, and a `LineRange` anchor needs the file lines, so every
+  caller that resolves an anchor reads its content here. `nil` when the source
+  is unreadable or the artifact is missing.
+
+  ## Examples
+
+      Suikou.Artifacts.live_content(artifact.id)
+      #=> ["# Plan"]
+
+  """
+  @spec live_content(Ecto.UUID.t() | nil) :: [String.t()] | String.t() | nil
+  def live_content(nil), do: nil
+
+  def live_content(artifact_id) do
+    case content_source(artifact_id) do
+      {:ok, {:file, path}} ->
+        case File.read(path) do
+          {:ok, bytes} -> String.split(bytes, "\n")
+          {:error, _posix} -> nil
+        end
+
+      {:ok, {:inline, diff, "text/x-diff"}} ->
+        diff
+
+      {:error, _reason} ->
+        nil
+    end
+  end
 end

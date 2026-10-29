@@ -4,8 +4,8 @@ defmodule SuikouWeb.AgentCLI.Replies do
   work-status reaction on a reply. Mirrors `SuikouWeb.AgentCLI.Comments` reactions
   but targets a reply rather than a comment, so an agent can signal status on a
   specific reply — including another agent's — not only the parent comment. Each
-  command reads its JSON payload from stdin and emits a JSON result to stdout
-  (see `SuikouWeb.AgentCLI`). `Suikou.Critique` emits the review change event on
+  command takes its JSON payload and returns the JSON result map (see
+  `SuikouWeb.AgentCLI`). `Suikou.Critique` emits the review change event on
   success, so an open human thread reflects it live.
   """
 
@@ -14,7 +14,7 @@ defmodule SuikouWeb.AgentCLI.Replies do
 
   @doc """
   Sets the calling agent's work-status reaction on a reply from `%{"reply_id",
-  "emoji"}` and emits `%{reply_id}` or `%{error}`. That agent holds at most one
+  "emoji"}` and returns `%{reply_id}` or `%{error}`. That agent holds at most one
   reaction per reply, so a new emoji replaces its previous one while another
   agent's stays put. `emoji` may be any emoji glyph (a free-form work-status
   signal — e.g. 👀 / 🤔 / ✅).
@@ -22,52 +22,40 @@ defmodule SuikouWeb.AgentCLI.Replies do
 
   ## Examples
 
-      # stdin: {"reply_id": "0192…", "emoji": "👀", "as": "Codex"}
-      SuikouWeb.AgentCLI.Replies.react()
-      #=> :ok  # emits {"reply_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Replies.react(%{"reply_id" => "0192…", "emoji" => "👀", "as" => "Codex"})
+      #=> %{reply_id: "0192…", error: nil}
 
   """
-  @spec react() :: :ok
-  def react do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, _comment_id} <-
-             Critique.react_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
-        %{reply_id: payload["reply_id"], error: nil}
-      else
-        {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec react(AgentCLI.payload()) :: AgentCLI.result()
+  def react(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, _comment_id} <-
+           Critique.react_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
+      %{reply_id: payload["reply_id"], error: nil}
+    else
+      {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 
   @doc """
-  Clears the calling agent's reaction on a reply from `%{"reply_id"}` and emits
+  Clears the calling agent's reaction on a reply from `%{"reply_id"}` and returns
   `%{reply_id}` or `%{error}`. Removing is a no-op when that agent has no
   reaction there, and leaves any other agent's alone.
 
   ## Examples
 
-      # stdin: {"reply_id": "0192…", "as": "Codex"}
-      SuikouWeb.AgentCLI.Replies.unreact()
-      #=> :ok  # emits {"reply_id":"0192…","error":null}
+      SuikouWeb.AgentCLI.Replies.unreact(%{"reply_id" => "0192…", "as" => "Codex"})
+      #=> %{reply_id: "0192…", error: nil}
 
   """
-  @spec unreact() :: :ok
-  def unreact do
-    payload = AgentCLI.read_payload()
-
-    result =
-      with {:ok, identity} <- AgentCLI.identity(payload),
-           {:ok, _comment_id} <-
-             Critique.unreact_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
-        %{reply_id: payload["reply_id"], error: nil}
-      else
-        {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
-      end
-
-    AgentCLI.emit(result)
+  @spec unreact(AgentCLI.payload()) :: AgentCLI.result()
+  def unreact(payload) do
+    with {:ok, identity} <- AgentCLI.identity(payload),
+         {:ok, _comment_id} <-
+           Critique.unreact_reply_as_agent(payload["reply_id"], payload["emoji"], identity) do
+      %{reply_id: payload["reply_id"], error: nil}
+    else
+      {:error, reason} -> %{reply_id: nil, error: AgentCLI.error(reason)}
+    end
   end
 end

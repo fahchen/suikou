@@ -46,6 +46,17 @@ config :mime, :extensions, %{
 # Musubi TypeScript codegen target consumed by the frontend
 config :musubi, :ts_codegen_output_path, "assets/src/generated/musubi.d.ts"
 
+# Build the NIF libraries from source against the mise-pinned Erlang/OTP in
+# every env, so no precompiled NIF is downloaded. exqlite reads :force_build as
+# its elixir_make `make_force_build`. fs_notify passes its own :force_build
+# option, which takes precedence over the per-app `:force_build` config of
+# rustler_precompiled, so only `force_build_all` overrides it.
+config :exqlite, force_build: true
+config :rustler_precompiled, force_build_all: true
+
+# PBeam loads only NIF 2.18; fs_notify's default Rustler feature declares 2.15.
+config :fs_notify, FsNotify.Native, features: ["rustler/nif_version_2_18"]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

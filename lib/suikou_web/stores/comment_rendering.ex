@@ -33,23 +33,7 @@ defmodule SuikouWeb.Stores.CommentRendering do
 
   """
   @spec live_content(String.t() | nil) :: [String.t()] | String.t() | nil
-  def live_content(nil), do: nil
-
-  def live_content(artifact_id) do
-    case Artifacts.content_source(artifact_id) do
-      {:ok, {:file, path}} ->
-        case File.read(path) do
-          {:ok, bytes} -> String.split(bytes, "\n")
-          {:error, _posix} -> nil
-        end
-
-      {:ok, {:inline, diff, "text/x-diff"}} ->
-        diff
-
-      {:error, _reason} ->
-        nil
-    end
-  end
+  defdelegate live_content(artifact_id), to: Artifacts
 
   @doc """
   Renders one comment into the snapshot shape the React surface consumes.

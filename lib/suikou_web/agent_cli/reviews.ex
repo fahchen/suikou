@@ -1,8 +1,8 @@
 defmodule SuikouWeb.AgentCLI.Reviews do
   @moduledoc """
   Agent CLI commands for the `review` group: list, create (file-selection or
-  git-diff), inspect, mutate, export, and long-poll reviews. Each reads its JSON
-  payload from stdin and emits a JSON result to stdout (see `SuikouWeb.AgentCLI`).
+  git-diff), inspect, mutate, export, and long-poll reviews. Each takes its JSON
+  payload and returns the JSON result map (see `SuikouWeb.AgentCLI`).
   Board-changing writes broadcast on the board topic so an open human board
   reflects the change live.
   """
@@ -25,33 +25,27 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   alias SuikouWeb.Stores.BoardBroadcast
 
   # The longest a single poll call blocks before reporting a timeout, so it
-  # returns well within any rpc-level call timeout; bun re-issues until the
-  # submission version changes or its own --timeout elapses. Configurable so the
-  # timeout branch is testable without a 25 s wait (`config/test.exs`).
+  # returns well within any HTTP-level or client timeout; the CLI re-issues
+  # until the submission version changes or its own --timeout elapses.
+  # Configurable so the timeout branch is testable without a 25 s wait
+  # (`config/test.exs`).
   @default_poll_window_ms 25_000
 
   @doc """
-  Emits reviews as `%{reviews: [...], error}`, filtered either by `"project_id"`
+  Returns reviews as `%{reviews: [...], error}`, filtered either by `"project_id"`
   or by `"path"` — a directory, which answers for the whole repository it belongs
   to, across every worktree and every project those reviews are filed under. That
   is how an agent finds work it did not create from nothing but a checkout.
 
   ## Examples
 
-      # stdin: {"project_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.list()
-      #=> :ok  # emits {"reviews":[{"id":"0192…","name":"Spec","kind":"file_selection","selections":[]}],"error":null}
-
-      # stdin: {"path": "/projects/app"}
-      SuikouWeb.AgentCLI.Reviews.list()
-      #=> :ok  # emits {"reviews":[{"id":"0192…","project_id":"0192…","project_path":"/projects/app",…}],"error":null}
+      SuikouWeb.AgentCLI.Reviews.list(%{"project_id" => "0192…"})
+      #=> %{reviews: [%{id: "0192…", name: "Spec", kind: :file_selection, selections: []}], error: nil}
 
   """
-  @spec list() :: :ok
-  def list do
-    payload = AgentCLI.read_payload()
-
-    AgentCLI.emit(listed(payload))
+  @spec list(AgentCLI.payload()) :: AgentCLI.result()
+  def list(payload) do
+    listed(payload)
   end
 
   defp listed(%{"path" => path}) when is_binary(path) do
@@ -71,7 +65,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   end
 
   @doc """
-  Creates a review and emits `%{review_id, scratch_path}` or `%{error}`,
+  Creates a review and returns `%{review_id, scratch_path}` or `%{error}`,
   broadcasting the board on success. The source is chosen by payload shape:
   `"base_ref"`/`"head_ref"` present builds a git-diff review, otherwise
   `"selections"` builds a file-selection review. A git-diff review takes an
@@ -88,29 +82,15 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   ## Examples
 
-      # stdin: {"project_path": "/projects/app", "name": "Spec", "selections": ["docs"]}
-      SuikouWeb.AgentCLI.Reviews.create()
-      #=> :ok  # emits {"review_id":"0192…","scratch_path":"/home/me/.local/share/suikou/app-3f9c2e1a/0192…","error":null}
-
-      # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic"}
-      SuikouWeb.AgentCLI.Reviews.create()
-      #=> :ok  # emits {"review_id":"0192…","scratch_path":"…","error":null}
-
-      # stdin: {"project_id": "0192…", "name": "Diff", "base_ref": "main", "head_ref": "topic", "stack_ref": "topic-review"}
-      SuikouWeb.AgentCLI.Reviews.create()
-      #=> :ok  # emits {"review_id":"0192…","scratch_path":"…","error":null}
+      SuikouWeb.AgentCLI.Reviews.create(%{"project_path" => "/projects/app", "name" => "Spec", "selections" => ["docs"]})
+      #=> %{review_id: "0192…", scratch_path: "/home/me/.local/share/suikou/app-3f9c2e1a/0192…", error: nil}
 
   """
-  @spec create() :: :ok
-  def create do
-    payload = AgentCLI.read_payload()
-
-    reply =
-      with_project(payload, fn project ->
-        created_review(create_source(project, payload))
-      end)
-
-    AgentCLI.emit(reply)
+  @spec create(AgentCLI.payload()) :: AgentCLI.result()
+  def create(payload) do
+    with_project(payload, fn project ->
+      created_review(create_source(project, payload))
+    end)
   end
 
   defp create_source(project, %{"base_ref" => base, "head_ref" => head} = payload)
@@ -137,7 +117,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
   defp checkout(payload), do: payload |> Map.get("project_path", ".") |> Git.toplevel()
 
   @doc """
-  Emits a review's metadata, current files, and the project's review
+  Returns a review's metadata, current files, and the project's review
   instructions from `%{"review_id"}`, or `%{error}` when unknown.
 
   An agent that joins an existing review never calls `project list`, so the
@@ -145,54 +125,42 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   ## Examples
 
-      # stdin: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.show()
-      #=> :ok  # emits {"id":"0192…","name":"Spec","kind":"file_selection","instructions":["Reply in English."],"files":[…],"error":null}
+      SuikouWeb.AgentCLI.Reviews.show(%{"review_id" => "0192…"})
+      #=> %{id: "0192…", name: "Spec", kind: :file_selection, instructions: ["Reply in English."], files: [], error: nil}
 
   """
-  @spec show() :: :ok
-  def show do
-    payload = AgentCLI.read_payload()
-
-    reply =
-      with_review(payload["review_id"], fn review ->
-        Map.merge(review_summary(review), %{
-          files: Reviews.list_files(review),
-          instructions: Settings.instructions_for(review.project),
-          error: nil
-        })
-      end)
-
-    AgentCLI.emit(reply)
+  @spec show(AgentCLI.payload()) :: AgentCLI.result()
+  def show(payload) do
+    with_review(payload["review_id"], fn review ->
+      Map.merge(review_summary(review), %{
+        files: Reviews.list_files(review),
+        instructions: Settings.instructions_for(review.project),
+        error: nil
+      })
+    end)
   end
 
   @doc """
-  Emits a review's current files as `%{files}` from `%{"review_id"}`, or
+  Returns a review's current files as `%{files}` from `%{"review_id"}`, or
   `%{files: [], error}` when unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.files()
-      #=> :ok  # emits {"files":[{"path":"doc.md","artifact_id":null,…}],"error":null}
+      SuikouWeb.AgentCLI.Reviews.files(%{"review_id" => "0192…"})
+      #=> %{files: [%{path: "doc.md", artifact_id: nil}], error: nil}
 
   """
-  @spec files() :: :ok
-  def files do
-    payload = AgentCLI.read_payload()
-
-    reply =
-      with_review(
-        payload["review_id"],
-        fn review -> %{files: Reviews.list_files(review), error: nil} end,
-        %{files: [], error: "review_not_found"}
-      )
-
-    AgentCLI.emit(reply)
+  @spec files(AgentCLI.payload()) :: AgentCLI.result()
+  def files(payload) do
+    with_review(
+      payload["review_id"],
+      fn review -> %{files: Reviews.list_files(review), error: nil} end,
+      %{files: [], error: "review_not_found"}
+    )
   end
 
   @doc """
-  Emits a review's human-facing URL as `%{url, error}` from `%{"review_id"}`.
+  Returns a review's human-facing URL as `%{url, error}` from `%{"review_id"}`.
 
   Builds `<endpoint URL>/reviews/<id>` from `Endpoint.url/0`, so it follows the
   configured `:url` host/scheme. The id is the one `create` just returned, so the
@@ -200,146 +168,125 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   ## Examples
 
-      # stdin: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.url()
-      #=> :ok  # emits {"url":"https://suikou.example/reviews/0192…","error":null}
+      SuikouWeb.AgentCLI.Reviews.url(%{"review_id" => "0192…"})
+      #=> %{url: "https://suikou.example/reviews/0192…", error: nil}
 
   """
-  @spec url() :: :ok
-  def url do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(%{url: Endpoint.url() <> "/reviews/" <> payload["review_id"], error: nil})
+  @spec url(AgentCLI.payload()) :: AgentCLI.result()
+  def url(payload) do
+    %{url: Endpoint.url() <> "/reviews/" <> payload["review_id"], error: nil}
   end
 
   @doc """
-  Renames a review from `%{"review_id", "name"}` and emits `%{error}`.
+  Renames a review from `%{"review_id", "name"}` and returns `%{error}`.
   Broadcasts the board on success.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "name": "Spec pass"}
-      SuikouWeb.AgentCLI.Reviews.rename()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.rename(%{"review_id" => "0192…", "name" => "Spec pass"})
+      #=> %{error: nil}
 
   """
-  @spec rename() :: :ok
-  def rename do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.rename_review(&1, payload["name"])))
+  @spec rename(AgentCLI.payload()) :: AgentCLI.result()
+  def rename(payload) do
+    mutate(payload["review_id"], &Reviews.rename_review(&1, payload["name"]))
   end
 
   @doc """
-  Replaces a review's file selection from `%{"review_id", "files"}` and emits
+  Replaces a review's file selection from `%{"review_id", "files"}` and returns
   `%{error}`. Broadcasts the board on success.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "files": ["lib", "readme.md"]}
-      SuikouWeb.AgentCLI.Reviews.set_files()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.set_files(%{"review_id" => "0192…", "files" => ["lib", "readme.md"]})
+      #=> %{error: nil}
 
   """
-  @spec set_files() :: :ok
-  def set_files do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.set_selection(&1, payload["files"])))
+  @spec set_files(AgentCLI.payload()) :: AgentCLI.result()
+  def set_files(payload) do
+    mutate(payload["review_id"], &Reviews.set_selection(&1, payload["files"]))
   end
 
   @doc """
   Attaches a review stack to a git-diff review from `%{"review_id",
-  "stack_ref"}` and emits `%{error}`. Broadcasts the board on success. A stack
+  "stack_ref"}` and returns `%{error}`. Broadcasts the board on success. A stack
   whose tip tree differs from the source's is rejected with the differing
   paths (see BDR-0028).
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "stack_ref": "topic-review"}
-      SuikouWeb.AgentCLI.Reviews.set_stack()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.set_stack(%{"review_id" => "0192…", "stack_ref" => "topic-review"})
+      #=> %{error: nil}
 
-      # stdin: {"review_id": "0192…", "stack_ref": "topic-partial"}
-      SuikouWeb.AgentCLI.Reviews.set_stack()
-      #=> :ok  # emits {"error":"stack_not_equivalent: lib/app.ex"}
+      SuikouWeb.AgentCLI.Reviews.set_stack(%{"review_id" => "0192…", "stack_ref" => "topic-partial"})
+      #=> %{error: "stack_not_equivalent: lib/app.ex"}
 
   """
-  @spec set_stack() :: :ok
-  def set_stack do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.set_stack(&1, payload["stack_ref"])))
+  @spec set_stack(AgentCLI.payload()) :: AgentCLI.result()
+  def set_stack(payload) do
+    mutate(payload["review_id"], &Reviews.set_stack(&1, payload["stack_ref"]))
   end
 
   @doc """
   Adds paths to a review's file selection from `%{"review_id", "files"}` (union,
-  incremental — the caller sends only the paths to add) and emits `%{error}`.
+  incremental — the caller sends only the paths to add) and returns `%{error}`.
   Broadcasts the board on success.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "files": ["lib/new.ex"]}
-      SuikouWeb.AgentCLI.Reviews.add_files()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.add_files(%{"review_id" => "0192…", "files" => ["lib/new.ex"]})
+      #=> %{error: nil}
 
   """
-  @spec add_files() :: :ok
-  def add_files do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.add_files(&1, payload["files"])))
+  @spec add_files(AgentCLI.payload()) :: AgentCLI.result()
+  def add_files(payload) do
+    mutate(payload["review_id"], &Reviews.add_files(&1, payload["files"]))
   end
 
   @doc """
   Removes paths from a review's file selection from `%{"review_id", "files"}`
-  (incremental — the caller sends only the paths to remove) and emits `%{error}`.
-  Broadcasts the board on success.
+  (incremental — the caller sends only the paths to remove) and returns
+  `%{error}`. Broadcasts the board on success.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "files": ["lib/old.ex"]}
-      SuikouWeb.AgentCLI.Reviews.remove_files()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.remove_files(%{"review_id" => "0192…", "files" => ["lib/old.ex"]})
+      #=> %{error: nil}
 
   """
-  @spec remove_files() :: :ok
-  def remove_files do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.remove_files(&1, payload["files"])))
+  @spec remove_files(AgentCLI.payload()) :: AgentCLI.result()
+  def remove_files(payload) do
+    mutate(payload["review_id"], &Reviews.remove_files(&1, payload["files"]))
   end
 
   @doc """
-  Deletes a review from `%{"review_id"}` and emits `%{error}`. Broadcasts the
+  Deletes a review from `%{"review_id"}` and returns `%{error}`. Broadcasts the
   board on success.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…"}
-      SuikouWeb.AgentCLI.Reviews.delete()
-      #=> :ok  # emits {"error":null}
+      SuikouWeb.AgentCLI.Reviews.delete(%{"review_id" => "0192…"})
+      #=> %{error: nil}
 
   """
-  @spec delete() :: :ok
-  def delete do
-    payload = AgentCLI.read_payload()
-    AgentCLI.emit(mutate(payload["review_id"], &Reviews.delete_review/1))
+  @spec delete(AgentCLI.payload()) :: AgentCLI.result()
+  def delete(payload) do
+    mutate(payload["review_id"], &Reviews.delete_review/1)
   end
 
   @doc """
-  Emits a one-shot critique snapshot for `%{"review_id"}` scoped by the optional
+  Returns a one-shot critique snapshot for `%{"review_id"}` scoped by the optional
   `"rounds"` key (see `scope/1`), or `%{error}` when the review is unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "rounds": [1, 3]}
-      SuikouWeb.AgentCLI.Reviews.export()
-      #=> :ok  # emits {"review_id":"0192…","submission_version":2,"artifacts":[…]}
+      SuikouWeb.AgentCLI.Reviews.export(%{"review_id" => "0192…", "rounds" => [1, 3]})
+      #=> %{review_id: "0192…", submission_version: 2, artifacts: []}
 
   """
-  @spec export() :: :ok
-  def export do
-    payload = AgentCLI.read_payload()
-
-    payload["review_id"]
-    |> snapshot(scope(payload))
-    |> drop_resolved_round()
-    |> AgentCLI.emit()
+  @spec export(AgentCLI.payload()) :: AgentCLI.result()
+  def export(payload) do
+    payload["review_id"] |> snapshot(scope(payload)) |> drop_resolved_round()
   end
 
   @doc """
@@ -354,27 +301,25 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   Subscribes to the review's `Suikou.Events` change topic, then blocks up to the
   poll window (~25 s, or the smaller `"timeout_ms"` budget when supplied). On a
-  wake that reaches the target round it emits the `export_review` snapshot for the
+  wake that reaches the target round it returns the `export_review` snapshot for the
   requested rounds scope; `submission_version` carries the latest round number. A
-  wake that only changed reactions (add, remove, or emoji swap) emits the full
+  wake that only changed reactions (add, remove, or emoji swap) returns the full
   snapshot for the scope with the unchanged `submission_version`, so the agent
   sees the new reaction even on a comment it had already addressed. Otherwise it
-  emits `%{status: "timeout", submission_version}` carrying the current round
+  returns `%{status: "timeout", submission_version}` carrying the current round
   count. The default latest-round snapshot on a submission wake is filtered to
   comments still owed a move (drops resolved and already-answered comments); an
-  explicit `"rounds"` scope is returned in full. Emits
+  explicit `"rounds"` scope is returned in full. Returns
   `%{error: "review_not_found"}` when the review is unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "until_round": 2}
-      SuikouWeb.AgentCLI.Reviews.wait()
-      #=> :ok  # emits {"status":"timeout","submission_version":1} or the snapshot on a wake
+      SuikouWeb.AgentCLI.Reviews.wait(%{"review_id" => "0192…", "until_round" => 2})
+      #=> %{status: "timeout", submission_version: 1}  # or the snapshot on a wake
 
   """
-  @spec wait() :: :ok
-  def wait do
-    payload = AgentCLI.read_payload()
+  @spec wait(AgentCLI.payload()) :: AgentCLI.result()
+  def wait(payload) do
     review_id = payload["review_id"]
     scope = scope(payload)
 
@@ -402,7 +347,7 @@ defmodule SuikouWeb.AgentCLI.Reviews do
         end
       end)
 
-    AgentCLI.emit(drop_resolved_round(reply))
+    drop_resolved_round(reply)
   end
 
   # The optional `"until_round"` names the submission round the agent is waiting to
@@ -505,35 +450,29 @@ defmodule SuikouWeb.AgentCLI.Reviews do
 
   @doc """
   Pushes a Web Push notification for `%{"review_id"}` to every subscribed browser
-  and emits `%{delivered, error}` — the count the push services accepted. The
+  and returns `%{delivered, error}` — the count the push services accepted. The
   notification's title is the review name, its body the optional `"message"` (a
-  generic prompt when absent), and clicking it opens the review. Emits
+  generic prompt when absent), and clicking it opens the review. Returns
   `%{error: "review_not_found"}` when the review is unknown.
 
   ## Examples
 
-      # stdin: {"review_id": "0192…", "message": "Addressed round 2"}
-      SuikouWeb.AgentCLI.Reviews.notify()
-      #=> :ok  # emits {"delivered":1,"error":null}
+      SuikouWeb.AgentCLI.Reviews.notify(%{"review_id" => "0192…", "message" => "Addressed round 2"})
+      #=> %{delivered: 1, error: nil}
 
   """
-  @spec notify() :: :ok
-  def notify do
-    payload = AgentCLI.read_payload()
+  @spec notify(AgentCLI.payload()) :: AgentCLI.result()
+  def notify(payload) do
+    with_review(payload["review_id"], fn review ->
+      {:ok, delivered} =
+        Push.notify(%{
+          title: review.name,
+          body: notify_body(payload["message"]),
+          url: Endpoint.url() <> "/reviews/" <> review.id
+        })
 
-    reply =
-      with_review(payload["review_id"], fn review ->
-        {:ok, delivered} =
-          Push.notify(%{
-            title: review.name,
-            body: notify_body(payload["message"]),
-            url: Endpoint.url() <> "/reviews/" <> review.id
-          })
-
-        %{delivered: delivered, error: nil}
-      end)
-
-    AgentCLI.emit(reply)
+      %{delivered: delivered, error: nil}
+    end)
   end
 
   defp notify_body(message) when is_binary(message) and message != "", do: message

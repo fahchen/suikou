@@ -49,7 +49,6 @@ suikou-*.tar
 
 # Single-file packaging (mise run package)
 /dist/
-/packaging/embed/server.tar.gz
 
 # Local design assets (not tracked)
 /mockups/

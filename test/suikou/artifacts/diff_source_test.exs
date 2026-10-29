@@ -91,6 +91,38 @@ defmodule Suikou.Artifacts.DiffSourceTest do
     end
   end
 
+  describe "live_content/1" do
+    @tag :tmp_dir
+    test "answers the file lines of a file-selection artifact", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "plan.md"), "# Plan\nbody\n")
+      review = insert(:review, project: build(:project), project_path: dir)
+      {:ok, %{artifact: artifact}} = Artifacts.create_from_file(review, "plan.md")
+
+      assert Artifacts.live_content(artifact.id) == ["# Plan", "body", ""]
+    end
+
+    @tag :tmp_dir
+    test "answers the diff text of a git-diff artifact", %{tmp_dir: dir} do
+      init_repo!(dir)
+      branch!(dir, "topic", fn -> File.write!(Path.join(dir, "a.txt"), "new\n") end)
+
+      review = diff_review_with(dir, "main", "topic")
+      {:ok, artifact} = Reviews.open_file(review, "a.txt")
+
+      {:ok, expected_diff} = Suikou.Git.file_diff(dir, "main", "topic", "a.txt")
+
+      # A `DiffHunk` anchor resolves against the diff text and not against the
+      # file lines, so an export that split the content on newlines marked each
+      # diff comment outdated.
+      assert Artifacts.live_content(artifact.id) == expected_diff
+    end
+
+    test "answers nil for an unknown artifact" do
+      assert Artifacts.live_content(Ecto.UUID.generate()) == nil
+      assert Artifacts.live_content(nil) == nil
+    end
+  end
+
   defp diff_review_with(dir, base, head) do
     project = insert(:project)
     project_path = dir

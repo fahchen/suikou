@@ -39,6 +39,10 @@ config :suikou, :changes_watcher_grace_ms, 100
 # inside the project's tmp/ rather than in the developer's XDG data directory.
 config :suikou, :data_dir, Path.expand("../tmp/scratch", __DIR__)
 
+# The CLI access credential (cli.json + cli_token) is written for real, so keep
+# it inside the project's tmp/ rather than in the user's Application Support.
+config :suikou, :cli_data_dir, Path.expand("../tmp/cli", __DIR__)
+
 # VAPID keys so Web Push code can build a payload in tests without hitting the
 # network (the actual send is integration-only). Reuses the dev keypair.
 config :web_push_elixir,

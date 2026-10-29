@@ -1,3 +1,8 @@
+> Historical plan: the transport described here (stdin/stdout over the release
+> `rpc`) shipped and was then replaced on the `pbeam` branch by the loopback
+> HTTP API (`/api/cli`, see `SuikouWeb.Router` and `lib/suikou_web/cli.ex`). The
+> command semantics below still apply.
+
 # Suikou agent CLI — command/subcommand tree with flags
 
 ## Context
