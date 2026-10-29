@@ -73,6 +73,9 @@ it valid** — no re-sign step. It does **not** install; copy it onto your
 `PATH` and restart the daemon so the new binary and any `config.toml` changes
 take effect:
 
+Until pbeam `main` gives the release the path of the one-file executable,
+`suikou start` needs `SUIKOU_EXECUTABLE` set to that path.
+
 ```sh
 mise run package
 cp dist/suikou ~/.local/bin/suikou   # signature survives the copy
