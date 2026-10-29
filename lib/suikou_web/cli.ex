@@ -1125,9 +1125,14 @@ defmodule SuikouWeb.CLI do
   end
 
   # The CLI opens the browser before it returns: the node stops right after
-  # the verb, so an `open` left to a spawned process could die unrun.
+  # the verb, so an `open` left to a spawned process could die unrun. A host
+  # without `open` gets a warning, not a crash of the verb.
   defp open_browser(url) do
-    System.cmd("open", [url])
+    case System.find_executable("open") do
+      nil -> print_error("cannot open #{url}: no `open` command on this host")
+      open -> System.cmd(open, [url])
+    end
+
     :ok
   end
 
