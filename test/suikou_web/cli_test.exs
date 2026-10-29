@@ -398,6 +398,30 @@ defmodule SuikouWeb.CLITest do
     end
   end
 
+  describe "boot entry" do
+    # The plain arguments of `:init` as the one-file executable boots the
+    # release: `-extra --no-halt -- <args>`.
+    test "a CLI word after the bare `--` runs the CLI" do
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"help"]) == {:cli, ["help"]}
+
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"review", ~c"show", ~c"--", ~c"r1"]) ==
+               {:cli, ["review", "show", "--", "r1"]}
+    end
+
+    test "an argument keeps its Unicode characters" do
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"comment", ~c"react", ~c"c1", ~c"👀"]) ==
+               {:cli, ["comment", "react", "c1", "👀"]}
+    end
+
+    test "no arguments boots the server and opens the browser" do
+      assert CLI.entry([~c"--no-halt"]) == {:server, true}
+    end
+
+    test "run boots the server without the browser" do
+      assert CLI.entry([~c"--no-halt", ~c"--", ~c"run"]) == {:server, false}
+    end
+  end
+
   describe "lifecycle and help" do
     test "version prints the application version" do
       {out, 0} = cli(["version"])

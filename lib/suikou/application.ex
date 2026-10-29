@@ -10,7 +10,7 @@ defmodule Suikou.Application do
   @impl Application
   def start(_type, _args) do
     if release_boot?() do
-      case SuikouWeb.CLI.entry(System.argv()) do
+      case SuikouWeb.CLI.entry(:init.get_plain_arguments()) do
         {:cli, argv} -> run_cli(argv)
         {:server, open_browser?} -> boot_server(open_browser?)
       end
@@ -29,11 +29,10 @@ defmodule Suikou.Application do
   # code. The task parks afterwards so the application master never sees it
   # die before the shutdown it started has run.
   defp run_cli(argv) do
-    {:ok,
-     Task.start(fn ->
-       System.stop(SuikouWeb.CLI.run(argv))
-       Process.sleep(:infinity)
-     end)}
+    Task.start(fn ->
+      System.stop(SuikouWeb.CLI.run(argv))
+      Process.sleep(:infinity)
+    end)
   end
 
   defp boot_server(open_browser?) do

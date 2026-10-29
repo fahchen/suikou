@@ -227,18 +227,32 @@ defmodule SuikouWeb.CLI do
   @lifecycle_words ~w(help version open wait start stop status --help -h --version -v)
 
   @doc """
-  Classifies a boot's arguments.
+  Classifies a boot's arguments from the plain arguments of `:init`.
 
-  `[]` boots the foreground server and opens the browser once it serves;
-  `["run"]` boots it without the browser (the daemon's own invocation); any
-  other first word is a CLI command, run instead of the server. Only a release
-  boot dispatches this way — `mix phx.server` and the test boot always serve.
+  The application starts before `Kernel.CLI` sets `System.argv/0`, so a
+  release boot reads `:init.get_plain_arguments/0` instead. The executable's
+  arguments are the ones after the first bare `--` (the one-file executable
+  passes `-extra --no-halt -- <args>`); a boot without `--` (`bin/suikou
+  start`) has none.
+
+  No arguments boots the foreground server and opens the browser once it
+  serves; `["run"]` boots it without the browser (the daemon's own
+  invocation); any other first word is a CLI command, run instead of the
+  server. Only a release boot dispatches this way — `mix phx.server` and the
+  test boot always serve.
   """
-  @spec entry([String.t()]) :: {:server, boolean()} | {:cli, [String.t()]}
-  def entry([]), do: {:server, true}
-  def entry(["run"]), do: {:server, false}
+  @spec entry([charlist()]) :: {:server, boolean()} | {:cli, [String.t()]}
+  def entry(plain_arguments) do
+    plain_arguments
+    |> Enum.drop_while(&(&1 != ~c"--"))
+    |> Enum.drop(1)
+    |> Enum.map(&List.to_string/1)
+    |> classify()
+  end
 
-  def entry([first | _rest] = argv) when is_binary(first), do: {:cli, argv}
+  defp classify([]), do: {:server, true}
+  defp classify(["run"]), do: {:server, false}
+  defp classify(argv), do: {:cli, argv}
 
   @doc """
   Runs one CLI invocation and returns its exit code.
